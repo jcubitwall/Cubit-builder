@@ -2,7 +2,7 @@
 
 A web app for designing Cubit pod homes wall by wall, then producing what the shop and the site crew need to build them.
 
-**Live app:** https://jcubitwall.github.io/cubit-builder/ (once GitHub Pages is switched on, see below)
+**Live app:** https://jcubitwall.github.io/Cubit-builder/ (once GitHub Pages is switched on, see below)
 
 ## What it does
 
@@ -53,7 +53,7 @@ Anyone can also upload a wall file from the app sidebar to try it out. Uploaded 
 2. Under **Build and deployment**, set **Source** to *Deploy from a branch*.
 3. Pick branch **`main`** and folder **`/ (root)`**, then **Save**.
 
-After a minute the app is live at https://jcubitwall.github.io/cubit-builder/.
+After a minute the app is live at https://jcubitwall.github.io/Cubit-builder/.
 
 ## Project layout
 
