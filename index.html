@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cubit Builder</title>
+<meta name="description" content="Configure Cubit pod homes wall by wall, explode them in 3D, and print assembly sheets and ground-screw layouts.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/app.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect x=%224%22 y=%228%22 width=%2224%22 height=%2216%22 fill=%22%23c9a46a%22 stroke=%22%231c211e%22 stroke-width=%222%22/%3E%3Cpath d=%22M12 8v16M20 8v16%22 stroke=%22%231c211e%22 stroke-width=%221.5%22/%3E%3C/svg%3E">
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <div class="brand"><b>Cubit Builder</b><span>beta</span></div>
+    <div class="models" id="models" role="group" aria-label="Home model"></div>
+    <div class="spacer"></div>
+    <div class="toggles" id="studioTools">
+      <button class="tog" id="tExplode" aria-pressed="false">Exploded view</button>
+      <button class="tog" id="tRoof" aria-pressed="false">Roof</button>
+      <button class="tog" id="tNums" aria-pressed="true">Panel numbers</button>
+      <button class="tog" id="tScrews" aria-pressed="false">Ground screws</button>
+    </div>
+    <button class="btn" id="bSheets">Assembly sheets</button>
+  </header>
+
+  <main class="studio" id="studio">
+    <div id="stage">
+      <div class="legend" aria-hidden="true">
+        <span><i style="background:#c9a46a"></i>Exterior SIP 6½″</span>
+        <span><i style="background:#ece0c6"></i>Interior wall 4½″</span>
+        <span><i style="background:#56606b"></i>Ground screw</span>
+        <span><i style="background:#8fc3ea"></i>Window</span>
+        <span><i style="background:#6b4a2f"></i>Door</span>
+        <span><i style="background:#d0661f"></i>Selected wall</span>
+      </div>
+      <div class="hint">Drag to orbit · scroll to zoom · click a wall to swap it</div>
+    </div>
+    <aside>
+      <div class="side-h" id="sideH"></div>
+      <div class="side-b" id="sideB"></div>
+    </aside>
+  </main>
+
+  <section id="sheets" hidden>
+    <nav id="sheetList" aria-label="Walls in this home"></nav>
+    <div class="sheet" id="sheet"></div>
+  </section>
+</div>
+<input type="file" id="fileIn" accept=".json,application/json" hidden>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

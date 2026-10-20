@@ -1,0 +1,206 @@
+/* Cubit Builder — scene3d.js */
+import { CEIL, FLOOR, FT, H, POD, PW, T } from './config.js';
+import { MODELS } from './data.js';
+import { podOffsets, screwsFor, slotsFor } from './layout.js';
+import { panelCells, panelCount, panelNum } from './panels.js';
+import { w3 } from './sheets.js';
+import { renderSide } from './sidebar.js';
+import { pickFor, state } from './state.js';
+
+/* ============================================================ 3D studio */
+const stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+stage.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40,1,0.5,500);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.maxPolarAngle = Math.PI*0.495;
+scene.add(new THREE.HemisphereLight(0xffffff,0x8a8a80,0.85));
+const sun = new THREE.DirectionalLight(0xffffff,0.75); sun.position.set(30,50,20); scene.add(sun);
+const grid = new THREE.GridHelper(96,24,0x9aa39b,0xc3c9c1); grid.position.y=-FLOOR; scene.add(grid);
+let homeGroup = new THREE.Group(); scene.add(homeGroup);
+let wallGroups = [], roofGroup=null, floorGroup=null, screwGroup=null, pickables=[];
+
+function themeColors(){
+  const dark = (document.documentElement.dataset.theme==='dark') || (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
+  return dark ? {bg:0x1a1e1c, grid1:0x4a524c, grid2:0x2c322e} : {bg:0xe3e6e0, grid1:0x9aa39b, grid2:0xc3c9c1};
+}
+function applyTheme(){ const c=themeColors(); scene.background=new THREE.Color(c.bg); }
+applyTheme(); matchMedia('(prefers-color-scheme: dark)').addEventListener('change',applyTheme);
+
+const MAT = {
+  glass: new THREE.MeshStandardMaterial({color:0x8fc3ea,transparent:true,opacity:0.55,roughness:0.1}),
+  door: new THREE.MeshStandardMaterial({color:0x6b4a2f,roughness:0.7}),
+  outlet: new THREE.MeshStandardMaterial({color:0xf2f2f2}),
+  sw: new THREE.MeshStandardMaterial({color:0x2f6db5}),
+  extOutlet: new THREE.MeshStandardMaterial({color:0x2f8a57}),
+  light: new THREE.MeshStandardMaterial({color:0xffd34d,emissive:0x664400}),
+  floor: new THREE.MeshStandardMaterial({color:0x8d8f86,roughness:0.9}),
+  steel: new THREE.MeshStandardMaterial({color:0x56606b,metalness:0.6,roughness:0.45}),
+  bracket: new THREE.MeshStandardMaterial({color:0xd0661f,metalness:0.4,roughness:0.5}),
+  roof: new THREE.MeshStandardMaterial({color:0x4b514d,transparent:true,opacity:0.92,roughness:0.8})
+};
+const lineMat = new THREE.LineBasicMaterial({color:0x3b3122});
+
+function numberSprite(txt, size, accent){
+  const c=document.createElement('canvas'); c.width=c.height=128; const g=c.getContext('2d');
+  g.fillStyle='#ffffff'; g.beginPath(); g.arc(64,64,58,0,Math.PI*2); g.fill();
+  g.lineWidth=8; g.strokeStyle=accent||'#d0661f'; g.stroke();
+  g.fillStyle='#1c211e'; g.font='bold 70px Archivo, Arial, sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText(txt,64,68);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false}));
+  sp.scale.set(size,size,1); sp.renderOrder=10; return sp;
+}
+
+/* builds one wall as panel groups in local feet coords: x along (exterior-left = 0), y up, z outward (outer face at 0) */
+function buildWallMesh(w, mat, opts={}){
+  const g = new THREE.Group(); const n=panelCount(w); const panels=[];
+  const t=(w.t||T)/FT;
+  for(let k=0;k<n;k++){
+    const pg=new THREE.Group(); pg.userData.k=k;
+    panelCells(w,k).forEach(([x0,x1,y0,y1])=>{
+      const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT,(y1-y0)/FT,t),mat);
+      m.position.set((x0+x1)/2/FT,(y0+y1)/2/FT,-t/2); pg.add(m);
+    });
+    // outline of panel + opening edges on both faces
+    const pts=[]; const X0=k*PW/FT, X1=(k+1)*PW/FT, Ht=H/FT;
+    [0.004,-t-0.004].forEach(z=>{ pts.push(X0,0,z,X1,0,z, X1,0,z,X1,Ht,z, X1,Ht,z,X0,Ht,z, X0,Ht,z,X0,0,z); });
+    const lg=new THREE.BufferGeometry(); lg.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
+    pg.add(new THREE.LineSegments(lg,lineMat));
+    g.add(pg); panels.push(pg);
+  }
+  // openings: glass / door leaf
+  w.openings.forEach(o=>{
+    if(o.kind==='opening') return;   // cased opening: just a hole
+    const thick = o.kind==='window'? 0.05 : 0.12;
+    const m=new THREE.Mesh(new THREE.BoxGeometry(o.w/FT,o.h/FT,thick), o.kind==='window'?MAT.glass:MAT.door);
+    m.position.set((o.x+o.w/2)/FT,(o.y+o.h/2)/FT,-t/2);
+    if(o.kind==='patio'){ m.material=MAT.glass; }
+    g.add(m);
+    const k=Math.min(n-1,Math.floor((o.x+o.w/2)/PW)); m.userData.k=k;
+  });
+  // boxes: inside on interior face, outside on exterior face
+  w.inside.forEach(b=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(2.5/FT,4/FT,0.06), b.kind==='switch'?MAT.sw:MAT.outlet);
+    m.position.set((w.len*FT-b.x)/FT,b.y/FT,-t-0.03); g.add(m); m.userData.k=Math.min(n-1,Math.floor((w.len*FT-b.x)/PW)); });
+  w.outside.forEach(b=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(3/FT,(b.kind==='light'?5:4)/FT,0.08), b.kind==='light'?MAT.light:(w.type==='int'?(b.kind==='switch'?MAT.sw:MAT.outlet):MAT.extOutlet));
+    m.position.set(b.x/FT,b.y/FT,0.04); g.add(m); m.userData.k=Math.min(n-1,Math.floor(b.x/PW)); });
+  // panel numbers
+  if(opts.nums){
+    for(let k=0;k<n;k++){
+      const sp=numberSprite(String(panelNum(n,k,opts.reverse)), opts.numSize||1.1);
+      sp.position.set((k+0.5)*PW/FT, H/FT+0.75, opts.numZ!==undefined?opts.numZ:0.3);
+      panels[k].add(sp);
+    }
+  }
+  return {group:g, panels};
+}
+
+function buildHome(){
+  scene.remove(homeGroup); homeGroup=new THREE.Group(); scene.add(homeGroup);
+  wallGroups=[]; pickables=[];
+  const slots = slotsFor(state.model); const model=MODELS[state.model];
+  const OFF = podOffsets(state.model);
+  const pods = model.pods.map((p,i)=>({...p,len:POD[p.t].len,x:p.x+OFF[i].ox,z:p.z+OFF[i].oz}));
+  const minx=Math.min(...pods.map(p=>p.x)), maxx=Math.max(...pods.map(p=>p.x+p.len));
+  const minz=Math.min(...pods.map(p=>p.z)), maxz=Math.max(...pods.map(p=>p.z+8));
+  const cx=(minx+maxx)/2, cz=(minz+maxz)/2;
+  homeGroup.position.set(-cx,0,-cz);
+  // floors + roofs + ground screws
+  roofGroup=new THREE.Group(); floorGroup=new THREE.Group(); homeGroup.add(floorGroup);
+  MAT.floor.transparent = state.screws; MAT.floor.opacity = state.screws?0.35:1; MAT.floor.needsUpdate=true;
+  pods.forEach(p=>{
+    const f=new THREE.Mesh(new THREE.BoxGeometry(p.len,FLOOR,8),MAT.floor); f.position.set(p.x+p.len/2,-FLOOR/2,p.z+4); floorGroup.add(f);
+    const r=new THREE.Mesh(new THREE.BoxGeometry(p.len,CEIL,8),MAT.roof); r.position.set(p.x+p.len/2,H/FT+CEIL/2,p.z+4); roofGroup.add(r);
+  });
+  homeGroup.add(roofGroup); roofGroup.visible=state.roof;
+  screwGroup=new THREE.Group(); homeGroup.add(screwGroup); screwGroup.visible=state.screws;
+  const shaftG=new THREE.CylinderGeometry(0.12,0.12,5.5,10), brXG=new THREE.BoxGeometry(1.25,0.06,0.58), brZG=new THREE.BoxGeometry(0.58,0.06,1.25),
+    collarG=new THREE.CylinderGeometry(0.17,0.17,0.5,14),
+    gussetG=(()=>{ const sh=new THREE.Shape(); sh.moveTo(0.1,0); sh.lineTo(0.98,0); sh.lineTo(0.98,-0.08); sh.lineTo(0.1,-0.85); sh.closePath();
+      const g=new THREE.ExtrudeGeometry(sh,{depth:0.05,bevelEnabled:false}); g.translate(0,0,-0.025); return g; })(),
+    gussetSmallG=(()=>{ const sh=new THREE.Shape(); sh.moveTo(0.1,0); sh.lineTo(0.23,0); sh.lineTo(0.1,-0.3); sh.closePath();
+      const g=new THREE.ExtrudeGeometry(sh,{depth:0.05,bevelEnabled:false}); g.translate(0,0,-0.025); return g; })(), helixG=new THREE.CylinderGeometry(0.45,0.45,0.04,18);
+  screwsFor(state.model,state.inset).forEach(sc=>{
+    const s=new THREE.Group();
+    const sh=new THREE.Mesh(shaftG,MAT.steel); sh.position.y=-FLOOR-2.75; s.add(sh);
+    const alongX=Math.abs(sc.dir[0])>0.5;
+    const cap=new THREE.Mesh(alongX?brXG:brZG, sc.shared?MAT.bracket:MAT.steel);
+    cap.position.set(sc.dir[0]*0.375,-FLOOR-0.03,sc.dir[1]*0.375); s.add(cap);
+    // welded collar at the top of the shaft + triangular gusset under the overhanging flange
+    const col=new THREE.Mesh(collarG,MAT.steel); col.position.y=-FLOOR-0.06-0.25; s.add(col);
+    const gs=new THREE.Mesh(gussetG, sc.shared?MAT.bracket:MAT.steel);
+    gs.position.y=-FLOOR-0.06; gs.rotation.y=Math.atan2(-sc.dir[1],sc.dir[0]); s.add(gs);
+    const gs2=new THREE.Mesh(gussetSmallG, sc.shared?MAT.bracket:MAT.steel);
+    gs2.position.y=-FLOOR-0.06; gs2.rotation.y=Math.atan2(sc.dir[1],-sc.dir[0]); s.add(gs2);
+    [-4.8,-5.8].forEach(y=>{ const h=new THREE.Mesh(helixG,MAT.steel); h.position.y=y; h.rotation.z=0.12; s.add(h); });
+    s.position.set(sc.x,0,sc.z); screwGroup.add(s);
+  });
+  slots.forEach(s=>{
+    const w=pickFor(s); if(!w) return;
+    const mat=new THREE.MeshStandardMaterial({color:s.type==='int'?0xece0c6:0xc9a46a,roughness:0.85});
+    const built=buildWallMesh(w,mat,{nums:state.nums,numSize:1.0});
+    const g=built.group;
+    const r=[s.n[1],-s.n[0]];
+    g.rotation.y=Math.atan2(-r[1],r[0]);
+    g.userData={slot:s, mat, base:new THREE.Vector3(s.p0[0],0,s.p0[1]), n:new THREE.Vector3(s.n[0],0,s.n[1])};
+    g.position.copy(g.userData.base);
+    g.traverse(o=>{ if(o.isMesh) { o.userData.slotId=s.id; pickables.push(o);} });
+    homeGroup.add(g); wallGroups.push(g);
+  });
+  highlight();
+  // frame camera
+  const span=Math.max(maxx-minx,maxz-minz);
+  if(!buildHome.framed || buildHome.framed!==state.model){
+    camera.position.set(span*0.95, span*0.75, span*1.25); controls.target.set(0,3.5,0); buildHome.framed=state.model;
+  }
+  explodeT = state.exploded?1:0; applyExplode();
+}
+let explodeT=0, explodeGoal=0;
+function applyExplode(){
+  const e=explodeT;
+  const lift = e*2.5;   // the house rises off its ground screws
+  if(floorGroup) floorGroup.position.y = lift;
+  wallGroups.forEach(g=>{
+    const int = g.userData.slot.type==='int';
+    g.position.copy(g.userData.base).addScaledVector(g.userData.n, int?0:e*4.5);
+    g.position.y = lift + e*(int?4.5:0.6);
+  });
+  if(roofGroup){ roofGroup.position.y = lift + e*(wallGroups.some(g=>g.userData.slot.type==='int')?10:6); roofGroup.visible = state.roof || e>0.01; }
+}
+function highlight(){
+  wallGroups.forEach(g=>{ const sel=g.userData.slot.id===state.selected; g.userData.mat.color.set(sel?0xe0864a:(g.userData.slot.type==='int'?0xf0e6d0:0xc9a46a)); g.userData.mat.emissive.set(sel?0x3a1a05:0x000000); });
+}
+function resize(){
+  const r=stage.getBoundingClientRect(); renderer.setSize(r.width,r.height,false); camera.aspect=r.width/Math.max(1,r.height); camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage);
+// picking
+const ray=new THREE.Raycaster(), mouse=new THREE.Vector2(); let downAt=null;
+renderer.domElement.addEventListener('pointerdown',e=>{downAt=[e.clientX,e.clientY];});
+renderer.domElement.addEventListener('pointerup',e=>{
+  if(!downAt) return; const d=Math.hypot(e.clientX-downAt[0],e.clientY-downAt[1]); downAt=null; if(d>5) return;
+  const r=renderer.domElement.getBoundingClientRect();
+  mouse.set(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1);
+  ray.setFromCamera(mouse,camera);
+  const hit=ray.intersectObjects(pickables,false)[0];
+  state.selected = hit ? hit.object.userData.slotId : null;
+  highlight(); renderSide();
+});
+renderer.domElement.addEventListener('pointermove',e=>{
+  if(e.buttons) return;
+  const r=renderer.domElement.getBoundingClientRect();
+  mouse.set(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1);
+  ray.setFromCamera(mouse,camera);
+  renderer.domElement.style.cursor = ray.intersectObjects(pickables,false).length ? 'pointer':'grab';
+});
+function loop(){
+  requestAnimationFrame(loop);
+  if(Math.abs(explodeT-explodeGoal)>0.001){ explodeT += (explodeGoal-explodeT)*0.12; applyExplode(); }
+  controls.update();
+  if(state.view==='studio') renderer.render(scene,camera);
+  if(state.view==='sheets' && w3) { w3.controls.update(); w3.renderer.render(w3.scene,w3.camera); }
+}
+function setExplodeGoal(v){ explodeGoal=v; }
+function refreshRoof(){ if(roofGroup) roofGroup.visible=state.roof||explodeT>0.01; }
+
+export { stage, renderer, scene, camera, controls, sun, grid, homeGroup, wallGroups, themeColors, applyTheme, MAT, lineMat, numberSprite, buildWallMesh, buildHome, explodeT, applyExplode, highlight, resize, ray, loop, setExplodeGoal, refreshRoof, roofGroup, floorGroup, screwGroup, pickables, explodeGoal, mouse };
