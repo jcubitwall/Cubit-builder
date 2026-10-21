@@ -1,11 +1,11 @@
 # Scans a STEP file uploaded by an admin in the app and adds what's new to the libraries.
-# Started by the site (functions/api/upload.js) with the file's key in the R2 bucket.
+# Started by the site (functions/api/upload.js) with a one-hour download link to the file in R2.
 name: Import STEP
 on:
   workflow_dispatch:
     inputs:
       id:       { description: 'Upload id', required: true }
-      key:      { description: 'R2 object key', required: true }
+      url:      { description: 'One-hour download link for the file', required: true }
       kind:     { description: 'wall | pod | home', required: true }
       name:     { description: 'Name', required: true }
       filename: { description: 'Original file name', required: false }
@@ -26,20 +26,15 @@ jobs:
       - name: Install the STEP reader
         run: pip install cadquery-ocp numpy
       # inputs are passed through env (never pasted into the script) and checked before use
-      - name: Fetch the file from R2
+      - name: Fetch the file
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: auto
-          R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           JOB_ID: ${{ inputs.id }}
-          JOB_KEY: ${{ inputs.key }}
+          JOB_URL: ${{ inputs.url }}
         run: |
           [[ "$JOB_ID" =~ ^[0-9]{14}-[a-z0-9]{1,8}$ ]] || { echo "bad id"; exit 1; }
-          [[ "$JOB_KEY" == "incoming/$JOB_ID.step" ]] || { echo "bad key"; exit 1; }
+          [[ "$JOB_URL" =~ ^https://[a-f0-9]{32}\.r2\.cloudflarestorage\.com/ ]] || { echo "bad url"; exit 1; }
           mkdir -p incoming
-          aws s3 cp "s3://$R2_BUCKET/$JOB_KEY" "incoming/$JOB_ID.step" --endpoint-url "https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
+          curl -fsS --max-time 300 -o "incoming/$JOB_ID.step" "$JOB_URL"
       - name: Scan and add to the libraries
         env:
           JOB_ID: ${{ inputs.id }}

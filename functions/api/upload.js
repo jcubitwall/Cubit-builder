@@ -4,13 +4,15 @@
    and commits — Cloudflare then redeploys the site with the new walls / pods / home.
 
    Settings: GITHUB_TOKEN (fine-grained, this repo, Actions: read & write, Contents: read),
-             GITHUB_REPO (e.g. jcubitwall/Cubit-builder); R2 bucket bound as STEPS. */
+             GITHUB_REPO (e.g. jcubitwall/Cubit-builder); R2 bucket bound as STEPS;
+             R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET (for the download link). */
 import { whoIs, json } from '../_auth.js';
+import { presignGet } from '../_presign.js';
 const KINDS = ['wall','pod','home'];
 export async function onRequestPut({ request, env }){
   const me = await whoIs(request, env);
   if(me.role !== 'admin') return json({ error:'Only admins can upload STEP files.' }, 403);
-  if(!env.STEPS || !env.GITHUB_TOKEN || !env.GITHUB_REPO) return json({ error:'Uploads are not set up yet (R2 bucket STEPS, GITHUB_TOKEN, GITHUB_REPO).' }, 500);
+  if(!env.STEPS || !env.GITHUB_TOKEN || !env.GITHUB_REPO || !env.R2_ACCESS_KEY_ID) return json({ error:'Uploads are not set up yet (R2 bucket STEPS, R2 keys, GITHUB_TOKEN, GITHUB_REPO).' }, 500);
   const u = new URL(request.url);
   const kind = u.searchParams.get('kind'), name = (u.searchParams.get('name')||'').trim().slice(0,120), filename = (u.searchParams.get('filename')||'upload.step').slice(0,160);
   if(!KINDS.includes(kind)) return json({ error:'Pick Wall, Pod or Home.' }, 400);
@@ -24,7 +26,8 @@ export async function onRequestPut({ request, env }){
   const r = await fetch(`https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/import-step.yml/dispatches`, {
     method:'POST',
     headers:{ 'Authorization':`Bearer ${env.GITHUB_TOKEN}`, 'Accept':'application/vnd.github+json', 'User-Agent':'cubit-builder', 'Content-Type':'application/json' },
-    body: JSON.stringify({ ref:'main', inputs:{ id, key, kind, name, filename, by: me.email } })
+    // the Action fetches the file through a one-hour download link, so GitHub needs no Cloudflare keys
+    body: JSON.stringify({ ref:'main', inputs:{ id, url: await presignGet(env, key), kind, name, filename, by: me.email } })
   });
   if(!r.ok) return json({ error:`The file was saved but the scan could not be started (GitHub ${r.status}).`, id }, 502);
   return json({ id, kind, name, status:'queued' });
