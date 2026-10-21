@@ -8,7 +8,7 @@
      exterior side facing the assemblers → n … 3, 2, 1
    Panels are stacked so the first one needed is on top.
    ShopSabre: a face with cuts that don't go through (plug / switch boxes, outside fixtures, the steel spine
-   notch on the outer face of a long wall's end panel) has to be UP on the CNC. If that face isn't the face the assemblers need up, the panel is flipped before stacking. */
+   notch on the outer face of an end wall's corner panels) has to be UP on the CNC. If that face isn't the face the assemblers need up, the panel is flipped before stacking. */
 import { FT, PW } from './config.js';
 import { MODELS } from './data.js';
 import { slotsFor } from './layout.js';
@@ -28,7 +28,7 @@ function panelPlan(slot, w0, assembly = faceFor(slot)){
     const through = w.openings.filter(o=>o.x < x1-0.01 && o.x+o.w > x0+0.01);
     const intCuts = (w.inside||[]).filter(b=>{ const xe=L-b.x; return xe>=x0 && xe<x1; });
     const extCuts = (w.outside||[]).filter(b=>b.x>=x0 && b.x<x1);
-    // steel spine notch at a pod corner: cut into the outer face of a long wall's end panel, so it counts as an outer-face cut
+    // steel spine notch at a pod corner: cut into the outer face of an end wall's corner panel, so it counts as an outer-face cut
     const notch = !!((w.notch?.[0] && k===0) || (w.notch?.[1] && x1>=L-0.01));
     const outer = extCuts.length || notch;
     const cnc = intCuts.length && outer ? 'both' : intCuts.length ? 'int' : outer ? 'ext' : assembly;

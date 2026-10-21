@@ -44,7 +44,7 @@ const LAYERS = {
   OPENING_THRU:   { color: 5, cut:true,  what:'Window / door / cased opening: full-depth through cut in one pass (long bit), tool inside the line' },
   VENT_THRU:      { color: 4, cut:true,  what:'Vent: full-depth through cut in one pass (long bit), tool inside the line' },
   BOX_POCKET:     { color: 3, cut:true,  what:'Electrical box cut-out on the face that is up (depth to confirm)' },
-  SPINE_NOTCH:    { color: 6, cut:true,  what:'Steel spine notch at the pod corner, on the outer face of a long wall, full height (method and depth to confirm)' },
+  SPINE_NOTCH:    { color: 6, cut:true,  what:'Steel spine notch at the pod corner, on the outer face of an end wall, full height (method and depth to confirm)' },
 };
 
 /* ---------------------------------------------------------------- one pass of one panel */
@@ -95,7 +95,7 @@ function passGeom(plan, p, face, trimmedAlready, S){
     if(u-sz.w/2 < S.edgeClear || width-(u+sz.w/2) < S.edgeClear) warn.push(`${b.kind} box is within ${fin(S.edgeClear)} of a panel edge`);
     if(p.through.some(o=>{ const ou0=Math.min(toU(o.x),toU(o.x+o.w)), ou1=Math.max(toU(o.x),toU(o.x+o.w)); return u+sz.w/2>ou0 && u-sz.w/2<ou1 && b.y+sz.h/2>o.y && b.y-sz.h/2<o.y+o.h; })) warn.push(`${b.kind} box overlaps an opening`);
   });
-  // steel spine notch: exterior face, at a pod-corner end of a long wall
+  // steel spine notch: exterior face, at a pod-corner end of an end wall
   const [nl,nr]=w.notch||[0,0];
   const atLeft = nl && p.k===0, atRight = nr && x1>=L-0.01;
   if(atLeft||atRight){

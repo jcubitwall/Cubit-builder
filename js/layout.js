@@ -128,23 +128,28 @@ function slotsFor(modelKey){
 }
 
 /* ============================================================ long vs short walls
-   The long walls (B and D, along the pod's length) always run the full length. The short end walls
-   (A and C) sit between them, so each end loses the thickness of the long wall it butts into.
+   The short end walls (A and C, 8′) always run straight through, the full 8′ from corner to corner.
+   The long walls (B and D) butt up against them, so at each pod corner a long wall loses the thickness
+   of the end wall it meets (checked against the Expanse STEP: the end walls' inside skin runs the full 96″
+   and the long walls start 6½″ in). A long wall end that isn't at a pod corner (where a side is part
+   exterior and part interior) is not trimmed.
    An 8′ × 8′ pod has no long side; the sides along x (S, N) are treated as long when it isn't turned. */
 const isLongSide = (pod, side) => pod.alongX ? (side==='S'||side==='N') : (side==='W'||side==='E');
 function fitShortWalls(slots, pods){
   slots.forEach(s=>{
     s.short = !isLongSide(s.pod, s.side);
     s.trim=[0,0];
-    if(!s.short) return;
+    if(s.short) return;
     const p=s.pod;
-    // the long wall passing through a corner point of this short wall
+    const atCorner = c => (Math.abs(c[0]-p.x)<EPS||Math.abs(c[0]-p.x1)<EPS) && (Math.abs(c[1]-p.z)<EPS||Math.abs(c[1]-p.z1)<EPS);
+    // the end wall passing through this corner
     const thickAt = c => {
-      const long = slots.find(q=>q.pod===p && isLongSide(p,q.side) && (
+      if(!atCorner(c)) return 0;
+      const end = slots.find(q=>q.pod===p && !isLongSide(p,q.side) && (
         (q.side==='S'||q.side==='N') ? Math.abs(q.p0n[1]-c[1])<EPS && Math.min(q.a,q.b)-EPS<=c[0] && c[0]<=Math.max(q.a,q.b)+EPS
                                      : Math.abs(q.p0n[0]-c[0])<EPS && Math.min(q.a,q.b)-EPS<=c[1] && c[1]<=Math.max(q.a,q.b)+EPS));
-      const w = long && pickFor(long);
-      return w ? (w.t || (long.type==='int'?4.5:6.5)) : 6.5;
+      const w = end && pickFor(end);
+      return w ? (w.t || (end.type==='int'?4.5:6.5)) : 6.5;
     };
     s.trim=[thickAt(s.p0n), thickAt(s.p1n)];
   });

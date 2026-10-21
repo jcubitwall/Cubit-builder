@@ -15,15 +15,15 @@ function panelAt(w, x){
   const sp=panelSpans(w); const k=sp.findIndex(([a,b])=>x>=a-1e-6 && x<b-1e-6);
   return k>=0 ? k : (x<=0 ? 0 : sp.length-1);
 }
-/* The wall as built in its slot. Long walls run the full pod length; short end walls fit BETWEEN the
-   long walls, so they lose the long walls' thickness at each end (slot.trim = [left, right] in inches,
-   seen from outside). Wall data is stored edge-to-edge; this shifts and clips it to the real wall. */
+/* The wall as built in its slot. Short end walls run straight through, corner to corner; long walls butt
+   between them, so they lose the end walls' thickness at each pod corner (slot.trim = [left, right] in
+   inches, seen from outside). Wall data is stored edge-to-edge; this shifts and clips it to the real wall. */
 function bodyWall(slot, w){
   if(!w || w.fitted) return w;
   const tl=slot?.trim?.[0]||0, tr=slot?.trim?.[1]||0, full=w.len*FT, L=full-tl-tr;
   const clip = o => { const x0=Math.max(0,o.x-tl), x1=Math.min(L,o.x+o.w-tl); return x1-x0>0.5 ? {...o, x:x0, w:x1-x0} : null; };
-  // long walls run to the pod corners, where a 1¾″ × 1¾″ notch for the steel spine comes out of the outside face
-  const notch = slot && !slot.short && slot.corner ? [slot.corner[0]?NOTCH:0, slot.corner[1]?NOTCH:0] : [0,0];
+  // the end walls run to the pod corners, where a 1¾″ × 1¾″ notch for the steel spine comes out of the outside face
+  const notch = slot && slot.short && slot.corner ? [slot.corner[0]?NOTCH:0, slot.corner[1]?NOTCH:0] : [0,0];
   return { ...w, L, trim:[tl,tr], notch, fitted:true,
     openings: w.openings.map(clip).filter(Boolean),
     inside: (w.inside||[]).map(b=>({...b, x:b.x-tr})).filter(b=>b.x>0 && b.x<L),     // inside items are measured from the inside-left = outside-right end

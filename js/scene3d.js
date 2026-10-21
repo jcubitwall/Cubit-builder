@@ -244,7 +244,7 @@ function buildHome(){
     const g=built.group;
     const r=[s.n[1],-s.n[0]];
     g.rotation.y=Math.atan2(-r[1],r[0]);
-    const tl=(w.trim?.[0]||0)/FT;   // short walls start inside the long wall's thickness
+    const tl=(w.trim?.[0]||0)/FT;   // long walls start inside the end wall's thickness
     g.userData={slot:s, mat, base:new THREE.Vector3(s.p0[0]+r[0]*tl,0,s.p0[1]+r[1]*tl), n:new THREE.Vector3(s.n[0],0,s.n[1])};
     g.position.copy(g.userData.base);
     g.traverse(o=>{ if(o.isMesh) { o.userData.slotId=s.id; pickables.push(o);} });

@@ -65,7 +65,7 @@ function renderSide(){
     sideH.innerHTML=`<div class="eyebrow">Model${m.custom?' · your layout':''}</div><h2>${esc(m.name)}</h2><p>${pods} pods · ${area} sq ft${m.note?' · scanned from STEP':''}</p>`;
     sideB.innerHTML=`
       <div class="stats"><div class="stat"><b>${pods}</b><span>pods</span></div><div class="stat"><b>${slots.filter(x=>x.type!=='int').length} + ${slots.filter(x=>x.type==='int').length}</b><span>outside + inside walls</span></div><div class="stat"><b>${panels}</b><span>SIP panels</span></div><div class="stat"><b>${screwsFor(state.model,state.inset).length}</b><span>ground screws</span></div>${(m.decks||[]).length?`<div class="stat"><b>${m.decks.length}</b><span>decks</span></div>`:''}</div>
-      <p class="note">Each pod's walls run A, B, C, D clockwise seen from above. A is the short end wall with the door, so A and C are the short walls (fitted between the long walls) and B and D are the long walls (full length). Click a wall to swap it or to change which wall is A.</p>
+      <p class="note">Each pod's walls run A, B, C, D clockwise seen from above. A is the short end wall with the door, so A and C are the short end walls (they run straight through, corner to corner) and B and D are the long walls (they butt between the end walls). Click a wall to swap it or to change which wall is A.</p>
       ${wallListHTML(slots,null)}
       ${layoutBlock(m)}
       ${importBlock()}`;
