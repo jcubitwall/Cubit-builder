@@ -38,6 +38,7 @@ Open **Assembly sheets → CNC cut files · DXF**.
 - **Two-sided panels:** cut pass A, then flip the panel end over end about its long axis. Keep the bottom of the wall at X = 0, push the panel to the front fence, and cut pass B.
 - **Trimmed panels:** a panel cut to width is trimmed in pass A, and its factory edge stays on the joint side.
 - **Cut order:** within a wall, the last panel needed is cut first. Walls follow pod 1 A, B, C, D, then pod 2, and so on.
+- **Through cuts:** the shop's long bits cut the full panel depth in one pass from either face. Trims, openings and vents therefore go in the first pass, and they never cause a flip. Only cuts that stop part-way decide which face is up: box cut-outs and the spine notch.
 - **Spine notch:** it counts as an outer-face cut. An end panel of a long wall is therefore cut outer face up, then flipped if it is assembled interior side up.
 
 ## Step 2: G-code in shadow mode

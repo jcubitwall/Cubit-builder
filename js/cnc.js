@@ -40,9 +40,9 @@ function saveCncSettings(s){ try{ localStorage.setItem(KEY, JSON.stringify(s)); 
 const LAYERS = {
   SHEET_REF:      { color: 8, cut:false, what:'Blank outline (reference only, do not cut)' },
   PANEL_REF:      { color: 9, cut:false, what:'Finished panel outline (reference only)' },
-  TRIM_CUT:       { color: 1, cut:true,  what:'Cut the panel to width: through cut along this line, waste on the side away from the panel' },
-  OPENING_THRU:   { color: 5, cut:true,  what:'Window / door / cased opening: through cut, tool inside the line' },
-  VENT_THRU:      { color: 4, cut:true,  what:'Vent: through cut, tool inside the line' },
+  TRIM_CUT:       { color: 1, cut:true,  what:'Cut the panel to width: full-depth through cut in one pass (long bit) along this line, waste on the side away from the panel' },
+  OPENING_THRU:   { color: 5, cut:true,  what:'Window / door / cased opening: full-depth through cut in one pass (long bit), tool inside the line' },
+  VENT_THRU:      { color: 4, cut:true,  what:'Vent: full-depth through cut in one pass (long bit), tool inside the line' },
   BOX_POCKET:     { color: 3, cut:true,  what:'Electrical box cut-out on the face that is up (depth to confirm)' },
   SPINE_NOTCH:    { color: 6, cut:true,  what:'Steel spine notch at the pod corner, on the outer face of a long wall, full height (method and depth to confirm)' },
 };
@@ -71,7 +71,8 @@ function passGeom(plan, p, face, trimmedAlready, S){
     const [X0]=XY(uc,0), Yc=blankW-U(uc);
     items.push({ layer:'TRIM_CUT', kind:'line', x0:-S.overcut, y0:Yc, x1:S.blank.h+S.overcut, y1:Yc, waste: face==='ext' ? 'Y above the line' : 'Y below the line' });
   }
-  // through cuts: first pass only
+  // through cuts: the shop's long bits cut the full panel depth in one pass from whichever face is up,
+  // so trims, openings and vents all go in the first pass and never force a flip
   if(isFirst){
     p.through.forEach(o=>{
       let u0=Math.min(toU(o.x),toU(o.x+o.w)), u1=Math.max(toU(o.x),toU(o.x+o.w)), v0=o.y, v1=Math.min(H,o.y+o.h);
