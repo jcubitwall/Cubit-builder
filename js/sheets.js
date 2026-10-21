@@ -42,7 +42,7 @@ function renderSheet(){
   const n=panelCount(w); const face=state.face; const order=[...Array(n)].map((_,i)=>i+1); const seq = state.reverse? order.slice().reverse() : order;
   el.innerHTML=`
     <div class="sheet-title">
-      <div><div class="eyebrow" style="color:#555">Assembly sheet · Cubit Home</div><h3>${s.label} — ${w.id} ${w.name}</h3></div>
+      <div><div class="eyebrow" style="color:#555">Assembly sheet · Cubit Home</div><h3>${s.label} · ${s.detail} — ${w.id}</h3></div>
       <div class="meta">${MODELS[state.model].name} · ${fft(w.len*FT)} × ${fft(H)} · ${n} panels @ 4′×8′ · ${isInt?'Interior':'Exterior'} wall ${fin(w.t||T)}<br>${new Date().toISOString().slice(0,10)}</div>
     </div>
     <div class="sheet-tools">
@@ -69,7 +69,7 @@ function boxTable(w,face){
   let h=`<table class="boxes"><thead><tr><th>Item</th><th>From left end</th><th>Height</th><th>Size</th><th>Panel</th></tr></thead><tbody>`;
   const n=panelCount(w);
   const pn = vx => { const kExt = face==='ext' ? Math.floor(vx/PW) : Math.floor((L-vx)/PW); return panelNum(n,Math.min(n-1,Math.max(0,kExt)),state.reverse); };
-  ops.sort((a,b)=>a.vx-b.vx).forEach(o=>{ h+=`<tr><td>${o.kind==='window'?'Window opening':o.kind==='door'?'Door opening':o.kind==='opening'?'Cased opening':'Patio door opening'}</td><td>${fin(o.vx)}</td><td>sill ${fin(o.y)}</td><td>${fin(o.w)} × ${fin(o.h)}</td><td>${pn(o.vx+o.w/2)}</td></tr>`; });
+  ops.sort((a,b)=>a.vx-b.vx).forEach(o=>{ h+=`<tr><td>${o.kind==='window'?'Window opening':o.kind==='door'?'Door opening':o.kind==='opening'?'Cased opening':o.kind==='vent'?'Vent / duct hole':'Patio door opening'}</td><td>${fin(o.vx)}</td><td>sill ${fin(o.y)}</td><td>${fin(o.w)} × ${fin(o.h)}</td><td>${pn(o.vx+o.w/2)}</td></tr>`; });
   items.sort((a,b)=>a.vx-b.vx).forEach(b=>{ h+=`<tr><td>${names[b.kind]||b.kind}</td><td>${fin(b.vx)} (centre)</td><td>${fin(b.y)}</td><td>—</td><td>${pn(b.vx)}</td></tr>`; });
   return h+`</tbody></table>`;
 }
@@ -102,19 +102,29 @@ function elevationSVG(w,face,rev){
   // openings
   w.openings.forEach(o=>{
     const x=vx(o.x,o.w);
-    const col = o.kind==='window' ? '#cfe6f7' : o.kind==='door' ? '#d9c3ac' : o.kind==='opening' ? '#ffffff' : '#cfe6f7';
+    if(o.kind==='vent'){   // small duct / vent hole: outline + a leader label, no dimension clutter
+      g+=`<rect x="${X(x)}" y="${Y(o.y+o.h)}" width="${o.w*s}" height="${o.h*s}" fill="#bbbbbb" stroke="#111" stroke-width="1.2"/>`;
+      return;
+    }
+    const col = o.kind==='window' ? '#cfe6f7' : o.kind==='door' ? '#d9c3ac' : o.kind==='opening' ? '#ffffff' : o.kind==='vent' ? '#bbbbbb' : '#cfe6f7';
     g+=`<rect x="${X(x)}" y="${Y(o.y+o.h)}" width="${o.w*s}" height="${o.h*s}" fill="${col}" stroke="#111" stroke-width="1.6"/>`;
     g+=`<line x1="${X(x)}" y1="${Y(o.y+o.h)}" x2="${X(x+o.w)}" y2="${Y(o.y)}" stroke="#111" stroke-width=".5"/><line x1="${X(x+o.w)}" y1="${Y(o.y+o.h)}" x2="${X(x)}" y2="${Y(o.y)}" stroke="#111" stroke-width=".5"/>`;
     const lbl = `${fin(o.w)} × ${fin(o.h)}`;
     g+=`<rect x="${X(x+o.w/2)-58}" y="${Y(o.y+o.h/2)-17}" width="116" height="30" fill="#fff" stroke="#111" stroke-width=".6"/>`;
     g+=`<text x="${X(x+o.w/2)}" y="${Y(o.y+o.h/2)-3}" text-anchor="middle" font-size="11.5" font-weight="600">${lbl}</text>`;
-    g+=`<text x="${X(x+o.w/2)}" y="${Y(o.y+o.h/2)+9}" text-anchor="middle" font-size="9.5" fill="#333">${o.kind==='window'?'sill '+fin(o.y):o.kind==='door'?'door R.O.':o.kind==='opening'?'cased opening':'patio R.O.'}</text>`;
+    g+=`<text x="${X(x+o.w/2)}" y="${Y(o.y+o.h/2)+9}" text-anchor="middle" font-size="9.5" fill="#333">${o.kind==='window'?'sill '+fin(o.y):o.kind==='door'?'door R.O.':o.kind==='opening'?'cased opening':o.kind==='vent'?'vent @ '+fin(o.y):'patio R.O.'}</text>`;
     // vertical: sill + head on the right of opening
     if(o.y>0) g+=dimV(Y(0),Y(o.y),X(x+o.w)+14,fin(o.y),X(x+o.w));
     g+=dimV(Y(o.y),Y(o.y+o.h),X(x+o.w)+(o.y>0?34:14),fin(o.h),X(x+o.w));
   });
+  const vents=w.openings.filter(o=>o.kind==='vent').map(o=>({...o,vx:vx(o.x,o.w)})).sort((a,b)=>a.vx-b.vx);
+  vents.forEach((o,i)=>{
+    g+=`<line x1="${X(o.vx+o.w/2)}" y1="${Y(o.y)}" x2="${X(o.vx+o.w/2)}" y2="${Y(o.y)+18+i*12}" stroke="#555" stroke-width=".6"/>`;
+    const right = o.vx > L/2;
+    g+=`<text x="${X(o.vx+o.w/2)+(right?-3:3)}" y="${Y(o.y)+22+i*12}" text-anchor="${right?'end':'start'}" font-size="9" fill="#333">vent ${fin(o.w)}×${fin(o.h)} · ${fin(o.vx)} from left · ${fin(o.y)} up</text>`;
+  });
   // ordinate positions of opening edges from the view-left end (bottom)
-  const edges=[...new Set(w.openings.flatMap(o=>{const x=vx(o.x,o.w); return [x,x+o.w];}).map(v=>Math.round(v*16)/16))].sort((a,b)=>a-b);
+  const edges=[...new Set(w.openings.filter(o=>o.kind!=='vent').flatMap(o=>{const x=vx(o.x,o.w); return [x,x+o.w];}).map(v=>Math.round(v*16)/16))].sort((a,b)=>a-b);
   let lastLx=-1e9;
   edges.forEach(e=>{ let lx=Math.max(X(e), lastLx+15); lastLx=lx;
     g+=`<line x1="${X(e)}" y1="${Y(0)+4}" x2="${X(e)}" y2="${Y(0)+18}" stroke="#2f6db5" stroke-width=".8"/><line x1="${X(e)}" y1="${Y(0)+18}" x2="${lx}" y2="${Y(0)+26}" stroke="#2f6db5" stroke-width=".8"/>`;

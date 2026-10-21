@@ -43,6 +43,13 @@ const MAT = {
 };
 const lineMat = new THREE.LineBasicMaterial({color:0x3b3122});
 
+function letterSprite(txt, size){
+  const c=document.createElement('canvas'); c.width=256; c.height=160; const g=c.getContext('2d');
+  g.fillStyle='#1c211e'; g.beginPath(); if(g.roundRect) g.roundRect(8,8,240,144,26); else g.rect(8,8,240,144); g.fill();
+  g.fillStyle='#ffffff'; g.font='bold 96px Archivo, Arial, sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText(txt,128,86);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false}));
+  sp.scale.set(size*1.6,size,1); sp.renderOrder=11; return sp;
+}
 function numberSprite(txt, size, accent){
   const c=document.createElement('canvas'); c.width=c.height=128; const g=c.getContext('2d');
   g.fillStyle='#ffffff'; g.beginPath(); g.arc(64,64,58,0,Math.PI*2); g.fill();
@@ -71,7 +78,7 @@ function buildWallMesh(w, mat, opts={}){
   }
   // openings: glass / door leaf
   w.openings.forEach(o=>{
-    if(o.kind==='opening') return;   // cased opening: just a hole
+    if(o.kind==='opening'||o.kind==='vent') return;   // cased opening / vent: just a hole
     const thick = o.kind==='window'? 0.05 : 0.12;
     const m=new THREE.Mesh(new THREE.BoxGeometry(o.w/FT,o.h/FT,thick), o.kind==='window'?MAT.glass:MAT.door);
     m.position.set((o.x+o.w/2)/FT,(o.y+o.h/2)/FT,-t/2);
@@ -145,13 +152,17 @@ function buildHome(){
     g.userData={slot:s, mat, base:new THREE.Vector3(s.p0[0],0,s.p0[1]), n:new THREE.Vector3(s.n[0],0,s.n[1])};
     g.position.copy(g.userData.base);
     g.traverse(o=>{ if(o.isMesh) { o.userData.slotId=s.id; pickables.push(o);} });
+    if(state.letters){
+      const t=(w.t||6.5)/12, mid=s.len/2;
+      const lab=letterSprite(s.letter, 1.3); lab.position.set(mid, 4.6, -t-0.6); g.add(lab);   // on the inside face, mid-wall
+    }
     homeGroup.add(g); wallGroups.push(g);
   });
   highlight();
   // frame camera
   const span=Math.max(maxx-minx,maxz-minz);
   if(!buildHome.framed || buildHome.framed!==state.model){
-    camera.position.set(span*0.95, span*0.75, span*1.25); controls.target.set(0,3.5,0); buildHome.framed=state.model;
+    camera.position.set(span*0.75+12, span*0.8+10, span*1.05+16); controls.target.set(0,3.5,0); buildHome.framed=state.model;
   }
   explodeT = state.exploded?1:0; applyExplode();
 }

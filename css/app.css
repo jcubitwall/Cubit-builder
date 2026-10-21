@@ -110,3 +110,16 @@ table.boxes th{background:#f1f3ef;font-weight:600}
   .sheet-grid{grid-template-columns:1fr}
 }
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
+
+/* wall list grouped by pod, layout editor */
+.podhead{display:flex;justify-content:space-between;align-items:baseline;font-weight:700;font-size:13px;margin:6px 0 -4px}
+.podhead span{font-family:var(--mono);font-size:10.5px;font-weight:400;color:var(--ink-2)}
+.wl .n em{font-style:normal;font-weight:400;color:var(--ink-2);font-size:12px;margin-left:4px}
+.linkbtn{border:0;background:none;color:var(--accent);text-decoration:underline;cursor:pointer;padding:0;font:inherit}
+.podrows{display:flex;flex-direction:column;gap:4px;margin:8px 0}
+.podrow{display:flex;justify-content:space-between;font-size:13px;color:var(--ink)}
+.addpod{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 8px;align-items:center;margin:8px 0}
+.addpod label{font-size:12px;color:var(--ink-2)}
+.addpod select{font:inherit;font-size:13px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);min-width:0}
+.addpod .btn{grid-column:1/-1;justify-self:start}
+.btn[disabled]{opacity:.45;cursor:default}

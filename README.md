@@ -6,11 +6,13 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
 
 ## What it does
 
-- **Pick a home model:** Life, Nest, Cove, Panorama and Four-pod, built from 8×8, 8×16 and 8×24 pods with a 5/8″ space at every joint.
-- **Swap any wall:** click a wall in 3D and choose another option of the same length. Exterior walls are 6½″; interior walls where pods join are 4½″.
+- **Pick a home model:** Life, Nest, Cove, Panorama, Four-pod and **Expanse + 1**, built from 8×8, 8×16 and 8×24 pods with a 5/8″ space at every joint. Expanse + 1 was scanned straight from the Shapr3D STEP file, with every opening measured.
+- **Add pods:** open *Pods in this home · add a pod* in the sidebar. Pick a size and choose which pod and which wall to put it beside. Your layout is saved in your browser, and *Copy layout code* gives the text to paste into `data/models.json`.
+- **Swap any wall:** click a wall in 3D and choose another option of the same length. Exterior walls are 6½″. Where pods join, **each pod keeps its own 4½″ interior wall**.
+- **Wall letters:** every pod's walls are **A, B, C, D, going clockwise seen from above, starting at the wall with a door**. The app picks the door wall in this order: an exterior door first, then a patio door, then an interior door. If it picks the wrong one, click the wall and press **Make this Wall A**. A side that is part exterior and part interior keeps one letter, numbered clockwise (B1, B2).
 - **Exploded view:** walls, interior walls and roof pull apart, and the house lifts off its ground screws.
 - **Wall assembly sheets:** one per wall. Flip between the front (interior) and back (exterior) face, and number the 4×8 SIP panels 1→6 or reversed. Each sheet has opening sizes, plug and switch locations, and a 3D view of the panels pulled apart.
-- **Foundation sheet:** every ground screw located. Where pods meet they share one row of screws, with the offset bracket turned out under the next pod. It includes chain dimensions, diagonals for squaring, and a **Download PDF** button to email to the site crew.
+- **Foundation sheet:** a true plan seen from above, with every ground screw located. Where pods meet they share one row of screws, with the offset bracket turned out under the next pod. It includes chain dimensions, diagonals for squaring, and a **Download PDF** button to email to the site crew.
 
 ## Pod facts the app uses
 
@@ -65,20 +67,25 @@ data/models.json    home models: which pods, where
 js/main.js          start-up and toolbar
 js/config.js        pod dimensions and constants
 js/data.js          loads the JSON data
-js/layout.js        wall slots per home, 5/8″ gaps, ground-screw layout
+js/layout.js        wall slots per home, wall letters, 5/8″ gaps, ground-screw layout
 js/state.js         current selections (saved in the browser)
 js/panels.js        4×8 panel split, numbering, thumbnails
 js/scene3d.js       3D view (three.js)
-js/sidebar.js       model list, wall options, wall upload
+js/sidebar.js       model list, wall options, add-a-pod editor, wall upload
 js/sheets.js        wall assembly sheets
 js/foundation.js    foundation sheet + PDF
+tools/step-import/  scripts that turn a Shapr3D STEP file into walls and a model
 ```
 
 There's no build step: it is plain HTML, CSS and JavaScript modules. To run it on your own computer, start any local web server in this folder (for example `python3 -m http.server`) and open http://localhost:8000. Double-clicking `index.html` won't work, because browsers block the data files when a page is opened that way.
 
+## Importing a home from Shapr3D
+
+Export the whole home as **STEP** (inches or mm are both fine). The scripts in `tools/step-import/` read every solid, scan each pod wall with test rays to find its thickness and every opening, and write the walls and the model into the data files. See that folder's README.
+
 ## Next up
 
-- Import real homes from Shapr3D **STEP** exports: walls, openings, plugs, switches, pot lights and both floor and ceiling layers, using named bodies (`W24-07`, `PLUG`, `Fe-1`, `Ri-1`…).
+- Read plugs, switches and pot lights from STEP files (name the bodies `PLUG`, `SWITCH`, `POTLIGHT`).
 - Floor and ceiling panel sheets (Fe / Fi / Re / Ri), including pot lights.
 - A shared wall library and saved homes for the whole team.
 - PDF export for the wall assembly sheets.

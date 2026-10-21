@@ -25,12 +25,12 @@ function foundationData(){
   const pick=f=>sc.reduce((best,q)=>f(q)>f(best)?q:best, sc[0]);
   const FL=pick(q=>-(q.X+q.Y)), BR=pick(q=>q.X+q.Y), FR=pick(q=>q.X-q.Y), BL=pick(q=>q.Y-q.X);
   checks.push({group:'Whole layout', kind:'Diagonal', a:FL, b:BR}, {group:'Whole layout', kind:'Diagonal', a:FR, b:BL},
-              {group:'Whole layout', kind:'Front side', a:FL, b:FR}, {group:'Whole layout', kind:'Back side', a:BL, b:BR},
+              {group:'Whole layout', kind:'Top side', a:FL, b:FR}, {group:'Whole layout', kind:'Bottom side', a:BL, b:BR},
               {group:'Whole layout', kind:'Left side', a:FL, b:BL}, {group:'Whole layout', kind:'Right side', a:FR, b:BR});
   // per pod: the largest rectangle of real screws carrying that pod (shared ones included), so its diagonals must match
   if(pods.length>1) pods.forEach(p=>{
     const x0=(p.x-minx)*FT-12, x1=(p.x-minx+p.len)*FT+12, y0=(p.z-minz)*FT-12, y1=(p.z-minz+8)*FT+12;
-    const cand=sc.filter(q=>q.X>=x0&&q.X<=x1&&q.Y>=y0&&q.Y<=y1);
+    const cand=sc.filter(q=>q.X>=x0&&q.X<=x1&&q.Y>=y0&&q.Y<=y1 && (q.pod===p.i || q.shared));
     const at=(x,y)=>cand.find(q=>Math.abs(q.X-x)<0.05&&Math.abs(q.Y-y)<0.05);
     const xs=[...new Set(cand.map(q=>+q.X.toFixed(3)))], ys=[...new Set(cand.map(q=>+q.Y.toFixed(3)))];
     let best=null;
@@ -47,12 +47,12 @@ function foundationData(){
 }
 function renderFoundation(el){
   const F=foundationData(); const {pods,labels,sc,checks,W:Wf,D:Df}=F;
-  const s=Math.min(2.4, 860/Wf), ml=110, mt=60, mr=60, mb=110, VW=Wf*s+ml+mr, VH=Df*s+mt+mb;
-  const X=x=>ml+x*s, Y=y=>mt+(Df-y)*s;    // inches from datum; front of the home at the bottom
+  const s=Math.min(2.4, 860/Wf), ml=110, mt=120, mr=60, mb=50, VW=Wf*s+ml+mr, VH=Df*s+mt+mb;
+  const X=x=>ml+x*s, Y=y=>mt+y*s;    // inches from datum; true plan seen from above (same as the 3D top view)
   let g=`<svg viewBox="0 0 ${VW} ${VH}" font-family="IBM Plex Mono, monospace" role="img" aria-label="Ground screw plan"><defs><marker id="ar" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#2f6db5"/></marker></defs>`;
   pods.forEach(p=>{
     const px=(p.x-F.minx)*FT, py=(p.z-F.minz)*FT;
-    g+=`<rect x="${X(px)}" y="${Y(py+96)}" width="${p.len*FT*s}" height="${96*s}" fill="#f6f1e6" stroke="#111" stroke-width="1.6"/>`;
+    g+=`<rect x="${X(px)}" y="${Y(py)}" width="${p.len*FT*s}" height="${96*s}" fill="#f6f1e6" stroke="#111" stroke-width="1.6"/>`;
     g+=`<text x="${X(px+p.len*6)}" y="${Y(py+48)+4}" text-anchor="middle" font-family="Archivo, Arial, sans-serif" font-size="13" font-weight="700" fill="#8a7a5c">${labels[p.i]} · 8′ × ${p.len}′</text>`;
   });
   // squaring lines (whole layout diagonals)
@@ -61,20 +61,20 @@ function renderFoundation(el){
   });
   sc.forEach(q=>{
     { const L1=15*s, W1=7*s, off=4.5*s, ax=Math.abs(q.dir[0])>0.5;
-      const cx=X(q.X)+q.dir[0]*off, cy=Y(q.Y)-q.dir[1]*off; const w=ax?L1:W1, h=ax?W1:L1;
+      const cx=X(q.X)+q.dir[0]*off, cy=Y(q.Y)+q.dir[1]*off; const w=ax?L1:W1, h=ax?W1:L1;
       g+=`<rect x="${cx-w/2}" y="${cy-h/2}" width="${w}" height="${h}" fill="${q.shared?'#f3c9a8':'#e3e6e0'}" stroke="${q.shared?'#d0661f':'#56606b'}" stroke-width="${q.shared?1.4:.8}"/>`; }
     g+=`<circle cx="${X(q.X)}" cy="${Y(q.Y)}" r="6" fill="#56606b" stroke="#111"/><circle cx="${X(q.X)}" cy="${Y(q.Y)}" r="1.6" fill="#fff"/>`;
     g+=`<text x="${X(q.X)+8}" y="${Y(q.Y)-7}" font-size="9.5" fill="#111">S${q.id}</text>`;
   });
-  const yb=Y(0)+34; let pts=[0,...F.front,Wf];
+  const yb=Y(0)-34; let pts=[0,...F.front,Wf];
   for(let k=0;k<pts.length-1;k++){ const a=pts[k],b=pts[k+1]; if(b-a<1e-3) continue; g+=dimH(X(a),X(b),yb,fin(b-a),Y(0),9.5); }
   const xl=X(0)-34; pts=[0,...F.left,Df];
   for(let k=0;k<pts.length-1;k++){ const a=pts[k],b=pts[k+1]; if(b-a<1e-3) continue; g+=dimV(Y(a),Y(b),xl,fin(b-a),X(0),9.5); }
-  g+=dimH(X(0),X(Wf),Y(0)+76,`${fft(Wf)} overall`,Y(0),12);
+  g+=dimH(X(0),X(Wf),Y(0)-76,`${fft(Wf)} overall`,Y(0),12);
   g+=dimV(Y(0),Y(Df),X(0)-74,`${fft(Df)}`,X(0),12);
-  g+=`<text x="${X(0)}" y="${mt-24}" font-size="10.5" fill="#333">DATUM 0,0 = front-left outside corner · screws ${fin(state.inset)} in from the outside edge · 5/8″ space at every pod joint · orange = shared screw</text>`;
+  g+=`<text x="${X(0)}" y="${mt-100}" font-size="10.5" fill="#333">DATUM 0,0 = top-left outside corner of this plan · screws ${fin(state.inset)} in from the outside edge · 5/8″ space at every pod joint · orange = shared screw</text>`;
   g+=`<circle cx="${X(0)}" cy="${Y(0)}" r="5" fill="#fff" stroke="#d0661f" stroke-width="2"/>`;
-  g+=`<text x="${X(Wf)}" y="${VH-10}" text-anchor="end" font-size="10" fill="#555">FRONT OF HOME ↓ · red dashed = check diagonals</text></svg>`;
+  g+=`<text x="${X(Wf)}" y="${VH-10}" text-anchor="end" font-size="10" fill="#555">PLAN SEEN FROM ABOVE · red dashed = check diagonals</text></svg>`;
   const spac=pods.map(p=>`${labels[p.i]}: ${fft((p.len*FT-2*state.inset)/Math.ceil((p.len*FT-2*state.inset)/96-1e-9))} on centre along the length`).join(' · ');
   let ct=`<table class="boxes"><thead><tr><th>Check</th><th>Between</th><th>Measure</th></tr></thead><tbody>`;
   checks.forEach(c=>{ ct+=`<tr><td>${c.group} · ${c.kind}</td><td>S${c.a.id} ↔ S${c.b.id}</td><td><b>${fin(c.len)}</b> (${fft(c.len)})</td></tr>`; });
@@ -142,12 +142,12 @@ function foundationPDF(){
   doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.setTextColor(...ink);
   doc.text(`${F.m.name} - ground screw layout`, M, M+8);
   doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(60,60,60);
-  doc.text('DATUM 0,0 = front-left outside corner. All measurements in inches to screw centres. Front of home at the bottom. Red dashed lines = diagonals to check square.', M, M+22);
+  doc.text('Plan seen from above. DATUM 0,0 = top-left outside corner. All measurements in inches to screw centres. Red dashed lines = diagonals to check square.', M, M+22);
   const areaX=M+70, areaY=M+40, areaW=PW_-2*M-110, areaH=PH_-2*M-40-40-95;
-  const s=Math.min(areaW/Wf, areaH/Df); const ox=areaX+(areaW-Wf*s)/2, oy=areaY+10;
-  const X=x=>ox+x*s, Y=y=>oy+(Df-y)*s;
+  const s=Math.min(areaW/Wf, (areaH-50)/Df); const ox=areaX+(areaW-Wf*s)/2, oy=areaY+58;
+  const X=x=>ox+x*s, Y=y=>oy+y*s;
   pods.forEach(p=>{ const px=(p.x-F.minx)*FT, py=(p.z-F.minz)*FT;
-    doc.setDrawColor(...ink); doc.setFillColor(246,241,230); doc.setLineWidth(1.2); doc.rect(X(px),Y(py+96),p.len*FT*s,96*s,'FD');
+    doc.setDrawColor(...ink); doc.setFillColor(246,241,230); doc.setLineWidth(1.2); doc.rect(X(px),Y(py),p.len*FT*s,96*s,'FD');
     doc.setTextColor(150,130,95); doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.text(`${labels[p.i]}  8' x ${p.len}'`, X(px+p.len*6), Y(py+48)+3, {align:'center'}); });
   doc.setDrawColor(...red); doc.setLineWidth(0.8); doc.setLineDashPattern([5,3],0);
   checks.filter(c=>c.group==='Whole layout'&&c.kind==='Diagonal').forEach(c=>{
@@ -160,15 +160,15 @@ function foundationPDF(){
     doc.setTextColor(...red); doc.setFont('helvetica','bold'); doc.setFontSize(8);
     doc.text(`S${d.a.id}-S${d.b.id} = ${fin(d.len)}`, mx, my-3, {align:'center'}); doc.text(`S${d2.a.id}-S${d2.b.id} = ${fin(d2.len)}`, mx, my+9, {align:'center'}); }
   sc.forEach(q=>{
-    const L1=15*s, W1=7*s, off=4.5*s, ax=Math.abs(q.dir[0])>0.5; const cx=X(q.X)+q.dir[0]*off, cy=Y(q.Y)-q.dir[1]*off; const w=ax?L1:W1, h=ax?W1:L1;
+    const L1=15*s, W1=7*s, off=4.5*s, ax=Math.abs(q.dir[0])>0.5; const cx=X(q.X)+q.dir[0]*off, cy=Y(q.Y)+q.dir[1]*off; const w=ax?L1:W1, h=ax?W1:L1;
     if(q.shared){ doc.setFillColor(243,201,168); doc.setDrawColor(...org); } else { doc.setFillColor(227,230,224); doc.setDrawColor(86,96,107); }
     doc.setLineWidth(0.6); doc.rect(cx-w/2,cy-h/2,w,h,'FD');
     doc.setFillColor(86,96,107); doc.setDrawColor(...ink); doc.circle(X(q.X),Y(q.Y),3.6,'FD');
     doc.setTextColor(...ink); doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.text('S'+q.id, X(q.X)+5, Y(q.Y)-4.5);
   });
   let pts=[0,...F.front,Wf];
-  for(let k=0;k<pts.length-1;k++){ const a=pts[k],b=pts[k+1]; if(b-a<1e-3) continue; dimH(X(a),X(b),Y(0)+22,Y(0)+2,fin(b-a),6.5); }
-  dimH(X(0),X(Wf),Y(0)+48,Y(0)+2,`${fin(Wf)}  (${asciiFt(Wf)}) overall`,8);
+  for(let k=0;k<pts.length-1;k++){ const a=pts[k],b=pts[k+1]; if(b-a<1e-3) continue; dimH(X(a),X(b),Y(0)-22,Y(0)-2,fin(b-a),6.5); }
+  dimH(X(0),X(Wf),Y(0)-46,Y(0)-2,`${fin(Wf)}  (${asciiFt(Wf)}) overall`,8);
   pts=[0,...F.left,Df];
   for(let k=0;k<pts.length-1;k++){ const a=pts[k],b=pts[k+1]; if(b-a<1e-3) continue; dimV(Y(a),Y(b),X(0)-22,X(0)-2,fin(b-a),6.5); }
   dimV(Y(0),Y(Df),X(0)-48,X(0)-2,`${fin(Df)}  (${asciiFt(Df)})`,8);
@@ -177,7 +177,7 @@ function foundationPDF(){
   const lgY=PH_-M-40-14; doc.setFontSize(7.5); doc.setFont('helvetica','normal'); doc.setTextColor(60,60,60);
   doc.setFillColor(243,201,168); doc.setDrawColor(...org); doc.rect(M,lgY-6,14,7,'FD'); doc.text('Shared screw - bracket turned OUT under the next pod', M+18, lgY);
   doc.setFillColor(227,230,224); doc.setDrawColor(86,96,107); doc.rect(M+230,lgY-6,14,7,'FD'); doc.text('Standard - bracket turned IN, flush under its own pod', M+248, lgY);
-  doc.text('FRONT OF HOME', PW_-M, lgY, {align:'right'});
+  doc.text('PLAN SEEN FROM ABOVE', PW_-M, lgY, {align:'right'});
   titleBlock(1,2);
   // ---- page 2: checks + schedule
   doc.addPage();

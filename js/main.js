@@ -9,6 +9,7 @@ function bindTog(id,key,fn){ const b=document.getElementById(id); b.onclick=()=>
 bindTog('tExplode','exploded',()=>{ setExplodeGoal(state.exploded?1:0); });
 bindTog('tRoof','roof',()=>refreshRoof());
 bindTog('tNums','nums',()=>buildHome());
+bindTog('tLetters','letters',()=>buildHome());
 bindTog('tScrews','screws',()=>{ controls.maxPolarAngle = state.screws ? Math.PI*0.62 : Math.PI*0.495; buildHome(); renderSide(); });
 document.getElementById('bSheets').onclick=()=>{ if(state.view==='sheets'){ closeSheets(); } else { state.sheetSlot = state.selected || null; openSheets(); } };
 

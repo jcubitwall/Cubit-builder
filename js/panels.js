@@ -29,7 +29,7 @@ function thumbSVG(w){
   const L=w.len*FT, s=150/Math.max(L,96*1.6), Wd=L*s, Hd=H*s;
   let g=`<svg viewBox="-2 -2 ${Wd+4} ${Hd+4}" aria-hidden="true"><rect x="0" y="0" width="${Wd}" height="${Hd}" fill="#e8d3ad" stroke="#5b4a33" stroke-width=".8"/>`;
   for(let k=1;k<panelCount(w);k++) g+=`<line x1="${k*PW*s}" y1="0" x2="${k*PW*s}" y2="${Hd}" stroke="#5b4a33" stroke-width=".4" stroke-dasharray="2 2"/>`;
-  w.openings.forEach(o=>{ g+=`<rect x="${o.x*s}" y="${(H-o.y-o.h)*s}" width="${o.w*s}" height="${o.h*s}" fill="${o.kind==='window'?'#8fc3ea':o.kind==='opening'?'#ffffff':'#6b4a2f'}" stroke="#2c2c2c" stroke-width=".6"/>`; });
+  w.openings.forEach(o=>{ g+=`<rect x="${o.x*s}" y="${(H-o.y-o.h)*s}" width="${o.w*s}" height="${o.h*s}" fill="${o.kind==='window'?'#8fc3ea':o.kind==='patio'?'#a9d4f2':o.kind==='opening'?'#ffffff':o.kind==='vent'?'#555':'#6b4a2f'}" stroke="#2c2c2c" stroke-width=".6"/>`; });
   return g+'</svg>';
 }
 

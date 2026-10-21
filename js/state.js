@@ -1,27 +1,37 @@
-/* Cubit Builder — state.js */
+/* Cubit Builder — state.js : what the person has chosen, kept in their browser */
 import { MODELS, byId, optionsFor } from './data.js';
 
-/* ============================================================ state */
-const state = { model:'cove', picks:{}, selected:null, exploded:false, roof:false, nums:true, screws:false, inset:6, view:'studio', face:'int', reverse:false, sheetSlot:null };
+const state = { model:'cove', picks:{}, wallA:{}, selected:null, exploded:false, roof:false, nums:true, letters:true, screws:false, inset:6, view:'studio', face:'int', reverse:false, sheetSlot:null };
+const KEY='cubit-wall-studio';
 function initState(){
-  try{ const s=JSON.parse(localStorage.getItem('cubit-wall-studio')||'{}'); if(s.picks) state.picks=s.picks; if(s.model&&MODELS[s.model]) state.model=s.model; }catch(e){}
+  try{
+    const s=JSON.parse(localStorage.getItem(KEY)||'{}');
+    if(s.picks) state.picks=s.picks;
+    if(s.wallA) state.wallA=s.wallA;
+    if(s.model&&MODELS[s.model]) state.model=s.model;
+  }catch(e){}
 }
-function save(){ try{ localStorage.setItem('cubit-wall-studio', JSON.stringify({picks:state.picks, model:state.model})); }catch(e){} }
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify({picks:state.picks, wallA:state.wallA, model:state.model})); }catch(e){} }
 const DEFAULT_FRONT = { 24:'W24-08', 16:'W16-04', 8:'W08-02' };
+const fits = (w,slot) => w && w.len===slot.len && (w.type||'ext')===(slot.type||'ext');
+/* Which wall sits in a slot: the person's own choice, else the model's own wall (models.json "picks"),
+   else a sensible sample wall of the right length and type. */
 function pickFor(slot){
   const m = state.picks[state.model] || (state.picks[state.model]={});
-  let id = m[slot.id];
+  let w = byId(m[slot.id]);
+  if(fits(w,slot)) return w;
+  w = byId(MODELS[state.model]?.picks?.[slot.id]);
+  if(fits(w,slot)) return w;
   const ty = slot.type||'ext';
-  if(!id || !byId(id) || byId(id).len!==slot.len || (byId(id).type||'ext')!==ty){
-    const opts = optionsFor(slot.len, ty);
-    if(!opts.length) return null;
-    if(ty==='int') id = (opts.find(o=>/Wide|Cased/.test(o.name))||opts[0]).id;
-    else if(slot.side==='S' && slot.pod.i===0) id = DEFAULT_FRONT[slot.len] || opts[0].id;
-    else if(slot.side==='S'||slot.side==='N') id = (opts[(slot.pod.i*3 + (slot.side==='N'?2:1)) % opts.length]||opts[0]).id;
-    else id = (opts[(slot.pod.i + 1) % Math.min(opts.length,3)]||opts[0]).id;
-    m[slot.id]=id;
-  }
+  const opts = optionsFor(slot.len, ty).filter(o=>!o.model);
+  if(!opts.length) return null;
+  let id;
+  if(ty==='int') id = (opts.find(o=>/Wide|Cased/.test(o.name))||opts[0]).id;
+  else if(slot.side==='S' && slot.pod.i===0) id = DEFAULT_FRONT[slot.len] || opts[0].id;
+  else if(slot.side==='S'||slot.side==='N') id = (opts[(slot.pod.i*3 + (slot.side==='N'?2:1)) % opts.length]||opts[0]).id;
+  else id = (opts[(slot.pod.i + 1) % Math.min(opts.length,3)]||opts[0]).id;
   return byId(id);
 }
+function choose(slot, wallId){ (state.picks[state.model] ||= {})[slot.id]=wallId; save(); }
 
-export { state, initState, save, DEFAULT_FRONT, pickFor };
+export { state, initState, save, DEFAULT_FRONT, pickFor, choose };

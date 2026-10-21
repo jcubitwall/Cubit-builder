@@ -1,23 +1,47 @@
-/* Cubit Builder — layout.js */
+/* Cubit Builder — layout.js
+   Pods, wall slots, wall letters and ground screws for a home model.
+   Plan units are feet. x = along a pod's length, z = across it (8′). Seen from above,
+   +x is to the right and +z is down the screen, so going clockwise means S → E → N → W. */
 import { FT, GAP, POD, SIDE_NAME } from './config.js';
 import { MODELS } from './data.js';
+import { pickFor, state } from './state.js';
 
-// real position of each pod once the 5/8" joint spaces are added (layout above is the nominal grid)
+const EPS = 1e-6;
+const podList = modelKey => MODELS[modelKey].pods.map((p,i)=>({...p, i, len:POD[p.t].len, x1:p.x+POD[p.t].len, z1:p.z+8,
+  label:`Pod ${i+1}`, long:`Pod ${i+1} (${POD[p.t].len}′)`}));
+
+/* The layout in models.json is the nominal grid. Every joint between pods adds exactly 5/8″:
+   a pod moves over by one gap for each joint line between it and the datum. A joint line is a
+   coordinate where one pod ends and a neighbouring pod starts beside it. */
 function podOffsets(modelKey){
-  const P=MODELS[modelKey].pods;
-  const xs=[...new Set(P.map(p=>p.x))].sort((a,b)=>a-b), zs=[...new Set(P.map(p=>p.z))].sort((a,b)=>a-b);
-  return P.map(p=>({ox:xs.indexOf(p.x)*GAP, oz:zs.indexOf(p.z)*GAP}));
+  const P = podList(modelKey);
+  const joints = axis => {
+    const lines = new Set();
+    P.forEach(p=>P.forEach(q=>{
+      if(p===q) return;
+      if(axis==='x' && Math.abs(p.x1-q.x)<EPS && Math.min(p.z1,q.z1)-Math.max(p.z,q.z)>EPS) lines.add(q.x);
+      if(axis==='z' && Math.abs(p.z1-q.z)<EPS && Math.min(p.x1,q.x1)-Math.max(p.x,q.x)>EPS) lines.add(q.z);
+    }));
+    return [...lines];
+  };
+  const jx = joints('x'), jz = joints('z');
+  return P.map(p=>({ ox: jx.filter(v=>v<=p.x+EPS).length*GAP, oz: jz.filter(v=>v<=p.z+EPS).length*GAP }));
 }
 
-/* ============================================================ wall slots per model */
+/* ============================================================ wall slots per model
+   Every pod has its own four walls. Where pods join, BOTH pods keep a 4½″ interior wall
+   (slot type 'int'); the rest of each side is exterior (6½″, type 'ext'). */
 function slotsFor(modelKey){
   const OFF = podOffsets(modelKey);
-  const pods = MODELS[modelKey].pods.map((p,i)=>({...p,i,len:POD[p.t].len,x1:p.x+POD[p.t].len,z1:p.z+8}));
+  const pods = podList(modelKey);
   const shift = (pt,pi)=>[pt[0]+OFF[pi].ox, pt[1]+OFF[pi].oz];
-  const counts={}; pods.forEach(p=>counts[p.t]=(counts[p.t]||0)+1);
-  const seen={}; pods.forEach(p=>{ seen[p.t]=(seen[p.t]||0)+1; p.label = POD[p.t].name + (counts[p.t]>1 ? ' '+'ABCD'[seen[p.t]-1] : ''); });
   const slots=[];
-  const sub=(a,b,cov)=>{ let segs=[[a,b]]; cov.forEach(([c,d])=>{ const out=[]; segs.forEach(([s,e])=>{ if(d<=s||c>=e){out.push([s,e]);return;} if(c>s)out.push([s,c]); if(d<e)out.push([d,e]); }); segs=out; }); return segs.filter(([s,e])=>e-s>=4-1e-6); };
+  const sub=(a,b,cov)=>{ let segs=[[a,b]]; cov.forEach(([c,d])=>{ const out=[]; segs.forEach(([s,e])=>{ if(d<=s||c>=e){out.push([s,e]);return;} if(c>s)out.push([s,c]); if(d<e)out.push([d,e]); }); segs=out; }); return segs.filter(([s,e])=>e-s>=4-EPS); };
+  const ends = (s,a,b)=>{
+    const A = s.axis==='x' ? [a,s.fixed] : [s.fixed,a], B = s.axis==='x' ? [b,s.fixed] : [s.fixed,b];
+    // left end when standing outside the wall: right = (-n) × up  => (n.z, -n.x) in plan
+    const r=[s.n[1],-s.n[0]]; return (A[0]*r[0]+A[1]*r[1]) <= (B[0]*r[0]+B[1]*r[1]) ? [A,B] : [B,A];
+  };
   pods.forEach(p=>{
     const sides=[
       {k:'S', fixed:p.z,  a:p.x, b:p.x1, axis:'x', n:[0,-1]},
@@ -27,42 +51,66 @@ function slotsFor(modelKey){
     sides.forEach(s=>{
       const cov=[];
       pods.forEach(q=>{ if(q===p) return;
-        if(s.k==='S' && Math.abs(q.z1-s.fixed)<1e-6) cov.push([Math.max(q.x,s.a),Math.min(q.x1,s.b)]);
-        if(s.k==='N' && Math.abs(q.z -s.fixed)<1e-6) cov.push([Math.max(q.x,s.a),Math.min(q.x1,s.b)]);
-        if(s.k==='W' && Math.abs(q.x1-s.fixed)<1e-6) cov.push([Math.max(q.z,s.a),Math.min(q.z1,s.b)]);
-        if(s.k==='E' && Math.abs(q.x -s.fixed)<1e-6) cov.push([Math.max(q.z,s.a),Math.min(q.z1,s.b)]);
-      });
-      // shared stretches -> one interior wall, owned by the lower-numbered pod
-      pods.forEach(q=>{ if(q.i<=p.i) return;
         let iv=null;
-        if(s.k==='S' && Math.abs(q.z1-s.fixed)<1e-6) iv=[Math.max(q.x,s.a),Math.min(q.x1,s.b)];
-        if(s.k==='N' && Math.abs(q.z -s.fixed)<1e-6) iv=[Math.max(q.x,s.a),Math.min(q.x1,s.b)];
-        if(s.k==='W' && Math.abs(q.x1-s.fixed)<1e-6) iv=[Math.max(q.z,s.a),Math.min(q.z1,s.b)];
-        if(s.k==='E' && Math.abs(q.x -s.fixed)<1e-6) iv=[Math.max(q.z,s.a),Math.min(q.z1,s.b)];
-        if(!iv || iv[1]-iv[0]<4-1e-6) return;
-        const [a,b]=iv;
-        const A = s.axis==='x' ? [a,s.fixed] : [s.fixed,a], B = s.axis==='x' ? [b,s.fixed] : [s.fixed,b];
-        const r=[s.n[1],-s.n[0]]; const dA=A[0]*r[0]+A[1]*r[1], dB=B[0]*r[0]+B[1]*r[1];
-        const [p0,p1] = dA<=dB ? [A,B] : [B,A];
-        slots.push({ id:`${p.i}${s.k}${a}i`, type:'int', pod:p, other:q, side:s.k, len:b-a, p0:shift(p0,p.i), p1:shift(p1,p.i), n:s.n,
-          label:`${p.label} ↔ ${q.label} · interior` });
+        if(s.k==='S' && Math.abs(q.z1-s.fixed)<EPS) iv=[Math.max(q.x,s.a),Math.min(q.x1,s.b)];
+        if(s.k==='N' && Math.abs(q.z -s.fixed)<EPS) iv=[Math.max(q.x,s.a),Math.min(q.x1,s.b)];
+        if(s.k==='W' && Math.abs(q.x1-s.fixed)<EPS) iv=[Math.max(q.z,s.a),Math.min(q.z1,s.b)];
+        if(s.k==='E' && Math.abs(q.x -s.fixed)<EPS) iv=[Math.max(q.z,s.a),Math.min(q.z1,s.b)];
+        if(iv && iv[1]-iv[0]>EPS) cov.push({iv,q});
       });
-      sub(s.a,s.b,cov.filter(([c,d])=>d>c)).forEach(([a,b])=>{
-        const A = s.axis==='x' ? [a,s.fixed] : [s.fixed,a];
-        const B = s.axis==='x' ? [b,s.fixed] : [s.fixed,b];
-        // order so A is the left end when standing outside: right = (-n) × up
-        const r = [ s.n[1], -s.n[0] ];  // in (x,z): (-n)×y  => (n.z, -n.x)
-        const dA = A[0]*r[0]+A[1]*r[1], dB = B[0]*r[0]+B[1]*r[1];
-        const [p0,p1] = dA<=dB ? [A,B] : [B,A];
-        const len = b-a;
-        const partial = len < (s.axis==='x'? p.len : 8);
-        slots.push({ id:`${p.i}${s.k}${a}`, type:'ext', pod:p, side:s.k, len, p0:shift(p0,p.i), p1:shift(p1,p.i), n:s.n,
-          label:`${p.label} · ${SIDE_NAME[s.k]}${partial?' (open part)':''}` });
+      // joined stretches: this pod's own 4½″ wall facing the neighbour
+      cov.filter(c=>c.iv[1]-c.iv[0]>=4-EPS).forEach(({iv:[a,b],q})=>{
+        const [p0,p1]=ends(s,a,b);
+        slots.push({ id:`${p.i}${s.k}${a}i`, type:'int', pod:p, other:q, side:s.k, a, b, len:b-a, p0:shift(p0,p.i), p1:shift(p1,p.i), n:s.n });
+      });
+      sub(s.a,s.b,cov.map(c=>c.iv)).forEach(([a,b])=>{
+        const [p0,p1]=ends(s,a,b);
+        slots.push({ id:`${p.i}${s.k}${a}`, type:'ext', pod:p, side:s.k, a, b, len:b-a, p0:shift(p0,p.i), p1:shift(p1,p.i), n:s.n });
       });
     });
   });
-  slots.sort((a,b)=>(a.type==='int')-(b.type==='int'));
+  assignLetters(modelKey, slots, pods);
+  slots.forEach(s=>{
+    s.label = `${s.pod.label} · Wall ${s.letter}`;
+    s.detail = s.type==='int' ? `interior, faces ${s.other.label}` : (s.len < ((s.side==='S'||s.side==='N')?s.pod.len:8) ? 'exterior part' : 'exterior');
+  });
+  slots.sort((a,b)=> a.pod.i-b.pod.i || a.letter.localeCompare(b.letter, undefined, {numeric:true}));
   return slots;
+}
+
+/* ============================================================ wall letters
+   Each pod's walls are A, B, C, D going CLOCKWISE (seen from above), starting at the wall with a door.
+   Which wall counts as the door wall:
+     1. a wall you set with "Make this Wall A" (saved per model, per pod), else
+     2. the model's own setting in models.json ("wallA": {"<pod number>": "S|E|N|W"}), else
+     3. the first wall clockwise from the S side with an exterior door, else one with a patio door, else
+     4. the first wall with an interior door, else the S side.
+   A side split into an exterior part and an interior part keeps one letter, numbered 1, 2 clockwise. */
+const CW = ['S','E','N','W'];
+function doorWall(modelKey, pod, slots){
+  const own = state.wallA?.[modelKey]?.[pod.i];
+  if(own && CW.includes(own)) return own;
+  const fromModel = MODELS[modelKey].wallA?.[pod.i+1];
+  if(fromModel && CW.includes(fromModel)) return fromModel;
+  const opsOn = (side, type) => slots.filter(s=>s.pod===pod && s.side===side && (!type || s.type===type)).flatMap(s=>pickFor(s)?.openings||[]);
+  return CW.find(k=>opsOn(k,'ext').some(o=>o.kind==='door'))
+      || CW.find(k=>opsOn(k,'ext').some(o=>o.kind==='patio'))
+      || CW.find(k=>opsOn(k).some(o=>o.kind==='door'))
+      || 'S';
+}
+function assignLetters(modelKey, slots, pods){
+  pods.forEach(pod=>{
+    const start = doorWall(modelKey, pod, slots);
+    const order = CW.slice(CW.indexOf(start)).concat(CW.slice(0, CW.indexOf(start)));
+    order.forEach((side, li)=>{
+      const mine = slots.filter(s=>s.pod===pod && s.side===side);
+      // clockwise along each side: S → +x, E → +z, N → −x, W → −z
+      const dir = {S:1, E:1, N:-1, W:-1}[side];
+      mine.sort((u,v)=> (u.a-v.a)*dir);
+      mine.forEach((s,k)=>{ s.letter = 'ABCD'[li] + (mine.length>1 ? String(k+1) : ''); s.wallSide = side; });
+    });
+    pod.wallA = start;
+  });
 }
 
 /* ============================================================ ground screws
@@ -75,7 +123,7 @@ const NORM={S:[0,-1],N:[0,1],W:[-1,0],E:[1,0]};
 function screwsFor(modelKey, insetIn){
   const i=insetIn/FT, eps=1e-6;
   const OFF = podOffsets(modelKey);
-  const pods=MODELS[modelKey].pods.map((p,pi)=>({...p,pi,len:POD[p.t].len,x1:p.x+POD[p.t].len,z1:p.z+8}));
+  const pods=podList(modelKey).map(p=>({...p,pi:p.i}));
   let all=[];
   pods.forEach(p=>{
     const L=p.len, xs=[], zs=[];
@@ -92,7 +140,6 @@ function screwsFor(modelKey, insetIn){
       all.push({pod:p.pi, x:p.x+x+OFF[p.pi].ox, z:p.z+z+OFF[p.pi].oz, lx:p.x+x, lz:p.z+z, sides, shared:false, toward:null, dir:[-inn[0],-inn[1]], spacing:(L-2*i)/nx});
     });
   });
-  // shared edges
   const edges=[];
   pods.forEach(p=>pods.forEach(q=>{
     if(p===q) return;
@@ -114,4 +161,6 @@ function screwsFor(modelKey, insetIn){
   return all.filter((sc,idx)=>!drop.has(idx) || sc.shared);
 }
 
-export { podOffsets, slotsFor, NORM, screwsFor };
+const podLabels = modelKey => podList(modelKey).reduce((a,p)=>(a[p.i]=p.long,a),{});
+
+export { podOffsets, slotsFor, NORM, screwsFor, podList, podLabels, CW };
