@@ -160,7 +160,7 @@ dialog#projDlg::backdrop{background:rgba(20,24,22,.45)}
 #planSide .side-b{overflow:auto}
 .pal{overflow:auto;padding:10px 12px 16px;display:flex;flex-direction:column;gap:8px}
 .pal-h{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);margin-top:6px}
-.pod-item{border:1px solid var(--line);background:var(--surface-2);border-radius:8px;padding:8px;cursor:grab;display:flex;flex-direction:column;gap:6px;touch-action:none;user-select:none}
+.pod-item{border:1px solid var(--line);background:var(--surface-2);border-radius:8px;padding:8px;cursor:grab;display:flex;flex-direction:column;gap:6px;touch-action:pan-y;user-select:none}
 .pod-item:hover{border-color:var(--accent)}
 .pod-item:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .pod-item svg{max-width:100%;height:auto}
@@ -234,3 +234,21 @@ body.dragging, body.dragging *{cursor:grabbing!important}
 .studio.fs .legend{top:auto;bottom:12px;right:12px}
 .studio.fs.panel-open .legend{display:none}
 @media (prefers-reduced-motion: reduce){ .studio.fs > aside{transition:none} }
+/* plan editor view controls + compass */
+#plan.panning, #plan.panning *{cursor:grabbing!important}
+#plan{cursor:grab}
+.plan-ctl{position:absolute;left:12px;top:12px;display:flex;gap:6px;flex-wrap:wrap;z-index:3}
+.compass{position:absolute;right:12px;bottom:12px;z-index:3;display:flex;gap:10px;align-items:flex-start;background:color-mix(in srgb,var(--surface) 94%,transparent);border:1px solid var(--line);border-radius:12px;padding:10px;max-width:300px}
+.compass .dial{width:92px;height:92px;flex:none;cursor:grab;touch-action:none}
+.compass .ring{fill:var(--surface-2);stroke:var(--line);stroke-width:2}
+.compass .n{fill:#c0392b}
+.compass .s{fill:var(--ink-2)}
+.compass .nl{font:700 9px var(--display);fill:#c0392b}
+.compass .cb-val{font-family:var(--display);font-weight:800;font-size:18px}
+.compass .cb-in{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2);margin:4px 0}
+.compass .cb-in input{width:70px;font:inherit;color:var(--ink);padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+.compass .cb-q{display:flex;gap:4px;flex-wrap:wrap}
+.compass .cb-q .fsbtn{padding:4px 8px;font-size:12px}
+.compass .cb-note{font-size:11px;color:var(--ink-2);margin:6px 0 0;line-height:1.35}
+.plan-wrap .hint{z-index:2}
+@media (max-width: 900px){ .compass{max-width:none;left:12px;right:auto;top:auto;bottom:44px} .compass .cb-note{display:none} }

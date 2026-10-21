@@ -10,11 +10,17 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
 - **Plan & pods (drag and drop):** press **Plan & pods** for a top view of the home on an 8′ grid.
   - **Add a pod:** drag a blank 8′, 16′ or 24′ pod, or a pod from the **pod library**, onto the plan.
   - **Snapping:** pods only dock flush end to end, or side by side in 8′ steps. A drop snaps to the nearest spot where the pod shares at least 8′ of wall with another pod. Overlapping or loose pods aren't allowed.
+  - **Moving around:** drag empty space to pan, use the scroll wheel or pinch to zoom, or press **+ / − / Fit**. On a phone or tablet, swipe a pod sideways out of the list to drag it, and swipe up or down to scroll the list.
   - **Turning:** press **R** while dragging to turn a pod 90°, or select a pod and press **Turn 90°**.
   - **Changing pods:** drag a pod to move it, or select it to **replace** it with another pod or **remove** it.
   - **Joints:** the 5/8″ space at every joint is always added.
   - **Pods keep their parts:** a pod keeps its own walls, floors and ceilings when it is moved or turned.
   - **Your own copy:** editing a built-in home makes your own copy. Editing a project changes the project; save it to keep the change.
+- **Home orientation (for the screw installers):** the compass in the plan editor sets which way the home sits on site, at any angle. You can drag the dial, type a bearing, or tap N/E/S/W or ±15°. **North up** turns the plan so north points up the screen.
+  - The bearing is saved with the home and its projects.
+  - The 3D view shows a north arrow.
+  - Each wall shows which way it faces.
+  - The foundation sheet and its PDF show a north arrow and the compass direction of each side of the plan.
 - **Pod library:** every unique pod from a STEP import is in `data/pods.json`. Saving a project, or pressing **Save this pod to the library**, adds any pod that isn't there yet. Each pod is stored in its own frame, so it can go in at any turn.
 - **Mirrored joint walls:** where two pods join, each keeps its own 4½″ wall. Choosing a wall on one side gives the neighbour's wall the same wall, **mirrored**, so doors and openings line up. Every joint in the scanned Expanse + 1 follows this rule.
 - **Saving fills the libraries:** saving a project, or one pod, adds anything new to the matching library:
@@ -127,6 +133,7 @@ js/decksheet.js     deck framing sheet and cut list
 js/cnc.js           CNC cut plan per panel pass, DXF writer, manifest, zip
 js/cncsheet.js      the CNC cut files sheet: cut order, previews, flags, download
 js/fullscreen.js    full-screen 3D with a slide-in panel
+js/orient.js        the home's bearing (which way it faces on site)
 js/sheets.js        wall assembly sheets
 js/foundation.js    foundation sheet + PDF
 js/labels.js        panel codes, assembly order, stacking, CNC flips, label PDF

@@ -5,6 +5,7 @@ import { LAYER_KINDS } from './config.js';
 import { screwsFor, slotsFor, podList, CW, layerSlotsFor, partnerOf, deckList } from './layout.js';
 import { panelCount, thumbSVG, bodyWall, wallLen } from './panels.js';
 import { buildHome, highlight } from './scene3d.js';
+import { facing, fmtBearing } from './orient.js';
 import { openSheets } from './sheets.js';
 import { pickFor, save, state, choose, pickLayer, chooseLayer } from './state.js';
 
@@ -72,7 +73,7 @@ function renderSide(){
   } else {
     const w=pickFor(s); const opts=optionsFor(s.len, s.type||'ext', state.model);
     const isInt=s.type==='int';
-    sideH.innerHTML=`<div class="eyebrow">${isInt?'Interior wall · 4½″':'Exterior wall · 6½″'} · ${s.len}′ · ${s.len/4} panels</div><h2>${s.label}</h2><p>${s.detail} · now <b>${w?esc(w.id):'—'}</b> ${w?esc(w.name):''}</p>`;
+    sideH.innerHTML=`<div class="eyebrow">${isInt?'Interior wall · 4½″':'Exterior wall · 6½″'} · ${s.len}′ · ${s.len/4} panels</div><h2>${s.label}</h2><p>${s.detail} · faces ${fmtBearing(facing(s))} · now <b>${w?esc(w.id):'—'}</b> ${w?esc(w.name):''}</p>`;
     sideB.innerHTML=`
       <div class="row"><button class="btn" id="toSheet">Assembly sheet</button>${(s.short || s.pod.len<=8) ? `<button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button>` : ''}<button class="btn ghost" id="deselect">Back to model</button></div>
       ${(state.wallA?.[state.model]?.[s.pod.i] || m.pods[s.pod.i]?.a) ? `<p class="note">Wall A for ${s.pod.label} was set by hand. <button class="linkbtn" id="autoA">Go back to automatic</button></p>`:''}

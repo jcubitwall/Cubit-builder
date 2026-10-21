@@ -116,6 +116,7 @@ function editKey(){
   // the built-in home keeps its own picks; the copy carries them on its pods
   const nk='custom-'+Date.now().toString(36);
   MODELS[nk]={ name:m.name+' (custom)', size:m.size, base:m.base||key, pods:bakedPods(key), decks:clone(m.decks||[]), picks:{}, layerPicks:{}, custom:true };
+  if(state.bearing?.[key]!=null) state.bearing[nk]=state.bearing[key];
   state.model=nk;
   return nk;
 }

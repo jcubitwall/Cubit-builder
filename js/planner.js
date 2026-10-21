@@ -5,6 +5,7 @@ import { POD } from './config.js';
 import { MODELS, PODLIB, DECKLIB, byId, podById, deckById } from './data.js';
 import { slotsFor, podList, deckList } from './layout.js';
 import { state, save, pickFor } from './state.js';
+import { getBearing, setBearing, northVec, fmtBearing } from './orient.js';
 import { deckFoot, addDeck, moveDeck, removeDeck, replaceDeck, deckSpots, turnDeck, foot, addPod, movePod, rotatePod, replacePod, deletePod, dockSpots, saveToLibraries, countsText, renameLibPod, deleteLibPod } from './pods.js';
 import { buildHome } from './scene3d.js';
 import { renderModels, renderSide, toast } from './sidebar.js';
@@ -89,8 +90,17 @@ function renderPalette(){
       ${DECKLIB.map(L=>`<div class="pod-item" data-deck="${esc(L.id)}" tabindex="0" role="button" aria-label="${esc(L.name)}">${deckThumb(L)}<div><b>${esc(L.name)}</b><code>${esc(L.id)} · ${L.W}″ × ${L.D}″ · notch ${L.notch}″</code></div></div>`).join('')}
     </div>`;
   el('palette').querySelectorAll('.pod-item').forEach(n=>{
-    n.addEventListener('pointerdown', e=>{ if(e.target.closest('button')) return; e.preventDefault();
-      startDrag({kind:'new', item: itemOf(n), rot:0}, e); });
+    n.addEventListener('pointerdown', e=>{
+      if(e.target.closest('button')) return;
+      if(e.pointerType!=='touch'){ e.preventDefault(); startDrag({kind:'new', item: itemOf(n), rot:0}, e); return; }
+      // touch: swipe sideways (towards the plan) to drag; up and down scrolls the list
+      const sx=e.clientX, sy=e.clientY;
+      const mv=ev=>{ const dx=ev.clientX-sx, dy=ev.clientY-sy;
+        if(Math.abs(dy)>10 && Math.abs(dy)>Math.abs(dx)){ off(); return; }
+        if(Math.abs(dx)>10){ off(); startDrag({kind:'new', item: itemOf(n), rot:0}, ev); onMove(ev); } };
+      const off=()=>{ n.removeEventListener('pointermove',mv); n.removeEventListener('pointerup',off); n.removeEventListener('pointercancel',off); };
+      n.addEventListener('pointermove',mv); n.addEventListener('pointerup',off); n.addEventListener('pointercancel',off);
+    });
     n.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); quickAdd(itemOf(n)); } });
   });
   el('palette').querySelectorAll('[data-ren]').forEach(b=>b.onclick=()=>{ const L=podById(b.dataset.ren); const nm=prompt('Name for this pod', L.name); if(nm){ renameLibPod(L.id, nm.trim()); renderPalette(); } });
@@ -104,19 +114,42 @@ function quickAdd(item){
   done(addPod(item, spots[0].x, spots[0].z, 0), 'Pod added');
 }
 
-/* ---------------------------------------------------------------- plan */
-let VB={x:0,z:0,w:40,h:24};
+/* ---------------------------------------------------------------- plan view: pan, zoom, north
+   The view is a viewBox in plan feet that stays where you put it: drag empty space (or two fingers) to
+   pan, wheel / pinch / the + − buttons to zoom, Fit to frame the home. With "North up" the whole plan is
+   turned so north points up the screen; drag and drop keeps working because pointer positions are read
+   through the turned group. */
+let VIEW=null, viewKey=null;
+function homeBox(){
+  const F=podList(state.model).map(p=>[p.x,p.z,p.x+p.w,p.z+p.d]).concat(deckList(state.model).map(d=>[d.x,d.z,d.x1,d.z1]));
+  return { x0:Math.min(...F.map(f=>f[0])), z0:Math.min(...F.map(f=>f[1])), x1:Math.max(...F.map(f=>f[2])), z1:Math.max(...F.map(f=>f[3])) };
+}
+const turn = () => state.northUp ? getBearing() : 0;       // degrees the drawing is turned on screen (clockwise), so north points up
+function fitView(){
+  const B=homeBox(), cx=(B.x0+B.x1)/2, cz=(B.z0+B.z1)/2, t=turn()*Math.PI/180;
+  // size of the home once turned
+  const hw=(B.x1-B.x0)/2, hd=(B.z1-B.z0)/2, w=Math.abs(hw*Math.cos(t))+Math.abs(hd*Math.sin(t)), d=Math.abs(hw*Math.sin(t))+Math.abs(hd*Math.cos(t));
+  const r=el('plan').getBoundingClientRect(), asp=(r.width||800)/(r.height||500);
+  let vw=2*w+20, vh=2*d+20; if(vw/vh<asp) vw=vh*asp; else vh=vw/asp;
+  VIEW={x:cx-vw/2, z:cz-vh/2, w:vw, h:vh}; viewKey=state.model;
+}
+function zoomAt(f, px, pz){   // f < 1 zooms in, around a viewBox point
+  const w=Math.min(400, Math.max(6, VIEW.w*f)), k=w/VIEW.w;
+  VIEW={x:px-(px-VIEW.x)*k, z:pz-(pz-VIEW.z)*k, w, h:VIEW.h*k};
+}
+const toView = e => { const svg=el('plan'), pt=svg.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY; const q=pt.matrixTransform(svg.getScreenCTM().inverse()); return {x:q.x, z:q.y}; };
 function renderPlan(){
   const m=MODELS[state.model], pods=podList(state.model), slots=slotsFor(state.model);
   const decks=deckList(state.model);
-  const F=pods.map(p=>({x:p.x,z:p.z,w:p.w,d:p.d})).concat(decks.map(d=>({x:d.x,z:d.z,w:d.w,d:d.d})));
-  const pad=18;
-  const minx=Math.min(...F.map(f=>f.x))-pad, minz=Math.min(...F.map(f=>f.z))-pad;
-  const maxx=Math.max(...F.map(f=>f.x+f.w))+pad, maxz=Math.max(...F.map(f=>f.z+f.d))+pad;
-  if(!drag) VB={x:Math.floor(minx/8)*8, z:Math.floor(minz/8)*8, w:Math.ceil((maxx-Math.floor(minx/8)*8)/8)*8, h:Math.ceil((maxz-Math.floor(minz/8)*8)/8)*8};
-  let g=`<rect x="${VB.x}" y="${VB.z}" width="${VB.w}" height="${VB.h}" fill="var(--stage)"/>`;
-  for(let x=VB.x;x<=VB.x+VB.w;x+=8) g+=`<line x1="${x}" y1="${VB.z}" x2="${x}" y2="${VB.z+VB.h}" class="grid8"/>`;
-  for(let z=VB.z;z<=VB.z+VB.h;z+=8) g+=`<line x1="${VB.x}" y1="${z}" x2="${VB.x+VB.w}" y2="${z}" class="grid8"/>`;
+  if(!VIEW || viewKey!==state.model) fitView();
+  const cx=VIEW.x+VIEW.w/2, cz=VIEW.z+VIEW.h/2, R=Math.hypot(VIEW.w,VIEW.h)/2+16;
+  const B=homeBox(), hx=(B.x0+B.x1)/2, hz=(B.z0+B.z1)/2;
+  let g=`<rect x="${VIEW.x-500}" y="${VIEW.z-500}" width="${VIEW.w+1000}" height="${VIEW.h+1000}" fill="var(--stage)"/>`;
+  g+=`<g id="planG" transform="rotate(${turn()} ${hx} ${hz})">`;
+  // 8′ grid wide enough to cover the view whichever way it is turned
+  const gx0=Math.floor((cx-R)/8)*8, gx1=Math.ceil((cx+R)/8)*8, gz0=Math.floor((cz-R)/8)*8, gz1=Math.ceil((cz+R)/8)*8;
+  for(let x=gx0;x<=gx1;x+=8) g+=`<line x1="${x}" y1="${gz0}" x2="${x}" y2="${gz1}" class="grid8"/>`;
+  for(let z=gz0;z<=gz1;z+=8) g+=`<line x1="${gx0}" y1="${z}" x2="${gx1}" y2="${z}" class="grid8"/>`;
   pods.forEach(p=>{
     const moving = drag && drag.kind==='move' && drag.started && drag.i===p.i;
     g+=`<g class="pod${sel===p.i?' sel':''}${moving?' moving':''}" data-i="${p.i}">`;
@@ -143,25 +176,132 @@ function renderPlan(){
     g+=`<rect x="${G.x}" y="${G.z}" width="${G.w}" height="${G.d}" class="ghost ${drag.ok?'ok':'bad'}"/>`;
     g+=`<text x="${G.x+G.w/2}" y="${G.z+G.d/2+0.4}" class="ghost-t">${drag.ok?'drop here':'no dock'} · R to turn</text>`;
   }
+  g+='</g>';
   const svg=el('plan');
-  svg.setAttribute('viewBox', `${VB.x} ${VB.z} ${VB.w} ${VB.h}`);
+  svg.setAttribute('viewBox', `${VIEW.x} ${VIEW.z} ${VIEW.w} ${VIEW.h}`);
   svg.innerHTML=g;
+  drawCompass();
   svg.querySelectorAll('.pod').forEach(n=>n.addEventListener('pointerdown', e=>{
+    if(e.button>0 || pinch) return;
     const i=+n.dataset.i; e.preventDefault(); e.stopPropagation();
     sel=i; const p=podList(state.model)[i];
     selDeck=null; startDrag({kind:'move', i, item:{t:p.t}, rot:p.rot}, e);
     renderSide2();
   }));
   svg.querySelectorAll('.deck').forEach(n=>n.addEventListener('pointerdown', e=>{
+    if(e.button>0 || pinch) return;
     const k=+n.dataset.k; e.preventDefault(); e.stopPropagation();
     selDeck=k; sel=null; const d=MODELS[state.model].decks[k];
     startDrag({kind:'moveDeck', k, item:{deck:d.lib}, rot:d.rot||0}, e);
     renderSide2();
   }));
 }
-const toPlan = e => { const svg=el('plan'), pt=svg.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY; const q=pt.matrixTransform(svg.getScreenCTM().inverse()); return {x:q.x, z:q.y}; };
+/* pointer position in plan feet (through the turned group) */
+const toPlan = e => { const G=el('planG')||el('plan'), svg=el('plan'), pt=svg.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY; const q=pt.matrixTransform(G.getScreenCTM().inverse()); return {x:q.x, z:q.y}; };
 const overPlan = e => { const r=el('plan').getBoundingClientRect(); return e.clientX>=r.left && e.clientX<=r.right && e.clientY>=r.top && e.clientY<=r.bottom; };
 
+/* ---- panning and zooming */
+const ptrs=new Map(); let pan=null, pinch=null;
+el('plan').addEventListener('pointerdown', e=>{
+  ptrs.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if(ptrs.size===2){   // second finger: cancel any drag and pinch instead
+    if(drag){ endDrag(); }
+    const [a,b]=[...ptrs.values()];
+    pinch={ d:Math.hypot(a.x-b.x,a.y-b.y), mid:{clientX:(a.x+b.x)/2, clientY:(a.y+b.y)/2} };
+    pan=null; return;
+  }
+  if(e.target.closest('.pod')||e.target.closest('.deck')) return;
+  pan={ sx:e.clientX, sy:e.clientY, start:toView(e), moved:false, id:e.pointerId };
+  el('plan').setPointerCapture?.(e.pointerId);
+}, true);
+el('plan').addEventListener('pointermove', e=>{
+  if(!ptrs.has(e.pointerId)) return;
+  ptrs.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if(pinch && ptrs.size>=2){
+    const [a,b]=[...ptrs.values()], d=Math.hypot(a.x-b.x,a.y-b.y), mid={clientX:(a.x+b.x)/2, clientY:(a.y+b.y)/2};
+    const p0=toView(pinch.mid); zoomAt(pinch.d/Math.max(d,1), p0.x, p0.z);
+    renderPlan(); const p1=toView(mid), p0b=toView(pinch.mid);
+    VIEW.x += p0b.x - p1.x; VIEW.z += p0b.z - p1.z; renderPlan();
+    pinch.d=d; pinch.mid=mid; return;
+  }
+  if(pan && e.pointerId===pan.id){
+    if(!pan.moved && Math.hypot(e.clientX-pan.sx, e.clientY-pan.sy)<4) return;
+    pan.moved=true; el('plan').classList.add('panning');
+    const now=toView(e); VIEW.x += pan.start.x-now.x; VIEW.z += pan.start.z-now.z; renderPlan();
+  }
+});
+const lift = e => {
+  ptrs.delete(e.pointerId);
+  if(ptrs.size<2) pinch=null;
+  if(pan && e.pointerId===pan.id){
+    if(!pan.moved && e.type==='pointerup'){ sel=null; selDeck=null; renderPlan(); renderSide2(); }   // a tap on empty space deselects
+    pan=null; el('plan').classList.remove('panning');
+  }
+};
+el('plan').addEventListener('pointerup', lift); el('plan').addEventListener('pointercancel', lift);
+el('plan').addEventListener('wheel', e=>{
+  e.preventDefault();
+  const p=toView(e);
+  if(e.ctrlKey || e.metaKey || Math.abs(e.deltaX)<1 && e.deltaMode!==0 || Math.abs(e.deltaX)<1 && Math.abs(e.deltaY)>=40){
+    zoomAt(Math.exp(e.deltaY*(e.ctrlKey?0.01:0.0015)), p.x, p.z);      // mouse wheel or trackpad pinch: zoom at the pointer
+  } else {
+    const k=VIEW.w/el('plan').getBoundingClientRect().width; VIEW.x+=e.deltaX*k; VIEW.z+=e.deltaY*k;   // trackpad two-finger scroll: pan
+  }
+  renderPlan();
+}, {passive:false});
+
+/* ---- view buttons + compass (the home's bearing) */
+function drawCompass(){
+  const b=getBearing(), n=northVec(), t=turn();
+  // north arrow on screen: the plan direction north, turned with the drawing
+  const a=Math.atan2(n[0], -n[1])*180/Math.PI + t;
+  const box=el('compass'); if(!box) return;
+  box.querySelector('.needle').setAttribute('transform', `rotate(${a} 50 50)`);
+  box.querySelector('.cb-val').textContent = fmtBearing(b);
+  const inp=box.querySelector('#brgIn'); if(document.activeElement!==inp) inp.value=Math.round(b*10)/10;
+  el('northUp').setAttribute('aria-pressed', state.northUp);
+}
+function setHomeBearing(deg){ setBearing(deg); if(state.northUp) fitView(); renderPlan(); buildHome(); }
+function bindViewControls(){
+  const wrap=document.querySelector('.plan-wrap');
+  if(el('planCtl')) return;
+  wrap.insertAdjacentHTML('beforeend', `
+    <div class="plan-ctl" id="planCtl">
+      <button class="fsbtn" id="zIn" title="Zoom in">+</button><button class="fsbtn" id="zOut" title="Zoom out">−</button><button class="fsbtn" id="zFit" title="Fit the home">Fit</button>
+      <button class="fsbtn" id="northUp" aria-pressed="false" title="Turn the plan so north points up">North up</button>
+    </div>
+    <div class="compass" id="compass" aria-label="Home orientation">
+      <svg viewBox="0 0 100 100" class="dial" aria-hidden="true">
+        <circle cx="50" cy="50" r="46" class="ring"/>
+        <g class="needle"><path d="M50 10 L58 50 L50 44 L42 50 Z" class="n"/><path d="M50 90 L58 50 L50 56 L42 50 Z" class="s"/><text x="50" y="8" text-anchor="middle" class="nl">N</text></g>
+      </svg>
+      <div class="cb">
+        <div class="eyebrow">Plan top faces</div>
+        <div class="cb-val">0° N</div>
+        <label class="cb-in">Bearing <input id="brgIn" type="number" min="0" max="359.9" step="1" inputmode="decimal">°</label>
+        <div class="cb-q">${['N','E','S','W'].map((k,i)=>`<button class="fsbtn" data-b="${i*90}">${k}</button>`).join('')}<button class="fsbtn" data-step="-15" title="Turn 15° anticlockwise">↺</button><button class="fsbtn" data-step="15" title="Turn 15° clockwise">↻</button></div>
+        <p class="cb-note">Drag the dial to set any angle. Used on the foundation sheet so the screw installers can set the home out the right way round.</p>
+      </div>
+    </div>`);
+  const mid=()=>({x:VIEW.x+VIEW.w/2, z:VIEW.z+VIEW.h/2});
+  el('zIn').onclick=()=>{ const c=mid(); zoomAt(0.8,c.x,c.z); renderPlan(); };
+  el('zOut').onclick=()=>{ const c=mid(); zoomAt(1.25,c.x,c.z); renderPlan(); };
+  el('zFit').onclick=()=>{ fitView(); renderPlan(); };
+  el('northUp').onclick=()=>{ state.northUp=!state.northUp; save(); fitView(); renderPlan(); };
+  el('brgIn').onchange=e=>{ const v=parseFloat(e.target.value); if(isFinite(v)) setHomeBearing(v); };
+  document.querySelectorAll('#compass [data-b]').forEach(bn=>bn.onclick=()=>setHomeBearing(+bn.dataset.b));
+  document.querySelectorAll('#compass [data-step]').forEach(bn=>bn.onclick=()=>setHomeBearing(getBearing()+ +bn.dataset.step));
+  // drag the dial: the needle follows the pointer, so north is where you point (Shift snaps to 5°)
+  const dial=document.querySelector('#compass .dial');
+  const fromPointer=e=>{ const r=dial.getBoundingClientRect(), dx=e.clientX-(r.left+r.width/2), dy=e.clientY-(r.top+r.height/2);
+    const screenNorth=Math.atan2(dx,-dy)*180/Math.PI;           // where north should point on screen
+    // north on screen = (direction of north in plan) + turn;  direction of north in plan = -bearing
+    let b=-(screenNorth - turn()); if(e.shiftKey) b=Math.round(b/5)*5; else b=Math.round(b);
+    setBearing(b); renderPlan(); };
+  dial.addEventListener('pointerdown', e=>{ e.preventDefault(); dial.setPointerCapture(e.pointerId); fromPointer(e);
+    const mv=ev=>fromPointer(ev), up=()=>{ dial.removeEventListener('pointermove',mv); dial.removeEventListener('pointerup',up); if(state.northUp) fitView(); renderPlan(); buildHome(); };
+    dial.addEventListener('pointermove',mv); dial.addEventListener('pointerup',up); });
+}
 function startDrag(d, e){
   drag={...d, sx:e.clientX, sy:e.clientY, started:false, spots:null};
   window.addEventListener('pointermove', onMove); window.addEventListener('pointerup', onUp, {once:true});
@@ -295,9 +435,9 @@ function refresh(){ renderPlan(); renderSide2(); buildHome(); renderSide(); }
 function openPlan(){
   state.view='plan'; el('planner').hidden=false; el('studio').hidden=true; el('sheets').hidden=true; el('studioTools').hidden=true;
   el('bPlan').textContent='Back to 3D'; el('bSheets').textContent='Assembly sheets';
-  sel=null; selDeck=null; renderPalette(); renderPlan(); renderSide2();
+  sel=null; selDeck=null; VIEW=null; bindViewControls(); renderPalette(); renderPlan(); renderSide2();
 }
 function closePlan(){ el('planner').hidden=true; el('bPlan').textContent='Plan & pods'; }
-el('plan').addEventListener('pointerdown', e=>{ if(e.target.closest('.pod')||e.target.closest('.deck')) return; sel=null; selDeck=null; renderPlan(); renderSide2(); });
+
 
 export { openPlan, closePlan, renderPlan, renderPalette };

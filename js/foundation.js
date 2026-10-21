@@ -2,6 +2,7 @@
 import { FT, POD } from './config.js';
 import { MODELS } from './data.js';
 import { asciiFt, fft, fin } from './format.js';
+import { getBearing, northVec, fmtBearing, compass } from './orient.js';
 import { podOffsets, screwPlan, slotsFor, podList, deckList, layoutOffsets } from './layout.js';
 import { buildHome } from './scene3d.js';
 import { dimH, dimV, renderSheetList } from './sheets.js';
@@ -76,7 +77,7 @@ function headText0(q,labels,html){
 }
 function renderFoundation(el){
   const F=foundationData(); const {pods,labels,sc,checks,W:Wf,D:Df}=F;
-  const s=Math.min(2.4, 860/Wf), ml=110, mt=120, mr=60, mb=50, VW=Wf*s+ml+mr, VH=Df*s+mt+mb;
+  const s=Math.min(2.4, 860/Wf), ml=110, mt=136, mr=60, mb=50, VW=Wf*s+ml+mr, VH=Df*s+mt+mb;
   const X=x=>ml+x*s, Y=y=>mt+y*s;    // inches from datum; true plan seen from above (same as the 3D top view)
   let g=`<svg viewBox="0 0 ${VW} ${VH}" font-family="IBM Plex Mono, monospace" role="img" aria-label="Ground screw plan"><defs><marker id="ar" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#2f6db5"/></marker></defs>`;
   F.decks.forEach(d=>{
@@ -106,6 +107,10 @@ function renderFoundation(el){
   g+=dimV(Y(0),Y(Df),X(0)-74,`${fft(Df)}`,X(0),12);
   g+=`<text x="${X(0)}" y="${mt-100}" font-size="10.5" fill="#333">DATUM 0,0 = top-left outside corner of this plan · screws ${fin(state.inset)} in from the outside edge · orange = shared, centred in the 5/8″ joint · grey = swivel head</text>`;
   g+=`<circle cx="${X(0)}" cy="${Y(0)}" r="5" fill="#fff" stroke="#d0661f" stroke-width="2"/>`;
+  // north arrow + which way each side of the plan faces
+  { const n=northVec(), a=Math.atan2(n[0],-n[1])*180/Math.PI, ax=VW-30, ay=mt+34;
+    g+=`<g transform="rotate(${a} ${ax} ${ay})"><circle cx="${ax}" cy="${ay}" r="22" fill="#fff" stroke="#111" stroke-width="1.2"/><path d="M${ax} ${ay-19} L${ax+7} ${ay+6} L${ax} ${ay+1} L${ax-7} ${ay+6} Z" fill="#c0392b"/><text x="${ax}" y="${ay-25}" text-anchor="middle" font-family="Archivo, Arial, sans-serif" font-weight="800" font-size="13" fill="#c0392b">N</text></g>`;
+    g+=`<text x="${X(0)}" y="${mt-118}" font-size="11" fill="#111" font-weight="700">ORIENTATION · TOP faces ${fmtBearing(getBearing())} · RIGHT ${fmtBearing(getBearing()+90)} · BOTTOM ${fmtBearing(getBearing()+180)} · LEFT ${fmtBearing(getBearing()+270)}</text>`; }
   g+=`<text x="${X(Wf)}" y="${VH-10}" text-anchor="end" font-size="10" fill="#555">PLAN SEEN FROM ABOVE · red dashed = check diagonals</text></svg>`;
   let ct=`<table class="boxes"><thead><tr><th>Check</th><th>Between</th><th>Measure</th></tr></thead><tbody>`;
   checks.forEach(c=>{ ct+=`<tr><td>${c.group} · ${c.kind}</td><td>S${c.a.id} ↔ S${c.b.id}</td><td><b>${fin(c.len)}</b> (${fft(c.len)})</td></tr>`; });
@@ -175,6 +180,14 @@ function foundationPDF(){
   doc.text(`${F.m.name} - ground screw layout`, M, M+8);
   doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(60,60,60);
   doc.text('Plan seen from above. DATUM 0,0 = top-left outside corner. All measurements in inches to screw centres. Red dashed lines = diagonals to check square.', M, M+22);
+  { const b=getBearing(), deg=d=>`${Math.round(((d%360)+360)%360)} deg ${compass(d)}`;
+    doc.setFont('helvetica','bold'); doc.setTextColor(...ink);
+    doc.text(`ORIENTATION: top of plan faces ${deg(b)}  |  right ${deg(b+90)}  |  bottom ${deg(b+180)}  |  left ${deg(b+270)}`, M, M+34);
+    // north arrow, top right
+    const n=northVec(), cx=PW_-M-30, cy=M+18, r=16, px=-n[1], pz=n[0];   // (px,pz) perpendicular to north
+    doc.setDrawColor(...ink); doc.setFillColor(255,255,255); doc.setLineWidth(0.8); doc.circle(cx,cy,r,'FD');
+    doc.setFillColor(192,57,43); doc.triangle(cx+n[0]*(r-2), cy+n[1]*(r-2), cx+px*5-n[0]*4, cy+pz*5-n[1]*4, cx-px*5-n[0]*4, cy-pz*5-n[1]*4, 'F');
+    doc.setTextColor(192,57,43); doc.setFontSize(10); doc.text('N', cx+n[0]*(r+7), cy+n[1]*(r+7)+3, {align:'center'}); doc.setTextColor(...ink); doc.setFont('helvetica','normal'); }
   const areaX=M+70, areaY=M+40, areaW=PW_-2*M-110, areaH=PH_-2*M-40-40-95;
   const s=Math.min(areaW/Wf, (areaH-50)/Df); const ox=areaX+(areaW-Wf*s)/2, oy=areaY+58;
   const X=x=>ox+x*s, Y=y=>oy+y*s;

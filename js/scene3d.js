@@ -6,6 +6,7 @@ import { panelCells, panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWal
 import { w3 } from './sheets.js';
 import { renderSide } from './sidebar.js';
 import { pickFor, pickLayer, state } from './state.js';
+import { getBearing } from './orient.js';
 
 /* ============================================================ 3D studio */
 const stage = document.getElementById('stage');
@@ -228,6 +229,14 @@ function buildHome(){
     }
     s.position.set(sc.x,0,sc.z); screwGroup.add(s);
   });
+  // north arrow on the ground beside the home
+  { const B=getBearing()*Math.PI/180, sh=new THREE.Shape();
+    sh.moveTo(0,2.2); sh.lineTo(0.9,-0.4); sh.lineTo(0.25,-0.1); sh.lineTo(0.25,-1.6); sh.lineTo(-0.25,-1.6); sh.lineTo(-0.25,-0.1); sh.lineTo(-0.9,-0.4); sh.closePath();
+    const arrow=new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshBasicMaterial({color:0xc0392b, side:THREE.DoubleSide}));
+    arrow.rotation.x=-Math.PI/2;
+    const ng=new THREE.Group(); ng.add(arrow);
+    const lab=letterSprite('N',1.1); lab.position.set(0,0.8,-3.2); ng.add(lab);
+    ng.scale.setScalar(1.6); ng.rotation.y=B; ng.position.set(minx-5, -FLOOR+0.03, maxz+6); homeGroup.add(ng); }
   slots.forEach(s=>{
     const w=bodyWall(s, pickFor(s)); if(!w) return;
     const mat=new THREE.MeshStandardMaterial({color:s.type==='int'?0xece0c6:0xc9a46a,roughness:0.85});

@@ -2,7 +2,7 @@
 import { MODELS, byId, optionsFor, layerOptions, layerById, podById } from './data.js';
 import { LAYER_KINDS, T, TI } from './config.js';
 
-const state = { model:'cove', picks:{}, layerPicks:{}, wallA:{}, faces:{}, selected:null, exploded:false, roof:false, nums:true, letters:true, screws:false, inset:6, view:'studio', face:'int', reverse:false, sheetSlot:null };
+const state = { model:'cove', picks:{}, layerPicks:{}, wallA:{}, faces:{}, bearing:{}, northUp:false, selected:null, exploded:false, roof:false, nums:true, letters:true, screws:false, inset:6, view:'studio', face:'int', reverse:false, sheetSlot:null };
 const KEY='cubit-wall-studio';
 function initState(){
   try{
@@ -11,11 +11,13 @@ function initState(){
     if(s.wallA) state.wallA=s.wallA;
     if(s.faces) state.faces=s.faces;
     if(s.layerPicks) state.layerPicks=s.layerPicks;
+    if(s.bearing) state.bearing=s.bearing;
+    if(s.northUp) state.northUp=true;
     if(s.inset) state.inset=s.inset;
     if(s.model&&MODELS[s.model]) state.model=s.model;
   }catch(e){}
 }
-function save(){ try{ localStorage.setItem(KEY, JSON.stringify({picks:state.picks, layerPicks:state.layerPicks, wallA:state.wallA, faces:state.faces, inset:state.inset, model:state.model})); }catch(e){} }
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify({picks:state.picks, layerPicks:state.layerPicks, wallA:state.wallA, faces:state.faces, bearing:state.bearing, northUp:state.northUp, inset:state.inset, model:state.model})); }catch(e){} }
 const fits = (w,slot) => w && w.len===slot.len && (w.type||'ext')===(slot.type||'ext');
 /* Which wall sits in a slot: the person's own choice, else the model's own wall (models.json "picks"),
    else a sensible sample wall of the right length and type. */

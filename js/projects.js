@@ -5,6 +5,7 @@
 import { MODELS, LIB, LAYERLIB, PODLIB, DECKLIB, byId, layerById, podById, deckById, savePodLib, saveWallLib, saveLayerLib, saveDeckLib } from './data.js';
 import { state, save } from './state.js';
 import { saveToLibraries } from './pods.js';
+import { getBearing } from './orient.js';
 
 const KEY='cubit-projects';
 const PROJECTS={};          // id -> project (own, from this browser)
@@ -28,7 +29,7 @@ function snapshot(name, id){
   if(model.base===undefined) delete model.base;
   if(m.base) model.base=m.base;
   return { id, name, saved:new Date().toISOString(), from:m.project ? (MODELS[state.model].from||state.model) : state.model, model,
-    picks: clone(state.picks[state.model]||{}), layerPicks: clone(state.layerPicks[state.model]||{}), wallA: clone(state.wallA[state.model]||{}), faces: clone(state.faces[state.model]||{}), inset: state.inset };
+    picks: clone(state.picks[state.model]||{}), layerPicks: clone(state.layerPicks[state.model]||{}), wallA: clone(state.wallA[state.model]||{}), faces: clone(state.faces[state.model]||{}), inset: state.inset, bearing: getBearing() };
 }
 /* Save: updates the open project, or makes a new one */
 function saveProject(name, asNew=false){
@@ -38,7 +39,7 @@ function saveProject(name, asNew=false){
   PROJECTS[id]=p; persist();
   const k=keyOf(p);
   // carry this browser's choices over to the project key
-  state.picks[k]=clone(p.picks); state.layerPicks[k]=clone(p.layerPicks||{}); state.wallA[k]=clone(p.wallA); state.faces[k]=clone(p.faces);
+  state.picks[k]=clone(p.picks); state.layerPicks[k]=clone(p.layerPicks||{}); (state.bearing ||= {})[k]=p.bearing; state.wallA[k]=clone(p.wallA); state.faces[k]=clone(p.faces);
   register(p); state.model=k; save();
   // new walls, floors, ceilings and pods of this home go into their libraries; the project then refers to them
   const counts = saveToLibraries(name);
@@ -54,6 +55,7 @@ function openProject(id){
   if(!state.wallA[k] || PROJECTS[id]) state.wallA[k]=clone(p.wallA||{});
   if(!state.faces[k] || PROJECTS[id]) state.faces[k]=clone(p.faces||{});
   if(p.inset) state.inset=p.inset;
+  if(p.bearing!=null && (state.bearing?.[k]==null || PROJECTS[id])) (state.bearing ||= {})[k]=p.bearing;
   state.model=k; state.selected=null; save();
 }
 function deleteProject(id){ delete PROJECTS[id]; persist(); delete MODELS['proj-'+id]; if(state.model==='proj-'+id){ state.model=Object.keys(MODELS)[0]; save(); } }
