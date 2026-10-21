@@ -3,11 +3,12 @@ import { FT, H, PW, T } from './config.js';
 import { MODELS } from './data.js';
 import { fft, fin } from './format.js';
 import { renderFoundation } from './foundation.js';
-import { screwsFor, slotsFor } from './layout.js';
+import { screwsFor, slotsFor, layerSlotsFor } from './layout.js';
+import { LAYER_KINDS } from './config.js';
 import { panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall } from './panels.js';
 import { buildWallMesh, resize } from './scene3d.js';
 import { wallListHTML } from './sidebar.js';
-import { pickFor, state, setFace } from './state.js';
+import { pickFor, pickLayer, state, setFace } from './state.js';
 import { panelPlan, homePlans, stackTableHTML, labelsPDF, faceFor, faceShort } from './labels.js';
 import { toast } from './sidebar.js';
 
@@ -18,7 +19,7 @@ function openSheets(){
   state.view='sheets'; sheetsEl.hidden=false; studioEl.hidden=true; document.getElementById('studioTools').hidden=true;
   document.getElementById('bSheets').textContent='Back to 3D';
   const slots=slotsFor(state.model);
-  if(!['__found','__labels'].includes(state.sheetSlot) && !slots.find(s=>s.id===state.sheetSlot)) state.sheetSlot=slots[0].id;
+  if(!['__found','__labels'].includes(state.sheetSlot) && !slots.find(s=>s.id===state.sheetSlot) && !layerSlotsFor(state.model).find(l=>l.id===state.sheetSlot)) state.sheetSlot=slots[0].id;
   renderSheetList(); renderSheet();
 }
 function closeSheets(){
@@ -37,6 +38,8 @@ function renderSheet(){
   const el=document.getElementById('sheet');
   if(state.sheetSlot==='__found'){ renderFoundation(el); return; }
   if(state.sheetSlot==='__labels'){ renderLabelsHome(el); return; }
+  const ls=layerSlotsFor(state.model).find(l=>l.id===state.sheetSlot);
+  if(ls){ renderLayerSheet(el, ls); return; }
   const s=slotsFor(state.model).find(x=>x.id===state.sheetSlot); const w=bodyWall(s, pickFor(s));
   const isInt = s.type==='int';
   const faceA = isInt ? `Side A · faces ${s.pod.label}` : 'Front · interior side';
@@ -189,7 +192,7 @@ function buildWall3D(w){
 }
 window.addEventListener('resize',()=>{ if(state.view==='sheets'&&w3){ const h=document.getElementById('wall3d'); if(!h) return; const r=h.getBoundingClientRect(); w3.renderer.setSize(r.width,r.height,false); w3.camera.aspect=r.width/r.height; w3.camera.updateProjectionMatrix(); } });
 
-export { renderLabelsHome, downloadBlob, sheetsEl, w3, openSheets, closeSheets, renderSheetList, renderSheet, boxTable, elevationSVG, dimH, dimV, buildWall3D, studioEl };
+export { renderLayerSheet, renderLabelsHome, downloadBlob, sheetsEl, w3, openSheets, closeSheets, renderSheetList, renderSheet, boxTable, elevationSVG, dimH, dimV, buildWall3D, studioEl };
 
 /* ---------- whole home: cut & stack overview + all labels ---------- */
 function renderLabelsHome(el){
@@ -225,4 +228,37 @@ function downloadBlob(blob, name){
     return;
   }
   const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),4000); toast('Downloaded');
+}
+
+/* ---------- floor / ceiling layer sheet: plan from above, panels, holes ---------- */
+function renderLayerSheet(el, ls){
+  const L=pickLayer(ls), K=LAYER_KINDS[ls.kind], len=L.len*FT, wid=96;
+  const cuts=[0,...(L.seams&&L.seams.length?L.seams:[...Array(Math.ceil(len/PW)-1)].map((_,i)=>(i+1)*PW)),len];
+  const panels=cuts.slice(0,-1).map((a,i)=>[a,cuts[i+1]]);
+  const s=Math.min(3.2, 900/len), ml=70, mt=90, VW=len*s+ml+60, VH=wid*s+mt+90;
+  const X=x=>ml+x*s, Y=z=>mt+z*s;
+  let g=`<svg viewBox="0 0 ${VW} ${VH}" font-family="IBM Plex Mono, monospace" role="img" aria-label="Layer plan"><defs><marker id="ar" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#2f6db5"/></marker></defs>`;
+  panels.forEach(([a,b],i)=>{
+    g+=`<rect x="${X(a)}" y="${Y(0)}" width="${(b-a)*s}" height="${wid*s}" fill="#efe9da" stroke="#111" stroke-width="1.3"/>`;
+    g+=`<circle cx="${X((a+b)/2)}" cy="${mt-44}" r="16" fill="#fff" stroke="#d0661f" stroke-width="3"/><text x="${X((a+b)/2)}" y="${mt-38}" text-anchor="middle" font-family="Archivo, Arial, sans-serif" font-weight="800" font-size="17">${i+1}</text>`;
+    g+=dimH(X(a),X(b),mt-14,fin(b-a),Y(0),10);
+    if(b-a<PW-0.01) g+=`<text x="${X((a+b)/2)}" y="${Y(wid/2)}" text-anchor="middle" font-size="11" fill="#b4520f" font-weight="600">CUT ${fin(b-a)}</text>`;
+  });
+  (L.holes||[]).forEach((h,i)=>{
+    g+=`<rect x="${X(h.x)}" y="${Y(h.z)}" width="${h.w*s}" height="${h.d*s}" fill="#fff" stroke="#c0392b" stroke-width="1.4"/>`;
+    g+=`<text x="${X(h.x+h.w/2)}" y="${Y(h.z+h.d/2)+4}" text-anchor="middle" font-size="10" fill="#c0392b" font-weight="700">H${i+1}</text>`;
+  });
+  g+=dimH(X(0),X(len),Y(wid)+40,`${fin(len)} (${fft(len)})`,Y(wid),12);
+  g+=dimV(Y(0),Y(wid),ml-26,fin(wid),X(0),11);
+  g+=`<text x="${X(0)}" y="${VH-10}" font-size="10" fill="#555">Seen from above · x from the left end, z from the top edge · same orientation as the foundation plan</text></svg>`;
+  let t=`<table class="boxes"><thead><tr><th>Hole</th><th>From left end</th><th>From top edge</th><th>Size</th><th>Panel</th></tr></thead><tbody>`;
+  (L.holes||[]).forEach((h,i)=>{ const pi=panels.findIndex(([a,b])=>h.x+h.w/2>=a&&h.x+h.w/2<b)+1; t+=`<tr><td>H${i+1}</td><td>${fin(h.x)}</td><td>${fin(h.z)}</td><td>${fin(h.w)} × ${fin(h.d)}</td><td>${pi}</td></tr>`; });
+  if(!(L.holes||[]).length) t+=`<tr><td colspan="5">No holes in this layer.</td></tr>`;
+  t+=`</tbody></table>`;
+  el.innerHTML=`
+    <div class="sheet-title"><div><div class="eyebrow" style="color:#555">Layer sheet · Cubit Home</div><h3>${ls.label} — ${L.id}</h3></div>
+      <div class="meta">${MODELS[state.model].name} · ${fft(len)} × 8′ · ${panels.length} panels · ${L.t||K.t}″ thick · ${fin(L.z??K.z)} up from the floor bottom<br>${new Date().toISOString().slice(0,10)}</div></div>
+    <p class="note" style="color:#333">${L.name}${L.source?` · from ${L.source}`:''}${L.blank?' · placeholder: nothing scanned yet':''}</p>
+    <div class="elev">${g}</div>
+    <div class="tblwrap">${t}</div>`;
 }

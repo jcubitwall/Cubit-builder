@@ -1,11 +1,12 @@
 /* Cubit Builder — sidebar.js : model chips, wall list, wall options, layout editor, wall upload */
 import { FT, POD, PW, T, TI } from './config.js';
-import { LIB, MODELS, optionsFor, saveCustomModels } from './data.js';
-import { screwsFor, slotsFor, podList, CW } from './layout.js';
+import { LIB, MODELS, optionsFor, saveCustomModels, layerOptions } from './data.js';
+import { LAYER_KINDS } from './config.js';
+import { screwsFor, slotsFor, podList, CW, layerSlotsFor } from './layout.js';
 import { panelCount, thumbSVG, bodyWall, wallLen } from './panels.js';
 import { buildHome, highlight } from './scene3d.js';
 import { openSheets } from './sheets.js';
-import { pickFor, save, state, choose } from './state.js';
+import { pickFor, save, state, choose, pickLayer, chooseLayer } from './state.js';
 
 const sideH=document.getElementById('sideH'), sideB=document.getElementById('sideB');
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -18,19 +19,37 @@ function renderModels(){
   el.querySelectorAll('button').forEach(b=>b.onclick=()=>{ state.model=b.dataset.m; state.selected=null; save(); renderModels(); buildHome(); renderSide(); if(state.view==='sheets') openSheets(); });
 }
 function wallListHTML(slots, current){
-  let html='', pod=-1;
-  slots.forEach(s=>{
-    if(s.pod.i!==pod){ if(pod>=0) html+='</div>'; pod=s.pod.i; html+=`<div class="podhead">${s.pod.long}<span>Wall A = ${s.pod.wallA ? sideWord(s.pod.wallA) : ''}</span></div><div class="wl">`; }
-    const w=pickFor(s);
-    html+=`<button class="${s.id===current?'on':''}" data-s="${s.id}"><span class="n">Wall ${s.letter} <em>${s.detail}</em></span><span class="l">${w?fmtLen(wallLen(bodyWall(s,w))):s.len+'′'} · ${w?panelCount(bodyWall(s,w)):0} panels</span><span class="o">${w?esc(w.id+' — '+w.name):'No option for this length yet'}</span></button>`;
+  const layers=layerSlotsFor(state.model);
+  let html='';
+  podList(state.model).forEach(pod=>{
+    const mine=slots.filter(s=>s.pod.i===pod.i); if(!mine.length) return;
+    html+=`<div class="podhead">${pod.long}<span>Wall A = ${sideWord(mine[0].pod.wallA||'')}</span></div><div class="wl">`;
+    mine.forEach(s=>{
+      const w=pickFor(s);
+      html+=`<button class="${s.id===current?'on':''}" data-s="${s.id}"><span class="n">Wall ${s.letter} <em>${s.detail}</em></span><span class="l">${fmtLen(wallLen(bodyWall(s,w)))} · ${panelCount(bodyWall(s,w))} panels</span><span class="o">${esc(w.id+' — '+w.name)}${w.blank?' ⚠':''}</span></button>`;
+    });
+    layers.filter(l=>l.pod.i===pod.i).forEach(l=>{
+      const L=pickLayer(l);
+      html+=`<button class="lay ${l.id===current?'on':''}" data-s="${l.id}"><span class="n">${LAYER_KINDS[l.kind].label}</span><span class="l">${l.len}′ · ${(L.t||0).toFixed(2).replace(/\.?0+$/,'')}″</span><span class="o">${esc(L.id+' — '+L.name)}</span></button>`;
+    });
+    html+='</div>';
   });
-  return html+(pod>=0?'</div>':'');
+  return html;
+}
+function layerThumb(L){
+  const len=L.len*12, s=150/len, W=len*s, H=96*s;
+  let g=`<svg viewBox="-2 -2 ${W+4} ${H+4}" aria-hidden="true"><rect width="${W}" height="${H}" fill="#e7e2d6" stroke="#5b4a33" stroke-width=".8"/>`;
+  (L.seams||[]).forEach(x=>{ g+=`<line x1="${x*s}" y1="0" x2="${x*s}" y2="${H}" stroke="#5b4a33" stroke-width=".4" stroke-dasharray="2 2"/>`; });
+  (L.holes||[]).forEach(h=>{ g+=`<rect x="${h.x*s}" y="${h.z*s}" width="${h.w*s}" height="${h.d*s}" fill="#fff" stroke="#c0392b" stroke-width=".7"/>`; });
+  return g+'</svg>';
 }
 const fmtLen = inch => { const ft=Math.floor((inch+0.01)/12), r=Math.round((inch-ft*12)*8)/8; return r? `${ft}′-${r}″` : `${ft}′`; };
 const sideWord = k => ({S:'top side', E:'right end', N:'bottom side', W:'left end'}[k]);
 
 function renderSide(){
   const slots=slotsFor(state.model); const m=MODELS[state.model];
+  const ls=layerSlotsFor(state.model).find(x=>x.id===state.selected);
+  if(ls){ renderLayerSide(ls); return; }
   const s=slots.find(x=>x.id===state.selected);
   if(!s){
     const pods=m.pods.length, panels=slots.reduce((a,x)=>a+(pickFor(x)?panelCount(bodyWall(x,pickFor(x))):0),0);
@@ -51,6 +70,7 @@ function renderSide(){
       <div class="row"><button class="btn" id="toSheet">Assembly sheet</button>${(s.short || s.pod.len<=8) ? `<button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button>` : ''}<button class="btn ghost" id="deselect">Back to model</button></div>
       ${state.wallA?.[state.model]?.[s.pod.i] ? `<p class="note">Wall A for ${s.pod.label} was set by hand. <button class="linkbtn" id="autoA">Go back to automatic</button></p>`:''}
       <div class="eyebrow">${opts.length} options for a ${s.len}′ ${isInt?'interior':'exterior'} wall · seen from ${isInt?s.other.label:'outside'}</div>
+      ${opts.length?'':`<p class="note">Nothing in the library for a ${s.len}′ ${isInt?'interior':'exterior'} wall yet. Upload a STEP file of a home that has one and it will be added.</p>`}
       <div class="opts">${opts.map(o=>`<button class="opt" data-o="${esc(o.id)}" aria-pressed="${w&&o.id===w.id}">${thumbSVG(o)}<b>${esc(o.name)}</b><code>${esc(o.id)}${o.src==='imported'?' · uploaded':''}${o.model?' · this home':''}</code></button>`).join('')}</div>`;
     sideB.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{ choose(s, b.dataset.o); buildHome(); renderSide(); toast(`${s.label} → ${b.dataset.o}`); });
     sideB.querySelector('#toSheet').onclick=()=>{ state.sheetSlot=s.id; openSheets(); };
@@ -63,6 +83,19 @@ function renderSide(){
 }
 
 /* ============================================================ layout editor: add / remove pods */
+function renderLayerSide(ls){
+  const L=pickLayer(ls), K=LAYER_KINDS[ls.kind], opts=layerOptions(ls.kind, ls.len);
+  sideH.innerHTML=`<div class="eyebrow">${K.label} · ${ls.len}′ × 8′ · ${(L.t||K.t)}″ thick</div><h2>${ls.label}</h2><p>now <b>${esc(L.id)}</b> ${esc(L.name)}</p>`;
+  sideB.innerHTML=`
+    <div class="row"><button class="btn" id="toSheet">Layer sheet</button><button class="btn ghost" id="deselect">Back to model</button></div>
+    ${ls.kind==='ceiling-int'||ls.kind==='roof' ? '<p class="note">Turn on Roof (or Exploded view) to see the ceiling and roof in 3D.</p>':''}
+    <div class="eyebrow">${opts.length} ${K.label.toLowerCase()} option${opts.length===1?'':'s'} for a ${ls.len}′ pod · seen from above</div>
+    ${opts.length?'':`<p class="note">Nothing in the library for this yet. It fills up as STEP files are imported.</p>`}
+    <div class="opts">${opts.map(o=>`<button class="opt" data-o="${esc(o.id)}" aria-pressed="${o.id===L.id}">${layerThumb(o)}<b>${esc(o.name)}</b><code>${esc(o.id)}</code></button>`).join('')}</div>`;
+  sideB.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{ chooseLayer(ls, b.dataset.o); buildHome(); renderSide(); toast(`${ls.label} → ${b.dataset.o}`); });
+  sideB.querySelector('#toSheet').onclick=()=>{ state.sheetSlot=ls.id; openSheets(); };
+  sideB.querySelector('#deselect').onclick=()=>{ state.selected=null; highlight(); renderSide(); };
+}
 function layoutBlock(m){
   const pods=podList(state.model);
   const slots=slotsFor(state.model);
@@ -155,4 +188,4 @@ document.getElementById('fileIn').addEventListener('change',e=>{
 });
 let toastT; function toast(msg){ let t=document.querySelector('.toast'); if(!t){t=document.createElement('div');t.className='toast';document.body.appendChild(t);} t.textContent=msg; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true,2400); }
 
-export { sideH, renderModels, wallListHTML, renderSide, importBlock, toast, sideB };
+export { sideH, renderModels, wallListHTML, renderSide, importBlock, toast, sideB, layerThumb };

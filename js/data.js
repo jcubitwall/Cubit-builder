@@ -7,12 +7,15 @@
    Openings + outside items: x in inches from the LEFT END SEEN FROM OUTSIDE. Inside items: from the left end seen from INSIDE. */
 const MODELS = {};
 const LIB = [];
+const LAYERLIB = [];
 const CUSTOM_KEY = 'cubit-custom-models';
 async function loadData(){
-  const [walls, models] = await Promise.all([
+  const [walls, models, layers] = await Promise.all([
     fetch('data/walls.json').then(r=>r.json()),
-    fetch('data/models.json').then(r=>r.json())
+    fetch('data/models.json').then(r=>r.json()),
+    fetch('data/layers.json').then(r=>r.ok?r.json():[]).catch(()=>[])
   ]);
+  layers.forEach(l=>LAYERLIB.push(l));
   Object.assign(MODELS, models);
   walls.forEach(w=>LIB.push({...w, src:'library'}));
   try{ const saved = JSON.parse(localStorage.getItem('cubit-walls-imported')||'[]'); saved.forEach(w=>{ if(!LIB.find(x=>x.id===w.id)) LIB.push(w); }); }catch(e){}
@@ -25,5 +28,7 @@ function saveCustomModels(){
 /* options for a slot: same length and type; walls tied to one home only show up in that home */
 const optionsFor = (len,type='ext',model=null) => LIB.filter(w=>w.len===len && (w.type||'ext')===type && (!w.model || w.model===model || (model && MODELS[model]?.base===w.model)));
 const byId = id => LIB.find(w=>w.id===id);
+const layerOptions = (kind,len) => LAYERLIB.filter(l=>l.kind===kind && l.len===len);
+const layerById = id => LAYERLIB.find(l=>l.id===id);
 
-export { MODELS, LIB, loadData, optionsFor, byId, saveCustomModels };
+export { MODELS, LIB, LAYERLIB, loadData, optionsFor, byId, layerOptions, layerById, saveCustomModels };

@@ -15,4 +15,12 @@ const FT = 12;
 const POD = { L24:{len:24, name:'Life pod'}, P16:{len:16, name:'16′ pod'}, P8:{len:8, name:'8′ pod'} };
 const SIDE_NAME = { S:'Front', N:'Back', W:'Left end', E:'Right end' };
 
-export { H, T, TI, FLOOR, GAP, CEIL, PW, FT, POD, SIDE_NAME };
+/* Horizontal layers, heights in inches above the bottom of the floor (walls start at 10.56″) */
+const WALL_BASE = 10.56;
+const LAYER_KINDS = {
+  'floor-ext':   { label:'Exterior floor',   short:'Ext. floor',  code:'FE', z:0,      t:4.6 },
+  'floor-int':   { label:'Interior floor',   short:'Int. floor',  code:'FI', z:6.08,   t:4.48 },
+  'ceiling-int': { label:'Interior ceiling', short:'Ceiling',     code:'CI', z:106.6,  t:6.47 },
+  'roof':        { label:'Roof',             short:'Roof',        code:'RF', z:113.07, t:6.48 },
+};
+export { H, T, TI, FLOOR, GAP, CEIL, PW, FT, POD, SIDE_NAME, WALL_BASE, LAYER_KINDS };

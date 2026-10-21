@@ -8,7 +8,8 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
 
 - **Pick a home model:** Life, Nest, Cove, Panorama, and **Expanse** (two 24′ pods with two 16′ pods on the end), built from 8×8, 8×16 and 8×24 pods with a 5/8″ space at every joint. The Tanja Leet *Expanse + 1* (5 pods) is a shared project, scanned straight from the Shapr3D STEP file with every opening measured.
 - **Add pods:** open *Pods in this home · add a pod* in the sidebar. Pick a size and choose which pod and which wall to put it beside. Your layout is saved in your browser, and *Copy layout code* gives the text to paste into `data/models.json`.
-- **Swap any wall:** click a wall in 3D and choose another option of the same length. Exterior walls are 6½″. Where pods join, **each pod keeps its own 4½″ interior wall**.
+- **Swap any wall, floor or ceiling:** click it in 3D, or in the list, and choose another option from the library. Each pod has its walls plus four layers: exterior floor, interior floor, interior ceiling and roof.
+- **The library only holds real scanned parts.** Every imported STEP file adds its unique walls and layers. Where a home needs a size that hasn't been scanned yet, the app shows a plain placeholder (marked ⚠ on walls). Exterior walls are 6½″. Where pods join, **each pod keeps its own 4½″ interior wall**.
 - **Long and short walls:** the long walls (B and D) always run the full pod length. The short end walls (A and C) fit between them, so a short wall is 96″ minus the two long walls' thickness: 83″ between two 6½″ walls, 85″ when one of them is a 4½″ interior wall.
 - **Panels:** 4′ × 8′ SIPs always start with a full panel at panel 1 (the left end seen from the interior). The last panel is cut to fit, and the sheets and labels show its width.
 - **Wall letters:** every pod's walls are **A, B, C, D, going clockwise seen from above. Wall A is always a short end wall: the end with the door**. The app picks the end in this order: an exterior door first, then a patio door, then an interior door. If it picks the wrong end, click the other short wall and press **Make this Wall A**. A side that is part exterior and part interior keeps one letter, numbered clockwise (B1, B2).
@@ -39,7 +40,7 @@ These live in `js/config.js`.
 
 ## Adding and changing walls
 
-All walls are in **`data/walls.json`**, one wall per line. Edit that file on GitHub, commit, and the app picks up the change. Home layouts are in **`data/models.json`**.
+All walls are in **`data/walls.json`**, one wall per line, and they normally come from STEP imports. Edit that file on GitHub, commit, and the app picks up the change. Home layouts are in **`data/models.json`**.
 
 ```json
 { "id": "W24-16", "name": "Office wall", "len": 24, "type": "ext", "t": 6.5,
@@ -73,6 +74,7 @@ index.html          page markup
 css/app.css         styles
 data/walls.json     wall library (edit this)
 data/models.json    home models: which pods, where
+data/layers.json    floor / ceiling / roof library (from STEP scans)
 data/projects.json  shared, named projects (saved configurations)
 js/main.js          start-up and toolbar
 js/config.js        pod dimensions and constants
@@ -93,7 +95,7 @@ There's no build step: it is plain HTML, CSS and JavaScript modules. To run it o
 
 ## Importing a home from Shapr3D
 
-Export the whole home as **STEP** (inches or mm are both fine). The scripts in `tools/step-import/` read every solid, scan each pod wall with test rays to find its thickness and every opening, and write the walls and the model into the data files. See that folder's README.
+Export the whole home as **STEP**. `tools/step-import/import_step.py` finds the pods, scans every wall and every floor and ceiling layer, adds the unique ones to the library (`data/walls.json`, `data/layers.json`), and saves the home as a shared project. See that folder's README.
 
 ## Next up
 

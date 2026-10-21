@@ -2,7 +2,7 @@
    Pods, wall slots, wall letters and ground screws for a home model.
    Plan units are feet. x = along a pod's length, z = across it (8′). Seen from above,
    +x is to the right and +z is down the screen, so going clockwise means S → E → N → W. */
-import { FT, GAP, POD, SIDE_NAME } from './config.js';
+import { FT, GAP, POD, SIDE_NAME, LAYER_KINDS } from './config.js';
 import { MODELS } from './data.js';
 import { pickFor, state } from './state.js';
 
@@ -187,6 +187,12 @@ function screwsFor(modelKey, insetIn){
   return all.filter((sc,idx)=>!drop.has(idx) || sc.shared);
 }
 
+/* Each pod has four horizontal layers: exterior floor, interior floor, interior ceiling, roof */
+function layerSlotsFor(modelKey){
+  const OFF=podOffsets(modelKey);
+  return podList(modelKey).flatMap(p=>Object.keys(LAYER_KINDS).map(kind=>({ id:`${p.i}:${kind}`, layer:true, kind, pod:p, len:p.len,
+    x:p.x+OFF[p.i].ox, z:p.z+OFF[p.i].oz, label:`${p.label} · ${LAYER_KINDS[kind].label}` })));
+}
 const podLabels = modelKey => podList(modelKey).reduce((a,p)=>(a[p.i]=p.long,a),{});
 
-export { podOffsets, slotsFor, NORM, screwsFor, podList, podLabels, CW };
+export { podOffsets, slotsFor, NORM, screwsFor, podList, podLabels, CW, layerSlotsFor };

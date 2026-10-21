@@ -141,3 +141,15 @@ dialog#projDlg::backdrop{background:rgba(20,24,22,.45)}
 .projrow.on{background:var(--accent-soft)}
 .chip.proj{border-style:dashed}
 .flipflag{color:#b4520f}
+.wl button.lay{background:var(--surface-2)}
+.wl button.lay .n{font-weight:500}
+/* keep the 3D stage and the sidebar to the window height on desktop; the sidebar scrolls inside */
+@media (min-width: 901px){
+  .studio{flex:none;height:calc(100vh - 140px);min-height:560px}
+  .studio > aside{max-height:100%}
+}
+@media (min-width: 901px){
+  .studio{grid-template-rows:minmax(0,1fr)}
+  .studio > aside, #stage{min-height:0}
+}
+.side-b > *{flex-shrink:0}

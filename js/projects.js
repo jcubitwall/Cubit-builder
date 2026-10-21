@@ -23,11 +23,11 @@ function persist(){ try{ localStorage.setItem(KEY, JSON.stringify(PROJECTS)); }c
 
 function snapshot(name, id){
   const m = MODELS[state.model];
-  const model = clone({ name:m.name, size:m.size, pods:m.pods, picks:m.picks||{}, base:m.base || (m.project?undefined:state.model), wallA:m.wallA, note:m.note });
+  const model = clone({ name:m.name, size:m.size, pods:m.pods, picks:m.picks||{}, layerPicks:m.layerPicks||{}, base:m.base || (m.project?undefined:state.model), wallA:m.wallA, note:m.note });
   if(model.base===undefined) delete model.base;
   if(m.base) model.base=m.base;
   return { id, name, saved:new Date().toISOString(), from:m.project ? (MODELS[state.model].from||state.model) : state.model, model,
-    picks: clone(state.picks[state.model]||{}), wallA: clone(state.wallA[state.model]||{}), faces: clone(state.faces[state.model]||{}), inset: state.inset };
+    picks: clone(state.picks[state.model]||{}), layerPicks: clone(state.layerPicks[state.model]||{}), wallA: clone(state.wallA[state.model]||{}), faces: clone(state.faces[state.model]||{}), inset: state.inset };
 }
 /* Save: updates the open project, or makes a new one */
 function saveProject(name, asNew=false){
@@ -37,7 +37,7 @@ function saveProject(name, asNew=false){
   PROJECTS[id]=p; persist();
   const k=keyOf(p);
   // carry this browser's choices over to the project key
-  state.picks[k]=clone(p.picks); state.wallA[k]=clone(p.wallA); state.faces[k]=clone(p.faces);
+  state.picks[k]=clone(p.picks); state.layerPicks[k]=clone(p.layerPicks||{}); state.wallA[k]=clone(p.wallA); state.faces[k]=clone(p.faces);
   register(p); state.model=k; save();
   return p;
 }
@@ -45,6 +45,7 @@ function openProject(id){
   const p = PROJECTS[id] || SHARED[id]; if(!p) return;
   const k=keyOf(p); register(p);
   if(!state.picks[k] || PROJECTS[id]) state.picks[k]=clone(p.picks||{});
+  if(!state.layerPicks[k] || PROJECTS[id]) state.layerPicks[k]=clone(p.layerPicks||{});
   if(!state.wallA[k] || PROJECTS[id]) state.wallA[k]=clone(p.wallA||{});
   if(!state.faces[k] || PROJECTS[id]) state.faces[k]=clone(p.faces||{});
   if(p.inset) state.inset=p.inset;

@@ -1,0 +1,10 @@
+[
+  {"id": "FE24-01", "name": "24′ exterior floor · no holes", "kind": "floor-ext", "len": 24, "t": 4.6, "z": 0.0, "holes": [], "seams": [48.0, 96.0, 144.0, 192.0, 240.0], "source": "Tanja Leet · Expanse + 1 (STEP 2026-10-20)"},
+  {"id": "FI24-01", "name": "24′ interior floor · no holes", "kind": "floor-int", "len": 24, "t": 4.48, "z": 6.08, "holes": [], "seams": [48.0, 96.0, 144.0, 192.0, 240.0], "source": "Tanja Leet · Expanse + 1 (STEP 2026-10-20)"},
+  {"id": "CI24-01", "name": "24′ interior ceiling · no holes", "kind": "ceiling-int", "len": 24, "t": 6.47, "z": 106.6, "holes": [], "seams": [48.0, 96.0, 144.0, 192.0, 240.0], "source": "Tanja Leet · Expanse + 1 (STEP 2026-10-20)"},
+  {"id": "RF24-01", "name": "24′ roof · no holes", "kind": "roof", "len": 24, "t": 6.48, "z": 113.07, "holes": [], "seams": [48.0, 96.0, 144.0, 192.0, 240.0], "source": "Tanja Leet · Expanse + 1 (STEP 2026-10-20)"},
+  {"id": "FE16-01", "name": "16′ exterior floor · no holes", "kind": "floor-ext", "len": 16, "t": 4.6, "z": 0.0, "holes": [], "seams": [48.0, 96.0, 144.0], "source": "Tanja Leet · Expanse + 1 (STEP 2026-10-20)"},
+  {"id": "FI16-01", "name": "16′ interior floor · no holes", "kind": "floor-int", "len": 16, "t": 4.48, "z": 6.08, "holes": [], "seams": [48.0, 96.0, 144.0], "source": "Tanja Leet · Expanse + 1 (STEP 2026-10-20)"},
+  {"id": "CI16-01", "name": "16′ interior ceiling · no holes", "kind": "ceiling-int", "len": 16, "t": 6.47, "z": 106.6, "holes": [], "seams": [48.0, 96.0, 144.0], "source": "Tanja Leet · Expanse + 1 (STEP 2026-10-20)"},
+  {"id": "RF16-01", "name": "16′ roof · no holes", "kind": "roof", "len": 16, "t": 6.48, "z": 113.07, "holes": [], "seams": [48.0, 96.0, 144.0], "source": "Tanja Leet · Expanse + 1 (STEP 2026-10-20)"}
+]
