@@ -277,7 +277,8 @@ function resize(){
   const r=stage.getBoundingClientRect(); renderer.setSize(r.width,r.height,false); camera.aspect=r.width/Math.max(1,r.height); camera.updateProjectionMatrix();
 }
 new ResizeObserver(resize).observe(stage);
-// picking
+// picking: only things you can see (a hidden roof or ceiling must not catch the click)
+const shown = h => { for(let o=h.object; o; o=o.parent){ if(!o.visible) return false; } return true; };
 const ray=new THREE.Raycaster(), mouse=new THREE.Vector2(); let downAt=null;
 renderer.domElement.addEventListener('pointerdown',e=>{downAt=[e.clientX,e.clientY];});
 renderer.domElement.addEventListener('pointerup',e=>{
@@ -285,7 +286,7 @@ renderer.domElement.addEventListener('pointerup',e=>{
   const r=renderer.domElement.getBoundingClientRect();
   mouse.set(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1);
   ray.setFromCamera(mouse,camera);
-  const hit=ray.intersectObjects(pickables,false)[0];
+  const hit=ray.intersectObjects(pickables,false).find(shown);
   state.selected = hit ? hit.object.userData.slotId : null;
   highlight(); renderSide();
 });
@@ -294,7 +295,7 @@ renderer.domElement.addEventListener('pointermove',e=>{
   const r=renderer.domElement.getBoundingClientRect();
   mouse.set(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1);
   ray.setFromCamera(mouse,camera);
-  renderer.domElement.style.cursor = ray.intersectObjects(pickables,false).length ? 'pointer':'grab';
+  renderer.domElement.style.cursor = ray.intersectObjects(pickables,false).some(shown) ? 'pointer':'grab';
 });
 function loop(){
   requestAnimationFrame(loop);

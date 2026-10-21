@@ -35,6 +35,10 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
 - **Long and short walls:** the long walls (B and D) always run the full pod length. The short end walls (A and C) fit between them, so a short wall is 96″ minus the two long walls' thickness: 83″ between two 6½″ walls, 85″ when one of them is a 4½″ interior wall.
 - **Panels:** 4′ × 8′ SIPs always start with a full panel at panel 1 (the left end seen from the interior). The last panel is cut to fit, and the sheets and labels show its width.
 - **Wall letters:** every pod's walls are **A, B, C, D, going clockwise seen from above. Wall A is always a short end wall: the end with the door**. The app picks the end in this order: an exterior door first, then a patio door, then an interior door. If it picks the wrong end, click the other short wall and press **Make this Wall A**. A side that is part exterior and part interior keeps one letter, numbered clockwise (B1, B2).
+- **Full screen 3D:** press **Full screen** on the 3D view, or the **F** key.
+  - **Toolbar:** the toggles float over the model.
+  - **Panel:** the walls and options slide in from the right with **Panel** or the **T** key. The panel also opens by itself when you click a wall.
+  - **Leaving:** **Esc** or **F** leaves full screen.
 - **Exploded view:** walls, interior walls and roof pull apart, and the house lifts off its ground screws.
 - **Projects:** press **Projects** to save what's on screen under a name, for example *Tanja Leet · Expanse + 1*. A project keeps its own layout (including pods you added), every wall choice, which wall is A on each pod, which side faces the assemblers on each wall, and the screw inset. Projects are saved in your browser. **Export** makes a file you can send to someone, and projects listed in `data/projects.json` show up for everyone (marked *shared*).
 - **Panel labels, cut & stack (ShopSabre):** every 4×8 panel gets a code: pod number + wall letter + panel number, e.g. **3B-4** = Pod 3, Wall B, panel 4.
@@ -122,6 +126,7 @@ js/pods.js          pod and deck editing rules, pod library, saving new items to
 js/decksheet.js     deck framing sheet and cut list
 js/cnc.js           CNC cut plan per panel pass, DXF writer, manifest, zip
 js/cncsheet.js      the CNC cut files sheet: cut order, previews, flags, download
+js/fullscreen.js    full-screen 3D with a slide-in panel
 js/sheets.js        wall assembly sheets
 js/foundation.js    foundation sheet + PDF
 js/labels.js        panel codes, assembly order, stacking, CNC flips, label PDF

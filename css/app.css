@@ -215,3 +215,22 @@ body.dragging, body.dragging *{cursor:grabbing!important}
 .cnc-set{margin-top:14px}
 .cnc-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:10px 0}
 @media (max-width: 900px){ .cnc-grid{grid-template-columns:1fr} }
+/* full-screen 3D */
+.fs-bar{position:absolute;left:12px;top:12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;z-index:5;max-width:calc(100% - 24px)}
+.fsbtn{border:1px solid var(--line);background:color-mix(in srgb,var(--surface) 92%,transparent);color:var(--ink);border-radius:8px;padding:7px 10px;cursor:pointer;font:inherit;font-size:13px}
+.fsbtn:hover{border-color:var(--accent)}
+.fsbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.fsbtn[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+#bPanel{display:none}
+.fs-tools{display:none}
+.studio.fs{position:fixed;inset:0;z-index:50;height:100vh!important;min-height:0;margin:0;gap:0;grid-template-columns:1fr!important;grid-template-rows:1fr!important;background:var(--stage)}
+.studio.fs #stage{border-radius:0;min-height:0;height:100%}
+.studio.fs #bPanel{display:inline-block}
+.studio.fs .fs-tools{display:flex}
+.studio.fs .fs-tools .toggles{display:flex;gap:6px;flex-wrap:wrap}
+.studio.fs .fs-tools .tog{background:color-mix(in srgb,var(--surface) 92%,transparent)}
+.studio.fs > aside{position:absolute;top:12px;right:12px;bottom:12px;width:min(380px,calc(100vw - 24px));max-height:none;z-index:6;box-shadow:0 12px 40px rgba(0,0,0,.25);transform:translateX(calc(100% + 24px));transition:transform .22s ease;visibility:hidden}
+.studio.fs.panel-open > aside{transform:none;visibility:visible}
+.studio.fs .legend{top:auto;bottom:12px;right:12px}
+.studio.fs.panel-open .legend{display:none}
+@media (prefers-reduced-motion: reduce){ .studio.fs > aside{transition:none} }

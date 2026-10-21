@@ -7,6 +7,7 @@ import { buildHome, resize, loop, controls, setExplodeGoal, refreshRoof } from '
 import { renderModels, renderSide } from './sidebar.js';
 import { openSheets, closeSheets } from './sheets.js';
 import { openPlan, closePlan } from './planner.js';
+import './fullscreen.js';
 
 function bindTog(id,key,fn){ const b=document.getElementById(id); b.onclick=()=>{ state[key]=!state[key]; b.setAttribute('aria-pressed',state[key]); fn(); }; }
 bindTog('tExplode','exploded',()=>{ setExplodeGoal(state.exploded?1:0); });
