@@ -7,7 +7,9 @@ import { screwsFor, slotsFor } from './layout.js';
 import { panelCount, panelNum } from './panels.js';
 import { buildWallMesh, resize } from './scene3d.js';
 import { wallListHTML } from './sidebar.js';
-import { pickFor, state } from './state.js';
+import { pickFor, state, setFace } from './state.js';
+import { panelPlan, homePlans, stackTableHTML, labelsPDF, faceFor, faceShort } from './labels.js';
+import { toast } from './sidebar.js';
 
 /* ============================================================ assembly sheets */
 const sheetsEl=document.getElementById('sheets'), studioEl=document.getElementById('studio');
@@ -16,7 +18,7 @@ function openSheets(){
   state.view='sheets'; sheetsEl.hidden=false; studioEl.hidden=true; document.getElementById('studioTools').hidden=true;
   document.getElementById('bSheets').textContent='Back to 3D';
   const slots=slotsFor(state.model);
-  if(state.sheetSlot!=='__found' && !slots.find(s=>s.id===state.sheetSlot)) state.sheetSlot=slots[0].id;
+  if(!['__found','__labels'].includes(state.sheetSlot) && !slots.find(s=>s.id===state.sheetSlot)) state.sheetSlot=slots[0].id;
   renderSheetList(); renderSheet();
 }
 function closeSheets(){
@@ -27,36 +29,40 @@ function renderSheetList(){
   const el=document.getElementById('sheetList'); const slots=slotsFor(state.model);
   const nS=screwsFor(state.model,state.inset).length;
   el.innerHTML=`<div class="side-h"><div class="eyebrow">${MODELS[state.model].name} · ${slots.length} walls</div></div>`+
-    `<div class="wl"><button class="${state.sheetSlot==='__found'?'on':''}" data-s="__found"><span class="n">Foundation · ground screws</span><span class="l">${nS} screws</span><span class="o">Site plan with every screw located</span></button></div>`+
+    `<div class="wl"><button class="${state.sheetSlot==='__found'?'on':''}" data-s="__found"><span class="n">Foundation · ground screws</span><span class="l">${nS} screws</span><span class="o">Site plan with every screw located</span></button><button class="${state.sheetSlot==='__labels'?'on':''}" data-s="__labels"><span class="n">Panel labels · cut &amp; stack</span><span class="l">all walls</span><span class="o">Stacking order, CNC flips, printable labels</span></button></div>`+
     wallListHTML(slots,state.sheetSlot);
   el.querySelectorAll('.wl button').forEach(b=>b.onclick=()=>{ state.sheetSlot=b.dataset.s; renderSheetList(); renderSheet(); });
 }
 function renderSheet(){
   const el=document.getElementById('sheet');
   if(state.sheetSlot==='__found'){ renderFoundation(el); return; }
+  if(state.sheetSlot==='__labels'){ renderLabelsHome(el); return; }
   const s=slotsFor(state.model).find(x=>x.id===state.sheetSlot); const w=pickFor(s);
   const isInt = s.type==='int';
   const faceA = isInt ? `Side A · faces ${s.pod.label}` : 'Front · interior side';
   const faceB = isInt ? `Side B · faces ${s.other.label}` : 'Back · exterior side';
   if(!w){ el.innerHTML='<p>No wall option exists for this length yet.</p>'; return; }
-  const n=panelCount(w); const face=state.face; const order=[...Array(n)].map((_,i)=>i+1); const seq = state.reverse? order.slice().reverse() : order;
+  const n=panelCount(w); const face=faceFor(s); state.face=face; state.reverse=false;
+  const plan=panelPlan(s,w,face);
   el.innerHTML=`
     <div class="sheet-title">
       <div><div class="eyebrow" style="color:#555">Assembly sheet · Cubit Home</div><h3>${s.label} · ${s.detail} — ${w.id}</h3></div>
       <div class="meta">${MODELS[state.model].name} · ${fft(w.len*FT)} × ${fft(H)} · ${n} panels @ 4′×8′ · ${isInt?'Interior':'Exterior'} wall ${fin(w.t||T)}<br>${new Date().toISOString().slice(0,10)}</div>
     </div>
     <div class="sheet-tools">
-      <span class="seg" role="group" aria-label="Face"><button data-face="int" aria-pressed="${face==='int'}">${faceA}</button><button data-face="ext" aria-pressed="${face==='ext'}">${faceB}</button></span>
-      <span class="seg" role="group" aria-label="Panel order"><button data-rev="0" aria-pressed="${!state.reverse}">Order 1 → ${n}</button><button data-rev="1" aria-pressed="${state.reverse}">Reverse ${n} → 1</button></span>
+      <span style="font-size:13px;color:#333">Facing the assemblers:</span>
+      <span class="seg" role="group" aria-label="Side facing the assemblers"><button data-face="int" aria-pressed="${face==='int'}">${faceA}</button><button data-face="ext" aria-pressed="${face==='ext'}">${faceB}</button></span>
+      <button class="btn ghost" id="wallLabels" style="color:#111;border-color:#cfd4cc">Labels for this wall (PDF)</button>
     </div>
-    <div><span class="facebadge ${face}">${(face==='int'?faceA:faceB).toUpperCase()}</span><span style="font-size:12.5px;color:#333">${isInt?'Plug and switch boxes on this side shown.':face==='int'?'Boxes for plugs and switches shown. Openings shown as seen from inside.':'Openings and outside plugs and lights only.'} Install panels in number order, starting at 1 (follow the arrow).</span></div>
-    <div class="elev">${elevationSVG(w,face,state.reverse)}</div>
+    <div><span class="facebadge ${face}">${(face==='int'?faceA:faceB).toUpperCase()}</span><span style="font-size:12.5px;color:#333">${isInt?'Plug and switch boxes on this side shown.':face==='int'?'Boxes for plugs and switches shown. Openings shown as seen from inside.':'Openings and outside plugs and lights only.'} Assemble left → right: <b>${plan.seq.map(p=>p.num).join(' → ')}</b>. Stack with ${plan.seq[0].code} on top.</span></div>
+    <div class="elev">${elevationSVG(w,face,false)}</div>
+    <div class="tblwrap"><div class="eyebrow" style="color:#555;margin-bottom:4px">Cut &amp; stack · ShopSabre</div>${stackTableHTML(plan)}</div>
     <div class="sheet-grid">
       <div id="wall3d"><span class="w3cap">3D · panels pulled apart · drag to turn</span></div>
       <div class="tblwrap">${boxTable(w,face)}</div>
     </div>`;
-  el.querySelectorAll('[data-face]').forEach(b=>b.onclick=()=>{ state.face=b.dataset.face; renderSheet(); });
-  el.querySelectorAll('[data-rev]').forEach(b=>b.onclick=()=>{ state.reverse=b.dataset.rev==='1'; renderSheet(); });
+  el.querySelectorAll('[data-face]').forEach(b=>b.onclick=()=>{ setFace(s,b.dataset.face); renderSheet(); });
+  el.querySelector('#wallLabels').onclick=()=>downloadBlob(labelsPDF([plan], MODELS[state.model].name), `${MODELS[state.model].name} - ${plan.slot.pod.label} Wall ${plan.slot.letter} labels.pdf`);
   buildWall3D(w);
 }
 
@@ -68,7 +74,7 @@ function boxTable(w,face){
   const names={outlet:(face==='int'||w.type==='int')?'Plug box':'Outside plug (WP)',switch:'Switch box',light:'Outside light',data:'Data box'};
   let h=`<table class="boxes"><thead><tr><th>Item</th><th>From left end</th><th>Height</th><th>Size</th><th>Panel</th></tr></thead><tbody>`;
   const n=panelCount(w);
-  const pn = vx => { const kExt = face==='ext' ? Math.floor(vx/PW) : Math.floor((L-vx)/PW); return panelNum(n,Math.min(n-1,Math.max(0,kExt)),state.reverse); };
+  const pn = vx => { const kExt = face==='ext' ? Math.floor(vx/PW) : Math.floor((L-vx)/PW); return panelNum(n,Math.min(n-1,Math.max(0,kExt)),false); };
   ops.sort((a,b)=>a.vx-b.vx).forEach(o=>{ h+=`<tr><td>${o.kind==='window'?'Window opening':o.kind==='door'?'Door opening':o.kind==='opening'?'Cased opening':o.kind==='vent'?'Vent / duct hole':'Patio door opening'}</td><td>${fin(o.vx)}</td><td>sill ${fin(o.y)}</td><td>${fin(o.w)} × ${fin(o.h)}</td><td>${pn(o.vx+o.w/2)}</td></tr>`; });
   items.sort((a,b)=>a.vx-b.vx).forEach(b=>{ h+=`<tr><td>${names[b.kind]||b.kind}</td><td>${fin(b.vx)} (centre)</td><td>${fin(b.y)}</td><td>—</td><td>${pn(b.vx)}</td></tr>`; });
   return h+`</tbody></table>`;
@@ -93,10 +99,9 @@ function elevationSVG(w,face,rev){
     g+=`<text x="${x0+PW*s/2}" y="${Y(H/2)}" text-anchor="middle" font-family="Archivo, Arial, sans-serif" font-weight="800" font-size="${Math.min(70,PW*s*0.55)}" fill="#111" opacity=".09">${num}</text>`;
   }
   // install direction arrow
-  const firstK = [...Array(n).keys()].find(k=>panelNum(n, face==='ext'?k:n-1-k, rev)===1);
-  const ltr = firstK===0;
+  const ltr = true;   // assembly always runs left to right as the assemblers see the wall
   g+=`<line x1="${X(ltr?6:L-6)}" y1="${mt-90}" x2="${X(ltr?L-6:6)}" y2="${mt-90}" stroke="#d0661f" stroke-width="2.2" marker-end="url(#ar)" style="color:#d0661f"/>`;
-  g+=`<text x="${X(ltr?6:L-6)}" y="${mt-96}" text-anchor="${ltr?'start':'end'}" font-size="12" fill="#d0661f" font-weight="600">INSTALL ORDER ${ltr?'→':'←'}</text>`;
+  g+=`<text x="${X(ltr?6:L-6)}" y="${mt-96}" text-anchor="${ltr?'start':'end'}" font-size="12" fill="#d0661f" font-weight="600">ASSEMBLE LEFT → RIGHT</text>`;
   // panel chain dims (top)
   for(let k=0;k<n;k++) g+=dimH(X(k*PW),X((k+1)*PW),mt-22,fin(PW),mt);
   // openings
@@ -183,4 +188,40 @@ function buildWall3D(w){
 }
 window.addEventListener('resize',()=>{ if(state.view==='sheets'&&w3){ const h=document.getElementById('wall3d'); if(!h) return; const r=h.getBoundingClientRect(); w3.renderer.setSize(r.width,r.height,false); w3.camera.aspect=r.width/r.height; w3.camera.updateProjectionMatrix(); } });
 
-export { sheetsEl, w3, openSheets, closeSheets, renderSheetList, renderSheet, boxTable, elevationSVG, dimH, dimV, buildWall3D, studioEl };
+export { renderLabelsHome, downloadBlob, sheetsEl, w3, openSheets, closeSheets, renderSheetList, renderSheet, boxTable, elevationSVG, dimH, dimV, buildWall3D, studioEl };
+
+/* ---------- whole home: cut & stack overview + all labels ---------- */
+function renderLabelsHome(el){
+  const plans=homePlans(); const name=MODELS[state.model].name;
+  const flips=plans.reduce((a,pl)=>a+pl.panels.filter(p=>p.flip!=='none').length,0);
+  const total=plans.reduce((a,pl)=>a+pl.n,0);
+  let rows='';
+  plans.forEach(pl=>{
+    const s=pl.slot;
+    rows+=`<tr><td><b>${s.label}</b><br><span style="color:#555;font-size:11.5px">${s.detail} · ${pl.w.id}</span></td>
+      <td><span class="seg" role="group" aria-label="Side facing the assemblers"><button data-sid="${s.id}" data-f="int" aria-pressed="${pl.assembly==='int'}">${faceShort(s,'int')}</button><button data-sid="${s.id}" data-f="ext" aria-pressed="${pl.assembly==='ext'}">${faceShort(s,'ext')}</button></span></td>
+      <td>${pl.seq.map(p=>p.num).join(' → ')}</td><td>${pl.seq.map(p=>p.code).join(', ')}</td>
+      <td>${pl.panels.filter(p=>p.flip!=='none').map(p=>`<b class="flipflag">${p.code}</b>`).join(', ')||'—'}</td></tr>`;
+  });
+  el.innerHTML=`
+    <div class="sheet-title"><div><div class="eyebrow" style="color:#555">Shop sheet · Cubit Home</div><h3>${name} — panel labels, cut &amp; stack</h3></div>
+      <div class="meta">${total} panels · ${plans.length} walls · ${flips} to flip<br>${new Date().toISOString().slice(0,10)}</div></div>
+    <div class="sheet-tools"><button class="btn" id="allLabels">Download all labels (PDF)</button>
+      <span style="font-size:12.5px;color:#333">Labels print on Avery 5163 / 8163 sheets (2 × 5, 4″ × 2″). The first pages are the cut &amp; stack list.</span></div>
+    <div class="note" style="color:#333;font-size:13px;line-height:1.5">
+      <b>Label code</b> = pod number + wall letter + panel number, e.g. <b>3B-4</b> is Pod 3, Wall B, panel 4.
+      Panel 1 is always the left end seen from the interior (side A on a wall between pods).
+      Walls are assembled <b>left → right</b> as the assemblers see them, so with the exterior facing up the order runs ${'6 → 1'}.
+      Each wall's panels are stacked with the first one needed on top.
+      A panel is <b class="flipflag">flipped</b> when its box cut-outs are on the face that must be down for assembly — the CNC cuts that face up, then the panel is turned over before stacking.</div>
+    <div class="tblwrap"><table class="boxes"><thead><tr><th>Wall</th><th>Facing the assemblers</th><th>Assembly order</th><th>Stack, top → bottom</th><th>Flip before stacking</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  el.querySelectorAll('[data-sid]').forEach(b=>b.onclick=()=>{ const s=slotsFor(state.model).find(x=>x.id===b.dataset.sid); setFace(s,b.dataset.f); renderLabelsHome(el); });
+  el.querySelector('#allLabels').onclick=()=>downloadBlob(labelsPDF(plans,name), `${name} - panel labels.pdf`);
+}
+function downloadBlob(blob, name){
+  if(window.claude && window.claude.use){
+    window.claude.use('downloads').then(dl=>{ if(!dl){ toast('Downloads are not available here.'); return; } dl.save({filename:name, data:blob}).then(()=>toast('Saved')).catch(e=>{ if(!e||e.code!=='declined') toast('Could not save the file here.'); }); });
+    return;
+  }
+  const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),4000); toast('Downloaded');
+}

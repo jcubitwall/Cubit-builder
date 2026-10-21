@@ -12,7 +12,9 @@ const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&
 
 function renderModels(){
   const el=document.getElementById('models');
-  el.innerHTML = Object.entries(MODELS).map(([k,m])=>`<button class="chip" data-m="${k}" aria-pressed="${k===state.model}">${esc(m.name)}<small>${esc(m.size||'')}</small></button>`).join('');
+  const ents=Object.entries(MODELS);
+  el.innerHTML = ents.filter(([k,m])=>!m.project).map(([k,m])=>`<button class="chip" data-m="${k}" aria-pressed="${k===state.model}">${esc(m.name)}<small>${esc(m.size||'')}</small></button>`).join('')
+    + ents.filter(([k,m])=>m.project).map(([k,m])=>`<button class="chip proj" data-m="${k}" aria-pressed="${k===state.model}" title="Saved project">${esc(m.name)}<small>${m.shared?'shared':'project'}</small></button>`).join('');
   el.querySelectorAll('button').forEach(b=>b.onclick=()=>{ state.model=b.dataset.m; state.selected=null; save(); renderModels(); buildHome(); renderSide(); if(state.view==='sheets') openSheets(); });
 }
 function wallListHTML(slots, current){
@@ -66,7 +68,7 @@ function layoutBlock(m){
   const letterOf=(pi,side)=>{ const s=slots.find(x=>x.pod.i===pi && x.side===side); return s ? s.letter.replace(/\d+$/,'') : side; };
   const sideOpts = pi => CW.map(k=>`<option value="${k}">beside Wall ${letterOf(pi,k)} (${sideWord(k)})</option>`).join('');
   return `<details id="layoutBox"><summary>Pods in this home · add a pod</summary>
-    <div class="podrows">${pods.map(p=>`<div class="podrow"><span>${p.long}</span>${m.custom && pods.length>1 && p.i===pods.length-1?`<button class="linkbtn" data-rm="${p.i}">Remove</button>`:''}</div>`).join('')}</div>
+    <div class="podrows">${pods.map(p=>`<div class="podrow"><span>${p.long}</span>${(m.custom||m.project) && pods.length>1 && p.i===pods.length-1?`<button class="linkbtn" data-rm="${p.i}">Remove</button>`:''}</div>`).join('')}</div>
     <div class="addpod">
       <label for="apSize">New pod</label><select id="apSize"><option value="L24">24′ pod</option><option value="P16">16′ pod</option><option value="P8">8′ pod</option></select>
       <label for="apNext">next to</label><select id="apNext">${pods.map(p=>`<option value="${p.i}">${p.long}</option>`).join('')}</select>
@@ -74,7 +76,7 @@ function layoutBlock(m){
       <label for="apAlign">lined up with</label><select id="apAlign"><option value="start">left end of that wall seen from above</option><option value="end">right end</option></select>
       <button class="btn" id="apAdd">Add pod</button>
     </div>
-    <p class="note">${m.custom?'This layout is saved in this browser.':'Adding a pod makes your own copy of this home, saved in this browser.'} Pods line up with each other on the 4′ grid, with the 5/8″ joint space added automatically.</p>
+    <p class="note">${m.project?'Changes here are part of this project. Open Projects and press Save changes to keep them.':m.custom?'This layout is saved in this browser.':'Adding a pod makes your own copy of this home, saved in this browser.'} Pods line up with each other on the 4′ grid, with the 5/8″ joint space added automatically.</p>
     ${m.custom?`<div class="row"><button class="btn ghost" id="apCopy">Copy layout code</button><button class="btn ghost" id="apDel">Delete this layout</button></div>`:''}
   </details>`;
 }
@@ -98,7 +100,7 @@ function bindLayout(){
     const all=cur.concat([{t,x,z}]); const mx=Math.min(...all.map(q=>q.x)), mz=Math.min(...all.map(q=>q.z));
     const pods=all.map(q=>({...q, x:q.x-mx, z:q.z-mz}));
     let key=state.model, m=MODELS[key];
-    if(!m.custom){
+    if(!m.custom && !m.project){
       key='custom-'+Date.now().toString(36);
       MODELS[key]={ name:m.name+' (custom)', size:'', base: m.base||state.model, pods, picks:{}, custom:true };
       // carry over this home's walls where the slot still exists (the ids shift when the layout moves)
@@ -109,10 +111,10 @@ function bindLayout(){
     }
     MODELS[key].size = sizeText(MODELS[key].pods);
     saveCustomModels(); state.model=key; state.layoutOpen=true; save();
-    renderModels(); buildHome(); renderSide(); toast(`Added a ${L}′ pod`);
+    renderModels(); buildHome(); renderSide(); toast(MODELS[key].project?`Added a ${L}′ pod. Save the project to keep it.`:`Added a ${L}′ pod`);
   };
   box.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{
-    const m=MODELS[state.model]; m.pods=m.pods.slice(0,-1); m.size=sizeText(m.pods); saveCustomModels(); buildHome(); renderSide(); toast('Removed the last pod');
+    const m=MODELS[state.model]; m.pods=m.pods.slice(0,-1); m.size=sizeText(m.pods); if(m.custom) saveCustomModels(); buildHome(); renderSide(); toast(m.project?'Removed the last pod. Save the project to keep this.':'Removed the last pod');
   });
   const cp=box.querySelector('#apCopy'); if(cp) cp.onclick=async()=>{
     const m=MODELS[state.model]; const code=JSON.stringify({[state.model.replace('custom-','home-')]:{name:m.name.replace(' (custom)',''), size:m.size, pods:m.pods, picks:{...(m.picks||{}), ...(state.picks[state.model]||{})}}},null,2);

@@ -23,6 +23,7 @@
       <button class="tog" id="tNums" aria-pressed="true">Panel numbers</button>
       <button class="tog" id="tScrews" aria-pressed="false">Ground screws</button>
     </div>
+    <button class="btn ghost" id="bProjects">Projects</button>
     <button class="btn" id="bSheets">Assembly sheets</button>
   </header>
 
@@ -49,6 +50,11 @@
     <div class="sheet" id="sheet"></div>
   </section>
 </div>
+<dialog id="projDlg" aria-labelledby="projTitle"><div class="dlg">
+  <div class="dlg-h"><h2 id="projTitle">Projects</h2><button class="btn ghost" id="projClose">Close</button></div>
+  <div id="projBody"></div>
+</div></dialog>
+<input type="file" id="projFile" accept=".json,application/json" hidden>
 <input type="file" id="fileIn" accept=".json,application/json" hidden>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>

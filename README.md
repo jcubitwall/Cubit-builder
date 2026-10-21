@@ -6,11 +6,18 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
 
 ## What it does
 
-- **Pick a home model:** Life, Nest, Cove, Panorama, **Expanse** (two 24′ pods with two 16′ pods on the end) and **Expanse + 1**, built from 8×8, 8×16 and 8×24 pods with a 5/8″ space at every joint. Expanse + 1 was scanned straight from the Shapr3D STEP file, with every opening measured.
+- **Pick a home model:** Life, Nest, Cove, Panorama, and **Expanse** (two 24′ pods with two 16′ pods on the end), built from 8×8, 8×16 and 8×24 pods with a 5/8″ space at every joint. The Tanja Leet *Expanse + 1* (5 pods) is a shared project, scanned straight from the Shapr3D STEP file with every opening measured.
 - **Add pods:** open *Pods in this home · add a pod* in the sidebar. Pick a size and choose which pod and which wall to put it beside. Your layout is saved in your browser, and *Copy layout code* gives the text to paste into `data/models.json`.
 - **Swap any wall:** click a wall in 3D and choose another option of the same length. Exterior walls are 6½″. Where pods join, **each pod keeps its own 4½″ interior wall**.
 - **Wall letters:** every pod's walls are **A, B, C, D, going clockwise seen from above, starting at the wall with a door**. The app picks the door wall in this order: an exterior door first, then a patio door, then an interior door. If it picks the wrong one, click the wall and press **Make this Wall A**. A side that is part exterior and part interior keeps one letter, numbered clockwise (B1, B2).
 - **Exploded view:** walls, interior walls and roof pull apart, and the house lifts off its ground screws.
+- **Projects:** press **Projects** to save what's on screen under a name, for example *Tanja Leet · Expanse + 1*. A project keeps its own layout (including pods you added), every wall choice, which wall is A on each pod, which side faces the assemblers on each wall, and the screw inset. Projects are saved in your browser. **Export** makes a file you can send to someone, and projects listed in `data/projects.json` show up for everyone (marked *shared*).
+- **Panel labels, cut & stack (ShopSabre):** every 4×8 panel gets a code: pod number + wall letter + panel number, e.g. **3B-4** = Pod 3, Wall B, panel 4.
+  - **Panel numbers stay with the panel.** Panel 1 is always the left end seen from the interior (side A on a wall between pods).
+  - **Assembly always runs left → right** as the assemblers see the wall. For each wall, choose which side faces the assemblers. Interior up gives 1, 2, 3 … 6; exterior up gives 6, 5 … 1.
+  - **Stacking:** each wall's panels are stacked with the first one needed on top.
+  - **Flipping:** box cut-outs that don't go all the way through have to face up on the CNC. If that face isn't the face the assemblers need up, the panel is marked **FLIP before stacking**. A panel with cut-outs on both faces is marked **TWO-SIDED**.
+  - **Labels PDF:** a cut & stack list, then one 4″ × 2″ label per panel (Avery 5163 / 8163). Each label shows the code, its stack position, which face goes up, the CNC face, any flip warning, and a small strip showing where the panel sits in the wall.
 - **Wall assembly sheets:** one per wall. Flip between the front (interior) and back (exterior) face, and number the 4×8 SIP panels 1→6 or reversed. Each sheet has opening sizes, plug and switch locations, and a 3D view of the panels pulled apart.
 - **Foundation sheet:** a true plan seen from above, with every ground screw located. Where pods meet they share one row of screws, with the offset bracket turned out under the next pod. It includes chain dimensions, diagonals for squaring, and a **Download PDF** button to email to the site crew.
 
@@ -64,6 +71,7 @@ index.html          page markup
 css/app.css         styles
 data/walls.json     wall library (edit this)
 data/models.json    home models: which pods, where
+data/projects.json  shared, named projects (saved configurations)
 js/main.js          start-up and toolbar
 js/config.js        pod dimensions and constants
 js/data.js          loads the JSON data
@@ -74,6 +82,8 @@ js/scene3d.js       3D view (three.js)
 js/sidebar.js       model list, wall options, add-a-pod editor, wall upload
 js/sheets.js        wall assembly sheets
 js/foundation.js    foundation sheet + PDF
+js/labels.js        panel codes, assembly order, stacking, CNC flips, label PDF
+js/projects.js      saving / opening named projects (+ projects-ui.js for the dialog)
 tools/step-import/  scripts that turn a Shapr3D STEP file into walls and a model
 ```
 

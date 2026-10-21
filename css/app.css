@@ -123,3 +123,21 @@ table.boxes th{background:#f1f3ef;font-weight:600}
 .addpod select{font:inherit;font-size:13px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);min-width:0}
 .addpod .btn{grid-column:1/-1;justify-self:start}
 .btn[disabled]{opacity:.45;cursor:default}
+
+/* projects dialog */
+dialog#projDlg{border:0;border-radius:14px;padding:0;max-width:min(560px,calc(100vw - 32px));width:100%;background:var(--surface);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.3)}
+dialog#projDlg::backdrop{background:rgba(20,24,22,.45)}
+.dlg{padding:18px 18px 20px;display:flex;flex-direction:column;gap:14px}
+.dlg-h{display:flex;justify-content:space-between;align-items:center}
+.dlg-h h2{margin:0;font-family:var(--display);font-size:20px}
+.dlg label{font-size:12.5px;color:var(--ink-2)}
+.dlg input[type=text]{width:100%;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);color:var(--ink)}
+.projlist{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.projrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:10px 12px;border-bottom:1px solid var(--line);align-items:center}
+.projrow:last-child{border-bottom:0}
+.projrow b{font-size:14px}
+.projrow small{grid-column:1;color:var(--ink-2);font-size:12px}
+.projrow .acts{grid-row:1/3;grid-column:2;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.projrow.on{background:var(--accent-soft)}
+.chip.proj{border-style:dashed}
+.flipflag{color:#b4520f}
