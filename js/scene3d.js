@@ -1,8 +1,8 @@
 /* Cubit Builder — scene3d.js */
-import { CEIL, FLOOR, FT, H, POD, PW, T, WALL_BASE, LAYER_KINDS } from './config.js';
+import { CEIL, FLOOR, FT, H, POD, PW, T, WALL_BASE, LAYER_KINDS, NOTCH } from './config.js';
 import { MODELS } from './data.js';
-import { podOffsets, screwsFor, slotsFor, layerSlotsFor } from './layout.js';
-import { panelCells, panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall } from './panels.js';
+import { podOffsets, screwsFor, slotsFor, layerSlotsFor, podList } from './layout.js';
+import { panelCells, panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall, layerHoles } from './panels.js';
 import { w3 } from './sheets.js';
 import { renderSide } from './sidebar.js';
 import { pickFor, pickLayer, state } from './state.js';
@@ -65,9 +65,15 @@ function buildWallMesh(w, mat, opts={}){
   const t=(w.t||T)/FT;
   for(let k=0;k<n;k++){
     const pg=new THREE.Group(); pg.userData.k=k;
+    const [nl,nr]=w.notch||[0,0], nd=Math.min(NOTCH, (w.t||T)-0.5)/FT;
     panelCells(w,k).forEach(([x0,x1,y0,y1])=>{
-      const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT,(y1-y0)/FT,t),mat);
-      m.position.set((x0+x1)/2/FT,(y0+y1)/2/FT,-t/2); pg.add(m);
+      // split off the corner notch: there the wall is only (t − 1¾″) deep, flush with the inside face
+      const cuts=[x0, ...[nl, L-nr].filter(c=>c>x0+1e-6 && c<x1-1e-6), x1];
+      for(let c=0;c<cuts.length-1;c++){
+        const a=cuts[c], b=cuts[c+1], mid=(a+b)/2, notched=(nl&&mid<nl)||(nr&&mid>L-nr), d=notched?t-nd:t;
+        const m=new THREE.Mesh(new THREE.BoxGeometry((b-a)/FT,(y1-y0)/FT,d),mat);
+        m.position.set(mid/FT,(y0+y1)/2/FT,-t+d/2); pg.add(m);
+      }
     });
     // outline of panel + opening edges on both faces
     const pts=[]; const X0=spans[k][0]/FT, X1=spans[k][1]/FT, Ht=H/FT;
@@ -106,7 +112,7 @@ const LAYER_COLOR = {'floor-ext':0x8d8f86, 'floor-int':0xb9b2a0, 'ceiling-int':0
 /* one floor / ceiling layer as boxes around its holes; local feet coords: x along the pod, z across, y up from the layer's underside */
 function buildLayerMesh(L, mat){
   const g=new THREE.Group(), len=L.len*FT, wid=96, t=(L.t||4.5)/FT;
-  const holes=(L.holes||[]).map(h=>({x0:h.x,x1:h.x+h.w,z0:h.z,z1:h.z+h.d}));
+  const holes=layerHoles(L).map(h=>({x0:h.x,x1:h.x+h.w,z0:h.z,z1:h.z+h.d}));
   const xs=[...new Set([0,len,...holes.flatMap(h=>[h.x0,h.x1])])].filter(v=>v>=0&&v<=len).sort((a,b)=>a-b);
   const zs=[...new Set([0,wid,...holes.flatMap(h=>[h.z0,h.z1])])].filter(v=>v>=0&&v<=wid).sort((a,b)=>a-b);
   for(let i=0;i<xs.length-1;i++){
@@ -128,9 +134,9 @@ function buildHome(){
   wallGroups=[]; layerGroups=[]; pickables=[];
   const slots = slotsFor(state.model); const model=MODELS[state.model];
   const OFF = podOffsets(state.model);
-  const pods = model.pods.map((p,i)=>({...p,len:POD[p.t].len,x:p.x+OFF[i].ox,z:p.z+OFF[i].oz}));
-  const minx=Math.min(...pods.map(p=>p.x)), maxx=Math.max(...pods.map(p=>p.x+p.len));
-  const minz=Math.min(...pods.map(p=>p.z)), maxz=Math.max(...pods.map(p=>p.z+8));
+  const pods = podList(state.model).map((p,i)=>({...p,x:p.x+OFF[i].ox,z:p.z+OFF[i].oz}));
+  const minx=Math.min(...pods.map(p=>p.x)), maxx=Math.max(...pods.map(p=>p.x+p.w));
+  const minz=Math.min(...pods.map(p=>p.z)), maxz=Math.max(...pods.map(p=>p.z+p.d));
   const cx=(minx+maxx)/2, cz=(minz+maxz)/2;
   homeGroup.position.set(-cx,0,-cz);
   // floor and ceiling layers (exterior floor, interior floor, interior ceiling, roof) + ground screws
@@ -141,6 +147,11 @@ function buildHome(){
     const mat=new THREE.MeshStandardMaterial({color:LAYER_COLOR[ls.kind], roughness:0.85, transparent:see, opacity: isFloor ? (state.screws?0.35:1) : 0.42, depthWrite: !(!isFloor)});
     const grp=buildLayerMesh(L, mat);
     const y=((L.z??LAYER_KINDS[ls.kind].z)-WALL_BASE)/FT;
+    // turned pods: rotate the layer about its corner, then move that corner back onto the footprint
+    const th=(ls.rot||0)*Math.PI/180, L0=ls.len;
+    const off={0:[0,0],90:[0,L0],180:[L0,8],270:[8,0]}[ls.rot||0];
+    const inner=new THREE.Group(); inner.add(...grp.children); grp.add(inner);
+    inner.rotation.y=th; inner.position.set(off[0],0,off[1]);
     grp.position.set(ls.x, y, ls.z);
     grp.userData={layerSlot:ls, mat, baseY:y};
     grp.traverse(o=>{ if(o.isMesh){ o.userData.slotId=ls.id; pickables.push(o); } });

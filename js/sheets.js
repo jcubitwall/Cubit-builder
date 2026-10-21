@@ -5,7 +5,7 @@ import { fft, fin } from './format.js';
 import { renderFoundation } from './foundation.js';
 import { screwsFor, slotsFor, layerSlotsFor } from './layout.js';
 import { LAYER_KINDS } from './config.js';
-import { panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall } from './panels.js';
+import { panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall, layerHoles } from './panels.js';
 import { buildWallMesh, resize } from './scene3d.js';
 import { wallListHTML } from './sidebar.js';
 import { pickFor, pickLayer, state, setFace } from './state.js';
@@ -17,6 +17,7 @@ const sheetsEl=document.getElementById('sheets'), studioEl=document.getElementBy
 let w3=null;
 function openSheets(){
   state.view='sheets'; sheetsEl.hidden=false; studioEl.hidden=true; document.getElementById('studioTools').hidden=true;
+  document.getElementById('planner').hidden=true; document.getElementById('bPlan').textContent='Plan & pods';
   document.getElementById('bSheets').textContent='Back to 3D';
   const slots=slotsFor(state.model);
   if(!['__found','__labels'].includes(state.sheetSlot) && !slots.find(s=>s.id===state.sheetSlot) && !layerSlotsFor(state.model).find(l=>l.id===state.sheetSlot)) state.sheetSlot=slots[0].id;
@@ -102,6 +103,13 @@ function elevationSVG(w,face,rev){
     g+=`<text x="${x0+pw/2}" y="${Y(H/2)}" text-anchor="middle" font-family="Archivo, Arial, sans-serif" font-weight="800" font-size="${Math.min(70,pw*0.55)}" fill="#111" opacity=".09">${num}</text>`;
     if(vb-va < PW-0.01) g+=`<text x="${x0+pw/2}" y="${Y(H)+14}" text-anchor="middle" font-size="10" fill="#b4520f" font-weight="600">CUT ${fin(vb-va)}</text>`;
   }
+  // steel spine notches at pod corners (outside face, full height)
+  const [nl,nr]=w.notch||[0,0];
+  [[0,nl],[L-nr,nr]].forEach(([x,nw])=>{ if(!nw) return;
+    const va=vx(x,nw), out=face==='ext';
+    g+=`<rect x="${X(va)}" y="${Y(H)}" width="${nw*s}" height="${Hd}" fill="${out?'#ffffff':'none'}" stroke="#7a3fb0" stroke-width="1.2" ${out?'':'stroke-dasharray="5 3"'}/>`;
+    g+=`<text transform="translate(${X(va)+nw*s/2+3} ${Y(H/2)}) rotate(-90)" text-anchor="middle" font-size="9.5" fill="#7a3fb0" font-weight="600">SPINE NOTCH ${fin(nw)} × ${fin(nw)}${out?'':' (OUTSIDE FACE)'}</text>`;
+  });
   // install direction arrow
   const ltr = true;   // assembly always runs left to right as the assemblers see the wall
   g+=`<line x1="${X(ltr?6:L-6)}" y1="${mt-90}" x2="${X(ltr?L-6:6)}" y2="${mt-90}" stroke="#d0661f" stroke-width="2.2" marker-end="url(#ar)" style="color:#d0661f"/>`;
@@ -244,6 +252,9 @@ function renderLayerSheet(el, ls){
     g+=dimH(X(a),X(b),mt-14,fin(b-a),Y(0),10);
     if(b-a<PW-0.01) g+=`<text x="${X((a+b)/2)}" y="${Y(wid/2)}" text-anchor="middle" font-size="11" fill="#b4520f" font-weight="600">CUT ${fin(b-a)}</text>`;
   });
+  const HOLES=layerHoles(L);
+  HOLES.forEach((h,i)=>{ if(!h.notch) return;
+    g+=`<rect x="${X(h.x)}" y="${Y(h.z)}" width="${h.w*s}" height="${h.d*s}" fill="#fff" stroke="#7a3fb0" stroke-width="1.4"/>`; });
   (L.holes||[]).forEach((h,i)=>{
     g+=`<rect x="${X(h.x)}" y="${Y(h.z)}" width="${h.w*s}" height="${h.d*s}" fill="#fff" stroke="#c0392b" stroke-width="1.4"/>`;
     g+=`<text x="${X(h.x+h.w/2)}" y="${Y(h.z+h.d/2)+4}" text-anchor="middle" font-size="10" fill="#c0392b" font-weight="700">H${i+1}</text>`;
@@ -254,6 +265,7 @@ function renderLayerSheet(el, ls){
   let t=`<table class="boxes"><thead><tr><th>Hole</th><th>From left end</th><th>From top edge</th><th>Size</th><th>Panel</th></tr></thead><tbody>`;
   (L.holes||[]).forEach((h,i)=>{ const pi=panels.findIndex(([a,b])=>h.x+h.w/2>=a&&h.x+h.w/2<b)+1; t+=`<tr><td>H${i+1}</td><td>${fin(h.x)}</td><td>${fin(h.z)}</td><td>${fin(h.w)} × ${fin(h.d)}</td><td>${pi}</td></tr>`; });
   if(!(L.holes||[]).length) t+=`<tr><td colspan="5">No holes in this layer.</td></tr>`;
+  if(HOLES.some(h=>h.notch)) t+=`<tr><td colspan="5" style="color:#7a3fb0">Steel spine notch ${fin(HOLES.find(h=>h.notch).w)} × ${fin(HOLES.find(h=>h.notch).w)} at ${HOLES.filter(h=>h.notch).length===4?'all four corners':'the corners shown'} (purple).</td></tr>`;
   t+=`</tbody></table>`;
   el.innerHTML=`
     <div class="sheet-title"><div><div class="eyebrow" style="color:#555">Layer sheet · Cubit Home</div><h3>${ls.label} — ${L.id}</h3></div>

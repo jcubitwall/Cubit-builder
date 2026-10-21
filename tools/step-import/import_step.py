@@ -13,6 +13,7 @@ Reads a Shapr3D STEP export of a whole home and:
   4. adds every UNIQUE wall and layer to the shared library (data/walls.json, data/layers.json) — anything
      identical to a library item within 1/8" reuses that item;
   5. saves the home as a shared project in data/projects.json (slot picks point at the library items).
+  6. adds each pod that isn't in the pod library yet to data/pods.json (see pods_lib.py).
 
 Needs:  pip install cadquery-ocp numpy
 Axes:   app plan x = the pods' long axis, app plan z across; mapped with a proper rotation (never mirrored).
@@ -370,6 +371,14 @@ def main():
     proj['from']=proj.pop('from_')
     projects=[p for p in projects if p.get('id')!=pid]+[proj]
     json.dump(projects,open(os.path.join(R,'data/projects.json'),'w'),indent=2,ensure_ascii=False)
-    print(json.dumps(dict(project=pid,pods=len(pods),walls=len(new_walls),new_walls=added_w,layers=len(new_layers),new_layers=added_l)))
+    # ---- pod library: every pod of this home that isn't in data/pods.json yet
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import pods_lib
+    pp=os.path.join(R,'data/pods.json')
+    try: plib=json.load(open(pp))
+    except FileNotFoundError: plib=[]
+    added_p=pods_lib.merge_pods(plib, pods_lib.pods_from_model(proj['model'], source), a.name)
+    pods_lib.write_pods(pp, plib)
+    print(json.dumps(dict(project=pid,pods=len(pods),walls=len(new_walls),new_walls=added_w,layers=len(new_layers),new_layers=added_l,new_pods=added_p)))
 
 if __name__=='__main__': main()

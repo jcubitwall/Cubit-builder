@@ -2,8 +2,9 @@
    A project keeps its own copy of the layout (including added pods), every wall choice, which wall
    is A, which side faces the assemblers, and the ground-screw inset. Projects live in this browser;
    "Export" makes a file to share, and projects in data/projects.json are shared with everyone. */
-import { MODELS } from './data.js';
+import { MODELS, LIB, LAYERLIB, PODLIB, byId, layerById, podById, savePodLib, saveWallLib, saveLayerLib } from './data.js';
 import { state, save } from './state.js';
+import { saveToLibraries } from './pods.js';
 
 const KEY='cubit-projects';
 const PROJECTS={};          // id -> project (own, from this browser)
@@ -39,7 +40,11 @@ function saveProject(name, asNew=false){
   // carry this browser's choices over to the project key
   state.picks[k]=clone(p.picks); state.layerPicks[k]=clone(p.layerPicks||{}); state.wallA[k]=clone(p.wallA); state.faces[k]=clone(p.faces);
   register(p); state.model=k; save();
-  return p;
+  // new walls, floors, ceilings and pods of this home go into their libraries; the project then refers to them
+  const counts = saveToLibraries(name);
+  const q = snapshot(name, id); PROJECTS[id]=q; persist(); register(q);
+  state.picks[k]={}; state.layerPicks[k]={}; state.wallA[k]={}; state.faces[k]={}; save();
+  return {project:q, counts};
 }
 function openProject(id){
   const p = PROJECTS[id] || SHARED[id]; if(!p) return;
@@ -53,10 +58,26 @@ function openProject(id){
 }
 function deleteProject(id){ delete PROJECTS[id]; persist(); delete MODELS['proj-'+id]; if(state.model==='proj-'+id){ state.model=Object.keys(MODELS)[0]; save(); } }
 function renameProject(id, name){ if(!PROJECTS[id]) return; PROJECTS[id].name=name; persist(); register(PROJECTS[id]); }
-const exportJSON = ids => JSON.stringify(ids.map(id=>PROJECTS[id]||SHARED[id]).filter(Boolean), null, 2);
+/* exported projects carry the library items they use that aren't in the shared library files */
+function libraryFor(p){
+  const walls=new Set(), layers=new Set(), pods=new Set(), M=p.model||{};
+  const addPod = q => { if(!q) return; Object.values(q.walls||{}).flat().forEach(g=>g.wall&&walls.add(g.wall.replace(/~m$/,''))); Object.values(q.layers||{}).forEach(id=>layers.add(id)); };
+  (M.pods||[]).forEach(q=>{ addPod(q); if(q.src){ pods.add(q.src); addPod(podById(q.src)); } });
+  [M.picks, p.picks].forEach(o=>Object.values(o||{}).forEach(id=>walls.add(String(id).replace(/~m$/,''))));
+  [M.layerPicks, p.layerPicks].forEach(o=>Object.values(o||{}).forEach(id=>layers.add(id)));
+  const own = x => x && x.src && x.src!=='library';
+  const strip = ({src, ...x}) => x;
+  return { walls:[...walls].map(byId).filter(own).map(strip), layers:[...layers].map(layerById).filter(own).map(strip), pods:[...pods].map(podById).filter(own).map(strip) };
+}
+const exportJSON = ids => JSON.stringify(ids.map(id=>PROJECTS[id]||SHARED[id]).filter(Boolean).map(p=>({...p, library:libraryFor(p)})), null, 2);
 function importJSON(text){
   let list=JSON.parse(text); if(!Array.isArray(list)) list=[list];
-  let n=0; list.forEach(p=>{ if(!p||!p.model||!p.model.pods) return; const id=p.id && !PROJECTS[p.id] ? p.id : Date.now().toString(36)+n; PROJECTS[id]={...p, id, shared:false}; register(PROJECTS[id]); n++; });
+  let n=0; list.forEach(p=>{ if(!p||!p.model||!p.model.pods) return;
+    const lib=p.library||{}; delete p.library;
+    (lib.walls||[]).forEach(w=>{ if(!LIB.find(x=>x.id===w.id)) LIB.push({...w, src:'saved'}); });
+    (lib.layers||[]).forEach(l=>{ if(!LAYERLIB.find(x=>x.id===l.id)) LAYERLIB.push({...l, src:'saved'}); });
+    (lib.pods||[]).forEach(q=>{ if(!PODLIB.find(x=>x.id===q.id)) PODLIB.push({...q, src:'saved'}); });
+    if(lib.walls?.length) saveWallLib(); if(lib.layers?.length) saveLayerLib(); if(lib.pods?.length) savePodLib(); const id=p.id && !PROJECTS[p.id] ? p.id : Date.now().toString(36)+n; PROJECTS[id]={...p, id, shared:false}; register(PROJECTS[id]); n++; });
   persist(); return n;
 }
 

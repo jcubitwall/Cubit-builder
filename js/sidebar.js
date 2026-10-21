@@ -1,8 +1,8 @@
 /* Cubit Builder — sidebar.js : model chips, wall list, wall options, layout editor, wall upload */
 import { FT, POD, PW, T, TI } from './config.js';
-import { LIB, MODELS, optionsFor, saveCustomModels, layerOptions } from './data.js';
+import { LIB, MODELS, optionsFor, saveCustomModels, layerOptions, mirrorId } from './data.js';
 import { LAYER_KINDS } from './config.js';
-import { screwsFor, slotsFor, podList, CW, layerSlotsFor } from './layout.js';
+import { screwsFor, slotsFor, podList, CW, layerSlotsFor, partnerOf } from './layout.js';
 import { panelCount, thumbSVG, bodyWall, wallLen } from './panels.js';
 import { buildHome, highlight } from './scene3d.js';
 import { openSheets } from './sheets.js';
@@ -44,7 +44,7 @@ function layerThumb(L){
   return g+'</svg>';
 }
 const fmtLen = inch => { const ft=Math.floor((inch+0.01)/12), r=Math.round((inch-ft*12)*8)/8; return r? `${ft}′-${r}″` : `${ft}′`; };
-const sideWord = k => ({S:'top side', E:'right end', N:'bottom side', W:'left end'}[k]);
+const sideWord = k => ({S:'top side', E:'right side', N:'bottom side', W:'left side'}[k]);
 
 function renderSide(){
   const slots=slotsFor(state.model); const m=MODELS[state.model];
@@ -68,15 +68,20 @@ function renderSide(){
     sideH.innerHTML=`<div class="eyebrow">${isInt?'Interior wall · 4½″':'Exterior wall · 6½″'} · ${s.len}′ · ${s.len/4} panels</div><h2>${s.label}</h2><p>${s.detail} · now <b>${w?esc(w.id):'—'}</b> ${w?esc(w.name):''}</p>`;
     sideB.innerHTML=`
       <div class="row"><button class="btn" id="toSheet">Assembly sheet</button>${(s.short || s.pod.len<=8) ? `<button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button>` : ''}<button class="btn ghost" id="deselect">Back to model</button></div>
-      ${state.wallA?.[state.model]?.[s.pod.i] ? `<p class="note">Wall A for ${s.pod.label} was set by hand. <button class="linkbtn" id="autoA">Go back to automatic</button></p>`:''}
+      ${(state.wallA?.[state.model]?.[s.pod.i] || m.pods[s.pod.i]?.a) ? `<p class="note">Wall A for ${s.pod.label} was set by hand. <button class="linkbtn" id="autoA">Go back to automatic</button></p>`:''}
+      ${isInt&&partnerOf(s,slots)?`<p class="note">Joins ${s.other.label} (${esc(partnerOf(s,slots).label)}). Picking a wall here gives that wall the same one, mirrored, so openings line up.</p>`:''}
       <div class="eyebrow">${opts.length} options for a ${s.len}′ ${isInt?'interior':'exterior'} wall · seen from ${isInt?s.other.label:'outside'}</div>
       ${opts.length?'':`<p class="note">Nothing in the library for a ${s.len}′ ${isInt?'interior':'exterior'} wall yet. Upload a STEP file of a home that has one and it will be added.</p>`}
-      <div class="opts">${opts.map(o=>`<button class="opt" data-o="${esc(o.id)}" aria-pressed="${w&&o.id===w.id}">${thumbSVG(o)}<b>${esc(o.name)}</b><code>${esc(o.id)}${o.src==='imported'?' · uploaded':''}${o.model?' · this home':''}</code></button>`).join('')}</div>`;
-    sideB.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{ choose(s, b.dataset.o); buildHome(); renderSide(); toast(`${s.label} → ${b.dataset.o}`); });
+      <div class="opts">${opts.map(o=>`<button class="opt" data-o="${esc(o.id)}" aria-pressed="${w&&o.id===w.id}">${thumbSVG(o)}<b>${esc(o.name)}</b><code>${esc(o.id)}${o.src==='imported'?' · uploaded':''}${o.src==='saved'?' · saved here':''}${o.model?' · this home':''}</code></button>`).join('')}</div>`;
+    sideB.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
+      choose(s, b.dataset.o);
+      // where two pods join, the neighbour's wall becomes the same wall, mirrored
+      const pt=partnerOf(s, slots); if(pt) choose(pt, mirrorId(b.dataset.o));
+      buildHome(); renderSide(); toast(`${s.label} → ${b.dataset.o}`+(pt?` · ${pt.label} → mirrored`:'')); });
     sideB.querySelector('#toSheet').onclick=()=>{ state.sheetSlot=s.id; openSheets(); };
     sideB.querySelector('#deselect').onclick=()=>{ state.selected=null; highlight(); renderSide(); };
     const mk=sideB.querySelector('#makeA'); if(mk) mk.onclick=()=>{ ((state.wallA[state.model] ||= {}))[s.pod.i]=s.side; save(); buildHome(); renderSide(); toast(`${s.pod.label}: this is now Wall A`); };
-    const auto=sideB.querySelector('#autoA'); if(auto) auto.onclick=()=>{ delete state.wallA[state.model][s.pod.i]; save(); buildHome(); renderSide(); };
+    const auto=sideB.querySelector('#autoA'); if(auto) auto.onclick=()=>{ if(state.wallA[state.model]) delete state.wallA[state.model][s.pod.i]; delete m.pods[s.pod.i].a; if(m.custom) saveCustomModels(); save(); buildHome(); renderSide(); };
   }
   sideB.querySelectorAll('.wl button').forEach(b=>b.onclick=()=>{ state.selected=b.dataset.s; highlight(); renderSide(); });
   const imp=sideB.querySelector('#bImport'); if(imp) imp.onclick=()=>document.getElementById('fileIn').click();
@@ -97,20 +102,10 @@ function renderLayerSide(ls){
   sideB.querySelector('#deselect').onclick=()=>{ state.selected=null; highlight(); renderSide(); };
 }
 function layoutBlock(m){
-  const pods=podList(state.model);
-  const slots=slotsFor(state.model);
-  const letterOf=(pi,side)=>{ const s=slots.find(x=>x.pod.i===pi && x.side===side); return s ? s.letter.replace(/\d+$/,'') : side; };
-  const sideOpts = pi => CW.map(k=>`<option value="${k}">beside Wall ${letterOf(pi,k)} (${sideWord(k)})</option>`).join('');
-  return `<details id="layoutBox"><summary>Pods in this home · add a pod</summary>
-    <div class="podrows">${pods.map(p=>`<div class="podrow"><span>${p.long}</span>${(m.custom||m.project) && pods.length>1 && p.i===pods.length-1?`<button class="linkbtn" data-rm="${p.i}">Remove</button>`:''}</div>`).join('')}</div>
-    <div class="addpod">
-      <label for="apSize">New pod</label><select id="apSize"><option value="L24">24′ pod</option><option value="P16">16′ pod</option><option value="P8">8′ pod</option></select>
-      <label for="apNext">next to</label><select id="apNext">${pods.map(p=>`<option value="${p.i}">${p.long}</option>`).join('')}</select>
-      <label for="apSide">on the</label><select id="apSide">${sideOpts(0)}</select>
-      <label for="apAlign">lined up with</label><select id="apAlign"><option value="start">left end of that wall seen from above</option><option value="end">right end</option></select>
-      <button class="btn" id="apAdd">Add pod</button>
-    </div>
-    <p class="note">${m.project?'Changes here are part of this project. Open Projects and press Save changes to keep them.':m.custom?'This layout is saved in this browser.':'Adding a pod makes your own copy of this home, saved in this browser.'} Pods line up with each other on the 4′ grid, with the 5/8″ joint space added automatically.</p>
+  return `<details id="layoutBox"><summary>Pods in this home</summary>
+    <div class="podrows">${podList(state.model).map(p=>`<div class="podrow"><span>${p.long}${p.rot?` · turned ${p.rot}°`:''}</span><code>${esc(p.src||'blank')}</code></div>`).join('')}</div>
+    <div class="row"><button class="btn" id="openPlan">Open the plan editor</button></div>
+    <p class="note">Drag pods in from the pod library, move, turn, replace or remove them on an 8′ grid.</p>
     ${m.custom?`<div class="row"><button class="btn ghost" id="apCopy">Copy layout code</button><button class="btn ghost" id="apDel">Delete this layout</button></div>`:''}
   </details>`;
 }
@@ -118,38 +113,7 @@ function bindLayout(){
   const box=document.getElementById('layoutBox'); if(!box) return;
   if(state.layoutOpen) box.open=true;
   box.addEventListener('toggle',()=>{ state.layoutOpen=box.open; });
-  const next=box.querySelector('#apNext'), side=box.querySelector('#apSide');
-  const slots=slotsFor(state.model);
-  const letterOf=(pi,k)=>{ const s=slots.find(x=>x.pod.i===pi && x.side===k); return s ? s.letter.replace(/\d+$/,'') : k; };
-  next.onchange=()=>{ side.innerHTML=CW.map(k=>`<option value="${k}">beside Wall ${letterOf(+next.value,k)} (${sideWord(k)})</option>`).join(''); };
-  box.querySelector('#apAdd').onclick=()=>{
-    const t=box.querySelector('#apSize').value, L=POD[t].len, p=podList(state.model)[+next.value], k=side.value, al=box.querySelector('#apAlign').value;
-    let x,z;
-    if(k==='S'||k==='N'){ z = k==='S' ? p.z-8 : p.z1; x = al==='start' ? p.x : p.x1-L; }
-    else { z = p.z; x = k==='W' ? p.x-L : p.x1; }
-    const cur=MODELS[state.model].pods;
-    const clash=cur.some(q=>{ const qL=POD[q.t].len; return x < q.x+qL-1e-6 && x+L > q.x+1e-6 && z < q.z+8-1e-6 && z+8 > q.z+1e-6; });
-    if(clash){ toast('That spot is already taken by another pod.'); return; }
-    // normalise so the layout starts at 0,0
-    const all=cur.concat([{t,x,z}]); const mx=Math.min(...all.map(q=>q.x)), mz=Math.min(...all.map(q=>q.z));
-    const pods=all.map(q=>({...q, x:q.x-mx, z:q.z-mz}));
-    let key=state.model, m=MODELS[key];
-    if(!m.custom && !m.project){
-      key='custom-'+Date.now().toString(36);
-      MODELS[key]={ name:m.name+' (custom)', size:'', base: m.base||state.model, pods, picks:{}, custom:true };
-      // carry over this home's walls where the slot still exists (the ids shift when the layout moves)
-      if(mx===0&&mz===0) MODELS[key].picks={...(m.picks||{})};
-      const mine=state.picks[state.model]; if(mine && mx===0 && mz===0) state.picks[key]={...mine};
-    } else {
-      m.pods=pods; if(mx!==0||mz!==0){ m.picks={}; delete state.picks[key]; }
-    }
-    MODELS[key].size = sizeText(MODELS[key].pods);
-    saveCustomModels(); state.model=key; state.layoutOpen=true; save();
-    renderModels(); buildHome(); renderSide(); toast(MODELS[key].project?`Added a ${L}′ pod. Save the project to keep it.`:`Added a ${L}′ pod`);
-  };
-  box.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{
-    const m=MODELS[state.model]; m.pods=m.pods.slice(0,-1); m.size=sizeText(m.pods); if(m.custom) saveCustomModels(); buildHome(); renderSide(); toast(m.project?'Removed the last pod. Save the project to keep this.':'Removed the last pod');
-  });
+  box.querySelector('#openPlan').onclick=()=>document.getElementById('bPlan').click();
   const cp=box.querySelector('#apCopy'); if(cp) cp.onclick=async()=>{
     const m=MODELS[state.model]; const code=JSON.stringify({[state.model.replace('custom-','home-')]:{name:m.name.replace(' (custom)',''), size:m.size, pods:m.pods, picks:{...(m.picks||{}), ...(state.picks[state.model]||{})}}},null,2);
     try{ await navigator.clipboard.writeText(code); toast('Layout copied. Paste it into data/models.json.'); }

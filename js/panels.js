@@ -1,5 +1,5 @@
 /* Cubit Builder — panels.js */
-import { FT, H, PW } from './config.js';
+import { FT, H, PW, NOTCH } from './config.js';
 
 /* ============================================================ panel geometry (shared by 3D + 2D) */
 /* Walls are measured in inches from the LEFT END SEEN FROM OUTSIDE (x = 0) to L.
@@ -22,7 +22,9 @@ function bodyWall(slot, w){
   if(!w || w.fitted) return w;
   const tl=slot?.trim?.[0]||0, tr=slot?.trim?.[1]||0, full=w.len*FT, L=full-tl-tr;
   const clip = o => { const x0=Math.max(0,o.x-tl), x1=Math.min(L,o.x+o.w-tl); return x1-x0>0.5 ? {...o, x:x0, w:x1-x0} : null; };
-  return { ...w, L, trim:[tl,tr], fitted:true,
+  // long walls run to the pod corners, where a 1¾″ × 1¾″ notch for the steel spine comes out of the outside face
+  const notch = slot && !slot.short && slot.corner ? [slot.corner[0]?NOTCH:0, slot.corner[1]?NOTCH:0] : [0,0];
+  return { ...w, L, trim:[tl,tr], notch, fitted:true,
     openings: w.openings.map(clip).filter(Boolean),
     inside: (w.inside||[]).map(b=>({...b, x:b.x-tr})).filter(b=>b.x>0 && b.x<L),     // inside items are measured from the inside-left = outside-right end
     outside: (w.outside||[]).map(b=>({...b, x:b.x-tl})).filter(b=>b.x>0 && b.x<L) };
@@ -57,4 +59,13 @@ function thumbSVG(w){
   return g+'</svg>';
 }
 
-export { panelCells, panelCount, panelNum, thumbSVG, wallLen, panelSpans, panelAt, bodyWall };
+/* a floor / ceiling layer's holes plus the four corner spine notches (unless the scan already has one there) */
+function layerHoles(L){
+  const len=L.len*FT, wid=96, n=NOTCH, holes=(L.holes||[]).slice();
+  [[0,0],[len-n,0],[0,wid-n],[len-n,wid-n]].forEach(([x,z])=>{
+    const cx=x+n/2, cz=z+n/2;
+    if(!holes.some(h=>cx>h.x-0.01 && cx<h.x+h.w+0.01 && cz>h.z-0.01 && cz<h.z+h.d+0.01)) holes.push({x,z,w:n,d:n,notch:true});
+  });
+  return holes;
+}
+export { layerHoles, panelCells, panelCount, panelNum, thumbSVG, wallLen, panelSpans, panelAt, bodyWall };

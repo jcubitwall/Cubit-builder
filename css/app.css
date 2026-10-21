@@ -153,3 +153,43 @@ dialog#projDlg::backdrop{background:rgba(20,24,22,.45)}
   .studio > aside, #stage{min-height:0}
 }
 .side-b > *{flex-shrink:0}
+
+/* plan editor */
+#planner{display:grid;grid-template-columns:280px minmax(0,1fr) 320px;gap:12px;flex:none;height:calc(100vh - 140px);min-height:560px}
+#palette,#planSide{background:var(--surface);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+#planSide .side-b{overflow:auto}
+.pal{overflow:auto;padding:10px 12px 16px;display:flex;flex-direction:column;gap:8px}
+.pal-h{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);margin-top:6px}
+.pod-item{border:1px solid var(--line);background:var(--surface-2);border-radius:8px;padding:8px;cursor:grab;display:flex;flex-direction:column;gap:6px;touch-action:none;user-select:none}
+.pod-item:hover{border-color:var(--accent)}
+.pod-item:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.pod-item svg{max-width:100%;height:auto}
+.pod-item b{display:block;font-size:12.5px;font-weight:600;line-height:1.3}
+.pod-item code{font-family:var(--mono);font-size:10.5px;color:var(--ink-2)}
+.pi-act{display:block;margin-top:2px}
+.plan-wrap{position:relative;background:var(--stage);border-radius:12px;overflow:hidden;min-height:0}
+#plan{width:100%;height:100%;display:block;touch-action:none;user-select:none}
+#plan .grid8{stroke:color-mix(in srgb,var(--ink) 14%,transparent);stroke-width:.06}
+#plan .pod{cursor:grab}
+#plan .pod-r{fill:#f6f1e6;stroke:#1c211e;stroke-width:.1}
+#plan .pod.sel .pod-r{stroke:var(--accent);stroke-width:.35}
+#plan .pod.moving{opacity:.35}
+#plan .pod-t{font-family:var(--display);font-size:1.15px;font-weight:800;text-anchor:middle;fill:#1c211e}
+#plan .pod-s{font-family:var(--mono);font-size:.8px;text-anchor:middle;fill:#56605a}
+#plan .wl-l{font-family:var(--display);font-size:1px;font-weight:700;text-anchor:middle;fill:#56605a}
+#plan .wl-l.a{fill:var(--accent);font-size:1.15px}
+#plan .ghost{stroke-width:.25;stroke-dasharray:.6 .4}
+#plan .ghost.ok{fill:color-mix(in srgb,var(--ok) 25%,transparent);stroke:var(--ok)}
+#plan .ghost.bad{fill:color-mix(in srgb,#c0392b 18%,transparent);stroke:#c0392b}
+#plan .ghost-t{font-family:var(--mono);font-size:.9px;text-anchor:middle;fill:var(--ink);pointer-events:none}
+body.dragging, body.dragging *{cursor:grabbing!important}
+.fld{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--ink-2)}
+.fld select,.fld input{font:inherit;color:var(--ink);padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2)}
+.podrow code{font-family:var(--mono);font-size:11px;color:var(--ink-2)}
+@media (max-width: 900px){
+  #planner{grid-template-columns:1fr;height:auto}
+  .plan-wrap{height:62vh}
+  #palette .pal{flex-direction:row;overflow-x:auto}
+  #palette .pod-item{min-width:180px}
+  #palette .pal-h{display:none}
+}

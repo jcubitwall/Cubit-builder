@@ -10,6 +10,7 @@ const GAP = 0.625/12;     // every joint between pods has exactly a 5/8" space
 const CEIL = 12.875/12;  // double SIP ceiling, OSB top + bottom, 11 7/8" LVL rim = 12 7/8" total (feet)
 const PW = 48;           // panel width, inches (4')
 const FT = 12;
+const NOTCH = 1.75;       // steel spine notch at every pod corner, full height: 1¾″ × 1¾″ (measured from the STEP files)
 /* ============================================================ pod types
    Plan units are feet. x = along the pod length, z = across (8′). */
 const POD = { L24:{len:24, name:'Life pod'}, P16:{len:16, name:'16′ pod'}, P8:{len:8, name:'8′ pod'} };
@@ -23,4 +24,4 @@ const LAYER_KINDS = {
   'ceiling-int': { label:'Interior ceiling', short:'Ceiling',     code:'CI', z:106.6,  t:6.47 },
   'roof':        { label:'Roof',             short:'Roof',        code:'RF', z:113.07, t:6.48 },
 };
-export { H, T, TI, FLOOR, GAP, CEIL, PW, FT, POD, SIDE_NAME, WALL_BASE, LAYER_KINDS };
+export { NOTCH, H, T, TI, FLOOR, GAP, CEIL, PW, FT, POD, SIDE_NAME, WALL_BASE, LAYER_KINDS };

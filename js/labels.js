@@ -13,10 +13,10 @@ import { FT, PW } from './config.js';
 import { MODELS } from './data.js';
 import { slotsFor } from './layout.js';
 import { panelCount, panelSpans, wallLen, bodyWall } from './panels.js';
-import { pickFor, state } from './state.js';
+import { pickFor, podSeg, state } from './state.js';
 import { fin } from './format.js';
 
-const faceFor = slot => state.faces?.[state.model]?.[slot.id] || 'int';
+const faceFor = slot => state.faces?.[state.model]?.[slot.id] || podSeg(slot)?.face || 'int';
 const faceName = (slot, f) => slot.type==='int' ? (f==='int' ? `side A (faces ${slot.pod.label})` : `side B (faces ${slot.other.label})`) : (f==='int' ? 'interior' : 'exterior');
 const faceShort = (slot, f) => slot.type==='int' ? (f==='int' ? 'SIDE A' : 'SIDE B') : (f==='int' ? 'INTERIOR' : 'EXTERIOR');
 

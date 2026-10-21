@@ -20,6 +20,11 @@ What it does:
    | roof | 113.07–119.55″ |
 4. **Adds only unique items to the library.** A wall or layer that matches an existing one within 1/8″ reuses it. New walls get ids like `W24-03` (24′ exterior) or `I08-02` (8′ interior). New layers get `FE`, `FI`, `CI` or `RF` plus length, e.g. `CI24-01`.
 5. **Saves the home as a shared project** in `data/projects.json`. Its slot picks point at the library items.
+6. **Adds each unique pod to the pod library** (`data/pods.json`, via `pods_lib.py`). A pod is its type plus its walls and layers in its own frame. Each wall stretch is stored by side, by the distance `from` the left end of that side seen from outside, and by length and type. New pods get ids like `L24-05` or `P16-02`.
+
+To rebuild `data/pods.json` from the shared projects without scanning again, run `python3 -I tools/step-import/pods_lib.py --repo .`
+
+**Corner notches.** Every pod corner has a 1¾″ × 1¾″ steel spine notch, full height. The app always draws it, so it doesn't come from the scan. In the Expanse + 1 file it measured 1.70–1.79″ at wall height on every corner. At floor and ceiling height some corners had it and some didn't.
 
 Not read yet: plugs, switches and pot lights. When they're modelled, name them `PLUG`, `SWITCH` and `POTLIGHT`.
 

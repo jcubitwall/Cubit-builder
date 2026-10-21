@@ -7,7 +7,23 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
 ## What it does
 
 - **Pick a home model:** Life, Nest, Cove, Panorama, and **Expanse** (two 24′ pods with two 16′ pods on the end), built from 8×8, 8×16 and 8×24 pods with a 5/8″ space at every joint. The Tanja Leet *Expanse + 1* (5 pods) is a shared project, scanned straight from the Shapr3D STEP file with every opening measured.
-- **Add pods:** open *Pods in this home · add a pod* in the sidebar. Pick a size and choose which pod and which wall to put it beside. Your layout is saved in your browser, and *Copy layout code* gives the text to paste into `data/models.json`.
+- **Plan & pods (drag and drop):** press **Plan & pods** for a top view of the home on an 8′ grid.
+  - **Add a pod:** drag a blank 8′, 16′ or 24′ pod, or a pod from the **pod library**, onto the plan.
+  - **Snapping:** pods only dock flush end to end, or side by side in 8′ steps. A drop snaps to the nearest spot where the pod shares at least 8′ of wall with another pod. Overlapping or loose pods aren't allowed.
+  - **Turning:** press **R** while dragging to turn a pod 90°, or select a pod and press **Turn 90°**.
+  - **Changing pods:** drag a pod to move it, or select it to **replace** it with another pod or **remove** it.
+  - **Joints:** the 5/8″ space at every joint is always added.
+  - **Pods keep their parts:** a pod keeps its own walls, floors and ceilings when it is moved or turned.
+  - **Your own copy:** editing a built-in home makes your own copy. Editing a project changes the project; save it to keep the change.
+- **Pod library:** every unique pod from a STEP import is in `data/pods.json`. Saving a project, or pressing **Save this pod to the library**, adds any pod that isn't there yet. Each pod is stored in its own frame, so it can go in at any turn.
+- **Mirrored joint walls:** where two pods join, each keeps its own 4½″ wall. Choosing a wall on one side gives the neighbour's wall the same wall, **mirrored**, so doors and openings line up. Every joint in the scanned Expanse + 1 follows this rule.
+- **Saving fills the libraries:** saving a project, or one pod, adds anything new to the matching library:
+  - walls, for example a mirrored wall nobody has scanned
+  - floors and ceilings
+  - pods
+  
+  Items match to ⅛″. Exported project files carry these new items with them.
+- **Steel spine notches:** every pod corner has a **1¾″ × 1¾″** notch running the full height, measured from the STEP files. It is cut from the outside face of the long walls, and from the corners of the floors and ceilings. It shows in 3D and on the wall and layer sheets (purple).
 - **Swap any wall, floor or ceiling:** click it in 3D, or in the list, and choose another option from the library. Each pod has its walls plus four layers: exterior floor, interior floor, interior ceiling and roof.
 - **The library only holds real scanned parts.** Every imported STEP file adds its unique walls and layers. Where a home needs a size that hasn't been scanned yet, the app shows a plain placeholder (marked ⚠ on walls). Exterior walls are 6½″. Where pods join, **each pod keeps its own 4½″ interior wall**.
 - **Long and short walls:** the long walls (B and D) always run the full pod length. The short end walls (A and C) fit between them, so a short wall is 96″ minus the two long walls' thickness: 83″ between two 6½″ walls, 85″ when one of them is a 4½″ interior wall.
@@ -35,6 +51,8 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
 | Ceiling | 12⅞″ total: two SIP layers, OSB top and bottom, 11⅞″ LVL rim |
 | Panels | 4′ × 8′ SIP |
 | Ground screws | just inside the floor edge, no more than 8′ apart (inset is set on the foundation sheet, default 6″) |
+| Corner spine notch | 1¾″ × 1¾″, full height, at every pod corner |
+| Pod placement | 8′ grid, turned in 90° steps |
 
 These live in `js/config.js`.
 
@@ -76,6 +94,7 @@ data/walls.json     wall library (edit this)
 data/models.json    home models: which pods, where
 data/layers.json    floor / ceiling / roof library (from STEP scans)
 data/projects.json  shared, named projects (saved configurations)
+data/pods.json      pod library: unique pods with their walls, floors and ceilings
 js/main.js          start-up and toolbar
 js/config.js        pod dimensions and constants
 js/data.js          loads the JSON data
@@ -83,7 +102,9 @@ js/layout.js        wall slots per home, wall letters, 5/8″ gaps, ground-screw
 js/state.js         current selections (saved in the browser)
 js/panels.js        4×8 panel split, numbering, thumbnails
 js/scene3d.js       3D view (three.js)
-js/sidebar.js       model list, wall options, add-a-pod editor, wall upload
+js/sidebar.js       model list, wall options, wall upload
+js/planner.js       plan editor: drag and drop, turn, replace, remove pods
+js/pods.js          pod editing rules, pod library, saving new items to the libraries
 js/sheets.js        wall assembly sheets
 js/foundation.js    foundation sheet + PDF
 js/labels.js        panel codes, assembly order, stacking, CNC flips, label PDF
@@ -95,7 +116,15 @@ There's no build step: it is plain HTML, CSS and JavaScript modules. To run it o
 
 ## Importing a home from Shapr3D
 
-Export the whole home as **STEP**. `tools/step-import/import_step.py` finds the pods, scans every wall and every floor and ceiling layer, adds the unique ones to the library (`data/walls.json`, `data/layers.json`), and saves the home as a shared project. See that folder's README.
+Export the whole home as **STEP**. `tools/step-import/import_step.py`:
+
+1. finds the pods
+2. scans every wall and every floor and ceiling layer
+3. adds the unique ones to the libraries (`data/walls.json`, `data/layers.json`)
+4. adds each unique pod to `data/pods.json`
+5. saves the home as a shared project
+
+See that folder's README. The scan is exact, so **only upload accurate models**: whatever is in the STEP file goes into the libraries.
 
 ## Next up
 

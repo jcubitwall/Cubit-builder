@@ -2,7 +2,7 @@
 import { FT, POD } from './config.js';
 import { MODELS } from './data.js';
 import { asciiFt, fft, fin } from './format.js';
-import { podOffsets, screwsFor, slotsFor } from './layout.js';
+import { podOffsets, screwsFor, slotsFor, podList } from './layout.js';
 import { buildHome } from './scene3d.js';
 import { dimH, dimV, renderSheetList } from './sheets.js';
 import { renderSide, toast } from './sidebar.js';
@@ -11,13 +11,13 @@ import { state } from './state.js';
 /* ---------- foundation: one data model drives the on-screen sheet and the PDF ---------- */
 function foundationData(){
   const m=MODELS[state.model]; const OFF=podOffsets(state.model);
-  const pods=m.pods.map((p,i)=>({...p,i,len:POD[p.t].len,x:p.x+OFF[i].ox,z:p.z+OFF[i].oz}));
-  const minx=Math.min(...pods.map(p=>p.x)), maxx=Math.max(...pods.map(p=>p.x+p.len));
-  const minz=Math.min(...pods.map(p=>p.z)), maxz=Math.max(...pods.map(p=>p.z+8));
+  const pods=podList(state.model).map((p,i)=>({...p,x:p.x+OFF[i].ox,z:p.z+OFF[i].oz}));
+  const minx=Math.min(...pods.map(p=>p.x)), maxx=Math.max(...pods.map(p=>p.x+p.w));
+  const minz=Math.min(...pods.map(p=>p.z)), maxz=Math.max(...pods.map(p=>p.z+p.d));
   const labels=slotsFor(state.model).reduce((a,s)=>(a[s.pod.i]=s.pod.label,a),{});
   pods.forEach(p=>{ if(!labels[p.i]) labels[p.i]=POD[p.t].name; });
   let sc=screwsFor(state.model,state.inset);
-  sc=sc.map(q=>{ const p=pods[q.pod]; const cx=p.x+p.len/2, cz=p.z+4; return {...q, ang:Math.atan2(q.z-cz, q.x-cx)}; })
+  sc=sc.map(q=>{ const p=pods[q.pod]; const cx=p.x+p.w/2, cz=p.z+p.d/2; return {...q, ang:Math.atan2(q.z-cz, q.x-cx)}; })
        .sort((a,b)=>a.pod-b.pod || a.ang-b.ang).map((q,i)=>({...q,id:i+1, X:(q.x-minx)*FT, Y:(q.z-minz)*FT}));
   const dist=(a,b)=>Math.hypot(a.X-b.X,a.Y-b.Y);
   // squaring checks: outer corner screws of the whole layout, then each pod's own corners
@@ -29,7 +29,7 @@ function foundationData(){
               {group:'Whole layout', kind:'Left side', a:FL, b:BL}, {group:'Whole layout', kind:'Right side', a:FR, b:BR});
   // per pod: the largest rectangle of real screws carrying that pod (shared ones included), so its diagonals must match
   if(pods.length>1) pods.forEach(p=>{
-    const x0=(p.x-minx)*FT-12, x1=(p.x-minx+p.len)*FT+12, y0=(p.z-minz)*FT-12, y1=(p.z-minz+8)*FT+12;
+    const x0=(p.x-minx)*FT-12, x1=(p.x-minx+p.w)*FT+12, y0=(p.z-minz)*FT-12, y1=(p.z-minz+p.d)*FT+12;
     const cand=sc.filter(q=>q.X>=x0&&q.X<=x1&&q.Y>=y0&&q.Y<=y1 && (q.pod===p.i || q.shared));
     const at=(x,y)=>cand.find(q=>Math.abs(q.X-x)<0.05&&Math.abs(q.Y-y)<0.05);
     const xs=[...new Set(cand.map(q=>+q.X.toFixed(3)))], ys=[...new Set(cand.map(q=>+q.Y.toFixed(3)))];
@@ -52,8 +52,8 @@ function renderFoundation(el){
   let g=`<svg viewBox="0 0 ${VW} ${VH}" font-family="IBM Plex Mono, monospace" role="img" aria-label="Ground screw plan"><defs><marker id="ar" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#2f6db5"/></marker></defs>`;
   pods.forEach(p=>{
     const px=(p.x-F.minx)*FT, py=(p.z-F.minz)*FT;
-    g+=`<rect x="${X(px)}" y="${Y(py)}" width="${p.len*FT*s}" height="${96*s}" fill="#f6f1e6" stroke="#111" stroke-width="1.6"/>`;
-    g+=`<text x="${X(px+p.len*6)}" y="${Y(py+48)+4}" text-anchor="middle" font-family="Archivo, Arial, sans-serif" font-size="13" font-weight="700" fill="#8a7a5c">${labels[p.i]} · 8′ × ${p.len}′</text>`;
+    g+=`<rect x="${X(px)}" y="${Y(py)}" width="${p.w*FT*s}" height="${p.d*FT*s}" fill="#f6f1e6" stroke="#111" stroke-width="1.6"/>`;
+    g+=`<text x="${X(px+p.w*6)}" y="${Y(py+p.d*6)+4}" ${p.alongX?'':`transform="rotate(-90 ${X(px+p.w*6)} ${Y(py+p.d*6)+4})"`} text-anchor="middle" font-family="Archivo, Arial, sans-serif" font-size="13" font-weight="700" fill="#8a7a5c">${labels[p.i]} · 8′ × ${p.len}′</text>`;
   });
   // squaring lines (whole layout diagonals)
   checks.filter(c=>c.group==='Whole layout'&&c.kind==='Diagonal').forEach(c=>{
@@ -147,8 +147,8 @@ function foundationPDF(){
   const s=Math.min(areaW/Wf, (areaH-50)/Df); const ox=areaX+(areaW-Wf*s)/2, oy=areaY+58;
   const X=x=>ox+x*s, Y=y=>oy+y*s;
   pods.forEach(p=>{ const px=(p.x-F.minx)*FT, py=(p.z-F.minz)*FT;
-    doc.setDrawColor(...ink); doc.setFillColor(246,241,230); doc.setLineWidth(1.2); doc.rect(X(px),Y(py),p.len*FT*s,96*s,'FD');
-    doc.setTextColor(150,130,95); doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.text(`${labels[p.i]}  8' x ${p.len}'`, X(px+p.len*6), Y(py+48)+3, {align:'center'}); });
+    doc.setDrawColor(...ink); doc.setFillColor(246,241,230); doc.setLineWidth(1.2); doc.rect(X(px),Y(py),p.w*FT*s,p.d*FT*s,'FD');
+    doc.setTextColor(150,130,95); doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.text(`${labels[p.i]}  8' x ${p.len}'`, X(px+p.w*6), Y(py+p.d*6)+3, {align:'center', angle:p.alongX?0:90}); });
   doc.setDrawColor(...red); doc.setLineWidth(0.8); doc.setLineDashPattern([5,3],0);
   checks.filter(c=>c.group==='Whole layout'&&c.kind==='Diagonal').forEach(c=>{
     doc.line(X(c.a.X),Y(c.a.Y),X(c.b.X),Y(c.b.Y));

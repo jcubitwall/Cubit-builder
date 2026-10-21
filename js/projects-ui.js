@@ -1,5 +1,6 @@
 /* Cubit Builder — projects-ui.js : the Projects dialog */
 import { MODELS } from './data.js';
+import { countsText } from './pods.js';
 import { PROJECTS, SHARED, saveProject, openProject, deleteProject, renameProject, exportJSON, importJSON } from './projects.js';
 import { state } from './state.js';
 import { buildHome } from './scene3d.js';
@@ -39,8 +40,8 @@ function render(){
     </div>
     <p class="note">Projects are kept in this browser. To pass one to someone else, export it and send them the file. To make it shared with everyone, send the file to be added to <code>data/projects.json</code>.</p>`;
   const name=body.querySelector('#projName');
-  body.querySelector('#projSave').onclick=()=>{ const n=name.value.trim(); if(!n){ name.focus(); toast('Give the project a name first.'); return; } saveProject(n,false); refreshAll(); render(); toast(`Saved “${n}”`); };
-  const sn=body.querySelector('#projSaveNew'); if(sn) sn.onclick=()=>{ const n=name.value.trim()||'Copy'; saveProject(n,true); refreshAll(); render(); toast(`Saved “${n}” as a new project`); };
+  body.querySelector('#projSave').onclick=()=>{ const n=name.value.trim(); if(!n){ name.focus(); toast('Give the project a name first.'); return; } const r=saveProject(n,false); refreshAll(); render(); toast(`Saved “${n}”. ${countsText(r.counts)}`); };
+  const sn=body.querySelector('#projSaveNew'); if(sn) sn.onclick=()=>{ const n=name.value.trim()||'Copy'; const r=saveProject(n,true); refreshAll(); render(); toast(`Saved “${n}” as a new project. ${countsText(r.counts)}`); };
   body.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{ openProject(b.dataset.open); refreshAll(); document.getElementById('projDlg').close(); toast('Project opened'); });
   body.querySelectorAll('[data-ren]').forEach(b=>b.onclick=()=>{
     const row=b.closest('.projrow'); const p=PROJECTS[b.dataset.ren];

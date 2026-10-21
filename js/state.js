@@ -1,5 +1,5 @@
 /* Cubit Builder — state.js : what the person has chosen, kept in their browser */
-import { MODELS, byId, optionsFor, layerOptions, layerById } from './data.js';
+import { MODELS, byId, optionsFor, layerOptions, layerById, podById } from './data.js';
 import { LAYER_KINDS, T, TI } from './config.js';
 
 const state = { model:'cove', picks:{}, layerPicks:{}, wallA:{}, faces:{}, selected:null, exploded:false, roof:false, nums:true, letters:true, screws:false, inset:6, view:'studio', face:'int', reverse:false, sheetSlot:null };
@@ -25,10 +25,24 @@ function pickFor(slot){
   if(fits(w,slot)) return w;
   w = byId(MODELS[state.model]?.picks?.[slot.id]);
   if(fits(w,slot)) return w;
+  const seg = podSeg(slot);
+  w = seg && byId(seg.wall);
+  if(fits(w,slot)) return w;
   const ty = slot.type||'ext';
   const opts = optionsFor(slot.len, ty, state.model);
   if(opts.length) return opts[0];
   return blankWall(slot);
+}
+/* The pod's own wall for this stretch: kept on the pod itself (walls it carried when it was moved, turned
+   or dropped in), else the library pod it came from. Matched by the pod's own side, the distance from
+   that side's left end seen from outside, the length and the type. */
+function podSeg(slot){
+  const p=slot.pod; if(!p || slot.local==null) return null;
+  for(const src of [p, podById(p.src)]){
+    const g = src?.walls?.[slot.local]?.find(g=>Math.abs(g.from-slot.from)<1e-6 && g.len===slot.len && g.type===(slot.type||'ext'));
+    if(g) return g;
+  }
+  return null;
 }
 /* A plain wall with no openings, used where the library has nothing of that size yet. Not saved anywhere. */
 function blankWall(slot){
@@ -42,6 +56,7 @@ function pickLayer(slot){
   if(l && l.kind===slot.kind && l.len===slot.len) return l;
   l = layerById(MODELS[state.model]?.layerPicks?.[slot.id]);
   if(l && l.kind===slot.kind && l.len===slot.len) return l;
+  for(const src of [slot.pod, podById(slot.pod?.src)]){ l = layerById(src?.layers?.[slot.kind]); if(l && l.kind===slot.kind && l.len===slot.len) return l; }
   const opts = layerOptions(slot.kind, slot.len);
   if(opts.length) return opts[0];
   const K=LAYER_KINDS[slot.kind];
@@ -51,4 +66,4 @@ function chooseLayer(slot, id){ (state.layerPicks[state.model] ||= {})[slot.id]=
 function setFace(slot, f){ (state.faces[state.model] ||= {})[slot.id]=f; save(); }
 function choose(slot, wallId){ (state.picks[state.model] ||= {})[slot.id]=wallId; save(); }
 
-export { state, initState, save, pickFor, choose, setFace, pickLayer, chooseLayer, blankWall };
+export { state, initState, save, pickFor, podSeg, choose, setFace, pickLayer, chooseLayer, blankWall };
