@@ -257,3 +257,4 @@ html.fs-lock, html.fs-lock body{overflow:hidden;overscroll-behavior:none;height:
 .studio.fs{touch-action:none}
 .studio.fs > aside{touch-action:pan-y}
 .studio.fs .fs-bar{top:max(12px, env(safe-area-inset-top))}
+.seg{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}

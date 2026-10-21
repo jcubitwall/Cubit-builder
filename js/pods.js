@@ -214,6 +214,12 @@ function replaceDeck(k, lib){
   const why=deckTrial(d=>{ d[k].lib=lib; }); if(why) return 'That deck doesn’t fit in this spot.';
   const key=editKey(); MODELS[key].decks[k].lib=lib; finish(key); return '';
 }
+/* what a deck stands on: 'screws' (ground screws, the default) or 'pads' (floating on concrete pads); k = index or 'all' */
+function setDeckFoundation(k, found){
+  const key=editKey(), decks=MODELS[key].decks||[];
+  (k==='all' ? decks : [decks[k]]).forEach(d=>{ if(!d) return; if(found==='pads') d.found='pads'; else delete d.found; });
+  finish(key); return '';
+}
 /* every spot where a deck with this turn can dock (snapping targets) */
 function deckSpots(lib, rot, skip=-1){
   const m=MODELS[state.model], decks=(m.decks||[]).filter((_,j)=>j!==skip);
@@ -297,4 +303,4 @@ const countsText = c => {
 function renameLibPod(id, name){ const p=podById(id); if(p && p.src==='saved'){ p.name=name; savePodLib(); } }
 function deleteLibPod(id){ const k=PODLIB.findIndex(p=>p.id===id && p.src==='saved'); if(k>=0){ PODLIB.splice(k,1); savePodLib(); } }
 
-export { deckFoot, LEDGER, addDeck, moveDeck, removeDeck, replaceDeck, deckSpots, turnDeck, foot, problem, bake, addPod, movePod, rotatePod, replacePod, deletePod, dockSpots, turnSpot, saveToLibraries, countsText, sizeText, renameLibPod, deleteLibPod, podSig };
+export { setDeckFoundation, deckFoot, LEDGER, addDeck, moveDeck, removeDeck, replaceDeck, deckSpots, turnDeck, foot, problem, bake, addPod, movePod, rotatePod, replacePod, deletePod, dockSpots, turnSpot, saveToLibraries, countsText, sizeText, renameLibPod, deleteLibPod, podSig };

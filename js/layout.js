@@ -3,7 +3,7 @@
    Plan units are feet. Seen from above, +x is to the right and +z is down the screen, so going
    clockwise means S → E → N → W. A pod can be turned in 90° steps (rot 0/90/180/270, clockwise):
    at 0/180 its length runs along x, at 90/270 along z. */
-import { FT, GAP, POD, SIDE_NAME, LAYER_KINDS, SCREW_MAX } from './config.js';
+import { FT, GAP, POD, SIDE_NAME, LAYER_KINDS, SCREW_MAX, PAD_MAX } from './config.js';
 import { MODELS, podById, deckById } from './data.js';
 import { pickFor, state } from './state.js';
 
@@ -218,7 +218,8 @@ function screwPlan(modelKey, insetIn){
   const LO = layoutOffsets(modelKey), OFF=LO.pods, pl=podList(modelKey);
   // decks follow the same rules; their index follows the pods' (pods 0..n-1, then decks)
   const P = pl.map(p=>{ const x=p.x+OFF[p.i].ox, z=p.z+OFF[p.i].oz; return {i:p.i, len:p.len, x, z, x1:x+p.w, z1:z+p.d}; })
-    .concat(deckList(modelKey).map((d,k)=>{ const x=d.x+LO.decks[k].ox, z=d.z+LO.decks[k].oz; return {i:pl.length+k, len:0, deck:true, x, z, x1:x+d.w, z1:z+d.d}; }));
+    // decks that float on concrete pads are left out: they get pads (padsFor), not screws
+    .concat(deckList(modelKey).filter(d=>d.found!=='pads').map(d=>{ const k=d.k, x=d.x+LO.decks[k].ox, z=d.z+LO.decks[k].oz; return {i:pl.length+k, len:0, deck:true, x, z, x1:x+d.w, z1:z+d.d}; }));
   const lines=[];
   P.forEach(p=>{
     [{k:'S',ax:'x',e:p.z, a:p.x,b:p.x1,n:[0,-1]},{k:'N',ax:'x',e:p.z1,a:p.x,b:p.x1,n:[0,1]},
@@ -279,8 +280,9 @@ function screwPlan(modelKey, insetIn){
     const [x,z]=g.p;
     const pods=P.filter(p=>x>=p.x-G/2-0.02 && x<=p.x1+G/2+0.02 && z>=p.z-G/2-0.02 && z<=p.z1+G/2+0.02).map(p=>p.i);
     const head=HEAD_FOR(pods.length);
-    const prim=pods.slice().sort((u,v)=>P[v].len-P[u].len||u-v)[0] ?? g.items[0].line.pods[0];
-    const onDeckOnly = pods.every(k=>P[k].deck);
+    const byI=k=>P.find(q=>q.i===k);
+    const prim=pods.slice().sort((u,v)=>byI(v).len-byI(u).len||u-v)[0] ?? g.items[0].line.pods[0];
+    const onDeckOnly = pods.every(k=>byI(k).deck);
     const ext=g.items.find(q=>q.line.kind==='ext'), jn=g.items.find(q=>q.line.kind==='joint');
     // bracket direction: swivel heads turned in under their pod; centre heads square across the joint
     const dir = head==='swivel' ? (ext ? [-ext.line.n[0],-ext.line.n[1]] : [0,1]) : (jn ? (jn.line.ax==='x'?[0,1]:[1,0]) : [0,1]);
@@ -299,6 +301,22 @@ function screwPlan(modelKey, insetIn){
   return {screws, warnings, lines:{joints:J.length, perimeter:X.length}};
 }
 const screwsFor = (modelKey, insetIn) => screwPlan(modelKey, insetIn).screws;
+/* concrete pads under decks that float instead of sitting on screws: a pad at every corner (at the inset)
+   and along each side no more than PAD_MAX apart; decks side by side share a pad where their corners meet */
+function padsFor(modelKey, insetIn){
+  const i=insetIn/FT, LO=layoutOffsets(modelKey), out=[];
+  deckList(modelKey).filter(d=>d.found==='pads').forEach(d=>{
+    const x0=d.x+LO.decks[d.k].ox+i, z0=d.z+LO.decks[d.k].oz+i, x1=d.x1+LO.decks[d.k].ox-i, z1=d.z1+LO.decks[d.k].oz-i;
+    const nx=Math.max(1,Math.ceil((x1-x0-0.25)/PAD_MAX)), nz=Math.max(1,Math.ceil((z1-z0-0.25)/PAD_MAX)), seen=new Set();
+    const add=(x,z)=>{ const key=x.toFixed(3)+','+z.toFixed(3); if(!seen.has(key)){ seen.add(key); out.push({x,z,deck:d.k}); } };
+    for(let a=0;a<=nx;a++){ add(x0+(x1-x0)*a/nx, z0); add(x0+(x1-x0)*a/nx, z1); }
+    for(let b=0;b<=nz;b++){ add(x0, z0+(z1-z0)*b/nz); add(x1, z0+(z1-z0)*b/nz); }
+  });
+  // decks side by side share one pad where their corners meet (centred between them, like a shared screw)
+  const merged=[];
+  out.forEach(q=>{ const m=merged.find(g=>Math.hypot(g.x-q.x,g.z-q.z)<2); if(m){ m.n++; m.x+=(q.x-m.x)/m.n; m.z+=(q.z-m.z)/m.n; m.decks.add(q.deck); } else merged.push({...q, n:1, decks:new Set([q.deck])}); });
+  return merged.map(({n,decks,...q})=>({...q, shared:decks.size>1}));
+}
 
 /* Each pod has four horizontal layers: exterior floor, interior floor, interior ceiling, roof */
 function layerSlotsFor(modelKey){
@@ -311,4 +329,4 @@ const partnerOf = (slot, slots) => slot.type!=='int' ? null :
   slots.find(q=>q.type==='int' && q.pod===slot.other && q.other===slot.pod && Math.abs(q.a-slot.a)<EPS && Math.abs(q.b-slot.b)<EPS) || null;
 const podLabels = modelKey => podList(modelKey).reduce((a,p)=>(a[p.i]=p.long,a),{});
 
-export { deckList, layoutOffsets, podOffsets, slotsFor, NORM, screwsFor, screwPlan, HEAD_FOR, podList, podLabels, CW, layerSlotsFor, partnerOf, worldSide, localSide, isLongSide, ROT_SIDE };
+export { padsFor, deckList, layoutOffsets, podOffsets, slotsFor, NORM, screwsFor, screwPlan, HEAD_FOR, podList, podLabels, CW, layerSlotsFor, partnerOf, worldSide, localSide, isLongSide, ROT_SIDE };

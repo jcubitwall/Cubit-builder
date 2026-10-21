@@ -6,7 +6,7 @@ import { MODELS, PODLIB, DECKLIB, byId, podById, deckById } from './data.js';
 import { slotsFor, podList, deckList } from './layout.js';
 import { state, save, pickFor } from './state.js';
 import { getBearing, setBearing, northVec, fmtBearing } from './orient.js';
-import { deckFoot, addDeck, moveDeck, removeDeck, replaceDeck, deckSpots, turnDeck, foot, addPod, movePod, rotatePod, replacePod, deletePod, dockSpots, saveToLibraries, countsText, renameLibPod, deleteLibPod } from './pods.js';
+import { setDeckFoundation, deckFoot, addDeck, moveDeck, removeDeck, replaceDeck, deckSpots, turnDeck, foot, addPod, movePod, rotatePod, replacePod, deletePod, dockSpots, saveToLibraries, countsText, renameLibPod, deleteLibPod } from './pods.js';
 import { buildHome } from './scene3d.js';
 import { renderModels, renderSide, toast } from './sidebar.js';
 
@@ -169,7 +169,7 @@ function renderPlan(){
   decks.forEach(d=>{
     const moving = drag && drag.kind==='moveDeck' && drag.started && drag.k===d.k;
     g+=`<g class="deck${selDeck===d.k?' sel':''}${moving?' moving':''}" data-k="${d.k}">${deckSVG(d, d.L)}`;
-    g+=`<text x="${d.x+d.w/2}" y="${d.z+d.d/2+0.35}" class="deck-t">Deck ${d.k+1} · ${d.L.w}′×${d.L.d}′</text></g>`;
+    g+=`<text x="${d.x+d.w/2}" y="${d.z+d.d/2+0.35}" class="deck-t">Deck ${d.k+1} · ${d.L.w}′×${d.L.d}′${d.found==='pads'?' · on pads':''}</text></g>`;
   });
   if(drag && drag.started && drag.ghost){
     const G=drag.ghost;
@@ -380,10 +380,12 @@ function renderSide2(){
       <p class="note">Drag a pod from the left onto the plan. It snaps to the nearest spot where it docks: flush end to end, or side by side in 8′ steps. Press <b>R</b> while dragging to turn it 90°. Drag a pod to move it, or click it to turn, replace or remove it.</p>
       <p class="note">The 5/8″ space at every joint is added for you, and where two pods meet each keeps its own 4½″ wall. Changing a wall where two pods join changes the neighbour's wall to the same wall, mirrored.</p>
       <p class="note"><b>Decks</b> come from the deck library. A deck docks with its ledger (the dark edge) flush against a pod or another deck, in 8′ steps, with the same 5/8″ space at a pod. Its corners are notched for the steel corner posts, and its ground screws follow the same rules as the pods'.</p>
+      ${(m.decks||[]).length?`<div class="fld">All decks stand on<div class="seg"><button class="fsbtn" id="allScrews" aria-pressed="${m.decks.every(d=>d.found!=='pads')}">Ground screws</button><button class="fsbtn" id="allPads" aria-pressed="${m.decks.every(d=>d.found==='pads')}">Concrete pads (floating)</button></div></div>`:''}
       ${m.custom||m.project?'':'<p class="note">This is a built-in home. Your first change makes your own copy, saved in this browser.</p>'}
       <div class="row"><button class="btn" id="saveAll">Save these pods to the library</button></div>
       <p class="note">Saves every pod of this home that isn't in the pod library yet, plus any wall, floor or ceiling that's new (like a mirrored wall). Saving a project does this too.</p>
     </div>`;
+    if(el('allScrews')){ el('allScrews').onclick=()=>done(setDeckFoundation('all','screws'),'All decks on ground screws'); el('allPads').onclick=()=>done(setDeckFoundation('all','pads'),'All decks float on concrete pads'); }
     el('saveAll').onclick=()=>{ const c=saveToLibraries(m.name); renderPalette(); refresh(); toast(countsText(c)); };
     return;
   }
@@ -414,6 +416,7 @@ function renderDeckSide(m, side){
   side.innerHTML=`<div class="side-h"><div class="eyebrow">Deck ${d.k+1} · ${L.w}′ × ${L.d}′ · ledger faces ${({0:'up',90:'right',180:'down',270:'left'})[d.rot]}</div><h2>${esc(L.name||L.id)}</h2><p><code>${esc(L.id)}</code> · ${L.W}″ × ${L.D}″ frame</p></div>
   <div class="side-b">
     <div class="row"><button class="btn" id="dTurn">Turn</button><button class="btn ghost" id="dDel">Remove</button><button class="btn ghost" id="dBack">Done</button></div>
+    <div class="fld">Stands on<div class="seg" role="group" aria-label="What this deck stands on"><button class="fsbtn" id="fScrews" aria-pressed="${d.found!=='pads'}">Ground screws</button><button class="fsbtn" id="fPads" aria-pressed="${d.found==='pads'}">Concrete pads (floating)</button></div></div>
     <label class="fld">Replace with<select id="dRep">${opts}</select></label>
     <div class="row"><button class="btn ghost" id="dDoRep">Replace this deck</button></div>
     <table class="boxes"><tbody>
@@ -428,6 +431,8 @@ function renderDeckSide(m, side){
   el('dDel').onclick=()=>{ const why=removeDeck(selDeck); if(!why) selDeck=null; done(why,'Deck removed'); };
   el('dBack').onclick=()=>{ selDeck=null; renderPlan(); renderSide2(); };
   el('dDoRep').onclick=()=>done(replaceDeck(selDeck, el('dRep').value),'Deck replaced');
+  el('fScrews').onclick=()=>{ const k=selDeck; done(setDeckFoundation(k,'screws'),'Deck on ground screws'); selDeck=k; renderSide2(); };
+  el('fPads').onclick=()=>{ const k=selDeck; done(setDeckFoundation(k,'pads'),'Deck floats on concrete pads'); selDeck=k; renderSide2(); };
 }
 function refresh(){ renderPlan(); renderSide2(); buildHome(); renderSide(); }
 

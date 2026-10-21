@@ -2,7 +2,7 @@
 import { MODELS, byId, optionsFor, layerOptions, layerById, podById } from './data.js';
 import { LAYER_KINDS, T, TI } from './config.js';
 
-const state = { model:'cove', picks:{}, layerPicks:{}, wallA:{}, faces:{}, bearing:{}, northUp:false, selected:null, exploded:false, roof:false, nums:true, letters:true, screws:false, inset:6, view:'studio', face:'int', reverse:false, sheetSlot:null };
+const state = { model:'cove', picks:{}, layerPicks:{}, wallA:{}, faces:{}, bearing:{}, northUp:false, house:true, selected:null, exploded:false, roof:false, nums:true, letters:true, screws:false, inset:6, view:'studio', face:'int', reverse:false, sheetSlot:null };
 const KEY='cubit-wall-studio';
 function initState(){
   try{

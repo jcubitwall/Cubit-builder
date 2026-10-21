@@ -11,6 +11,7 @@ const CEIL = 12.875/12;  // double SIP ceiling, OSB top + bottom, 11 7/8" LVL ri
 const PW = 48;           // panel width, inches (4')
 const FT = 12;
 const SCREW_MAX = 12;     // ground screws no more than 12′ apart (corners always; a 16′ side gets one in the middle)
+const PAD_MAX = 12;       // concrete pads under a floating deck: same rule as screws, corners always, no more than 12′ apart (to confirm)
 const NOTCH = 1.75;       // steel spine notch at every pod corner, full height: 1¾″ × 1¾″ (measured from the STEP files)
 /* ============================================================ pod types
    Plan units are feet. x = along the pod length, z = across (8′). */
@@ -25,4 +26,4 @@ const LAYER_KINDS = {
   'ceiling-int': { label:'Interior ceiling', short:'Ceiling',     code:'CI', z:106.6,  t:6.47 },
   'roof':        { label:'Roof',             short:'Roof',        code:'RF', z:113.07, t:6.48 },
 };
-export { SCREW_MAX, NOTCH, H, T, TI, FLOOR, GAP, CEIL, PW, FT, POD, SIDE_NAME, WALL_BASE, LAYER_KINDS };
+export { PAD_MAX, SCREW_MAX, NOTCH, H, T, TI, FLOOR, GAP, CEIL, PW, FT, POD, SIDE_NAME, WALL_BASE, LAYER_KINDS };

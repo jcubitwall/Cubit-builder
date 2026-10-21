@@ -1,7 +1,7 @@
 /* Cubit Builder — scene3d.js */
 import { CEIL, FLOOR, FT, H, POD, PW, T, WALL_BASE, LAYER_KINDS, NOTCH } from './config.js';
 import { MODELS } from './data.js';
-import { podOffsets, screwsFor, slotsFor, layerSlotsFor, podList, deckList, layoutOffsets } from './layout.js';
+import { podOffsets, screwsFor, slotsFor, layerSlotsFor, podList, deckList, layoutOffsets, padsFor } from './layout.js';
 import { panelCells, panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall, layerHoles } from './panels.js';
 import { w3 } from './sheets.js';
 import { renderSide } from './sidebar.js';
@@ -191,7 +191,19 @@ function buildHome(){
     grp.traverse(o=>{ if(o.isMesh){ o.userData.slotId=`deck:${k}`; pickables.push(o); } });
     homeGroup.add(grp); deckGroups.push(grp);
   });
-  screwGroup=new THREE.Group(); homeGroup.add(screwGroup); screwGroup.visible=state.screws;
+  // with the house turned off, only the ground screws, pads and footprints show
+  screwGroup=new THREE.Group(); homeGroup.add(screwGroup); screwGroup.visible=state.screws || !state.house;
+  // concrete pads under decks that float instead of sitting on screws
+  { const padG=new THREE.BoxGeometry(16/FT, 8/FT, 16/FT), padM=new THREE.MeshStandardMaterial({color:0xa7a9a4, roughness:0.95});
+    padsFor(state.model, state.inset).forEach(pd=>{ const m=new THREE.Mesh(padG,padM); m.position.set(pd.x, -WALL_BASE/FT - 4/FT, pd.z); screwGroup.add(m); }); }
+  if(!state.house){
+    // footprints on the ground so the screws can be read against the home
+    const fpMat=new THREE.LineBasicMaterial({color:0x3b3122}), dkMat=new THREE.LineDashedMaterial({color:0x8a7a5c, dashSize:0.6, gapSize:0.4});
+    const loop=(x0,z0,x1,z1,mat)=>{ const g=new THREE.BufferGeometry().setFromPoints([[x0,z0],[x1,z0],[x1,z1],[x0,z1],[x0,z0]].map(([x,z])=>new THREE.Vector3(x,-FLOOR+0.01,z))); const l=new THREE.Line(g,mat); l.computeLineDistances(); screwGroup.add(l); };
+    pods.forEach(p=>loop(p.x,p.z,p.x+p.w,p.z+p.d,fpMat));
+    const LOd2=layoutOffsets(state.model).decks;
+    deckList(state.model).forEach((d,k)=>loop(d.x+LOd2[k].ox,d.z+LOd2[k].oz,d.x1+LOd2[k].ox,d.z1+LOd2[k].oz,dkMat));
+  }
   const shaftG=new THREE.CylinderGeometry(0.12,0.12,5.5,10), brXG=new THREE.BoxGeometry(1.25,0.06,0.58), brZG=new THREE.BoxGeometry(0.58,0.06,1.25),
     collarG=new THREE.CylinderGeometry(0.17,0.17,0.5,14),
     gussetG=(()=>{ const sh=new THREE.Shape(); sh.moveTo(0.1,0); sh.lineTo(0.98,0); sh.lineTo(0.98,-0.08); sh.lineTo(0.1,-0.85); sh.closePath();
@@ -254,6 +266,8 @@ function buildHome(){
     }
     homeGroup.add(g); wallGroups.push(g);
   });
+  // house off: hide walls, floors, ceilings, roof and decks
+  if(!state.house){ wallGroups.forEach(g=>g.visible=false); floorGroup.visible=false; roofGroup.visible=false; deckGroups.forEach(g=>g.visible=false); }
   highlight();
   // frame camera
   const span=Math.max(maxx-minx,maxz-minz);
@@ -275,7 +289,7 @@ function applyExplode(){
     g.position.copy(g.userData.base).addScaledVector(g.userData.n, int?0:e*4.5);
     g.position.y = lift + e*(int?4.5:0.6);
   });
-  if(roofGroup){ roofGroup.visible = state.roof || e>0.01; }
+  if(roofGroup){ roofGroup.visible = state.house && (state.roof || e>0.01); }
 }
 function highlight(){
   deckGroups.forEach(g=>{ const sel=g.userData.id===state.selected; g.userData.mat.color.set(sel?0xe0864a:0xa88f5d); g.userData.mat.emissive.set(sel?0x3a1a05:0x000000); });
@@ -314,6 +328,6 @@ function loop(){
   if(state.view==='sheets' && w3) { w3.controls.update(); w3.renderer.render(w3.scene,w3.camera); }
 }
 function setExplodeGoal(v){ explodeGoal=v; }
-function refreshRoof(){ if(roofGroup) roofGroup.visible=state.roof||explodeT>0.01; }
+function refreshRoof(){ if(roofGroup) roofGroup.visible=state.house && (state.roof||explodeT>0.01); }
 
 export { stage, renderer, scene, camera, controls, sun, grid, homeGroup, wallGroups, themeColors, applyTheme, MAT, lineMat, numberSprite, buildWallMesh, buildHome, explodeT, applyExplode, highlight, resize, ray, loop, setExplodeGoal, refreshRoof, roofGroup, floorGroup, screwGroup, pickables, explodeGoal, mouse };

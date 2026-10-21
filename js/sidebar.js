@@ -6,6 +6,7 @@ import { screwsFor, slotsFor, podList, CW, layerSlotsFor, partnerOf, deckList } 
 import { panelCount, thumbSVG, bodyWall, wallLen } from './panels.js';
 import { buildHome, highlight } from './scene3d.js';
 import { facing, fmtBearing } from './orient.js';
+import { setDeckFoundation } from './pods.js';
 import { openSheets } from './sheets.js';
 import { pickFor, save, state, choose, pickLayer, chooseLayer } from './state.js';
 
@@ -100,7 +101,10 @@ function renderDeckSide3d(k){
   const L=d.L;
   sideH.innerHTML=`<div class="eyebrow">Deck ${k+1} · ${L.w}′ × ${L.d}′ frame</div><h2>${esc(L.name||L.id)}</h2><p><code>${esc(L.id)}</code> · ${L.W}″ × ${L.D}″ · ${(L.notches||[]).length} corner notches ${L.notch}″</p>`;
   sideB.innerHTML=`<div class="row"><button class="btn" id="toSheet">Framing sheet</button><button class="btn ghost" id="toPlan">Move in the plan</button><button class="btn ghost" id="deselect">Back to model</button></div>
+    <div class="fld">Stands on<div class="seg"><button class="fsbtn" id="fScrews" aria-pressed="${d.found!=='pads'}">Ground screws</button><button class="fsbtn" id="fPads" aria-pressed="${d.found==='pads'}">Concrete pads (floating)</button></div></div>
     <p class="note">Decks dock with their ledger against a pod or another deck. Swap, turn or remove decks in the plan editor.</p>`;
+  const setF=f=>{ setDeckFoundation(k,f); state.selected='deck:'+k; renderModels(); buildHome(); renderSide(); toast(f==='pads'?'Deck floats on concrete pads':'Deck on ground screws'); };
+  sideB.querySelector('#fScrews').onclick=()=>setF('screws'); sideB.querySelector('#fPads').onclick=()=>setF('pads');
   sideB.querySelector('#toSheet').onclick=()=>{ state.sheetSlot='__deck:'+k; openSheets(); };
   sideB.querySelector('#toPlan').onclick=()=>document.getElementById('bPlan').click();
   sideB.querySelector('#deselect').onclick=()=>{ state.selected=null; highlight(); renderSide(); };

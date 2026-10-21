@@ -33,7 +33,9 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
   - **Docking:** drag a deck onto the plan. Its **ledger** (the dark edge) docks flush against a pod or another deck, in 8′ steps. Press **R** while dragging to turn it.
   - **Spacing:** decks keep the 5/8″ space at a pod. Deck frames butt against each other.
   - **Corners:** deck corners are notched for the steel corner posts.
-  - **Screws:** deck screws follow the same rules as pods: swivel heads on the outside, shared centre screws in the joints.
+  - **Screws or concrete pads:** each deck stands on either **ground screws** or **concrete pads** (floating). Set it on the deck's panel, or for all decks at once in the plan editor.
+    - **Screws:** deck screws follow the same rules as pods, with swivel heads on the outside and shared centre screws in the joints.
+    - **Pads:** a floating deck gets concrete pads at its corners and no more than 12′ apart, and decks side by side share a pad. Pads show in 3D and on the foundation sheet as P1, P2 and so on. Pad size and spacing are still to be confirmed.
   - **Sheets:** each deck has a framing sheet with joist spacing, corner notches and a cut list.
 - **Steel spine notches:** every pod corner has a **1¾″ × 1¾″** notch running the full height, measured from the STEP files. It is cut from the outside face of the end walls, and from the corners of the floors and ceilings. It shows in 3D and on the wall and layer sheets (purple).
 - **Swap any wall, floor or ceiling:** click it in 3D, or in the list, and choose another option from the library. Each pod has its walls plus four layers: exterior floor, interior floor, interior ceiling and roof.
@@ -46,6 +48,7 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
   - **Panel:** the walls and options slide in from the right with **Panel** or the **T** key. The panel also opens by itself when you click a wall.
   - **Leaving:** **Esc** or **F** leaves full screen.
   - **Tablets and phones:** full screen fills the window and only the **Exit** button leaves it, so a swipe can't close it by accident. For no browser bars at all, use Share → **Add to Home Screen**. The app then opens full screen like an app.
+- **House on / off:** the **House** toggle hides the walls, floors, roof and decks. Only the ground screws and concrete pads stay, with the footprints of the pods (solid) and decks (dashed) drawn on the ground.
 - **Exploded view:** walls, interior walls and roof pull apart, and the house lifts off its ground screws.
 - **Projects:** press **Projects** to save what's on screen under a name, for example *Tanja Leet · Expanse + 1*. A project keeps its own layout (including pods you added), every wall choice, which wall is A on each pod, which side faces the assemblers on each wall, and the screw inset. Projects are saved in your browser. **Export** makes a file you can send to someone, and projects listed in `data/projects.json` show up for everyone (marked *shared*).
 - **Panel labels, cut & stack (ShopSabre):** every 4×8 panel gets a code: pod number + wall letter + panel number, e.g. **3B-4** = Pod 3, Wall B, panel 4.
