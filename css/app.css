@@ -193,3 +193,12 @@ body.dragging, body.dragging *{cursor:grabbing!important}
   #palette .pod-item{min-width:180px}
   #palette .pal-h{display:none}
 }
+#plan .deck{cursor:grab}
+#plan .deck-r{fill:#e6d7b5;stroke:#6b5a3a;stroke-width:.06}
+#plan .deck.sel .deck-r{stroke:var(--accent);stroke-width:.35}
+#plan .deck.moving{opacity:.35}
+#plan .deck-j,.pod-item .deck-j{fill:#a88f5d;stroke:none}
+#plan .deck-n,.pod-item .deck-n{fill:#fff;stroke:#7a3fb0;stroke-width:.05}
+#plan .deck-l,.pod-item .deck-l{stroke:#3b3122;stroke-width:.3}
+#plan .deck-t{font-family:var(--mono);font-size:.8px;text-anchor:middle;fill:#3b3122;font-weight:600}
+.pod-item .deck-r{fill:#e6d7b5;stroke:#6b5a3a;stroke-width:.06}

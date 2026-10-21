@@ -2,7 +2,7 @@
 import { FT, POD } from './config.js';
 import { MODELS } from './data.js';
 import { asciiFt, fft, fin } from './format.js';
-import { podOffsets, screwPlan, slotsFor, podList } from './layout.js';
+import { podOffsets, screwPlan, slotsFor, podList, deckList, layoutOffsets } from './layout.js';
 import { buildHome } from './scene3d.js';
 import { dimH, dimV, renderSheetList } from './sheets.js';
 import { renderSide, toast } from './sidebar.js';
@@ -12,12 +12,16 @@ import { state } from './state.js';
 function foundationData(){
   const m=MODELS[state.model]; const OFF=podOffsets(state.model);
   const pods=podList(state.model).map((p,i)=>({...p,x:p.x+OFF[i].ox,z:p.z+OFF[i].oz}));
-  const minx=Math.min(...pods.map(p=>p.x)), maxx=Math.max(...pods.map(p=>p.x+p.w));
-  const minz=Math.min(...pods.map(p=>p.z)), maxz=Math.max(...pods.map(p=>p.z+p.d));
+  const LOd0=layoutOffsets(state.model).decks, B=pods.map(p=>[p.x,p.z,p.x+p.w,p.z+p.d]).concat(deckList(state.model).map((d,k)=>[d.x+LOd0[k].ox,d.z+LOd0[k].oz,d.x1+LOd0[k].ox,d.z1+LOd0[k].oz]));
+  const minx=Math.min(...B.map(b=>b[0])), maxx=Math.max(...B.map(b=>b[2]));
+  const minz=Math.min(...B.map(b=>b[1])), maxz=Math.max(...B.map(b=>b[3]));
   const labels=slotsFor(state.model).reduce((a,s)=>(a[s.pod.i]=s.pod.label,a),{});
   pods.forEach(p=>{ if(!labels[p.i]) labels[p.i]=POD[p.t].name; });
+  const LOd=layoutOffsets(state.model).decks;
+  const decks=deckList(state.model).map((d,k)=>({...d, x:d.x+LOd[k].ox, z:d.z+LOd[k].oz, idx:pods.length+k}));
+  decks.forEach(d=>{ labels[d.idx]=d.label; });
   const plan=screwPlan(state.model,state.inset); let sc=plan.screws.map((q,k)=>({...q, src:k}));
-  sc=sc.map(q=>{ const p=pods[q.pod]; const cx=p.x+p.w/2, cz=p.z+p.d/2; return {...q, ang:Math.atan2(q.z-cz, q.x-cx)}; })
+  sc=sc.map(q=>{ const p=pods[q.pod]||decks[q.pod-pods.length]; const cx=p.x+p.w/2, cz=p.z+p.d/2; return {...q, ang:Math.atan2(q.z-cz, q.x-cx)}; })
        .sort((a,b)=>a.pod-b.pod || a.ang-b.ang).map((q,i)=>({...q,id:i+1, X:(q.x-minx)*FT, Y:(q.z-minz)*FT}));
   const dist=(a,b)=>Math.hypot(a.X-b.X,a.Y-b.Y);
   // squaring checks: outer corner screws of the whole layout, then each pod's own corners
@@ -43,7 +47,7 @@ function foundationData(){
   checks.forEach(c=>c.len=dist(c.a,c.b));
   const front=[...new Set(sc.filter(q=>q.Y<12).map(q=>+q.X.toFixed(3)))].sort((a,b)=>a-b);
   const left=[...new Set(sc.filter(q=>q.X<12).map(q=>+q.Y.toFixed(3)))].sort((a,b)=>a-b);
-  return {m,pods,labels,sc,warnings:plan.warnings,checks,front,left,minx,minz,W:(maxx-minx)*FT,D:(maxz-minz)*FT,corners:{FL,FR,BR,BL}};
+  return {m,pods,decks,labels,sc,warnings:plan.warnings,checks,front,left,minx,minz,W:(maxx-minx)*FT,D:(maxz-minz)*FT,corners:{FL,FR,BR,BL}};
 }
 /* head outlines around the screw centre, in drawing units (s = units per inch) */
 function headRects(q,s){
@@ -56,11 +60,16 @@ function headRects(q,s){
 function headSVG(q,cx,cy,s){
   const st=q.shared?'fill="#f3c9a8" stroke="#d0661f" stroke-width="1.4"':'fill="#e3e6e0" stroke="#56606b" stroke-width=".8"';
   let g=headRects(q,s).map(([x,y,w,h])=>`<rect x="${cx+x}" y="${cy+y}" width="${w}" height="${h}" ${st}/>`).join('');
+  if(q.arm){ const ax=cx+q.arm[0]*12*s, ay=cy+q.arm[1]*12*s; g+=`<line x1="${cx}" y1="${cy}" x2="${ax}" y2="${ay}" stroke="#d0661f" stroke-width="${3*s+1.5}" stroke-linecap="square"/><rect x="${ax-3.5*s}" y="${ay-3.5*s}" width="${7*s}" height="${7*s}" fill="#f3c9a8" stroke="#d0661f"/>`; }
   if(q.head==='swivel') g+=`<circle cx="${cx}" cy="${cy}" r="${3.6*s+3}" fill="none" stroke="#56606b" stroke-width=".7" stroke-dasharray="2 1.5"/>`;
   return g;
 }
 const HEAD_NAME={swivel:'Swivel', centre:'Centre', tee:'Tee', cross:'Cross'};
 function headText(q,labels,html){
+  const arm = q.arm ? ` + corner arm ${fin(Math.hypot(q.arm[0],q.arm[1])*12)}` : '';
+  return headText0(q,labels,html)+arm;
+}
+function headText0(q,labels,html){
   if(q.head==='swivel') return html?'Swivel · perimeter, bracket turned in':'Swivel, perimeter';
   const who=q.pods.map(i=>labels[i]).join(' + ');
   return html?`<b style="color:#b4520f">${HEAD_NAME[q.head]}</b> · centred in the joint, carries ${who}`:`${HEAD_NAME[q.head]}, joint: ${who}`;
@@ -70,6 +79,11 @@ function renderFoundation(el){
   const s=Math.min(2.4, 860/Wf), ml=110, mt=120, mr=60, mb=50, VW=Wf*s+ml+mr, VH=Df*s+mt+mb;
   const X=x=>ml+x*s, Y=y=>mt+y*s;    // inches from datum; true plan seen from above (same as the 3D top view)
   let g=`<svg viewBox="0 0 ${VW} ${VH}" font-family="IBM Plex Mono, monospace" role="img" aria-label="Ground screw plan"><defs><marker id="ar" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#2f6db5"/></marker></defs>`;
+  F.decks.forEach(d=>{
+    const px=(d.x-F.minx)*FT, py=(d.z-F.minz)*FT;
+    g+=`<rect x="${X(px)}" y="${Y(py)}" width="${d.w*FT*s}" height="${d.d*FT*s}" fill="#efe4cc" stroke="#6b5a3a" stroke-width="1.2" stroke-dasharray="6 3"/>`;
+    g+=`<text x="${X(px+d.w*6)}" y="${Y(py+d.d*6)+4}" text-anchor="middle" font-family="Archivo, Arial, sans-serif" font-size="12" font-weight="700" fill="#8a7a5c">${d.label} · ${d.L.w}′ × ${d.L.d}′</text>`;
+  });
   pods.forEach(p=>{
     const px=(p.x-F.minx)*FT, py=(p.z-F.minz)*FT;
     g+=`<rect x="${X(px)}" y="${Y(py)}" width="${p.w*FT*s}" height="${p.d*FT*s}" fill="#f6f1e6" stroke="#111" stroke-width="1.6"/>`;
@@ -164,6 +178,9 @@ function foundationPDF(){
   const areaX=M+70, areaY=M+40, areaW=PW_-2*M-110, areaH=PH_-2*M-40-40-95;
   const s=Math.min(areaW/Wf, (areaH-50)/Df); const ox=areaX+(areaW-Wf*s)/2, oy=areaY+58;
   const X=x=>ox+x*s, Y=y=>oy+y*s;
+  F.decks.forEach(d=>{ const px=(d.x-F.minx)*FT, py=(d.z-F.minz)*FT;
+    doc.setDrawColor(107,90,58); doc.setFillColor(239,228,204); doc.setLineWidth(0.8); doc.setLineDashPattern([4,2],0); doc.rect(X(px),Y(py),d.w*FT*s,d.d*FT*s,'FD'); doc.setLineDashPattern([],0);
+    doc.setTextColor(150,130,95); doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.text(`${d.label}  ${d.L.w}' x ${d.L.d}'`, X(px+d.w*6), Y(py+d.d*6)+3, {align:'center'}); });
   pods.forEach(p=>{ const px=(p.x-F.minx)*FT, py=(p.z-F.minz)*FT;
     doc.setDrawColor(...ink); doc.setFillColor(246,241,230); doc.setLineWidth(1.2); doc.rect(X(px),Y(py),p.w*FT*s,p.d*FT*s,'FD');
     doc.setTextColor(150,130,95); doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.text(`${labels[p.i]}  8' x ${p.len}'`, X(px+p.w*6), Y(py+p.d*6)+3, {align:'center', angle:p.alongX?0:90}); });
@@ -181,6 +198,7 @@ function foundationPDF(){
     if(q.shared){ doc.setFillColor(243,201,168); doc.setDrawColor(...org); } else { doc.setFillColor(227,230,224); doc.setDrawColor(86,96,107); }
     doc.setLineWidth(0.6);
     headRects(q,s).forEach(([rx,ry,rw,rh])=>doc.rect(X(q.X)+rx,Y(q.Y)+ry,rw,rh,'FD'));
+    if(q.arm){ doc.setDrawColor(...org); doc.setLineWidth(1.6); doc.line(X(q.X),Y(q.Y),X(q.X)+q.arm[0]*12*s,Y(q.Y)+q.arm[1]*12*s); doc.setLineWidth(0.6); }
     doc.setFillColor(86,96,107); doc.setDrawColor(...ink); doc.circle(X(q.X),Y(q.Y),3.6,'FD');
     doc.setTextColor(...ink); doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.text('S'+q.id, X(q.X)+5, Y(q.Y)-4.5);
   });

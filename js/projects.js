@@ -2,7 +2,7 @@
    A project keeps its own copy of the layout (including added pods), every wall choice, which wall
    is A, which side faces the assemblers, and the ground-screw inset. Projects live in this browser;
    "Export" makes a file to share, and projects in data/projects.json are shared with everyone. */
-import { MODELS, LIB, LAYERLIB, PODLIB, byId, layerById, podById, savePodLib, saveWallLib, saveLayerLib } from './data.js';
+import { MODELS, LIB, LAYERLIB, PODLIB, DECKLIB, byId, layerById, podById, deckById, savePodLib, saveWallLib, saveLayerLib, saveDeckLib } from './data.js';
 import { state, save } from './state.js';
 import { saveToLibraries } from './pods.js';
 
@@ -24,7 +24,7 @@ function persist(){ try{ localStorage.setItem(KEY, JSON.stringify(PROJECTS)); }c
 
 function snapshot(name, id){
   const m = MODELS[state.model];
-  const model = clone({ name:m.name, size:m.size, pods:m.pods, picks:m.picks||{}, layerPicks:m.layerPicks||{}, base:m.base || (m.project?undefined:state.model), wallA:m.wallA, note:m.note });
+  const model = clone({ name:m.name, size:m.size, pods:m.pods, decks:m.decks||[], picks:m.picks||{}, layerPicks:m.layerPicks||{}, base:m.base || (m.project?undefined:state.model), wallA:m.wallA, note:m.note });
   if(model.base===undefined) delete model.base;
   if(m.base) model.base=m.base;
   return { id, name, saved:new Date().toISOString(), from:m.project ? (MODELS[state.model].from||state.model) : state.model, model,
@@ -67,7 +67,8 @@ function libraryFor(p){
   [M.layerPicks, p.layerPicks].forEach(o=>Object.values(o||{}).forEach(id=>layers.add(id)));
   const own = x => x && x.src && x.src!=='library';
   const strip = ({src, ...x}) => x;
-  return { walls:[...walls].map(byId).filter(own).map(strip), layers:[...layers].map(layerById).filter(own).map(strip), pods:[...pods].map(podById).filter(own).map(strip) };
+  const decks=[...new Set((M.decks||[]).map(d=>d.lib))];
+  return { walls:[...walls].map(byId).filter(own).map(strip), layers:[...layers].map(layerById).filter(own).map(strip), pods:[...pods].map(podById).filter(own).map(strip), decks:decks.map(deckById).filter(own).map(strip) };
 }
 const exportJSON = ids => JSON.stringify(ids.map(id=>PROJECTS[id]||SHARED[id]).filter(Boolean).map(p=>({...p, library:libraryFor(p)})), null, 2);
 function importJSON(text){
@@ -77,6 +78,8 @@ function importJSON(text){
     (lib.walls||[]).forEach(w=>{ if(!LIB.find(x=>x.id===w.id)) LIB.push({...w, src:'saved'}); });
     (lib.layers||[]).forEach(l=>{ if(!LAYERLIB.find(x=>x.id===l.id)) LAYERLIB.push({...l, src:'saved'}); });
     (lib.pods||[]).forEach(q=>{ if(!PODLIB.find(x=>x.id===q.id)) PODLIB.push({...q, src:'saved'}); });
+    (lib.decks||[]).forEach(q=>{ if(!DECKLIB.find(x=>x.id===q.id)) DECKLIB.push({...q, src:'saved'}); });
+    if(lib.decks?.length) saveDeckLib();
     if(lib.walls?.length) saveWallLib(); if(lib.layers?.length) saveLayerLib(); if(lib.pods?.length) savePodLib(); const id=p.id && !PROJECTS[p.id] ? p.id : Date.now().toString(36)+n; PROJECTS[id]={...p, id, shared:false}; register(PROJECTS[id]); n++; });
   persist(); return n;
 }

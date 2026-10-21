@@ -15,7 +15,7 @@
    Pods sit on the 8′ grid: they dock flush end to end, or side by side in 8′ steps. Two pods must share
    at least 8′ of wall, may not overlap, and the 5/8″ space at every joint is added by layout.js. */
 import { POD, LAYER_KINDS } from './config.js';
-import { MODELS, LIB, LAYERLIB, PODLIB, byId, podById, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib } from './data.js';
+import { MODELS, LIB, LAYERLIB, PODLIB, byId, podById, deckById, DECKLIB, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib } from './data.js';
 import { slotsFor, layerSlotsFor, podList, localSide } from './layout.js';
 import { state, save, pickFor, pickLayer } from './state.js';
 
@@ -31,11 +31,38 @@ const shared = (a,b) => {
   return 0;
 };
 const onGrid = f => [f.x,f.z].every(v=>Math.abs(v/8-Math.round(v/8))<1e-6);
+/* decks: footprint from the deck library; the ledger is the deck's own S side (faces S/E/N/W at rot 0/90/180/270) */
+const deckFoot = d => { const L=deckById(d.lib)||{W:96,D:96}, r=((d.rot||0)%360+360)%360; const w=(r%180===0?L.W:L.D)/12, dd=(r%180===0?L.D:L.W)/12; return {x:d.x, z:d.z, w, d:dd, rot:r}; };
+const LEDGER = {0:'S', 90:'E', 180:'N', 270:'W'};
+/* a deck docks with its ledger flush against a pod or another deck, lined up on the 8′ steps of that side */
+function deckDocked(f, others){
+  const side=LEDGER[f.rot], E=1e-6;
+  return others.some(o=>{
+    let touch, a0, a1, b0, b1;
+    if(side==='S'){ touch=Math.abs(o.z+o.d-f.z)<E; a0=f.x; a1=f.x+f.w; b0=o.x; b1=o.x+o.w; }
+    if(side==='N'){ touch=Math.abs(o.z-(f.z+f.d))<E; a0=f.x; a1=f.x+f.w; b0=o.x; b1=o.x+o.w; }
+    if(side==='W'){ touch=Math.abs(o.x+o.w-f.x)<E; a0=f.z; a1=f.z+f.d; b0=o.z; b1=o.z+o.d; }
+    if(side==='E'){ touch=Math.abs(o.x-(f.x+f.w))<E; a0=f.z; a1=f.z+f.d; b0=o.z; b1=o.z+o.d; }
+    if(!touch) return false;
+    const ov=Math.min(a1,b1)-Math.max(a0,b0), step=(a0-b0)/8;
+    const aligned = Math.abs(step-Math.round(step))<1e-6 || Math.abs(a1-b1)<E;
+    return ov >= Math.min(8, a1-a0)-E && aligned;
+  });
+}
 /* why a layout isn't allowed, or '' when it is */
-function problem(pods){
-  const F=pods.map(foot);
+function problem(pods, decks=MODELS[state.model]?.decks||[]){
+  const F=pods.map(foot), K=decks.map(deckFoot);
   if(!F.every(onGrid)) return 'Pods sit on the 8′ grid.';
   for(let i=0;i<F.length;i++) for(let j=i+1;j<F.length;j++) if(overlaps(F[i],F[j])) return 'That spot overlaps another pod.';
+  for(let i=0;i<K.length;i++){
+    if(F.some(f=>overlaps(f,K[i])) || K.some((g,j)=>j!==i && overlaps(g,K[i]))) return 'That spot overlaps a pod or a deck.';
+    if(!deckDocked(K[i], F.concat(K.filter((_,j)=>j!==i)))) return 'A deck docks with its ledger flush against a pod or another deck, lined up on the 8′ steps.';
+  }
+  if(K.length){   // every deck has to reach a pod, through other decks if need be
+    const all=F.concat(K), seen=new Set(F.map((_,i)=>i)), todo=[...seen];
+    while(todo.length){ const i=todo.pop(); all.forEach((g,j)=>{ if(!seen.has(j) && shared(all[i],g)>=Math.min(8,g.w,g.d)-1e-6){ seen.add(j); todo.push(j); } }); }
+    if(seen.size<all.length) return 'Every deck has to connect to a pod, directly or through another deck.';
+  }
   if(F.length>1){
     const seen=new Set([0]), todo=[0];
     while(todo.length){ const i=todo.pop(); F.forEach((g,j)=>{ if(!seen.has(j) && shared(F[i],g)>=8-1e-6){ seen.add(j); todo.push(j); } }); }
@@ -88,7 +115,7 @@ function editKey(){
   if(m.custom || m.project){ bake(key); return key; }
   // the built-in home keeps its own picks; the copy carries them on its pods
   const nk='custom-'+Date.now().toString(36);
-  MODELS[nk]={ name:m.name+' (custom)', size:m.size, base:m.base||key, pods:bakedPods(key), picks:{}, layerPicks:{}, custom:true };
+  MODELS[nk]={ name:m.name+' (custom)', size:m.size, base:m.base||key, pods:bakedPods(key), decks:clone(m.decks||[]), picks:{}, layerPicks:{}, custom:true };
   state.model=nk;
   return nk;
 }
@@ -96,7 +123,7 @@ function finish(key){
   const m=MODELS[key];
   // keep the layout starting at 0,0
   const F=m.pods.map(foot), mx=Math.min(...F.map(f=>f.x)), mz=Math.min(...F.map(f=>f.z));
-  if(mx||mz) m.pods.forEach(p=>{ p.x-=mx; p.z-=mz; });
+  if(mx||mz){ m.pods.forEach(p=>{ p.x-=mx; p.z-=mz; }); (m.decks||[]).forEach(d=>{ d.x-=mx; d.z-=mz; }); }
   m.size=sizeText(m.pods);
   if(m.custom) saveCustomModels();
   state.selected=null; save();
@@ -149,7 +176,7 @@ function replacePod(i, item){
 }
 function deletePod(i){
   const pods=MODELS[state.model].pods; if(pods.length<2) return 'A home needs at least one pod.';
-  const trial=pods.filter((_,j)=>j!==i); const why=problem(trial); if(why) return 'Removing this pod would leave the others apart.';
+  const trial=pods.filter((_,j)=>j!==i); const why=problem(trial); if(why) return why.startsWith('A deck') ? 'A deck is docked to this pod. Move or remove the deck first.' : 'Removing this pod would leave the others apart.';
   const key=editKey(); MODELS[key].pods.splice(i,1); finish(key); return '';
 }
 /* every grid spot where a footprint w×d could dock (used to snap a drag to the nearest good spot) */
@@ -165,6 +192,50 @@ function dockSpots(item, rot, skip=-1){
     const trial=pods.concat([{t,x,z,rot}]); if(!problem(trial)) out.push({x,z});
   }
   return out;
+}
+
+/* ---------------------------------------------------------------- decks */
+function deckTrial(fn){ const m=MODELS[state.model]; const d=clone(m.decks||[]); fn(d); return problem(m.pods, d); }
+function addDeck(lib, x, z, rot){
+  const why=deckTrial(d=>d.push({lib,x,z,rot})); if(why) return why;
+  const key=editKey(); (MODELS[key].decks ||= []).push({lib,x,z,rot}); finish(key); return '';
+}
+function moveDeck(k, x, z, rot){
+  const why=deckTrial(d=>Object.assign(d[k],{x,z,rot})); if(why) return why;
+  const key=editKey(); Object.assign(MODELS[key].decks[k],{x,z,rot}); finish(key); return '';
+}
+function removeDeck(k){
+  const why=deckTrial(d=>d.splice(k,1)); if(why) return 'Another deck is docked to this one. Remove that one first.';
+  const key=editKey(); MODELS[key].decks.splice(k,1); finish(key); return '';
+}
+function replaceDeck(k, lib){
+  const cur=MODELS[state.model].decks[k];
+  const why=deckTrial(d=>{ d[k].lib=lib; }); if(why) return 'That deck doesn’t fit in this spot.';
+  const key=editKey(); MODELS[key].decks[k].lib=lib; finish(key); return '';
+}
+/* every spot where a deck with this turn can dock (snapping targets) */
+function deckSpots(lib, rot, skip=-1){
+  const m=MODELS[state.model], decks=(m.decks||[]).filter((_,j)=>j!==skip);
+  const others=m.pods.map(foot).concat(decks.map(deckFoot));
+  const g=deckFoot({lib,x:0,z:0,rot}), side=LEDGER[g.rot], out=[];
+  others.forEach(o=>{
+    const cand=[];
+    if(side==='S'||side==='N'){ const z = side==='S' ? o.z+o.d : o.z-g.d; for(let a=o.x-g.w+8; a<=o.x+o.w-8+1e-6; a+=8) cand.push([a,z]); cand.push([o.x+o.w-g.w,z]); }
+    else { const x = side==='W' ? o.x+o.w : o.x-g.w; for(let a=o.z-g.d+8; a<=o.z+o.d-8+1e-6; a+=8) cand.push([x,a]); cand.push([x,o.z+o.d-g.d]); }
+    cand.forEach(([x,z])=>{ if(out.some(q=>Math.abs(q.x-x)<1e-6&&Math.abs(q.z-z)<1e-6)) return;
+      const d=clone(decks); d.push({lib,x,z,rot}); if(!problem(m.pods,d)) out.push({x,z}); });
+  });
+  return out;
+}
+function turnDeck(k){
+  const d=MODELS[state.model].decks[k], f=deckFoot(d), cx=f.x+f.w/2, cz=f.z+f.d/2;
+  for(let r=1;r<4;r++){
+    const rot=((d.rot||0)+90*r)%360, spots=deckSpots(d.lib, rot, k), g=deckFoot({...d,rot});
+    if(!spots.length) continue;
+    spots.sort((a,b)=>Math.hypot(a.x+g.w/2-cx,a.z+g.d/2-cz)-Math.hypot(b.x+g.w/2-cx,b.z+g.d/2-cz));
+    const s=spots[0]; if(Math.hypot(s.x+g.w/2-cx,s.z+g.d/2-cz)<14) return moveDeck(k, s.x, s.z, rot);
+  }
+  return 'No other way for this deck to face from here. Drag it to a new spot.';
 }
 
 /* ---------------------------------------------------------------- saving to the libraries
@@ -225,4 +296,4 @@ const countsText = c => {
 function renameLibPod(id, name){ const p=podById(id); if(p && p.src==='saved'){ p.name=name; savePodLib(); } }
 function deleteLibPod(id){ const k=PODLIB.findIndex(p=>p.id===id && p.src==='saved'); if(k>=0){ PODLIB.splice(k,1); savePodLib(); } }
 
-export { foot, problem, bake, addPod, movePod, rotatePod, replacePod, deletePod, dockSpots, turnSpot, saveToLibraries, countsText, sizeText, renameLibPod, deleteLibPod, podSig };
+export { deckFoot, LEDGER, addDeck, moveDeck, removeDeck, replaceDeck, deckSpots, turnDeck, foot, problem, bake, addPod, movePod, rotatePod, replacePod, deletePod, dockSpots, turnSpot, saveToLibraries, countsText, sizeText, renameLibPod, deleteLibPod, podSig };

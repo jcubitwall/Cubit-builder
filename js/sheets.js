@@ -3,7 +3,8 @@ import { FT, H, PW, T } from './config.js';
 import { MODELS } from './data.js';
 import { fft, fin } from './format.js';
 import { renderFoundation } from './foundation.js';
-import { screwsFor, slotsFor, layerSlotsFor } from './layout.js';
+import { screwsFor, slotsFor, layerSlotsFor, deckList } from './layout.js';
+import { renderDeckSheet } from './decksheet.js';
 import { LAYER_KINDS } from './config.js';
 import { panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall, layerHoles } from './panels.js';
 import { buildWallMesh, resize } from './scene3d.js';
@@ -20,7 +21,7 @@ function openSheets(){
   document.getElementById('planner').hidden=true; document.getElementById('bPlan').textContent='Plan & pods';
   document.getElementById('bSheets').textContent='Back to 3D';
   const slots=slotsFor(state.model);
-  if(!['__found','__labels'].includes(state.sheetSlot) && !slots.find(s=>s.id===state.sheetSlot) && !layerSlotsFor(state.model).find(l=>l.id===state.sheetSlot)) state.sheetSlot=slots[0].id;
+  if(!['__found','__labels'].includes(state.sheetSlot) && !/^__deck:\d+$/.test(state.sheetSlot||'') && !slots.find(s=>s.id===state.sheetSlot) && !layerSlotsFor(state.model).find(l=>l.id===state.sheetSlot)) state.sheetSlot=slots[0].id;
   renderSheetList(); renderSheet();
 }
 function closeSheets(){
@@ -31,7 +32,7 @@ function renderSheetList(){
   const el=document.getElementById('sheetList'); const slots=slotsFor(state.model);
   const nS=screwsFor(state.model,state.inset).length;
   el.innerHTML=`<div class="side-h"><div class="eyebrow">${MODELS[state.model].name} · ${slots.length} walls</div></div>`+
-    `<div class="wl"><button class="${state.sheetSlot==='__found'?'on':''}" data-s="__found"><span class="n">Foundation · ground screws</span><span class="l">${nS} screws</span><span class="o">Site plan with every screw located</span></button><button class="${state.sheetSlot==='__labels'?'on':''}" data-s="__labels"><span class="n">Panel labels · cut &amp; stack</span><span class="l">all walls</span><span class="o">Stacking order, CNC flips, printable labels</span></button></div>`+
+    `<div class="wl"><button class="${state.sheetSlot==='__found'?'on':''}" data-s="__found"><span class="n">Foundation · ground screws</span><span class="l">${nS} screws</span><span class="o">Site plan with every screw located</span></button><button class="${state.sheetSlot==='__labels'?'on':''}" data-s="__labels"><span class="n">Panel labels · cut &amp; stack</span><span class="l">all walls</span><span class="o">Stacking order, CNC flips, printable labels</span></button>${deckList(state.model).map(d=>`<button class="${state.sheetSlot==='__deck:'+d.k?'on':''}" data-s="__deck:${d.k}"><span class="n">Deck ${d.k+1} · framing</span><span class="l">${d.L.w}′ × ${d.L.d}′</span><span class="o">${d.L.id} · cut list, corner notches</span></button>`).join('')}</div>`+
     wallListHTML(slots,state.sheetSlot);
   el.querySelectorAll('.wl button').forEach(b=>b.onclick=()=>{ state.sheetSlot=b.dataset.s; renderSheetList(); renderSheet(); });
 }
@@ -39,6 +40,7 @@ function renderSheet(){
   const el=document.getElementById('sheet');
   if(state.sheetSlot==='__found'){ renderFoundation(el); return; }
   if(state.sheetSlot==='__labels'){ renderLabelsHome(el); return; }
+  if(/^__deck:\d+$/.test(state.sheetSlot)){ renderDeckSheet(el, +state.sheetSlot.slice(7)); return; }
   const ls=layerSlotsFor(state.model).find(l=>l.id===state.sheetSlot);
   if(ls){ renderLayerSheet(el, ls); return; }
   const s=slotsFor(state.model).find(x=>x.id===state.sheetSlot); const w=bodyWall(s, pickFor(s));

@@ -1,7 +1,7 @@
 /* Cubit Builder — scene3d.js */
 import { CEIL, FLOOR, FT, H, POD, PW, T, WALL_BASE, LAYER_KINDS, NOTCH } from './config.js';
 import { MODELS } from './data.js';
-import { podOffsets, screwsFor, slotsFor, layerSlotsFor, podList } from './layout.js';
+import { podOffsets, screwsFor, slotsFor, layerSlotsFor, podList, deckList, layoutOffsets } from './layout.js';
 import { panelCells, panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall, layerHoles } from './panels.js';
 import { w3 } from './sheets.js';
 import { renderSide } from './sidebar.js';
@@ -20,7 +20,7 @@ scene.add(new THREE.HemisphereLight(0xffffff,0x8a8a80,0.85));
 const sun = new THREE.DirectionalLight(0xffffff,0.75); sun.position.set(30,50,20); scene.add(sun);
 const grid = new THREE.GridHelper(96,24,0x9aa39b,0xc3c9c1); grid.position.y=-FLOOR; scene.add(grid);
 let homeGroup = new THREE.Group(); scene.add(homeGroup);
-let wallGroups = [], layerGroups = [], roofGroup=null, floorGroup=null, screwGroup=null, pickables=[];
+let wallGroups = [], layerGroups = [], deckGroups = [], roofGroup=null, floorGroup=null, screwGroup=null, pickables=[];
 
 function themeColors(){
   const dark = (document.documentElement.dataset.theme==='dark') || (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
@@ -129,14 +129,31 @@ function buildLayerMesh(L, mat){
   if(pts.length){ const lg=new THREE.BufferGeometry(); lg.setAttribute('position',new THREE.Float32BufferAttribute(pts,3)); g.add(new THREE.LineSegments(lg,lineMat)); }
   return g;
 }
+/* one deck frame in its own frame: x along the ledger (0..W), z outward (0..D), inches; y up from its underside */
+const DECK_MAT = new THREE.MeshStandardMaterial({color:0xa88f5d, roughness:0.9});
+function buildDeckMesh(L, mat){
+  const g=new THREE.Group(), W=L.W, D=L.D, t=L.lumber?.t||1.5, h=L.h||7.25, n=L.notch||0;
+  const R=L.rims||{ledger:true,far:true,left:true,right:true}, N=(cx,cz)=>(L.notches||[]).some(c=>c[0]===cx&&c[1]===cz);
+  const box=(x0,x1,z0,z1)=>{ if(x1-x0<0.01||z1-z0<0.01) return; const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT,h/FT,(z1-z0)/FT),mat); m.position.set((x0+x1)/2/FT,h/2/FT,(z0+z1)/2/FT); g.add(m); };
+  const sx0=R.left?t:0, sx1=W-(R.right?t:0);
+  if(R.ledger) box(Math.max(sx0,N(0,0)?n:0), Math.min(sx1,W-(N(1,0)?n:0)), 0, t);
+  if(R.far)    box(Math.max(sx0,N(0,1)?n:0), Math.min(sx1,W-(N(1,1)?n:0)), D-t, D);
+  if(R.left)   box(0, t, N(0,0)?n:0, D-(N(0,1)?n:0));
+  if(R.right)  box(W-t, W, N(1,0)?n:0, D-(N(1,1)?n:0));
+  const jz0=R.ledger?t:0, jz1=D-(R.far?t:0);
+  (L.joists?.at||[]).forEach(a=>{ if(L.joists.run==='z') box(a,a+t,jz0,jz1); else box(sx0,sx1,a,a+t); });
+  return g;
+}
 function buildHome(){
   scene.remove(homeGroup); homeGroup=new THREE.Group(); scene.add(homeGroup);
-  wallGroups=[]; layerGroups=[]; pickables=[];
+  wallGroups=[]; layerGroups=[]; deckGroups=[]; pickables=[];
   const slots = slotsFor(state.model); const model=MODELS[state.model];
   const OFF = podOffsets(state.model);
   const pods = podList(state.model).map((p,i)=>({...p,x:p.x+OFF[i].ox,z:p.z+OFF[i].oz}));
-  const minx=Math.min(...pods.map(p=>p.x)), maxx=Math.max(...pods.map(p=>p.x+p.w));
-  const minz=Math.min(...pods.map(p=>p.z)), maxz=Math.max(...pods.map(p=>p.z+p.d));
+  const LOd=layoutOffsets(state.model).decks;
+  const boxes=pods.map(p=>[p.x,p.z,p.x+p.w,p.z+p.d]).concat(deckList(state.model).map((d,k)=>[d.x+LOd[k].ox,d.z+LOd[k].oz,d.x1+LOd[k].ox,d.z1+LOd[k].oz]));
+  const minx=Math.min(...boxes.map(b=>b[0])), maxx=Math.max(...boxes.map(b=>b[2]));
+  const minz=Math.min(...boxes.map(b=>b[1])), maxz=Math.max(...boxes.map(b=>b[3]));
   const cx=(minx+maxx)/2, cz=(minz+maxz)/2;
   homeGroup.position.set(-cx,0,-cz);
   // floor and ceiling layers (exterior floor, interior floor, interior ceiling, roof) + ground screws
@@ -148,8 +165,9 @@ function buildHome(){
     const grp=buildLayerMesh(L, mat);
     const y=((L.z??LAYER_KINDS[ls.kind].z)-WALL_BASE)/FT;
     // turned pods: rotate the layer about its corner, then move that corner back onto the footprint
-    const th=(ls.rot||0)*Math.PI/180, L0=ls.len;
-    const off={0:[0,0],90:[0,L0],180:[L0,8],270:[8,0]}[ls.rot||0];
+    // three.js turns counter-clockwise seen from above for +angle, so a clockwise turn is negative
+    const th=-(ls.rot||0)*Math.PI/180, L0=ls.len;
+    const off={0:[0,0],90:[8,0],180:[L0,8],270:[0,L0]}[ls.rot||0];
     const inner=new THREE.Group(); inner.add(...grp.children); grp.add(inner);
     inner.rotation.y=th; inner.position.set(off[0],0,off[1]);
     grp.position.set(ls.x, y, ls.z);
@@ -158,6 +176,20 @@ function buildHome(){
     (isFloor?floorGroup:roofGroup).add(grp); layerGroups.push(grp);
   });
   homeGroup.add(roofGroup); roofGroup.visible=state.roof;
+  // decks (porch frames), docked with the same 5/8″ space as pods
+  deckGroups=[];
+  const DOFF=layoutOffsets(state.model).decks;
+  deckList(state.model).forEach((d,k)=>{
+    const mat=DECK_MAT.clone();
+    const grp=new THREE.Group(), inner=buildDeckMesh(d.L, mat);
+    const W=d.L.W/FT, D=d.L.D/FT, off={0:[0,0],90:[D,0],180:[W,D],270:[0,W]}[d.rot];
+    inner.rotation.y=-d.rot*Math.PI/180; inner.position.set(off[0],0,off[1]); grp.add(inner);
+    const y=((d.L.z||0)-WALL_BASE)/FT;
+    grp.position.set(d.x+DOFF[k].ox, y, d.z+DOFF[k].oz);
+    grp.userData={deck:d, id:`deck:${k}`, mat, baseY:y};
+    grp.traverse(o=>{ if(o.isMesh){ o.userData.slotId=`deck:${k}`; pickables.push(o); } });
+    homeGroup.add(grp); deckGroups.push(grp);
+  });
   screwGroup=new THREE.Group(); homeGroup.add(screwGroup); screwGroup.visible=state.screws;
   const shaftG=new THREE.CylinderGeometry(0.12,0.12,5.5,10), brXG=new THREE.BoxGeometry(1.25,0.06,0.58), brZG=new THREE.BoxGeometry(0.58,0.06,1.25),
     collarG=new THREE.CylinderGeometry(0.17,0.17,0.5,14),
@@ -188,6 +220,11 @@ function buildHome(){
         const p2=new THREE.Mesh(plateG,MAT.bracket); p2.rotation.y=ang(perp); p2.position.y=-FLOOR-0.03; s.add(p2);
         gusset(perp,true,MAT.bracket); gusset([-perp[0],-perp[1]],true,MAT.bracket);
       }
+    }
+    if(sc.arm){   // corner arm reaching a corner the screw took over
+      const L=Math.hypot(sc.arm[0],sc.arm[1]), arm=new THREE.Mesh(new THREE.BoxGeometry(L,0.06,0.25),MAT.bracket);
+      arm.rotation.y=Math.atan2(-sc.arm[1],sc.arm[0]); arm.position.set(sc.arm[0]/2,-FLOOR-0.03,sc.arm[1]/2); s.add(arm);
+      const pad=new THREE.Mesh(new THREE.BoxGeometry(0.58,0.06,0.58),MAT.bracket); pad.position.set(sc.arm[0],-FLOOR-0.03,sc.arm[1]); s.add(pad);
     }
     s.position.set(sc.x,0,sc.z); screwGroup.add(s);
   });
@@ -223,6 +260,7 @@ function applyExplode(){
   const hasInt = wallGroups.some(g=>g.userData.slot.type==='int');
   const OFFS = {'floor-ext':-1.4, 'floor-int':0, 'ceiling-int':hasInt?7.5:4.5, 'roof':hasInt?10:6.5};
   layerGroups.forEach(g=>{ g.position.y = g.userData.baseY + lift + e*OFFS[g.userData.layerSlot.kind]; });
+  deckGroups.forEach(g=>{ g.position.y = g.userData.baseY + lift + e*OFFS['floor-ext']; });
   wallGroups.forEach(g=>{
     const int = g.userData.slot.type==='int';
     g.position.copy(g.userData.base).addScaledVector(g.userData.n, int?0:e*4.5);
@@ -231,6 +269,7 @@ function applyExplode(){
   if(roofGroup){ roofGroup.visible = state.roof || e>0.01; }
 }
 function highlight(){
+  deckGroups.forEach(g=>{ const sel=g.userData.id===state.selected; g.userData.mat.color.set(sel?0xe0864a:0xa88f5d); g.userData.mat.emissive.set(sel?0x3a1a05:0x000000); });
   layerGroups.forEach(g=>{ const sel=g.userData.layerSlot.id===state.selected; g.userData.mat.color.set(sel?0xe0864a:LAYER_COLOR[g.userData.layerSlot.kind]); g.userData.mat.emissive.set(sel?0x3a1a05:0x000000); });
   wallGroups.forEach(g=>{ const sel=g.userData.slot.id===state.selected; g.userData.mat.color.set(sel?0xe0864a:(g.userData.slot.type==='int'?0xf0e6d0:0xc9a46a)); g.userData.mat.emissive.set(sel?0x3a1a05:0x000000); });
 }

@@ -10,14 +10,18 @@ const LIB = [];
 const LAYERLIB = [];
 const PODLIB = [];          // unique pods: data/pods.json + pods saved in this browser
 const POD_KEY = 'cubit-pods';
+const DECKLIB = [];         // deck / porch frames: data/decks.json + decks saved in this browser
+const DECK_KEY = 'cubit-decks';
 const CUSTOM_KEY = 'cubit-custom-models';
 async function loadData(){
   const [walls, models, layers] = await Promise.all([
     fetch('data/walls.json').then(r=>r.json()),
     fetch('data/models.json').then(r=>r.json()),
     fetch('data/layers.json').then(r=>r.ok?r.json():[]).catch(()=>[]),
-    fetch('data/pods.json').then(r=>r.ok?r.json():[]).catch(()=>[])
-  ]).then(([w,m,l,p])=>{ p.forEach(x=>PODLIB.push({...x, src:'library'})); return [w,m,l]; });
+    fetch('data/pods.json').then(r=>r.ok?r.json():[]).catch(()=>[]),
+    fetch('data/decks.json').then(r=>r.ok?r.json():[]).catch(()=>[])
+  ]).then(([w,m,l,p,dk])=>{ p.forEach(x=>PODLIB.push({...x, src:'library'})); dk.forEach(x=>DECKLIB.push({...x, src:'library'})); return [w,m,l]; });
+  try{ JSON.parse(localStorage.getItem(DECK_KEY)||'[]').forEach(x=>{ if(!DECKLIB.find(y=>y.id===x.id)) DECKLIB.push({...x, src:'saved'}); }); }catch(e){}
   try{ JSON.parse(localStorage.getItem(POD_KEY)||'[]').forEach(x=>{ if(!PODLIB.find(y=>y.id===x.id)) PODLIB.push({...x, src:'saved'}); }); }catch(e){}
   try{ JSON.parse(localStorage.getItem('cubit-layers-saved')||'[]').forEach(x=>{ if(!layers.find(y=>y.id===x.id)) layers.push({...x, src:'saved'}); }); }catch(e){}
   layers.forEach(l=>LAYERLIB.push(l));
@@ -48,10 +52,12 @@ const byId = id => {
 };
 const mirrorId = id => { if(!id) return id; if(id.endsWith('~m')) return id.slice(0,-2); const w=byId(id); return w?.mirrorOf || id+'~m'; };
 const podById = id => id && PODLIB.find(p=>p.id===id);
+const deckById = id => id && DECKLIB.find(d=>d.id===id);
+function saveDeckLib(){ try{ localStorage.setItem(DECK_KEY, JSON.stringify(DECKLIB.filter(d=>d.src==='saved'))); }catch(e){} }
 function savePodLib(){ try{ localStorage.setItem(POD_KEY, JSON.stringify(PODLIB.filter(p=>p.src==='saved'))); }catch(e){} }
 function saveWallLib(){ try{ localStorage.setItem('cubit-walls-imported', JSON.stringify(LIB.filter(w=>w.src!=='library'))); }catch(e){} }
 function saveLayerLib(){ try{ localStorage.setItem('cubit-layers-saved', JSON.stringify(LAYERLIB.filter(l=>l.src==='saved'))); }catch(e){} }
 const layerOptions = (kind,len) => LAYERLIB.filter(l=>l.kind===kind && l.len===len);
 const layerById = id => LAYERLIB.find(l=>l.id===id);
 
-export { MODELS, LIB, LAYERLIB, PODLIB, loadData, optionsFor, byId, mirrorId, mirrorWall, podById, layerOptions, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib };
+export { DECKLIB, deckById, saveDeckLib, MODELS, LIB, LAYERLIB, PODLIB, loadData, optionsFor, byId, mirrorId, mirrorWall, podById, layerOptions, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib };

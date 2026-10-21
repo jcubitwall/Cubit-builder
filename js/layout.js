@@ -4,7 +4,7 @@
    clockwise means S → E → N → W. A pod can be turned in 90° steps (rot 0/90/180/270, clockwise):
    at 0/180 its length runs along x, at 90/270 along z. */
 import { FT, GAP, POD, SIDE_NAME, LAYER_KINDS } from './config.js';
-import { MODELS, podById } from './data.js';
+import { MODELS, podById, deckById } from './data.js';
 import { pickFor, state } from './state.js';
 
 const EPS = 1e-6;
@@ -21,8 +21,17 @@ const localSide = (rot, world) => Object.keys(ROT_SIDE[rot]).find(k=>ROT_SIDE[ro
 /* The layout in models.json is the nominal grid. Every joint between pods adds exactly 5/8″:
    a pod moves over by one gap for each joint line between it and the datum. A joint line is a
    coordinate where one pod ends and a neighbouring pod starts beside it. */
-function podOffsets(modelKey){
-  const P = podList(modelKey);
+/* Decks on the plan: { lib, x, z, rot } with x/z the top-left of the footprint (feet). The ledger is the
+   deck's own S side, so it faces S (top) at rot 0, E at 90, N at 180, W at 270 — the same turn rule as pods. */
+const deckList = modelKey => (MODELS[modelKey].decks||[]).map((d,k)=>{
+  const L=deckById(d.lib) || {W:96, D:96, w:8, d:8, missing:true};
+  const rot=((d.rot||0)%360+360)%360, alongX=rot%180===0;
+  const w=(alongX?L.W:L.D)/FT, dd=(alongX?L.D:L.W)/FT;
+  return {...d, k, rot, L, w, d:dd, x1:d.x+w, z1:d.z+dd, deck:true, label:`Deck ${k+1}`, long:`Deck ${k+1} (${L.w}′ × ${L.d}′)`};
+});
+function layoutOffsets(modelKey){
+  const P = podList(modelKey), Dk = deckList(modelKey);
+  // pods: every joint line between pods adds 5/8″ to everything beyond it
   const joints = axis => {
     const lines = new Set();
     P.forEach(p=>P.forEach(q=>{
@@ -33,8 +42,34 @@ function podOffsets(modelKey){
     return [...lines];
   };
   const jx = joints('x'), jz = joints('z');
-  return P.map(p=>({ ox: jx.filter(v=>v<=p.x+EPS).length*GAP, oz: jz.filter(v=>v<=p.z+EPS).length*GAP }));
+  const pods = P.map(p=>({ ox: jx.filter(v=>v<=p.x+EPS).length*GAP, oz: jz.filter(v=>v<=p.z+EPS).length*GAP }));
+  // decks take their place from the pod they touch (5/8″ out from it, lined up along it); a deck that
+  // touches no pod lines up with the deck it touches. Decks never move the pods.
+  const decks = Dk.map(()=>({ox:null, oz:null}));
+  const ovZ=(a,b)=>Math.min(a.z1,b.z1)-Math.max(a.z,b.z)>EPS, ovX=(a,b)=>Math.min(a.x1,b.x1)-Math.max(a.x,b.x)>EPS;
+  Dk.forEach((d,k)=>{
+    P.forEach((p,i)=>{
+      if(ovZ(d,p) && Math.abs(d.x-p.x1)<EPS) decks[k].ox = pods[i].ox + GAP;
+      if(ovZ(d,p) && Math.abs(d.x1-p.x)<EPS) decks[k].ox = pods[i].ox - GAP;
+      if(ovX(d,p) && Math.abs(d.z-p.z1)<EPS) decks[k].oz = pods[i].oz + GAP;
+      if(ovX(d,p) && Math.abs(d.z1-p.z)<EPS) decks[k].oz = pods[i].oz - GAP;
+    });
+    P.forEach((p,i)=>{   // touching a pod on one axis only: line up with it on the other
+      if(decks[k].ox===null && ovX(d,p) && (Math.abs(d.z-p.z1)<EPS || Math.abs(d.z1-p.z)<EPS)) decks[k].ox = pods[i].ox;
+      if(decks[k].oz===null && ovZ(d,p) && (Math.abs(d.x-p.x1)<EPS || Math.abs(d.x1-p.x)<EPS)) decks[k].oz = pods[i].oz;
+    });
+  });
+  for(let pass=0; pass<Dk.length; pass++) Dk.forEach((d,k)=>Dk.forEach((e,j)=>{
+    if(j===k) return;
+    const touch = (ovZ(d,e) && (Math.abs(d.x-e.x1)<EPS||Math.abs(d.x1-e.x)<EPS)) || (ovX(d,e) && (Math.abs(d.z-e.z1)<EPS||Math.abs(d.z1-e.z)<EPS));
+    if(!touch) return;
+    if(decks[k].ox===null && decks[j].ox!==null) decks[k].ox=decks[j].ox;
+    if(decks[k].oz===null && decks[j].oz!==null) decks[k].oz=decks[j].oz;
+  }));
+  decks.forEach(o=>{ if(o.ox===null) o.ox=0; if(o.oz===null) o.oz=0; });
+  return { pods, decks };
 }
+const podOffsets = modelKey => layoutOffsets(modelKey).pods;
 
 /* ============================================================ wall slots per model
    Every pod has its own four walls. Where pods join, BOTH pods keep a 4½″ interior wall
@@ -166,15 +201,18 @@ function assignLetters(modelKey, slots, pods){
      · a joint line down the middle of every joint (collinear joints between several pod pairs are one line).
    Each line gets a screw at both ends, at every place another joint line crosses or tees into it, and
    evenly spaced screws between those so no gap is over 8′. Where a line ends against a joint, its end
-   screw is the one on that joint, so the screws "hop into the centre". Screws that still land within 18″ of
-   each other are merged into one (that happens at inside corners where three pods meet).
+   screw is the one on that joint, so the screws "hop into the centre". Screws that still land within 3′ of
+   each other are merged into one (inside corners where three pods meet, short steps between decks); when
+   the screw it replaced was a corner more than a foot away, the head gets a corner arm reaching out to it.
    Head types: swivel (one pod), centre (2 pods), tee (3 pods), cross (4 pods). */
 const NORM={S:[0,-1],N:[0,1],W:[-1,0],E:[1,0]};
 const HEAD_FOR = n => n<=1 ? 'swivel' : n===2 ? 'centre' : n===3 ? 'tee' : 'cross';
 function screwPlan(modelKey, insetIn){
-  const i=insetIn/FT, E=1e-4, G=GAP, MAX=8, MERGE=1.5;
-  const OFF = podOffsets(modelKey);
-  const P = podList(modelKey).map(p=>{ const x=p.x+OFF[p.i].ox, z=p.z+OFF[p.i].oz; return {i:p.i, len:p.len, x, z, x1:x+p.w, z1:z+p.d}; });
+  const i=insetIn/FT, E=1e-4, G=GAP, MAX=8, MERGE=3;   // screws closer than 3′ become one
+  const LO = layoutOffsets(modelKey), OFF=LO.pods, pl=podList(modelKey);
+  // decks follow the same rules; their index follows the pods' (pods 0..n-1, then decks)
+  const P = pl.map(p=>{ const x=p.x+OFF[p.i].ox, z=p.z+OFF[p.i].oz; return {i:p.i, len:p.len, x, z, x1:x+p.w, z1:z+p.d}; })
+    .concat(deckList(modelKey).map((d,k)=>{ const x=d.x+LO.decks[k].ox, z=d.z+LO.decks[k].oz; return {i:pl.length+k, len:0, deck:true, x, z, x1:x+d.w, z1:z+d.d}; }));
   const lines=[];
   P.forEach(p=>{
     [{k:'S',ax:'x',e:p.z, a:p.x,b:p.x1,n:[0,-1]},{k:'N',ax:'x',e:p.z1,a:p.x,b:p.x1,n:[0,1]},
@@ -183,11 +221,13 @@ function screwPlan(modelKey, insetIn){
       const cov=[];
       P.forEach(q=>{ if(q===p) return;
         const qe = sd.ax==='x' ? (sg>0?q.z:q.z1) : (sg>0?q.x:q.x1);
-        if(Math.abs(qe-(sd.e+sg*G))>E) return;
+        // pods always sit 5/8″ apart; a deck can butt up (0) or sit 5/8″ off
+        const jg = Math.abs(qe-(sd.e+sg*G))<=E ? G : ((p.deck||q.deck) && Math.abs(qe-sd.e)<=E ? 0 : null);
+        if(jg===null) return;
         const a=Math.max(sd.ax==='x'?q.x:q.z, sd.a), b=Math.min(sd.ax==='x'?q.x1:q.z1, sd.b);
-        if(b-a>E) cov.push([a,b,q.i]);
+        if(b-a>E) cov.push([a,b,q.i,jg]);
       });
-      if(sg>0) cov.forEach(([a,b,qi])=>lines.push({kind:'joint', ax:sd.ax, c:sd.e+G/2, a, b, pods:[p.i,qi]}));
+      if(sg>0) cov.forEach(([a,b,qi,jg])=>lines.push({kind:'joint', ax:sd.ax, c:sd.e+jg/2, a, b, pods:[p.i,qi]}));
       let segs=[[sd.a,sd.b]];
       cov.forEach(([c,d])=>{ const out=[]; segs.forEach(([u,v])=>{ if(d<=u+E||c>=v-E){out.push([u,v]);return;} if(c>u+E)out.push([u,c]); if(d<v-E)out.push([d,v]); }); segs=out; });
       segs.filter(([u,v])=>v-u>E).forEach(([a,b])=>lines.push({kind:'ext', ax:sd.ax, c:sd.e-sg*i, edge:sd.e, a, b, pods:[p.i], n:sd.n}));
@@ -234,10 +274,14 @@ function screwPlan(modelKey, insetIn){
     const pods=P.filter(p=>x>=p.x-G/2-0.02 && x<=p.x1+G/2+0.02 && z>=p.z-G/2-0.02 && z<=p.z1+G/2+0.02).map(p=>p.i);
     const head=HEAD_FOR(pods.length);
     const prim=pods.slice().sort((u,v)=>P[v].len-P[u].len||u-v)[0] ?? g.items[0].line.pods[0];
+    const onDeckOnly = pods.every(k=>P[k].deck);
     const ext=g.items.find(q=>q.line.kind==='ext'), jn=g.items.find(q=>q.line.kind==='joint');
     // bracket direction: swivel heads turned in under their pod; centre heads square across the joint
     const dir = head==='swivel' ? (ext ? [-ext.line.n[0],-ext.line.n[1]] : [0,1]) : (jn ? (jn.line.ax==='x'?[0,1]:[1,0]) : [0,1]);
-    return { x, z, pod:prim, pods, head, shared:pods.length>1, toward:pods.find(q=>q!==prim), dir };
+    // a screw that took over a corner more than a foot away gets a corner arm reaching out to it
+    const far=g.items.map(q=>({q, d:Math.hypot(q.p[0]-x,q.p[1]-z)})).filter(o=>o.d>=1).sort((a,b)=>b.d-a.d)[0];
+    const arm = far ? [far.q.p[0]-x, far.q.p[1]-z] : null;
+    return { x, z, pod:prim, pods, head, shared:pods.length>1, toward:pods.find(q=>q!==prim), dir, deck:onDeckOnly, arm };
   });
   // checks: no two screws close together; no gap over 8′ along any support line
   const warnings=[];
@@ -261,4 +305,4 @@ const partnerOf = (slot, slots) => slot.type!=='int' ? null :
   slots.find(q=>q.type==='int' && q.pod===slot.other && q.other===slot.pod && Math.abs(q.a-slot.a)<EPS && Math.abs(q.b-slot.b)<EPS) || null;
 const podLabels = modelKey => podList(modelKey).reduce((a,p)=>(a[p.i]=p.long,a),{});
 
-export { podOffsets, slotsFor, NORM, screwsFor, screwPlan, HEAD_FOR, podList, podLabels, CW, layerSlotsFor, partnerOf, worldSide, localSide, isLongSide, ROT_SIDE };
+export { deckList, layoutOffsets, podOffsets, slotsFor, NORM, screwsFor, screwPlan, HEAD_FOR, podList, podLabels, CW, layerSlotsFor, partnerOf, worldSide, localSide, isLongSide, ROT_SIDE };

@@ -2,7 +2,7 @@
 import { FT, POD, PW, T, TI } from './config.js';
 import { LIB, MODELS, optionsFor, saveCustomModels, layerOptions, mirrorId } from './data.js';
 import { LAYER_KINDS } from './config.js';
-import { screwsFor, slotsFor, podList, CW, layerSlotsFor, partnerOf } from './layout.js';
+import { screwsFor, slotsFor, podList, CW, layerSlotsFor, partnerOf, deckList } from './layout.js';
 import { panelCount, thumbSVG, bodyWall, wallLen } from './panels.js';
 import { buildHome, highlight } from './scene3d.js';
 import { openSheets } from './sheets.js';
@@ -34,6 +34,12 @@ function wallListHTML(slots, current){
     });
     html+='</div>';
   });
+  const decks=deckList(state.model);
+  if(decks.length){
+    html+=`<div class="podhead">Decks<span>${decks.length}</span></div><div class="wl">`;
+    decks.forEach(d=>{ html+=`<button class="lay ${('deck:'+d.k)===current||('__deck:'+d.k)===current?'on':''}" data-s="${state.view==='sheets'?'__deck:':'deck:'}${d.k}"><span class="n">Deck ${d.k+1}</span><span class="l">${d.L.w}′ × ${d.L.d}′</span><span class="o">${esc(d.L.id+' — '+(d.L.name||''))}</span></button>`; });
+    html+='</div>';
+  }
   return html;
 }
 function layerThumb(L){
@@ -50,13 +56,14 @@ function renderSide(){
   const slots=slotsFor(state.model); const m=MODELS[state.model];
   const ls=layerSlotsFor(state.model).find(x=>x.id===state.selected);
   if(ls){ renderLayerSide(ls); return; }
+  if(/^deck:\d+$/.test(state.selected||'')){ renderDeckSide3d(+state.selected.slice(5)); return; }
   const s=slots.find(x=>x.id===state.selected);
   if(!s){
     const pods=m.pods.length, panels=slots.reduce((a,x)=>a+(pickFor(x)?panelCount(bodyWall(x,pickFor(x))):0),0);
     const area=m.pods.reduce((a,p)=>a+POD[p.t].len*8,0);
     sideH.innerHTML=`<div class="eyebrow">Model${m.custom?' · your layout':''}</div><h2>${esc(m.name)}</h2><p>${pods} pods · ${area} sq ft${m.note?' · scanned from STEP':''}</p>`;
     sideB.innerHTML=`
-      <div class="stats"><div class="stat"><b>${pods}</b><span>pods</span></div><div class="stat"><b>${slots.filter(x=>x.type!=='int').length} + ${slots.filter(x=>x.type==='int').length}</b><span>outside + inside walls</span></div><div class="stat"><b>${panels}</b><span>SIP panels</span></div><div class="stat"><b>${screwsFor(state.model,state.inset).length}</b><span>ground screws</span></div></div>
+      <div class="stats"><div class="stat"><b>${pods}</b><span>pods</span></div><div class="stat"><b>${slots.filter(x=>x.type!=='int').length} + ${slots.filter(x=>x.type==='int').length}</b><span>outside + inside walls</span></div><div class="stat"><b>${panels}</b><span>SIP panels</span></div><div class="stat"><b>${screwsFor(state.model,state.inset).length}</b><span>ground screws</span></div>${(m.decks||[]).length?`<div class="stat"><b>${m.decks.length}</b><span>decks</span></div>`:''}</div>
       <p class="note">Each pod's walls run A, B, C, D clockwise seen from above. A is the short end wall with the door, so A and C are the short walls (fitted between the long walls) and B and D are the long walls (full length). Click a wall to swap it or to change which wall is A.</p>
       ${wallListHTML(slots,null)}
       ${layoutBlock(m)}
@@ -87,6 +94,16 @@ function renderSide(){
   const imp=sideB.querySelector('#bImport'); if(imp) imp.onclick=()=>document.getElementById('fileIn').click();
 }
 
+function renderDeckSide3d(k){
+  const d=deckList(state.model)[k]; if(!d){ state.selected=null; renderSide(); return; }
+  const L=d.L;
+  sideH.innerHTML=`<div class="eyebrow">Deck ${k+1} · ${L.w}′ × ${L.d}′ frame</div><h2>${esc(L.name||L.id)}</h2><p><code>${esc(L.id)}</code> · ${L.W}″ × ${L.D}″ · ${(L.notches||[]).length} corner notches ${L.notch}″</p>`;
+  sideB.innerHTML=`<div class="row"><button class="btn" id="toSheet">Framing sheet</button><button class="btn ghost" id="toPlan">Move in the plan</button><button class="btn ghost" id="deselect">Back to model</button></div>
+    <p class="note">Decks dock with their ledger against a pod or another deck. Swap, turn or remove decks in the plan editor.</p>`;
+  sideB.querySelector('#toSheet').onclick=()=>{ state.sheetSlot='__deck:'+k; openSheets(); };
+  sideB.querySelector('#toPlan').onclick=()=>document.getElementById('bPlan').click();
+  sideB.querySelector('#deselect').onclick=()=>{ state.selected=null; highlight(); renderSide(); };
+}
 /* ============================================================ layout editor: add / remove pods */
 function renderLayerSide(ls){
   const L=pickLayer(ls), K=LAYER_KINDS[ls.kind], opts=layerOptions(ls.kind, ls.len);

@@ -2,7 +2,7 @@
   {
     "id": "leet-expanse",
     "name": "Tanja Leet · Expanse + 1",
-    "saved": "2026-10-21T01:40:02Z",
+    "saved": "2026-10-21T03:02:53Z",
     "model": {
       "name": "Expanse + 1",
       "size": "4×24 + 16",
@@ -31,6 +31,50 @@
           "t": "L24",
           "x": 24,
           "z": 16
+        }
+      ],
+      "decks": [
+        {
+          "lib": "DK08x10-01",
+          "x": 48,
+          "z": 0,
+          "rot": 270
+        },
+        {
+          "lib": "DK08x10-01",
+          "x": 48,
+          "z": 8,
+          "rot": 270
+        },
+        {
+          "lib": "DK08x10-01",
+          "x": 48,
+          "z": 16,
+          "rot": 270
+        },
+        {
+          "lib": "DK08x08-01",
+          "x": 16,
+          "z": 16,
+          "rot": 0
+        },
+        {
+          "lib": "DK08x08-01",
+          "x": 8,
+          "z": 16,
+          "rot": 0
+        },
+        {
+          "lib": "DK08x08-01",
+          "x": 0,
+          "z": 8,
+          "rot": 180
+        },
+        {
+          "lib": "DK08x08-01",
+          "x": 0,
+          "z": 16,
+          "rot": 0
         }
       ],
       "picks": {
@@ -78,7 +122,7 @@
         "4:ceiling-int": "CI24-01",
         "4:roof": "RF24-01"
       },
-      "note": "Scanned from d5a0acfc-Expanse.step on 2026-10-20."
+      "note": "Scanned from d5a0acfc-Expanse.step on 2026-10-21."
     },
     "picks": {},
     "wallA": {},

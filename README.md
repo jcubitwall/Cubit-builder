@@ -23,6 +23,12 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
   - pods
   
   Items match to ⅛″. Exported project files carry these new items with them.
+- **Decks (porch frames):** the plan editor has a **deck library** next to the pod library. Every STEP import scans the deck frames outside the pods and adds any new ones to `data/decks.json`: size, lumber, rims, joist layout and corner notches.
+  - **Docking:** drag a deck onto the plan. Its **ledger** (the dark edge) docks flush against a pod or another deck, in 8′ steps. Press **R** while dragging to turn it.
+  - **Spacing:** decks keep the 5/8″ space at a pod. Deck frames butt against each other.
+  - **Corners:** deck corners are notched for the steel corner posts.
+  - **Screws:** deck screws follow the same rules as pods: swivel heads on the outside, shared centre screws in the joints.
+  - **Sheets:** each deck has a framing sheet with joist spacing, corner notches and a cut list.
 - **Steel spine notches:** every pod corner has a **1¾″ × 1¾″** notch running the full height, measured from the STEP files. It is cut from the outside face of the long walls, and from the corners of the floors and ceilings. It shows in 3D and on the wall and layer sheets (purple).
 - **Swap any wall, floor or ceiling:** click it in 3D, or in the list, and choose another option from the library. Each pod has its walls plus four layers: exterior floor, interior floor, interior ceiling and roof.
 - **The library only holds real scanned parts.** Every imported STEP file adds its unique walls and layers. Where a home needs a size that hasn't been scanned yet, the app shows a plain placeholder (marked ⚠ on walls). Exterior walls are 6½″. Where pods join, **each pod keeps its own 4½″ interior wall**.
@@ -39,7 +45,7 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
   - **Labels PDF:** a cut & stack list, then one 4″ × 2″ label per panel (Avery 5163 / 8163). Each label shows the code, its stack position, which face goes up, the CNC face, any flip warning, and a small strip showing where the panel sits in the wall.
 - **Wall assembly sheets:** one per wall. Flip between the front (interior) and back (exterior) face, and number the 4×8 SIP panels 1→6 or reversed. Each sheet has opening sizes, plug and switch locations, and a 3D view of the panels pulled apart.
 - **Foundation sheet:** a true plan seen from above, with every ground screw located, chain dimensions, diagonals for squaring, and a **Download PDF** button to email to the site crew.
-  - **No doubled-up screws.** Where pods meet, one screw sits in the centre of the 5/8″ joint and carries both pods. Where three pods meet it gets a **tee** head; where four meet, a **cross** head.
+  - **No doubled-up screws.** Where pods meet, one screw sits in the centre of the 5/8″ joint and carries both pods. Where three pods meet it gets a **tee** head; where four meet, a **cross** head. Screws closer than 3′ are merged into one; if the one removed was a corner, the remaining head gets a **corner arm** that reaches it.
   - **Perimeter:** around the outside, screws sit just inside the floor edge with a **swivel head**, so a deck or another pod can be added later.
   - **Spacing:** each outside edge and each joint gets a screw at both ends and wherever another joint crosses or tees in, then even spacing so no gap is over 8′. Where an edge ends against a joint, its end screw is the one in the joint. The sheet warns if two screws ever end up closer than 3′ or further than 8′ apart.
 
@@ -98,6 +104,7 @@ data/models.json    home models: which pods, where
 data/layers.json    floor / ceiling / roof library (from STEP scans)
 data/projects.json  shared, named projects (saved configurations)
 data/pods.json      pod library: unique pods with their walls, floors and ceilings
+data/decks.json     deck library: porch / deck frames scanned from STEP files
 js/main.js          start-up and toolbar
 js/config.js        pod dimensions and constants
 js/data.js          loads the JSON data
@@ -107,7 +114,8 @@ js/panels.js        4×8 panel split, numbering, thumbnails
 js/scene3d.js       3D view (three.js)
 js/sidebar.js       model list, wall options, wall upload
 js/planner.js       plan editor: drag and drop, turn, replace, remove pods
-js/pods.js          pod editing rules, pod library, saving new items to the libraries
+js/pods.js          pod and deck editing rules, pod library, saving new items to the libraries
+js/decksheet.js     deck framing sheet and cut list
 js/sheets.js        wall assembly sheets
 js/foundation.js    foundation sheet + PDF
 js/labels.js        panel codes, assembly order, stacking, CNC flips, label PDF
@@ -125,7 +133,8 @@ Export the whole home as **STEP**. `tools/step-import/import_step.py`:
 2. scans every wall and every floor and ceiling layer
 3. adds the unique ones to the libraries (`data/walls.json`, `data/layers.json`)
 4. adds each unique pod to `data/pods.json`
-5. saves the home as a shared project
+5. finds deck frames, adds new ones to `data/decks.json`, and places them
+6. saves the home as a shared project
 
 See that folder's README. The scan is exact, so **only upload accurate models**: whatever is in the STEP file goes into the libraries.
 

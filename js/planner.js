@@ -2,10 +2,10 @@
    pods (blank 8′/16′/24′ pods and the pod library). Drag a pod in, drag pods around, turn them in 90°
    steps, replace or remove them. Every drop snaps to the nearest spot where the pod docks properly. */
 import { POD } from './config.js';
-import { MODELS, PODLIB, byId, podById } from './data.js';
-import { slotsFor, podList } from './layout.js';
+import { MODELS, PODLIB, DECKLIB, byId, podById, deckById } from './data.js';
+import { slotsFor, podList, deckList } from './layout.js';
 import { state, save, pickFor } from './state.js';
-import { foot, addPod, movePod, rotatePod, replacePod, deletePod, dockSpots, saveToLibraries, countsText, renameLibPod, deleteLibPod } from './pods.js';
+import { deckFoot, addDeck, moveDeck, removeDeck, replaceDeck, deckSpots, turnDeck, foot, addPod, movePod, rotatePod, replacePod, deletePod, dockSpots, saveToLibraries, countsText, renameLibPod, deleteLibPod } from './pods.js';
 import { buildHome } from './scene3d.js';
 import { renderModels, renderSide, toast } from './sidebar.js';
 
@@ -13,6 +13,7 @@ const el = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const OPC = { door:'#6b4a2f', patio:'#6b4a2f', window:'#2f6db5', opening:'#8a7a5c', vent:'#999' };
 let sel = null;          // selected pod index
+let selDeck = null;      // selected deck index
 let drag = null;         // {kind:'new'|'move', item, i, rot, spots, at:{x,z}|null, ok, sx, sy, started}
 
 /* ---------------------------------------------------------------- drawing helpers (plan feet) */
@@ -45,6 +46,33 @@ function podThumb(L){
   return g+'</svg>';
 }
 
+/* a deck frame drawn in plan feet; pt(u,v) maps the deck's own inches (u along the ledger, v outward) */
+function deckPt(d, L, u, v){
+  const W=L.W, D=L.D, r=d.rot||0;
+  const [a,b] = r===0 ? [u,v] : r===90 ? [D-v,u] : r===180 ? [W-u,D-v] : [v,W-u];
+  return [d.x+a/12, d.z+b/12];
+}
+function deckSVG(d, L, cls=''){
+  const W=L.W, D=L.D, t=L.lumber?.t||1.5, n=L.notch||0, R=L.rims||{};
+  const P=(u,v)=>deckPt(d,L,u,v).map(c=>c.toFixed(3)).join(',');
+  const poly=(pts,attr)=>`<polygon points="${pts.map(([u,v])=>P(u,v)).join(' ')}" ${attr}/>`;
+  let g=poly([[0,0],[W,0],[W,D],[0,D]], `class="deck-r ${cls}"`);
+  (L.joists?.at||[]).forEach(a=>{ g+= L.joists.run==='z' ? poly([[a,t],[a+t,t],[a+t,D-t],[a,D-t]],'class="deck-j"') : poly([[t,a],[W-t,a],[W-t,a+t],[t,a+t]],'class="deck-j"'); });
+  if(R.ledger) g+=poly([[n,0],[W-n,0],[W-n,t],[n,t]],'class="deck-j"');
+  if(R.far) g+=poly([[n,D-t],[W-n,D-t],[W-n,D],[n,D]],'class="deck-j"');
+  if(R.left) g+=poly([[0,n],[t,n],[t,D-n],[0,D-n]],'class="deck-j"');
+  if(R.right) g+=poly([[W-t,n],[W,n],[W,D-n],[W-t,D-n]],'class="deck-j"');
+  (L.notches||[]).forEach(([cu,cv])=>{ const u0=cu?W-n:0, v0=cv?D-n:0; g+=poly([[u0,v0],[u0+n,v0],[u0+n,v0+n],[u0,v0+n]],'class="deck-n"'); });
+  // ledger edge: the side that docks
+  const [lx0,lz0]=deckPt(d,L,0,0), [lx1,lz1]=deckPt(d,L,W,0);
+  g+=`<line x1="${lx0}" y1="${lz0}" x2="${lx1}" y2="${lz1}" class="deck-l"/>`;
+  return g;
+}
+function deckThumb(L){
+  const s=6, w=L.W/12, d=L.D/12;
+  return `<svg viewBox="-0.6 -0.6 ${w+1.2} ${d+1.2}" width="${(w+1.2)*s}" height="${(d+1.2)*s}" aria-hidden="true">${deckSVG({x:0,z:0,rot:0},L)}</svg>`;
+}
+
 /* ---------------------------------------------------------------- palette */
 function renderPalette(){
   const blanks=[['L24',24],['P16',16],['P8',8]];
@@ -56,17 +84,22 @@ function renderPalette(){
       <div class="pal-h">Pod library · ${lib.length}</div>
       ${lib.length?'':'<p class="note">Empty. Import a STEP file, or save the pods of a home.</p>'}
       ${lib.map(L=>`<div class="pod-item" data-lib="${esc(L.id)}" tabindex="0" role="button" aria-label="${esc(L.name)}">${podThumb(L)}<div><b>${esc(L.name)}</b><code>${esc(L.id)}${L.src==='saved'?' · saved here':''}</code>${L.src==='saved'?`<span class="pi-act"><button class="linkbtn" data-ren="${esc(L.id)}">Rename</button> <button class="linkbtn" data-del="${esc(L.id)}">Delete</button></span>`:''}</div></div>`).join('')}
+      <div class="pal-h">Deck library · ${DECKLIB.length}</div>
+      ${DECKLIB.length?'':'<p class="note">Empty. Import a STEP file with a porch or deck frame.</p>'}
+      ${DECKLIB.map(L=>`<div class="pod-item" data-deck="${esc(L.id)}" tabindex="0" role="button" aria-label="${esc(L.name)}">${deckThumb(L)}<div><b>${esc(L.name)}</b><code>${esc(L.id)} · ${L.W}″ × ${L.D}″ · notch ${L.notch}″</code></div></div>`).join('')}
     </div>`;
   el('palette').querySelectorAll('.pod-item').forEach(n=>{
     n.addEventListener('pointerdown', e=>{ if(e.target.closest('button')) return; e.preventDefault();
-      startDrag({kind:'new', item: n.dataset.lib ? {lib:n.dataset.lib} : {t:n.dataset.t}, rot:0}, e); });
-    n.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); quickAdd(n.dataset.lib ? {lib:n.dataset.lib} : {t:n.dataset.t}); } });
+      startDrag({kind:'new', item: itemOf(n), rot:0}, e); });
+    n.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); quickAdd(itemOf(n)); } });
   });
   el('palette').querySelectorAll('[data-ren]').forEach(b=>b.onclick=()=>{ const L=podById(b.dataset.ren); const nm=prompt('Name for this pod', L.name); if(nm){ renameLibPod(L.id, nm.trim()); renderPalette(); } });
   el('palette').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again'; return; } deleteLibPod(b.dataset.del); renderPalette(); });
 }
+const itemOf = n => n.dataset.deck ? {deck:n.dataset.deck} : n.dataset.lib ? {lib:n.dataset.lib} : {t:n.dataset.t};
 /* keyboard / tap: drop at the first good spot */
 function quickAdd(item){
+  if(item.deck){ for(const r of [0,90,180,270]){ const sp=deckSpots(item.deck,r); if(sp.length){ done(addDeck(item.deck, sp[0].x, sp[0].z, r), 'Deck added'); return; } } toast('No free spot for that deck.'); return; }
   const spots=dockSpots(item,0); if(!spots.length){ toast('No free spot for that pod.'); return; }
   done(addPod(item, spots[0].x, spots[0].z, 0), 'Pod added');
 }
@@ -75,7 +108,8 @@ function quickAdd(item){
 let VB={x:0,z:0,w:40,h:24};
 function renderPlan(){
   const m=MODELS[state.model], pods=podList(state.model), slots=slotsFor(state.model);
-  const F=pods.map(p=>({x:p.x,z:p.z,w:p.w,d:p.d}));
+  const decks=deckList(state.model);
+  const F=pods.map(p=>({x:p.x,z:p.z,w:p.w,d:p.d})).concat(decks.map(d=>({x:d.x,z:d.z,w:d.w,d:d.d})));
   const pad=18;
   const minx=Math.min(...F.map(f=>f.x))-pad, minz=Math.min(...F.map(f=>f.z))-pad;
   const maxx=Math.max(...F.map(f=>f.x+f.w))+pad, maxz=Math.max(...F.map(f=>f.z+f.d))+pad;
@@ -99,6 +133,11 @@ function renderPlan(){
     g+=`<g transform="translate(${cx} ${cz})${vert?' rotate(-90)':''}"><text y="-0.2" class="pod-t">Pod ${p.i+1} · ${p.len}′</text><text y="1.3" class="pod-s">${[src, p.rot?`turned ${p.rot}°`:''].filter(Boolean).map(esc).join(' · ')}</text></g>`;
     g+='</g>';
   });
+  decks.forEach(d=>{
+    const moving = drag && drag.kind==='moveDeck' && drag.started && drag.k===d.k;
+    g+=`<g class="deck${selDeck===d.k?' sel':''}${moving?' moving':''}" data-k="${d.k}">${deckSVG(d, d.L)}`;
+    g+=`<text x="${d.x+d.w/2}" y="${d.z+d.d/2+0.35}" class="deck-t">Deck ${d.k+1} · ${d.L.w}′×${d.L.d}′</text></g>`;
+  });
   if(drag && drag.started && drag.ghost){
     const G=drag.ghost;
     g+=`<rect x="${G.x}" y="${G.z}" width="${G.w}" height="${G.d}" class="ghost ${drag.ok?'ok':'bad'}"/>`;
@@ -110,7 +149,13 @@ function renderPlan(){
   svg.querySelectorAll('.pod').forEach(n=>n.addEventListener('pointerdown', e=>{
     const i=+n.dataset.i; e.preventDefault(); e.stopPropagation();
     sel=i; const p=podList(state.model)[i];
-    startDrag({kind:'move', i, item:{t:p.t}, rot:p.rot}, e);
+    selDeck=null; startDrag({kind:'move', i, item:{t:p.t}, rot:p.rot}, e);
+    renderSide2();
+  }));
+  svg.querySelectorAll('.deck').forEach(n=>n.addEventListener('pointerdown', e=>{
+    const k=+n.dataset.k; e.preventDefault(); e.stopPropagation();
+    selDeck=k; sel=null; const d=MODELS[state.model].decks[k];
+    startDrag({kind:'moveDeck', k, item:{deck:d.lib}, rot:d.rot||0}, e);
     renderSide2();
   }));
 }
@@ -123,13 +168,17 @@ function startDrag(d, e){
   window.addEventListener('keydown', onKey);
   if(d.kind==='new'){ drag.started=true; document.body.classList.add('dragging'); }
 }
-function spotsFor(){ if(!drag.spots) drag.spots=dockSpots(drag.item, drag.rot||0, drag.kind==='move'?drag.i:-1); return drag.spots; }
+function spotsFor(){
+  if(!drag.spots) drag.spots = drag.item.deck ? deckSpots(drag.item.deck, drag.rot||0, drag.kind==='moveDeck'?drag.k:-1)
+                                              : dockSpots(drag.item, drag.rot||0, drag.kind==='move'?drag.i:-1);
+  return drag.spots;
+}
 function updateGhost(e){
-  const t = drag.item.lib ? podById(drag.item.lib).t : drag.item.t;
-  const f=foot({t, x:0, z:0, rot:drag.rot||0});
+  const f = drag.item.deck ? deckFoot({lib:drag.item.deck, x:0, z:0, rot:drag.rot||0})
+                           : foot({t: drag.item.lib ? podById(drag.item.lib).t : drag.item.t, x:0, z:0, rot:drag.rot||0});
   const at=toPlan(e);
   let gx, gz;
-  if(drag.kind==='move'){ gx=drag.grab.x0+(at.x-drag.grab.x); gz=drag.grab.z0+(at.z-drag.grab.z); }
+  if(drag.kind==='move'||drag.kind==='moveDeck'){ gx=drag.grab.x0+(at.x-drag.grab.x); gz=drag.grab.z0+(at.z-drag.grab.z); }
   else { gx=at.x-f.w/2; gz=at.z-f.d/2; }
   // nearest docking spot within 12′
   let best=null, bd=1e9; spotsFor().forEach(s=>{ const dd=Math.hypot(s.x-gx,s.z-gz); if(dd<bd){ bd=dd; best=s; } });
@@ -141,7 +190,7 @@ function onMove(e){
   if(!drag) return;
   if(!drag.started){
     if(Math.hypot(e.clientX-drag.sx, e.clientY-drag.sy)<6) return;
-    const p=podList(state.model)[drag.i], at=toPlan(e);
+    const p= drag.kind==='moveDeck' ? MODELS[state.model].decks[drag.k] : podList(state.model)[drag.i], at=toPlan(e);
     drag.started=true; drag.grab={x:at.x, z:at.z, x0:p.x, z0:p.z};
     // grab offset measured from where the pointer went down
     const a0=toPlan({clientX:drag.sx, clientY:drag.sy}); drag.grab.x=a0.x; drag.grab.z=a0.z;
@@ -160,8 +209,13 @@ function onUp(e){
   const d=drag; endDrag();
   if(!d) return;
   if(!d.started){ renderPlan(); renderSide2(); return; }      // a plain click selects
-  if(!d.ok || !d.ghost){ renderPlan(); if(d.kind==='new' && overPlan(e)) toast('Pods dock flush end to end or side by side in 8′ steps, sharing at least 8′ of wall.'); return; }
+  if(!d.ok || !d.ghost){ renderPlan(); if(d.kind==='new' && overPlan(e)) toast(d.item.deck ? 'A deck docks with its ledger (the dark edge) flush against a pod or another deck, in 8′ steps. Press R to turn it.' : 'Pods dock flush end to end or side by side in 8′ steps, sharing at least 8′ of wall.'); return; }
   const G=d.ghost;
+  if(d.item.deck){
+    if(d.kind==='new'){ const why=addDeck(d.item.deck, G.x, G.z, d.rot||0); if(!why){ selDeck=MODELS[state.model].decks.length-1; sel=null; } done(why,'Deck added'); }
+    else { const q=MODELS[state.model].decks[d.k]; if(q.x===G.x && q.z===G.z && (q.rot||0)===(d.rot||0)){ renderPlan(); return; } done(moveDeck(d.k, G.x, G.z, d.rot||0), 'Deck moved'); }
+    return;
+  }
   if(d.kind==='new'){ const why=addPod(d.item, G.x, G.z, d.rot||0); if(!why) sel=MODELS[state.model].pods.length-1; done(why, 'Pod added'); }
   else {
     const p=MODELS[state.model].pods[d.i];
@@ -178,11 +232,14 @@ function done(why, msg){
 function renderSide2(){
   const m=MODELS[state.model], pods=podList(state.model), side=el('planSide');
   if(sel!=null && !pods[sel]) sel=null;
+  if(selDeck!=null && !(m.decks||[])[selDeck]) selDeck=null;
+  if(selDeck!=null){ renderDeckSide(m, side); return; }
   if(sel==null){
-    side.innerHTML=`<div class="side-h"><div class="eyebrow">Plan${m.custom?' · your layout':m.project?' · project':''}</div><h2>${esc(m.name)}</h2><p>${pods.length} pods · ${esc(m.size||'')}</p></div>
+    side.innerHTML=`<div class="side-h"><div class="eyebrow">Plan${m.custom?' · your layout':m.project?' · project':''}</div><h2>${esc(m.name)}</h2><p>${pods.length} pods${(m.decks||[]).length?` · ${m.decks.length} deck${m.decks.length>1?'s':''}`:''} · ${esc(m.size||'')}</p></div>
     <div class="side-b">
       <p class="note">Drag a pod from the left onto the plan. It snaps to the nearest spot where it docks: flush end to end, or side by side in 8′ steps. Press <b>R</b> while dragging to turn it 90°. Drag a pod to move it, or click it to turn, replace or remove it.</p>
       <p class="note">The 5/8″ space at every joint is added for you, and where two pods meet each keeps its own 4½″ wall. Changing a wall where two pods join changes the neighbour's wall to the same wall, mirrored.</p>
+      <p class="note"><b>Decks</b> come from the deck library. A deck docks with its ledger (the dark edge) flush against a pod or another deck, in 8′ steps, with the same 5/8″ space at a pod. Its corners are notched for the steel corner posts, and its ground screws follow the same rules as the pods'.</p>
       ${m.custom||m.project?'':'<p class="note">This is a built-in home. Your first change makes your own copy, saved in this browser.</p>'}
       <div class="row"><button class="btn" id="saveAll">Save these pods to the library</button></div>
       <p class="note">Saves every pod of this home that isn't in the pod library yet, plus any wall, floor or ceiling that's new (like a mirrored wall). Saving a project does this too.</p>
@@ -210,15 +267,37 @@ function renderSide2(){
     if(q?.src){ const nm=el('pname').value.trim(); const lp=podById(q.src); if(nm && lp && lp.src==='saved') renameLibPod(q.src, nm); }
     renderPalette(); refresh(); toast(c.pods?countsText(c):(q?.src?`Already in the library as ${q.src}. `+countsText(c):'This pod has walls that aren’t scanned yet, so it can’t go in the library.')); };
 }
+function renderDeckSide(m, side){
+  const d=deckList(state.model)[selDeck], L=d.L;
+  const opts=DECKLIB.map(x=>`<option value="${esc(x.id)}" ${x.id===L.id?'selected':''}>${esc(x.id)} · ${esc(x.name)}</option>`).join('');
+  const oc=(()=>{ const a=L.joists?.at||[]; const g=a.slice(1).map((v,i)=>Math.round(v-a[i])).sort((x,y)=>x-y); return g.length?g[g.length>>1]:0; })();
+  side.innerHTML=`<div class="side-h"><div class="eyebrow">Deck ${d.k+1} · ${L.w}′ × ${L.d}′ · ledger faces ${({0:'up',90:'right',180:'down',270:'left'})[d.rot]}</div><h2>${esc(L.name||L.id)}</h2><p><code>${esc(L.id)}</code> · ${L.W}″ × ${L.D}″ frame</p></div>
+  <div class="side-b">
+    <div class="row"><button class="btn" id="dTurn">Turn</button><button class="btn ghost" id="dDel">Remove</button><button class="btn ghost" id="dBack">Done</button></div>
+    <label class="fld">Replace with<select id="dRep">${opts}</select></label>
+    <div class="row"><button class="btn ghost" id="dDoRep">Replace this deck</button></div>
+    <table class="boxes"><tbody>
+      <tr><td>Lumber</td><td>${L.lumber?.t}″ × ${L.lumber?.h}″</td></tr>
+      <tr><td>Joists</td><td>${(L.joists?.at||[]).length} · ${L.joists?.run==='x'?'parallel to the ledger':'out from the ledger'}${oc?` · ${oc}″ o.c.`:''}</td></tr>
+      <tr><td>Rims</td><td>${['ledger','left','right','far'].filter(k=>L.rims?.[k]).join(', ')||'none'}</td></tr>
+      <tr><td>Corner notches</td><td>${(L.notches||[]).length} × ${L.notch}″ × ${L.notch}″ for the steel corner</td></tr>
+    </tbody></table>
+    <p class="note">Drag the deck to move it; press R while dragging to turn it. ${L.source?`Scanned from ${esc(L.source)}.`:''}</p>
+  </div>`;
+  el('dTurn').onclick=()=>done(turnDeck(selDeck),'Deck turned');
+  el('dDel').onclick=()=>{ const why=removeDeck(selDeck); if(!why) selDeck=null; done(why,'Deck removed'); };
+  el('dBack').onclick=()=>{ selDeck=null; renderPlan(); renderSide2(); };
+  el('dDoRep').onclick=()=>done(replaceDeck(selDeck, el('dRep').value),'Deck replaced');
+}
 function refresh(){ renderPlan(); renderSide2(); buildHome(); renderSide(); }
 
 /* ---------------------------------------------------------------- open / close */
 function openPlan(){
   state.view='plan'; el('planner').hidden=false; el('studio').hidden=true; el('sheets').hidden=true; el('studioTools').hidden=true;
   el('bPlan').textContent='Back to 3D'; el('bSheets').textContent='Assembly sheets';
-  sel=null; renderPalette(); renderPlan(); renderSide2();
+  sel=null; selDeck=null; renderPalette(); renderPlan(); renderSide2();
 }
 function closePlan(){ el('planner').hidden=true; el('bPlan').textContent='Plan & pods'; }
-el('plan').addEventListener('pointerdown', e=>{ if(e.target.closest('.pod')) return; sel=null; renderPlan(); renderSide2(); });
+el('plan').addEventListener('pointerdown', e=>{ if(e.target.closest('.pod')||e.target.closest('.deck')) return; sel=null; selDeck=null; renderPlan(); renderSide2(); });
 
 export { openPlan, closePlan, renderPlan, renderPalette };

@@ -14,6 +14,7 @@ Reads a Shapr3D STEP export of a whole home and:
      identical to a library item within 1/8" reuses that item;
   5. saves the home as a shared project in data/projects.json (slot picks point at the library items).
   6. adds each pod that isn't in the pod library yet to data/pods.json (see pods_lib.py).
+  7. finds deck / porch frames outside the pods, adds new ones to data/decks.json and places them (decks_lib.py).
 
 Needs:  pip install cadquery-ocp numpy
 Axes:   app plan x = the pods' long axis, app plan z across; mapped with a proper rotation (never mirrored).
@@ -358,6 +359,18 @@ def main():
         layer_picks[lid]=hit['id']
     with open(os.path.join(R,'data/walls.json'),'w') as f: f.write('[\n'+',\n'.join('  '+json.dumps(x,ensure_ascii=False) for x in walls)+'\n]\n')
     with open(os.path.join(R,'data/layers.json'),'w') as f: f.write('[\n'+',\n'.join('  '+json.dumps(x,ensure_ascii=False) for x in layers)+'\n]\n')
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    # ---- decks (porch frames): measured, added to data/decks.json, placed in the project
+    import decks_lib
+    dk=decks_lib.find_decks(solids,pods,log)
+    dres=decks_lib.describe_all(dk,pods,origin,orient)
+    dp=os.path.join(R,'data/decks.json')
+    try: dlib=json.load(open(dp))
+    except FileNotFoundError: dlib=[]
+    dids,added_d=decks_lib.merge_decks(dlib,[r[0] for r in dres],source)
+    decks_lib.write_decks(dp,dlib)
+    deck_places=[{k:v for k,v in d.items() if not k.startswith('_')} for d in decks_lib.place([r[1] for r in dres],dids,pods)]
+    for d,(lib,pl) in zip(deck_places,dres): log(f"  Deck {d['lib']} at ({d['x']},{d['z']}) turned {d['rot']}°, {round(pl['gap'] or 0,2)}″ from its neighbour")
     # ---- project
     pid=a.id or re.sub(r'[^a-z0-9]+','-',a.name.lower()).strip('-')
     try: projects=json.load(open(os.path.join(R,'data/projects.json')))
@@ -365,7 +378,7 @@ def main():
     sizes=collections.Counter(p['len'] for p in pods)
     proj=dict(id=pid,name=a.name,saved=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds').replace('+00:00','Z'),from_=a.base,
               model=dict(name=a.name.split('·')[-1].strip(), size=' + '.join(f"{n}×{l}" if n>1 else str(l) for l,n in sorted(sizes.items(),reverse=True)),
-                         pods=[dict(t=p['t'],x=p['nx'],z=p['nz']) for p in pods], picks=picks, layerPicks=layer_picks,
+                         pods=[dict(t=p['t'],x=p['nx'],z=p['nz']) for p in pods], decks=deck_places, picks=picks, layerPicks=layer_picks,
                          note=f"Scanned from {os.path.basename(a.step)} on {today}."),
               picks={},wallA={},faces={},inset=6)
     proj['from']=proj.pop('from_')
@@ -379,6 +392,6 @@ def main():
     except FileNotFoundError: plib=[]
     added_p=pods_lib.merge_pods(plib, pods_lib.pods_from_model(proj['model'], source), a.name)
     pods_lib.write_pods(pp, plib)
-    print(json.dumps(dict(project=pid,pods=len(pods),walls=len(new_walls),new_walls=added_w,layers=len(new_layers),new_layers=added_l,new_pods=added_p)))
+    print(json.dumps(dict(project=pid,pods=len(pods),walls=len(new_walls),new_walls=added_w,layers=len(new_layers),new_layers=added_l,new_pods=added_p,decks=len(deck_places),new_decks=added_d)))
 
 if __name__=='__main__': main()
