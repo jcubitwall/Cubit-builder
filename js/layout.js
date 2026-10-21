@@ -69,6 +69,7 @@ function slotsFor(modelKey){
       });
     });
   });
+  fitShortWalls(slots, pods);
   assignLetters(modelKey, slots, pods);
   slots.forEach(s=>{
     s.label = `${s.pod.label} · Wall ${s.letter}`;
@@ -78,25 +79,50 @@ function slotsFor(modelKey){
   return slots;
 }
 
+/* ============================================================ long vs short walls
+   The long walls (S and N, along the pod's length) always run the full length. The short end walls
+   (W and E) sit between them, so each end loses the thickness of the long wall it butts into.
+   An 8′ × 8′ pod has no long side; its S and N walls are treated as the long ones. */
+const isShort = s => s.side==='W' || s.side==='E';
+function fitShortWalls(slots, pods){
+  slots.forEach(s=>{
+    s.short = isShort(s);
+    if(!s.short){ s.trim=[0,0]; return; }
+    const p=s.pod, x = s.side==='W' ? p.x : p.x1;
+    // left end seen from outside: W side → S corner, E side → N corner
+    const leftSide = s.side==='W' ? 'S' : 'N', rightSide = s.side==='W' ? 'N' : 'S';
+    const thick = side => {
+      const long = slots.find(q=>q.pod===p && q.side===side && q.a<=x+1e-6 && q.b>=x-1e-6);
+      const w = long && pickFor(long);
+      return w ? (w.t || (long.type==='int'?4.5:6.5)) : 6.5;
+    };
+    s.trim=[thick(leftSide), thick(rightSide)];
+  });
+}
+
 /* ============================================================ wall letters
-   Each pod's walls are A, B, C, D going CLOCKWISE (seen from above), starting at the wall with a door.
-   Which wall counts as the door wall:
+   Each pod's walls are A, B, C, D going CLOCKWISE (seen from above). Wall A is always a SHORT end wall —
+   the end with a door. Which end:
      1. a wall you set with "Make this Wall A" (saved per model, per pod), else
      2. the model's own setting in models.json ("wallA": {"<pod number>": "S|E|N|W"}), else
-     3. the first wall clockwise from the S side with an exterior door, else one with a patio door, else
-     4. the first wall with an interior door, else the S side.
+     3. the end with an exterior door, else a patio door, else an interior door, else the outside end.
+   So A and C are the short walls, B and D the long ones.
    A side split into an exterior part and an interior part keeps one letter, numbered 1, 2 clockwise. */
 const CW = ['S','E','N','W'];
 function doorWall(modelKey, pod, slots){
+  const okA = k => CW.includes(k) && (pod.len<=8 || k==='W' || k==='E');
   const own = state.wallA?.[modelKey]?.[pod.i];
-  if(own && CW.includes(own)) return own;
+  if(own && okA(own)) return own;
   const fromModel = MODELS[modelKey].wallA?.[pod.i+1];
-  if(fromModel && CW.includes(fromModel)) return fromModel;
+  if(fromModel && okA(fromModel)) return fromModel;
   const opsOn = (side, type) => slots.filter(s=>s.pod===pod && s.side===side && (!type || s.type===type)).flatMap(s=>pickFor(s)?.openings||[]);
-  return CW.find(k=>opsOn(k,'ext').some(o=>o.kind==='door'))
-      || CW.find(k=>opsOn(k,'ext').some(o=>o.kind==='patio'))
-      || CW.find(k=>opsOn(k).some(o=>o.kind==='door'))
-      || 'S';
+  // Wall A is always one of the short end walls (on an 8′ × 8′ pod any wall can be A)
+  const cand = pod.len>8 ? ['E','W'] : CW;
+  return cand.find(k=>opsOn(k,'ext').some(o=>o.kind==='door'))
+      || cand.find(k=>opsOn(k,'ext').some(o=>o.kind==='patio'))
+      || cand.find(k=>opsOn(k).some(o=>o.kind==='door'))
+      || cand.find(k=>opsOn(k,'ext').length)
+      || cand[0];
 }
 function assignLetters(modelKey, slots, pods){
   pods.forEach(pod=>{

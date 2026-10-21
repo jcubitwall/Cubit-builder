@@ -2,7 +2,7 @@
 import { CEIL, FLOOR, FT, H, POD, PW, T } from './config.js';
 import { MODELS } from './data.js';
 import { podOffsets, screwsFor, slotsFor } from './layout.js';
-import { panelCells, panelCount, panelNum } from './panels.js';
+import { panelCells, panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall } from './panels.js';
 import { w3 } from './sheets.js';
 import { renderSide } from './sidebar.js';
 import { pickFor, state } from './state.js';
@@ -61,7 +61,7 @@ function numberSprite(txt, size, accent){
 
 /* builds one wall as panel groups in local feet coords: x along (exterior-left = 0), y up, z outward (outer face at 0) */
 function buildWallMesh(w, mat, opts={}){
-  const g = new THREE.Group(); const n=panelCount(w); const panels=[];
+  const g = new THREE.Group(); const n=panelCount(w); const panels=[]; const spans=panelSpans(w), L=wallLen(w);
   const t=(w.t||T)/FT;
   for(let k=0;k<n;k++){
     const pg=new THREE.Group(); pg.userData.k=k;
@@ -70,7 +70,7 @@ function buildWallMesh(w, mat, opts={}){
       m.position.set((x0+x1)/2/FT,(y0+y1)/2/FT,-t/2); pg.add(m);
     });
     // outline of panel + opening edges on both faces
-    const pts=[]; const X0=k*PW/FT, X1=(k+1)*PW/FT, Ht=H/FT;
+    const pts=[]; const X0=spans[k][0]/FT, X1=spans[k][1]/FT, Ht=H/FT;
     [0.004,-t-0.004].forEach(z=>{ pts.push(X0,0,z,X1,0,z, X1,0,z,X1,Ht,z, X1,Ht,z,X0,Ht,z, X0,Ht,z,X0,0,z); });
     const lg=new THREE.BufferGeometry(); lg.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
     pg.add(new THREE.LineSegments(lg,lineMat));
@@ -84,18 +84,18 @@ function buildWallMesh(w, mat, opts={}){
     m.position.set((o.x+o.w/2)/FT,(o.y+o.h/2)/FT,-t/2);
     if(o.kind==='patio'){ m.material=MAT.glass; }
     g.add(m);
-    const k=Math.min(n-1,Math.floor((o.x+o.w/2)/PW)); m.userData.k=k;
+    m.userData.k=panelAt(w, o.x+o.w/2);
   });
   // boxes: inside on interior face, outside on exterior face
   w.inside.forEach(b=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(2.5/FT,4/FT,0.06), b.kind==='switch'?MAT.sw:MAT.outlet);
-    m.position.set((w.len*FT-b.x)/FT,b.y/FT,-t-0.03); g.add(m); m.userData.k=Math.min(n-1,Math.floor((w.len*FT-b.x)/PW)); });
+    m.position.set((L-b.x)/FT,b.y/FT,-t-0.03); g.add(m); m.userData.k=panelAt(w, L-b.x); });
   w.outside.forEach(b=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(3/FT,(b.kind==='light'?5:4)/FT,0.08), b.kind==='light'?MAT.light:(w.type==='int'?(b.kind==='switch'?MAT.sw:MAT.outlet):MAT.extOutlet));
-    m.position.set(b.x/FT,b.y/FT,0.04); g.add(m); m.userData.k=Math.min(n-1,Math.floor(b.x/PW)); });
+    m.position.set(b.x/FT,b.y/FT,0.04); g.add(m); m.userData.k=panelAt(w, b.x); });
   // panel numbers
   if(opts.nums){
     for(let k=0;k<n;k++){
       const sp=numberSprite(String(panelNum(n,k,opts.reverse)), opts.numSize||1.1);
-      sp.position.set((k+0.5)*PW/FT, H/FT+0.75, opts.numZ!==undefined?opts.numZ:0.3);
+      sp.position.set((spans[k][0]+spans[k][1])/2/FT, H/FT+0.75, opts.numZ!==undefined?opts.numZ:0.3);
       panels[k].add(sp);
     }
   }
@@ -143,17 +143,18 @@ function buildHome(){
     s.position.set(sc.x,0,sc.z); screwGroup.add(s);
   });
   slots.forEach(s=>{
-    const w=pickFor(s); if(!w) return;
+    const w=bodyWall(s, pickFor(s)); if(!w) return;
     const mat=new THREE.MeshStandardMaterial({color:s.type==='int'?0xece0c6:0xc9a46a,roughness:0.85});
     const built=buildWallMesh(w,mat,{nums:state.nums,numSize:1.0});
     const g=built.group;
     const r=[s.n[1],-s.n[0]];
     g.rotation.y=Math.atan2(-r[1],r[0]);
-    g.userData={slot:s, mat, base:new THREE.Vector3(s.p0[0],0,s.p0[1]), n:new THREE.Vector3(s.n[0],0,s.n[1])};
+    const tl=(w.trim?.[0]||0)/FT;   // short walls start inside the long wall's thickness
+    g.userData={slot:s, mat, base:new THREE.Vector3(s.p0[0]+r[0]*tl,0,s.p0[1]+r[1]*tl), n:new THREE.Vector3(s.n[0],0,s.n[1])};
     g.position.copy(g.userData.base);
     g.traverse(o=>{ if(o.isMesh) { o.userData.slotId=s.id; pickables.push(o);} });
     if(state.letters){
-      const t=(w.t||6.5)/12, mid=s.len/2;
+      const t=(w.t||6.5)/12, mid=wallLen(w)/2/FT;
       const lab=letterSprite(s.letter, 1.3); lab.position.set(mid, 4.6, -t-0.6); g.add(lab);   // on the inside face, mid-wall
     }
     homeGroup.add(g); wallGroups.push(g);

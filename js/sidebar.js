@@ -2,7 +2,7 @@
 import { FT, POD, PW, T, TI } from './config.js';
 import { LIB, MODELS, optionsFor, saveCustomModels } from './data.js';
 import { screwsFor, slotsFor, podList, CW } from './layout.js';
-import { panelCount, thumbSVG } from './panels.js';
+import { panelCount, thumbSVG, bodyWall, wallLen } from './panels.js';
 import { buildHome, highlight } from './scene3d.js';
 import { openSheets } from './sheets.js';
 import { pickFor, save, state, choose } from './state.js';
@@ -22,22 +22,23 @@ function wallListHTML(slots, current){
   slots.forEach(s=>{
     if(s.pod.i!==pod){ if(pod>=0) html+='</div>'; pod=s.pod.i; html+=`<div class="podhead">${s.pod.long}<span>Wall A = ${s.pod.wallA ? sideWord(s.pod.wallA) : ''}</span></div><div class="wl">`; }
     const w=pickFor(s);
-    html+=`<button class="${s.id===current?'on':''}" data-s="${s.id}"><span class="n">Wall ${s.letter} <em>${s.detail}</em></span><span class="l">${s.len}′ · ${w?panelCount(w):0} panels</span><span class="o">${w?esc(w.id+' — '+w.name):'No option for this length yet'}</span></button>`;
+    html+=`<button class="${s.id===current?'on':''}" data-s="${s.id}"><span class="n">Wall ${s.letter} <em>${s.detail}</em></span><span class="l">${w?fmtLen(wallLen(bodyWall(s,w))):s.len+'′'} · ${w?panelCount(bodyWall(s,w)):0} panels</span><span class="o">${w?esc(w.id+' — '+w.name):'No option for this length yet'}</span></button>`;
   });
   return html+(pod>=0?'</div>':'');
 }
+const fmtLen = inch => { const ft=Math.floor((inch+0.01)/12), r=Math.round((inch-ft*12)*8)/8; return r? `${ft}′-${r}″` : `${ft}′`; };
 const sideWord = k => ({S:'top side', E:'right end', N:'bottom side', W:'left end'}[k]);
 
 function renderSide(){
   const slots=slotsFor(state.model); const m=MODELS[state.model];
   const s=slots.find(x=>x.id===state.selected);
   if(!s){
-    const pods=m.pods.length, panels=slots.reduce((a,x)=>a+(pickFor(x)?panelCount(pickFor(x)):0),0);
+    const pods=m.pods.length, panels=slots.reduce((a,x)=>a+(pickFor(x)?panelCount(bodyWall(x,pickFor(x))):0),0);
     const area=m.pods.reduce((a,p)=>a+POD[p.t].len*8,0);
     sideH.innerHTML=`<div class="eyebrow">Model${m.custom?' · your layout':''}</div><h2>${esc(m.name)}</h2><p>${pods} pods · ${area} sq ft${m.note?' · scanned from STEP':''}</p>`;
     sideB.innerHTML=`
       <div class="stats"><div class="stat"><b>${pods}</b><span>pods</span></div><div class="stat"><b>${slots.filter(x=>x.type!=='int').length} + ${slots.filter(x=>x.type==='int').length}</b><span>outside + inside walls</span></div><div class="stat"><b>${panels}</b><span>SIP panels</span></div><div class="stat"><b>${screwsFor(state.model,state.inset).length}</b><span>ground screws</span></div></div>
-      <p class="note">Each pod's walls run A, B, C, D clockwise seen from above, starting at the wall with a door. Click a wall to swap it or to change which wall is A.</p>
+      <p class="note">Each pod's walls run A, B, C, D clockwise seen from above. A is the short end wall with the door, so A and C are the short walls (fitted between the long walls) and B and D are the long walls (full length). Click a wall to swap it or to change which wall is A.</p>
       ${wallListHTML(slots,null)}
       ${layoutBlock(m)}
       ${importBlock()}`;
@@ -47,14 +48,14 @@ function renderSide(){
     const isInt=s.type==='int';
     sideH.innerHTML=`<div class="eyebrow">${isInt?'Interior wall · 4½″':'Exterior wall · 6½″'} · ${s.len}′ · ${s.len/4} panels</div><h2>${s.label}</h2><p>${s.detail} · now <b>${w?esc(w.id):'—'}</b> ${w?esc(w.name):''}</p>`;
     sideB.innerHTML=`
-      <div class="row"><button class="btn" id="toSheet">Assembly sheet</button><button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button><button class="btn ghost" id="deselect">Back to model</button></div>
+      <div class="row"><button class="btn" id="toSheet">Assembly sheet</button>${(s.short || s.pod.len<=8) ? `<button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button>` : ''}<button class="btn ghost" id="deselect">Back to model</button></div>
       ${state.wallA?.[state.model]?.[s.pod.i] ? `<p class="note">Wall A for ${s.pod.label} was set by hand. <button class="linkbtn" id="autoA">Go back to automatic</button></p>`:''}
       <div class="eyebrow">${opts.length} options for a ${s.len}′ ${isInt?'interior':'exterior'} wall · seen from ${isInt?s.other.label:'outside'}</div>
       <div class="opts">${opts.map(o=>`<button class="opt" data-o="${esc(o.id)}" aria-pressed="${w&&o.id===w.id}">${thumbSVG(o)}<b>${esc(o.name)}</b><code>${esc(o.id)}${o.src==='imported'?' · uploaded':''}${o.model?' · this home':''}</code></button>`).join('')}</div>`;
     sideB.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{ choose(s, b.dataset.o); buildHome(); renderSide(); toast(`${s.label} → ${b.dataset.o}`); });
     sideB.querySelector('#toSheet').onclick=()=>{ state.sheetSlot=s.id; openSheets(); };
     sideB.querySelector('#deselect').onclick=()=>{ state.selected=null; highlight(); renderSide(); };
-    sideB.querySelector('#makeA').onclick=()=>{ ((state.wallA[state.model] ||= {}))[s.pod.i]=s.side; save(); buildHome(); renderSide(); toast(`${s.pod.label}: this is now Wall A`); };
+    const mk=sideB.querySelector('#makeA'); if(mk) mk.onclick=()=>{ ((state.wallA[state.model] ||= {}))[s.pod.i]=s.side; save(); buildHome(); renderSide(); toast(`${s.pod.label}: this is now Wall A`); };
     const auto=sideB.querySelector('#autoA'); if(auto) auto.onclick=()=>{ delete state.wallA[state.model][s.pod.i]; save(); buildHome(); renderSide(); };
   }
   sideB.querySelectorAll('.wl button').forEach(b=>b.onclick=()=>{ state.selected=b.dataset.s; highlight(); renderSide(); });

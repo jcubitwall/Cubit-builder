@@ -4,7 +4,7 @@ import { MODELS } from './data.js';
 import { fft, fin } from './format.js';
 import { renderFoundation } from './foundation.js';
 import { screwsFor, slotsFor } from './layout.js';
-import { panelCount, panelNum } from './panels.js';
+import { panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall } from './panels.js';
 import { buildWallMesh, resize } from './scene3d.js';
 import { wallListHTML } from './sidebar.js';
 import { pickFor, state, setFace } from './state.js';
@@ -37,7 +37,7 @@ function renderSheet(){
   const el=document.getElementById('sheet');
   if(state.sheetSlot==='__found'){ renderFoundation(el); return; }
   if(state.sheetSlot==='__labels'){ renderLabelsHome(el); return; }
-  const s=slotsFor(state.model).find(x=>x.id===state.sheetSlot); const w=pickFor(s);
+  const s=slotsFor(state.model).find(x=>x.id===state.sheetSlot); const w=bodyWall(s, pickFor(s));
   const isInt = s.type==='int';
   const faceA = isInt ? `Side A · faces ${s.pod.label}` : 'Front · interior side';
   const faceB = isInt ? `Side B · faces ${s.other.label}` : 'Back · exterior side';
@@ -47,7 +47,7 @@ function renderSheet(){
   el.innerHTML=`
     <div class="sheet-title">
       <div><div class="eyebrow" style="color:#555">Assembly sheet · Cubit Home</div><h3>${s.label} · ${s.detail} — ${w.id}</h3></div>
-      <div class="meta">${MODELS[state.model].name} · ${fft(w.len*FT)} × ${fft(H)} · ${n} panels @ 4′×8′ · ${isInt?'Interior':'Exterior'} wall ${fin(w.t||T)}<br>${new Date().toISOString().slice(0,10)}</div>
+      <div class="meta">${MODELS[state.model].name} · ${fft(wallLen(w))} × ${fft(H)} · ${n} panels (${panelSpans(w).map(([a,b])=>fin(b-a)).reverse().join(' + ')}) · ${isInt?'Interior':'Exterior'} wall ${fin(w.t||T)}<br>${new Date().toISOString().slice(0,10)}</div>
     </div>
     <div class="sheet-tools">
       <span style="font-size:13px;color:#333">Facing the assemblers:</span>
@@ -67,20 +67,20 @@ function renderSheet(){
 }
 
 function boxTable(w,face){
-  const L=w.len*FT;
+  const L=wallLen(w);
   // positions in the current view, measured from the left end as seen in this view
   const ops=w.openings.map(o=>({...o, vx: face==='ext'? o.x : L-o.x-o.w}));
   const items = face==='int' ? w.inside.map(b=>({...b,vx:b.x})) : w.outside.map(b=>({...b,vx:b.x}));
   const names={outlet:(face==='int'||w.type==='int')?'Plug box':'Outside plug (WP)',switch:'Switch box',light:'Outside light',data:'Data box'};
   let h=`<table class="boxes"><thead><tr><th>Item</th><th>From left end</th><th>Height</th><th>Size</th><th>Panel</th></tr></thead><tbody>`;
   const n=panelCount(w);
-  const pn = vx => { const kExt = face==='ext' ? Math.floor(vx/PW) : Math.floor((L-vx)/PW); return panelNum(n,Math.min(n-1,Math.max(0,kExt)),false); };
+  const pn = vx => panelNum(n, panelAt(w, face==='ext' ? vx : L-vx), false);
   ops.sort((a,b)=>a.vx-b.vx).forEach(o=>{ h+=`<tr><td>${o.kind==='window'?'Window opening':o.kind==='door'?'Door opening':o.kind==='opening'?'Cased opening':o.kind==='vent'?'Vent / duct hole':'Patio door opening'}</td><td>${fin(o.vx)}</td><td>sill ${fin(o.y)}</td><td>${fin(o.w)} × ${fin(o.h)}</td><td>${pn(o.vx+o.w/2)}</td></tr>`; });
   items.sort((a,b)=>a.vx-b.vx).forEach(b=>{ h+=`<tr><td>${names[b.kind]||b.kind}</td><td>${fin(b.vx)} (centre)</td><td>${fin(b.y)}</td><td>—</td><td>${pn(b.vx)}</td></tr>`; });
   return h+`</tbody></table>`;
 }
 function elevationSVG(w,face,rev){
-  const L=w.len*FT, n=panelCount(w);
+  const L=wallLen(w), n=panelCount(w), spans=panelSpans(w);
   const s=Math.min(6, 900/L), Wd=L*s, Hd=H*s, ml=90, mt=110, mr=90, mb=130;
   const VW=Wd+ml+mr, VH=Hd+mt+mb;
   const X = x => ml + x*s;                      // view x (inches from view-left) -> svg
@@ -89,21 +89,22 @@ function elevationSVG(w,face,rev){
   let g=`<svg viewBox="0 0 ${VW} ${VH}" font-family="IBM Plex Mono, monospace" role="img" aria-label="Wall elevation">`;
   g+=`<defs><marker id="ar" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#2f6db5"/></marker>
       <pattern id="foam" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#f1e4c8"/><circle cx="2" cy="2" r=".8" fill="#e2cfa6"/><circle cx="6" cy="6" r=".8" fill="#e2cfa6"/></pattern></defs>`;
-  // panels
-  for(let k=0;k<n;k++){
-    const kv = face==='ext'? k : n-1-k;   // exterior index of the panel drawn at view position k
-    const x0=X(k*PW);
-    g+=`<rect x="${x0}" y="${Y(H)}" width="${PW*s}" height="${Hd}" fill="url(#foam)" stroke="#111" stroke-width="1.4"/>`;
+  // panels (drawn in view order; panel 1 = full panel at the inside-left end, the last one is cut to fit)
+  for(let kv=0;kv<n;kv++){
+    const [a,b]=spans[kv]; const va = face==='ext' ? a : L-b, vb = face==='ext' ? b : L-a;
+    const x0=X(va), pw=(vb-va)*s;
+    g+=`<rect x="${x0}" y="${Y(H)}" width="${pw}" height="${Hd}" fill="url(#foam)" stroke="#111" stroke-width="1.4"/>`;
     const num=panelNum(n,kv,rev);
-    g+=`<circle cx="${x0+PW*s/2}" cy="${mt-58}" r="19" fill="#fff" stroke="#d0661f" stroke-width="3"/><text x="${x0+PW*s/2}" y="${mt-51}" text-anchor="middle" font-family="Archivo, Arial, sans-serif" font-weight="800" font-size="21" fill="#111">${num}</text>`;
-    g+=`<text x="${x0+PW*s/2}" y="${Y(H/2)}" text-anchor="middle" font-family="Archivo, Arial, sans-serif" font-weight="800" font-size="${Math.min(70,PW*s*0.55)}" fill="#111" opacity=".09">${num}</text>`;
+    g+=`<circle cx="${x0+pw/2}" cy="${mt-58}" r="19" fill="#fff" stroke="#d0661f" stroke-width="3"/><text x="${x0+pw/2}" y="${mt-51}" text-anchor="middle" font-family="Archivo, Arial, sans-serif" font-weight="800" font-size="21" fill="#111">${num}</text>`;
+    g+=`<text x="${x0+pw/2}" y="${Y(H/2)}" text-anchor="middle" font-family="Archivo, Arial, sans-serif" font-weight="800" font-size="${Math.min(70,pw*0.55)}" fill="#111" opacity=".09">${num}</text>`;
+    if(vb-va < PW-0.01) g+=`<text x="${x0+pw/2}" y="${Y(H)+14}" text-anchor="middle" font-size="10" fill="#b4520f" font-weight="600">CUT ${fin(vb-va)}</text>`;
   }
   // install direction arrow
   const ltr = true;   // assembly always runs left to right as the assemblers see the wall
   g+=`<line x1="${X(ltr?6:L-6)}" y1="${mt-90}" x2="${X(ltr?L-6:6)}" y2="${mt-90}" stroke="#d0661f" stroke-width="2.2" marker-end="url(#ar)" style="color:#d0661f"/>`;
   g+=`<text x="${X(ltr?6:L-6)}" y="${mt-96}" text-anchor="${ltr?'start':'end'}" font-size="12" fill="#d0661f" font-weight="600">ASSEMBLE LEFT → RIGHT</text>`;
   // panel chain dims (top)
-  for(let k=0;k<n;k++) g+=dimH(X(k*PW),X((k+1)*PW),mt-22,fin(PW),mt);
+  spans.forEach(([a,b])=>{ const va = face==='ext' ? a : L-b, vb = face==='ext' ? b : L-a; g+=dimH(X(va),X(vb),mt-22,fin(vb-va),mt); });
   // openings
   w.openings.forEach(o=>{
     const x=vx(o.x,o.w);
@@ -177,7 +178,7 @@ function buildWall3D(w){
   const mat=new THREE.MeshStandardMaterial({color:0xc9a46a,roughness:0.85});
   const zNum = state.face==='int' ? -((w.t||T)/FT)-0.4 : 0.4;
   const built=buildWallMesh(w,mat,{nums:true,reverse:state.reverse,numSize:1.3,numZ:zNum});
-  const L=w.len, gap=0.6;
+  const L=wallLen(w)/FT, gap=0.6;
   // pull panels apart; move loose items with their panel
   built.group.children.forEach(c=>{ const k=c.userData.k; if(k!==undefined) c.position.x += k*gap; });
   const wrap=new THREE.Group(); wrap.add(built.group);
