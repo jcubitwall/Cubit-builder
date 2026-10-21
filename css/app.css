@@ -252,3 +252,8 @@ body.dragging, body.dragging *{cursor:grabbing!important}
 .compass .cb-note{font-size:11px;color:var(--ink-2);margin:6px 0 0;line-height:1.35}
 .plan-wrap .hint{z-index:2}
 @media (max-width: 900px){ .compass{max-width:none;left:12px;right:auto;top:auto;bottom:44px} .compass .cb-note{display:none} }
+/* full screen on tablets: nothing scrolls or bounces behind the 3D view, so a swipe can't leave it */
+html.fs-lock, html.fs-lock body{overflow:hidden;overscroll-behavior:none;height:100%}
+.studio.fs{touch-action:none}
+.studio.fs > aside{touch-action:pan-y}
+.studio.fs .fs-bar{top:max(12px, env(safe-area-inset-top))}

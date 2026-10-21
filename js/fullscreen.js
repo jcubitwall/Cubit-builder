@@ -9,6 +9,7 @@ const studio=document.getElementById('studio'), aside=studio.querySelector('asid
 const bFull=document.getElementById('bFull'), bPanel=document.getElementById('bPanel');
 const tools=document.getElementById('studioTools'), fsTools=document.getElementById('fsTools'), home=tools.parentNode, homeNext=tools.nextSibling;
 let on=false;
+const touchFirst = matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches;
 
 function setPanel(open){ studio.classList.toggle('panel-open', open); bPanel.setAttribute('aria-pressed', open); }
 function enter(){
@@ -16,13 +17,18 @@ function enter(){
   on=true; studio.classList.add('fs'); bFull.setAttribute('aria-pressed','true'); bFull.querySelector('.lbl').textContent='Exit';
   fsTools.appendChild(tools);
   setPanel(!!state.selected);
-  if(studio.requestFullscreen && !document.fullscreenElement) studio.requestFullscreen().catch(()=>{});   // the window-filling version still works if refused
+  // computers use the browser's real full screen (Esc leaves). Tablets and phones fill the window instead:
+  // the browser's full screen there exits on a downward swipe, which is too easy to do by accident.
+  // On a tablet, only the Exit button leaves.
+  if(!touchFirst && studio.requestFullscreen && !document.fullscreenElement) studio.requestFullscreen().catch(()=>{});
+  document.documentElement.classList.add('fs-lock');
   requestAnimationFrame(resize);
 }
 function exit(){
   if(!on) return;
   on=false; studio.classList.remove('fs','panel-open'); bFull.setAttribute('aria-pressed','false'); bFull.querySelector('.lbl').textContent='Full screen';
   home.insertBefore(tools, homeNext);
+  document.documentElement.classList.remove('fs-lock');
   if(document.fullscreenElement) document.exitFullscreen().catch(()=>{});
   requestAnimationFrame(resize);
 }
