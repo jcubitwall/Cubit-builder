@@ -124,7 +124,7 @@ function renderFoundation(el){
     <div class="sheet-tools"><label for="insetIn" style="font-size:13px">Screw inset from outside edge (inches)</label>
       <input id="insetIn" type="number" min="2" max="18" step="0.5" value="${state.inset}" style="width:80px;padding:6px 8px;border:1px solid #cfd4cc;border-radius:6px;font:inherit">
       <button class="btn" id="pdfBtn" hidden>Download PDF</button>
-      <span style="font-size:12.5px;color:#333">No gap over 8′ along any outside edge or joint. Where pods meet they share one screw centred in the 5/8″ joint; around the outside each screw has a swivel head.</span></div>
+      <span style="font-size:12.5px;color:#333">No gap over 12′ along any outside edge or joint; every corner has a screw. Where pods meet they share one screw centred in the 5/8″ joint; around the outside each screw has a swivel head.</span></div>
     ${F.warnings.length?`<p class="note" style="color:#b4520f;font-weight:600">Check this layout: ${F.warnings.map(w=>`S${sc.findIndex(q=>q.src===w.a)+1} – S${sc.findIndex(q=>q.src===w.b)+1} ${w.kind==='close'?'only':''} ${fin(w.d*FT)} apart`).join(' · ')}</p>`:''}
     <div class="elev">${g}</div>
     <div class="sheet-grid"><div class="tblwrap"><div class="eyebrow" style="color:#555;margin-bottom:4px">Squaring checks</div>${ct}<p class="note" style="color:#444;margin-top:6px">Measure centre to centre of the shafts; each reading should match within 1/8″. The two diagonals of each pod are equal. Whole-layout diagonals can differ slightly where a pod is offset by the 5/8″ joint space.</p></div>

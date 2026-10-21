@@ -62,7 +62,7 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
 - **Foundation sheet:** a true plan seen from above, with every ground screw located, chain dimensions, diagonals for squaring, and a **Download PDF** button to email to the site crew.
   - **No doubled-up screws.** Where pods meet, one screw sits in the centre of the 5/8″ joint and carries both pods. Where three pods meet it gets a **tee** head; where four meet, a **cross** head. Screws closer than 3′ are merged into one; if the one removed was a corner, the remaining head gets a **corner arm** that reaches it.
   - **Perimeter:** around the outside, screws sit just inside the floor edge with a **swivel head**, so a deck or another pod can be added later.
-  - **Spacing:** each outside edge and each joint gets a screw at both ends and wherever another joint crosses or tees in, then even spacing so no gap is over 8′. Where an edge ends against a joint, its end screw is the one in the joint. The sheet warns if two screws ever end up closer than 3′ or further than 8′ apart.
+  - **Spacing:** each outside edge and each joint gets a screw at both ends and wherever another joint crosses or tees in, then even spacing so no gap is over 12′ (a gap may run up to 3″ over where the 5/8″ joints add up, rather than adding a screw). That puts one on every corner, one in the middle of a 16′ or 24′ side, and none between the corners of an 8′ side. Where an edge ends against a joint, its end screw is the one in the joint. The sheet warns if two screws ever end up closer than 3′ or further than 12′ apart.
 
 ## Pod facts the app uses
 
@@ -74,7 +74,7 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
 | Walls | 96″ clear inside height; exterior 6½″, interior 4½″ |
 | Ceiling | 12⅞″ total: two SIP layers, OSB top and bottom, 11⅞″ LVL rim |
 | Panels | 4′ × 8′ SIP |
-| Ground screws | perimeter: just inside the floor edge (inset set on the foundation sheet, default 6″), swivel head · joints: centred in the 5/8″ gap, shared · never more than 8′ apart |
+| Ground screws | perimeter: just inside the floor edge (inset set on the foundation sheet, default 6″), swivel head · joints: centred in the 5/8″ gap, shared · never more than 12′ apart, a screw on every corner |
 | Corner spine notch | 1¾″ × 1¾″, full height, at every pod corner |
 | Pod placement | 8′ grid, turned in 90° steps |
 

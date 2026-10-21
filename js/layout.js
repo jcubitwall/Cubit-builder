@@ -3,7 +3,7 @@
    Plan units are feet. Seen from above, +x is to the right and +z is down the screen, so going
    clockwise means S → E → N → W. A pod can be turned in 90° steps (rot 0/90/180/270, clockwise):
    at 0/180 its length runs along x, at 90/270 along z. */
-import { FT, GAP, POD, SIDE_NAME, LAYER_KINDS } from './config.js';
+import { FT, GAP, POD, SIDE_NAME, LAYER_KINDS, SCREW_MAX } from './config.js';
 import { MODELS, podById, deckById } from './data.js';
 import { pickFor, state } from './state.js';
 
@@ -205,7 +205,8 @@ function assignLetters(modelKey, slots, pods){
      · a perimeter line inside each pod's outside edge (at the inset),
      · a joint line down the middle of every joint (collinear joints between several pod pairs are one line).
    Each line gets a screw at both ends, at every place another joint line crosses or tees into it, and
-   evenly spaced screws between those so no gap is over 8′. Where a line ends against a joint, its end
+   evenly spaced screws between those so no gap is over 12′ (SCREW_MAX). So every corner has one, a 16′ or
+   24′ side gets one in the middle, and an 8′ side just its two corners. Where a line ends against a joint, its end
    screw is the one on that joint, so the screws "hop into the centre". Screws that still land within 3′ of
    each other are merged into one (inside corners where three pods meet, short steps between decks); when
    the screw it replaced was a corner more than a foot away, the head gets a corner arm reaching out to it.
@@ -213,7 +214,7 @@ function assignLetters(modelKey, slots, pods){
 const NORM={S:[0,-1],N:[0,1],W:[-1,0],E:[1,0]};
 const HEAD_FOR = n => n<=1 ? 'swivel' : n===2 ? 'centre' : n===3 ? 'tee' : 'cross';
 function screwPlan(modelKey, insetIn){
-  const i=insetIn/FT, E=1e-4, G=GAP, MAX=8, MERGE=3;   // screws closer than 3′ become one
+  const i=insetIn/FT, E=1e-4, G=GAP, MAX=SCREW_MAX, MERGE=3, SLACK=0.25;   // screws closer than 3′ become one; a gap may run 3″ over 12′ (the 5/8″ joints add up) rather than add a screw
   const LO = layoutOffsets(modelKey), OFF=LO.pods, pl=podList(modelKey);
   // decks follow the same rules; their index follows the pods' (pods 0..n-1, then decks)
   const P = pl.map(p=>{ const x=p.x+OFF[p.i].ox, z=p.z+OFF[p.i].oz; return {i:p.i, len:p.len, x, z, x1:x+p.w, z1:z+p.d}; })
@@ -258,13 +259,13 @@ function screwPlan(modelKey, insetIn){
     if(co){ const js = Math.abs(co.a-e)<G+E ? co.st[0] : co.st[1]; return {t:js.t, virtual:true}; }
     return {t:e+dir*i};
   }); });
-  // stations → points, with even fill (no gap over 8′)
+  // stations → points, with even fill (no gap over SCREW_MAX)
   const pts=[];
   [...J, ...X].forEach((l,li)=>{
     const st=l.st.slice().sort((u,v)=>u.t-v.t).filter((s,k,a)=>k===0||s.t-a[k-1].t>E);
     const at=t=>l.ax==='x'?[t,l.c]:[l.c,t];
     const add=(t,virtual)=>{ if(!virtual) pts.push({p:at(t), line:l}); };
-    st.forEach((s,k)=>{ add(s.t,s.virtual); if(k<st.length-1){ const D=st[k+1].t-s.t, n=Math.ceil(D/MAX-1e-9); for(let m=1;m<n;m++) add(s.t+D*m/n,false); } });
+    st.forEach((s,k)=>{ add(s.t,s.virtual); if(k<st.length-1){ const D=st[k+1].t-s.t, n=Math.max(1, Math.ceil((D-SLACK)/MAX)); for(let m=1;m<n;m++) add(s.t+D*m/n,false); } });
   });
   // merge screws that land together (or within 18″)
   const groups=[];
@@ -288,12 +289,12 @@ function screwPlan(modelKey, insetIn){
     const arm = far ? [far.q.p[0]-x, far.q.p[1]-z] : null;
     return { x, z, pod:prim, pods, head, shared:pods.length>1, toward:pods.find(q=>q!==prim), dir, deck:onDeckOnly, arm };
   });
-  // checks: no two screws close together; no gap over 8′ along any support line
+  // checks: no two screws close together; no gap over SCREW_MAX along any support line
   const warnings=[];
   for(let a=0;a<screws.length;a++) for(let b=a+1;b<screws.length;b++){ const d=Math.hypot(screws[a].x-screws[b].x, screws[a].z-screws[b].z); if(d<3) warnings.push({kind:'close', a, b, d}); }
   [...J, ...X].forEach(l=>{
     const on=screws.map((s,k)=>({k, t:l.ax==='x'?s.x:s.z, off:Math.abs((l.ax==='x'?s.z:s.x)-l.c)})).filter(o=>o.off<MERGE && o.t>=l.a-MERGE && o.t<=l.b+MERGE).sort((u,v)=>u.t-v.t);
-    for(let k=0;k<on.length-1;k++) if(on[k+1].t-on[k].t>MAX+0.05) warnings.push({kind:'gap', a:on[k].k, b:on[k+1].k, d:on[k+1].t-on[k].t});
+    for(let k=0;k<on.length-1;k++) if(on[k+1].t-on[k].t>MAX+SLACK+0.01) warnings.push({kind:'gap', a:on[k].k, b:on[k+1].k, d:on[k+1].t-on[k].t});
   });
   return {screws, warnings, lines:{joints:J.length, perimeter:X.length}};
 }
