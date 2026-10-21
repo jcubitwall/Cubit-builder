@@ -165,19 +165,30 @@ function buildHome(){
       const g=new THREE.ExtrudeGeometry(sh,{depth:0.05,bevelEnabled:false}); g.translate(0,0,-0.025); return g; })(),
     gussetSmallG=(()=>{ const sh=new THREE.Shape(); sh.moveTo(0.1,0); sh.lineTo(0.23,0); sh.lineTo(0.1,-0.3); sh.closePath();
       const g=new THREE.ExtrudeGeometry(sh,{depth:0.05,bevelEnabled:false}); g.translate(0,0,-0.025); return g; })(), helixG=new THREE.CylinderGeometry(0.45,0.45,0.04,18);
+  const plateG=new THREE.BoxGeometry(1.25,0.06,0.58), swivelG=new THREE.CylinderGeometry(0.3,0.3,0.05,20);
   screwsFor(state.model,state.inset).forEach(sc=>{
     const s=new THREE.Group();
     const sh=new THREE.Mesh(shaftG,MAT.steel); sh.position.y=-FLOOR-2.75; s.add(sh);
-    const alongX=Math.abs(sc.dir[0])>0.5;
-    const cap=new THREE.Mesh(alongX?brXG:brZG, sc.shared?MAT.bracket:MAT.steel);
-    cap.position.set(sc.dir[0]*0.375,-FLOOR-0.03,sc.dir[1]*0.375); s.add(cap);
-    // welded collar at the top of the shaft + triangular gusset under the overhanging flange
     const col=new THREE.Mesh(collarG,MAT.steel); col.position.y=-FLOOR-0.06-0.25; s.add(col);
-    const gs=new THREE.Mesh(gussetG, sc.shared?MAT.bracket:MAT.steel);
-    gs.position.y=-FLOOR-0.06; gs.rotation.y=Math.atan2(-sc.dir[1],sc.dir[0]); s.add(gs);
-    const gs2=new THREE.Mesh(gussetSmallG, sc.shared?MAT.bracket:MAT.steel);
-    gs2.position.y=-FLOOR-0.06; gs2.rotation.y=Math.atan2(sc.dir[1],-sc.dir[0]); s.add(gs2);
     [-4.8,-5.8].forEach(y=>{ const h=new THREE.Mesh(helixG,MAT.steel); h.position.y=y; h.rotation.z=0.12; s.add(h); });
+    const ang=d=>Math.atan2(-d[1],d[0]);
+    const gusset=(d,big,mat)=>{ const g=new THREE.Mesh(big?gussetG:gussetSmallG, mat); g.position.y=-FLOOR-0.06; g.rotation.y=ang(d); s.add(g); };
+    if(sc.head==='swivel'){
+      // perimeter: swivel head with its bracket turned in under the pod; it can turn out later for a deck or another pod
+      const sw=new THREE.Mesh(swivelG,MAT.steel); sw.position.y=-FLOOR-0.085; s.add(sw);
+      const alongX=Math.abs(sc.dir[0])>0.5;
+      const cap=new THREE.Mesh(alongX?brXG:brZG, MAT.steel); cap.position.set(sc.dir[0]*0.375,-FLOOR-0.03,sc.dir[1]*0.375); s.add(cap);
+      gusset(sc.dir,true,MAT.steel); gusset([-sc.dir[0],-sc.dir[1]],false,MAT.steel);
+    } else {
+      // shared: plate centred on the joint, square across it; tee / cross heads where 3 or 4 pods meet
+      const d=sc.dir, perp=[d[1],-d[0]];
+      const p1=new THREE.Mesh(plateG,MAT.bracket); p1.rotation.y=ang(d); p1.position.y=-FLOOR-0.03; s.add(p1);
+      gusset(d,true,MAT.bracket); gusset([-d[0],-d[1]],true,MAT.bracket);
+      if(sc.head!=='centre'){
+        const p2=new THREE.Mesh(plateG,MAT.bracket); p2.rotation.y=ang(perp); p2.position.y=-FLOOR-0.03; s.add(p2);
+        gusset(perp,true,MAT.bracket); gusset([-perp[0],-perp[1]],true,MAT.bracket);
+      }
+    }
     s.position.set(sc.x,0,sc.z); screwGroup.add(s);
   });
   slots.forEach(s=>{

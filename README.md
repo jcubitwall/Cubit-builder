@@ -38,7 +38,10 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
   - **Flipping:** box cut-outs that don't go all the way through have to face up on the CNC. If that face isn't the face the assemblers need up, the panel is marked **FLIP before stacking**. A panel with cut-outs on both faces is marked **TWO-SIDED**.
   - **Labels PDF:** a cut & stack list, then one 4″ × 2″ label per panel (Avery 5163 / 8163). Each label shows the code, its stack position, which face goes up, the CNC face, any flip warning, and a small strip showing where the panel sits in the wall.
 - **Wall assembly sheets:** one per wall. Flip between the front (interior) and back (exterior) face, and number the 4×8 SIP panels 1→6 or reversed. Each sheet has opening sizes, plug and switch locations, and a 3D view of the panels pulled apart.
-- **Foundation sheet:** a true plan seen from above, with every ground screw located. Where pods meet they share one row of screws, with the offset bracket turned out under the next pod. It includes chain dimensions, diagonals for squaring, and a **Download PDF** button to email to the site crew.
+- **Foundation sheet:** a true plan seen from above, with every ground screw located, chain dimensions, diagonals for squaring, and a **Download PDF** button to email to the site crew.
+  - **No doubled-up screws.** Where pods meet, one screw sits in the centre of the 5/8″ joint and carries both pods. Where three pods meet it gets a **tee** head; where four meet, a **cross** head.
+  - **Perimeter:** around the outside, screws sit just inside the floor edge with a **swivel head**, so a deck or another pod can be added later.
+  - **Spacing:** each outside edge and each joint gets a screw at both ends and wherever another joint crosses or tees in, then even spacing so no gap is over 8′. Where an edge ends against a joint, its end screw is the one in the joint. The sheet warns if two screws ever end up closer than 3′ or further than 8′ apart.
 
 ## Pod facts the app uses
 
@@ -50,7 +53,7 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
 | Walls | 96″ clear inside height; exterior 6½″, interior 4½″ |
 | Ceiling | 12⅞″ total: two SIP layers, OSB top and bottom, 11⅞″ LVL rim |
 | Panels | 4′ × 8′ SIP |
-| Ground screws | just inside the floor edge, no more than 8′ apart (inset is set on the foundation sheet, default 6″) |
+| Ground screws | perimeter: just inside the floor edge (inset set on the foundation sheet, default 6″), swivel head · joints: centred in the 5/8″ gap, shared · never more than 8′ apart |
 | Corner spine notch | 1¾″ × 1¾″, full height, at every pod corner |
 | Pod placement | 8′ grid, turned in 90° steps |
 
@@ -132,4 +135,3 @@ See that folder's README. The scan is exact, so **only upload accurate models**:
 - Floor and ceiling panel sheets (Fe / Fi / Re / Ri), including pot lights.
 - A shared wall library and saved homes for the whole team.
 - PDF export for the wall assembly sheets.
-- The rule for corners where three or four pods meet a single screw.

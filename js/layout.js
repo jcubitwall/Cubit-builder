@@ -157,52 +157,98 @@ function assignLetters(modelKey, slots, pods){
 }
 
 /* ============================================================ ground screws
-   Screws sit just inside the floor around each pod's perimeter. Corners always get one;
-   long sides get extras so no gap exceeds 8′ (spacing comes out a little under 8′).
-   Where two pods meet there is ONE row: the larger pod keeps its screws and their offset
-   bracket is turned to reach under the neighbour; the smaller pod's screws on that edge are dropped.
-   Every other screw has the same bracket turned 180°, flush under its own pod. */
+   Screws are never doubled up: where pods meet they share one screw that sits in the CENTRE of the 5/8″
+   joint, carrying both pods. Around the outside the screw sits just inside the floor edge (the inset) with a
+   swivel head, so a deck or another pod can be added later.
+
+   The layout is built from support lines:
+     · a perimeter line inside each pod's outside edge (at the inset),
+     · a joint line down the middle of every joint (collinear joints between several pod pairs are one line).
+   Each line gets a screw at both ends, at every place another joint line crosses or tees into it, and
+   evenly spaced screws between those so no gap is over 8′. Where a line ends against a joint, its end
+   screw is the one on that joint, so the screws "hop into the centre". Screws that still land within 18″ of
+   each other are merged into one (that happens at inside corners where three pods meet).
+   Head types: swivel (one pod), centre (2 pods), tee (3 pods), cross (4 pods). */
 const NORM={S:[0,-1],N:[0,1],W:[-1,0],E:[1,0]};
-function screwsFor(modelKey, insetIn){
-  const i=insetIn/FT, eps=1e-6;
+const HEAD_FOR = n => n<=1 ? 'swivel' : n===2 ? 'centre' : n===3 ? 'tee' : 'cross';
+function screwPlan(modelKey, insetIn){
+  const i=insetIn/FT, E=1e-4, G=GAP, MAX=8, MERGE=1.5;
   const OFF = podOffsets(modelKey);
-  const pods=podList(modelKey).map(p=>({...p,pi:p.i}));
-  let all=[];
-  pods.forEach(p=>{
-    const L=p.len, xs=[], zs=[];
-    const nx=Math.ceil((p.w-2*i)/8-1e-9), nz=Math.ceil((p.d-2*i)/8-1e-9);
-    for(let k=0;k<=nx;k++) xs.push(i+(p.w-2*i)*k/nx);
-    for(let k=0;k<=nz;k++) zs.push(i+(p.d-2*i)*k/nz);
-    const pts=new Map(); const add=(x,z)=>pts.set(x.toFixed(4)+','+z.toFixed(4),[x,z]);
-    xs.forEach(x=>{ add(x,zs[0]); add(x,zs[zs.length-1]); });
-    zs.forEach(z=>{ add(xs[0],z); add(xs[xs.length-1],z); });
-    [...pts.values()].forEach(([x,z])=>{
-      const sides=[]; if(Math.abs(z-zs[0])<eps) sides.push('S'); if(Math.abs(z-zs[zs.length-1])<eps) sides.push('N');
-      if(Math.abs(x-xs[0])<eps) sides.push('W'); if(Math.abs(x-xs[xs.length-1])<eps) sides.push('E');
-      const inn=NORM[sides[0]];
-      all.push({pod:p.pi, x:p.x+x+OFF[p.pi].ox, z:p.z+z+OFF[p.pi].oz, lx:p.x+x, lz:p.z+z, sides, shared:false, toward:null, dir:[-inn[0],-inn[1]], spacing:(L-2*i)/Math.ceil((L-2*i)/8-1e-9)});
+  const P = podList(modelKey).map(p=>{ const x=p.x+OFF[p.i].ox, z=p.z+OFF[p.i].oz; return {i:p.i, len:p.len, x, z, x1:x+p.w, z1:z+p.d}; });
+  const lines=[];
+  P.forEach(p=>{
+    [{k:'S',ax:'x',e:p.z, a:p.x,b:p.x1,n:[0,-1]},{k:'N',ax:'x',e:p.z1,a:p.x,b:p.x1,n:[0,1]},
+     {k:'W',ax:'z',e:p.x, a:p.z,b:p.z1,n:[-1,0]},{k:'E',ax:'z',e:p.x1,a:p.z,b:p.z1,n:[1,0]}].forEach(sd=>{
+      const sg = sd.n[0]+sd.n[1];
+      const cov=[];
+      P.forEach(q=>{ if(q===p) return;
+        const qe = sd.ax==='x' ? (sg>0?q.z:q.z1) : (sg>0?q.x:q.x1);
+        if(Math.abs(qe-(sd.e+sg*G))>E) return;
+        const a=Math.max(sd.ax==='x'?q.x:q.z, sd.a), b=Math.min(sd.ax==='x'?q.x1:q.z1, sd.b);
+        if(b-a>E) cov.push([a,b,q.i]);
+      });
+      if(sg>0) cov.forEach(([a,b,qi])=>lines.push({kind:'joint', ax:sd.ax, c:sd.e+G/2, a, b, pods:[p.i,qi]}));
+      let segs=[[sd.a,sd.b]];
+      cov.forEach(([c,d])=>{ const out=[]; segs.forEach(([u,v])=>{ if(d<=u+E||c>=v-E){out.push([u,v]);return;} if(c>u+E)out.push([u,c]); if(d<v-E)out.push([d,v]); }); segs=out; });
+      segs.filter(([u,v])=>v-u>E).forEach(([a,b])=>lines.push({kind:'ext', ax:sd.ax, c:sd.e-sg*i, edge:sd.e, a, b, pods:[p.i], n:sd.n}));
     });
   });
-  const edges=[];
-  pods.forEach(p=>pods.forEach(q=>{
-    if(p===q) return;
-    if(Math.abs(p.z1-q.z)<eps){ const a=Math.max(p.x,q.x), b=Math.min(p.x1,q.x1); if(b-a>=4-eps) edges.push({p,q,ps:'N',qs:'S',axis:'x',a,b}); }
-    if(Math.abs(p.x1-q.x)<eps){ const a=Math.max(p.z,q.z), b=Math.min(p.z1,q.z1); if(b-a>=4-eps) edges.push({p,q,ps:'E',qs:'W',axis:'z',a,b}); }
-  }));
-  const drop=new Set();
-  edges.forEach(e=>{
-    const pOwns = e.p.len>e.q.len || (e.p.len===e.q.len && e.p.pi<e.q.pi);
-    const own = pOwns? e.p : e.q, oth = pOwns? e.q : e.p, os = pOwns? e.ps : e.qs, ts = pOwns? e.qs : e.ps;
-    all.forEach((sc,idx)=>{
-      const along = e.axis==='x'? sc.lx : sc.lz;
-      if(sc.pod===own.pi && sc.sides.includes(os) && along>=e.a-i-eps && along<=e.b+i+eps && !sc.shared){
-        sc.shared=true; sc.toward=oth.pi; sc.dir=NORM[os].slice();
-      }
-      if(sc.pod===oth.pi && sc.sides.includes(ts) && along>=e.a-eps && along<=e.b+eps) drop.add(idx);
-    });
+  // one line per straight joint, even when it runs past several pods
+  const J=[]; lines.filter(l=>l.kind==='joint').sort((u,v)=>u.ax.localeCompare(v.ax)||u.c-v.c||u.a-v.a).forEach(l=>{
+    const last=J[J.length-1];
+    if(last && last.ax===l.ax && Math.abs(last.c-l.c)<E && l.a<=last.b+G+E){ last.b=Math.max(last.b,l.b); l.pods.forEach(x=>{ if(!last.pods.includes(x)) last.pods.push(x); }); }
+    else J.push({...l, pods:l.pods.slice()});
   });
-  return all.filter((sc,idx)=>!drop.has(idx) || sc.shared);
+  const X = lines.filter(l=>l.kind==='ext');
+  const crossing = (l, end) => J.find(o=>o.ax!==l.ax && Math.abs(o.c-end)<=G+E && l.c>=o.a-G-E && l.c<=o.b+G+E);
+  const endsOf = l => [[l.a,+1],[l.b,-1]];
+  J.forEach(l=>{ l.st=endsOf(l).map(([e,dir])=>{ const o=crossing(l,e); return {t: o?o.c : e+dir*i}; });
+    // joints crossing or teeing into this one
+    J.forEach(o=>{ if(o.ax===l.ax) return; if(o.c>l.a+E && o.c<l.b-E && l.c>=o.a-G-E && l.c<=o.b+G+E) l.st.push({t:o.c}); });
+  });
+  X.forEach(l=>{ l.st=endsOf(l).map(([e,dir])=>{
+    const o=crossing(l,e); if(o) return {t:o.c};
+    // the joint carries on in line with this edge (an inside corner): its end screw serves this end
+    const co=J.find(j=>j.ax===l.ax && Math.abs(Math.abs(j.c-l.edge)-G/2)<E && (Math.abs(j.a-e)<G+E || Math.abs(j.b-e)<G+E));
+    if(co){ const js = Math.abs(co.a-e)<G+E ? co.st[0] : co.st[1]; return {t:js.t, virtual:true}; }
+    return {t:e+dir*i};
+  }); });
+  // stations → points, with even fill (no gap over 8′)
+  const pts=[];
+  [...J, ...X].forEach((l,li)=>{
+    const st=l.st.slice().sort((u,v)=>u.t-v.t).filter((s,k,a)=>k===0||s.t-a[k-1].t>E);
+    const at=t=>l.ax==='x'?[t,l.c]:[l.c,t];
+    const add=(t,virtual)=>{ if(!virtual) pts.push({p:at(t), line:l}); };
+    st.forEach((s,k)=>{ add(s.t,s.virtual); if(k<st.length-1){ const D=st[k+1].t-s.t, n=Math.ceil(D/MAX-1e-9); for(let m=1;m<n;m++) add(s.t+D*m/n,false); } });
+  });
+  // merge screws that land together (or within 18″)
+  const groups=[];
+  pts.forEach(q=>{ const g=groups.find(g=>Math.hypot(g.p[0]-q.p[0],g.p[1]-q.p[1])<MERGE); if(g){ g.items.push(q); } else groups.push({p:q.p.slice(), items:[q]}); });
+  groups.forEach(g=>{
+    // keep the spot most lines agree on, joints first
+    const score=q=>g.items.filter(o=>Math.hypot(o.p[0]-q.p[0],o.p[1]-q.p[1])<E).length*10 + (q.line.kind==='joint'?1:0);
+    g.p=g.items.reduce((best,q)=>score(q)>score(best)?q:best, g.items[0]).p.slice();
+  });
+  const screws = groups.map(g=>{
+    const [x,z]=g.p;
+    const pods=P.filter(p=>x>=p.x-G/2-0.02 && x<=p.x1+G/2+0.02 && z>=p.z-G/2-0.02 && z<=p.z1+G/2+0.02).map(p=>p.i);
+    const head=HEAD_FOR(pods.length);
+    const prim=pods.slice().sort((u,v)=>P[v].len-P[u].len||u-v)[0] ?? g.items[0].line.pods[0];
+    const ext=g.items.find(q=>q.line.kind==='ext'), jn=g.items.find(q=>q.line.kind==='joint');
+    // bracket direction: swivel heads turned in under their pod; centre heads square across the joint
+    const dir = head==='swivel' ? (ext ? [-ext.line.n[0],-ext.line.n[1]] : [0,1]) : (jn ? (jn.line.ax==='x'?[0,1]:[1,0]) : [0,1]);
+    return { x, z, pod:prim, pods, head, shared:pods.length>1, toward:pods.find(q=>q!==prim), dir };
+  });
+  // checks: no two screws close together; no gap over 8′ along any support line
+  const warnings=[];
+  for(let a=0;a<screws.length;a++) for(let b=a+1;b<screws.length;b++){ const d=Math.hypot(screws[a].x-screws[b].x, screws[a].z-screws[b].z); if(d<3) warnings.push({kind:'close', a, b, d}); }
+  [...J, ...X].forEach(l=>{
+    const on=screws.map((s,k)=>({k, t:l.ax==='x'?s.x:s.z, off:Math.abs((l.ax==='x'?s.z:s.x)-l.c)})).filter(o=>o.off<MERGE && o.t>=l.a-MERGE && o.t<=l.b+MERGE).sort((u,v)=>u.t-v.t);
+    for(let k=0;k<on.length-1;k++) if(on[k+1].t-on[k].t>MAX+0.05) warnings.push({kind:'gap', a:on[k].k, b:on[k+1].k, d:on[k+1].t-on[k].t});
+  });
+  return {screws, warnings, lines:{joints:J.length, perimeter:X.length}};
 }
+const screwsFor = (modelKey, insetIn) => screwPlan(modelKey, insetIn).screws;
 
 /* Each pod has four horizontal layers: exterior floor, interior floor, interior ceiling, roof */
 function layerSlotsFor(modelKey){
@@ -215,4 +261,4 @@ const partnerOf = (slot, slots) => slot.type!=='int' ? null :
   slots.find(q=>q.type==='int' && q.pod===slot.other && q.other===slot.pod && Math.abs(q.a-slot.a)<EPS && Math.abs(q.b-slot.b)<EPS) || null;
 const podLabels = modelKey => podList(modelKey).reduce((a,p)=>(a[p.i]=p.long,a),{});
 
-export { podOffsets, slotsFor, NORM, screwsFor, podList, podLabels, CW, layerSlotsFor, partnerOf, worldSide, localSide, isLongSide, ROT_SIDE };
+export { podOffsets, slotsFor, NORM, screwsFor, screwPlan, HEAD_FOR, podList, podLabels, CW, layerSlotsFor, partnerOf, worldSide, localSide, isLongSide, ROT_SIDE };

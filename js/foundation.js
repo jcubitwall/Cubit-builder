@@ -2,7 +2,7 @@
 import { FT, POD } from './config.js';
 import { MODELS } from './data.js';
 import { asciiFt, fft, fin } from './format.js';
-import { podOffsets, screwsFor, slotsFor, podList } from './layout.js';
+import { podOffsets, screwPlan, slotsFor, podList } from './layout.js';
 import { buildHome } from './scene3d.js';
 import { dimH, dimV, renderSheetList } from './sheets.js';
 import { renderSide, toast } from './sidebar.js';
@@ -16,7 +16,7 @@ function foundationData(){
   const minz=Math.min(...pods.map(p=>p.z)), maxz=Math.max(...pods.map(p=>p.z+p.d));
   const labels=slotsFor(state.model).reduce((a,s)=>(a[s.pod.i]=s.pod.label,a),{});
   pods.forEach(p=>{ if(!labels[p.i]) labels[p.i]=POD[p.t].name; });
-  let sc=screwsFor(state.model,state.inset);
+  const plan=screwPlan(state.model,state.inset); let sc=plan.screws.map((q,k)=>({...q, src:k}));
   sc=sc.map(q=>{ const p=pods[q.pod]; const cx=p.x+p.w/2, cz=p.z+p.d/2; return {...q, ang:Math.atan2(q.z-cz, q.x-cx)}; })
        .sort((a,b)=>a.pod-b.pod || a.ang-b.ang).map((q,i)=>({...q,id:i+1, X:(q.x-minx)*FT, Y:(q.z-minz)*FT}));
   const dist=(a,b)=>Math.hypot(a.X-b.X,a.Y-b.Y);
@@ -30,7 +30,7 @@ function foundationData(){
   // per pod: the largest rectangle of real screws carrying that pod (shared ones included), so its diagonals must match
   if(pods.length>1) pods.forEach(p=>{
     const x0=(p.x-minx)*FT-12, x1=(p.x-minx+p.w)*FT+12, y0=(p.z-minz)*FT-12, y1=(p.z-minz+p.d)*FT+12;
-    const cand=sc.filter(q=>q.X>=x0&&q.X<=x1&&q.Y>=y0&&q.Y<=y1 && (q.pod===p.i || q.shared));
+    const cand=sc.filter(q=>q.X>=x0&&q.X<=x1&&q.Y>=y0&&q.Y<=y1 && q.pods.includes(p.i));
     const at=(x,y)=>cand.find(q=>Math.abs(q.X-x)<0.05&&Math.abs(q.Y-y)<0.05);
     const xs=[...new Set(cand.map(q=>+q.X.toFixed(3)))], ys=[...new Set(cand.map(q=>+q.Y.toFixed(3)))];
     let best=null;
@@ -43,7 +43,27 @@ function foundationData(){
   checks.forEach(c=>c.len=dist(c.a,c.b));
   const front=[...new Set(sc.filter(q=>q.Y<12).map(q=>+q.X.toFixed(3)))].sort((a,b)=>a-b);
   const left=[...new Set(sc.filter(q=>q.X<12).map(q=>+q.Y.toFixed(3)))].sort((a,b)=>a-b);
-  return {m,pods,labels,sc,checks,front,left,minx,minz,W:(maxx-minx)*FT,D:(maxz-minz)*FT,corners:{FL,FR,BR,BL}};
+  return {m,pods,labels,sc,warnings:plan.warnings,checks,front,left,minx,minz,W:(maxx-minx)*FT,D:(maxz-minz)*FT,corners:{FL,FR,BR,BL}};
+}
+/* head outlines around the screw centre, in drawing units (s = units per inch) */
+function headRects(q,s){
+  const L1=15*s, W1=7*s, ax=Math.abs(q.dir[0])>0.5;
+  const rect=(horiz,off)=>{ const w=horiz?L1:W1, h=horiz?W1:L1; return [(horiz?off:0)-w/2, (horiz?0:off)-h/2, w, h]; };
+  if(q.head==='swivel'){ const off=4.5*s*(ax?q.dir[0]:q.dir[1]); return [rect(ax, off)]; }
+  if(q.head==='centre') return [rect(ax,0)];
+  return [rect(true,0), rect(false,0)];
+}
+function headSVG(q,cx,cy,s){
+  const st=q.shared?'fill="#f3c9a8" stroke="#d0661f" stroke-width="1.4"':'fill="#e3e6e0" stroke="#56606b" stroke-width=".8"';
+  let g=headRects(q,s).map(([x,y,w,h])=>`<rect x="${cx+x}" y="${cy+y}" width="${w}" height="${h}" ${st}/>`).join('');
+  if(q.head==='swivel') g+=`<circle cx="${cx}" cy="${cy}" r="${3.6*s+3}" fill="none" stroke="#56606b" stroke-width=".7" stroke-dasharray="2 1.5"/>`;
+  return g;
+}
+const HEAD_NAME={swivel:'Swivel', centre:'Centre', tee:'Tee', cross:'Cross'};
+function headText(q,labels,html){
+  if(q.head==='swivel') return html?'Swivel · perimeter, bracket turned in':'Swivel, perimeter';
+  const who=q.pods.map(i=>labels[i]).join(' + ');
+  return html?`<b style="color:#b4520f">${HEAD_NAME[q.head]}</b> · centred in the joint, carries ${who}`:`${HEAD_NAME[q.head]}, joint: ${who}`;
 }
 function renderFoundation(el){
   const F=foundationData(); const {pods,labels,sc,checks,W:Wf,D:Df}=F;
@@ -60,9 +80,7 @@ function renderFoundation(el){
     g+=`<line x1="${X(c.a.X)}" y1="${Y(c.a.Y)}" x2="${X(c.b.X)}" y2="${Y(c.b.Y)}" stroke="#c0392b" stroke-width="1" stroke-dasharray="6 4"/>`;
   });
   sc.forEach(q=>{
-    { const L1=15*s, W1=7*s, off=4.5*s, ax=Math.abs(q.dir[0])>0.5;
-      const cx=X(q.X)+q.dir[0]*off, cy=Y(q.Y)+q.dir[1]*off; const w=ax?L1:W1, h=ax?W1:L1;
-      g+=`<rect x="${cx-w/2}" y="${cy-h/2}" width="${w}" height="${h}" fill="${q.shared?'#f3c9a8':'#e3e6e0'}" stroke="${q.shared?'#d0661f':'#56606b'}" stroke-width="${q.shared?1.4:.8}"/>`; }
+    g+=headSVG(q, X(q.X), Y(q.Y), s);
     g+=`<circle cx="${X(q.X)}" cy="${Y(q.Y)}" r="6" fill="#56606b" stroke="#111"/><circle cx="${X(q.X)}" cy="${Y(q.Y)}" r="1.6" fill="#fff"/>`;
     g+=`<text x="${X(q.X)+8}" y="${Y(q.Y)-7}" font-size="9.5" fill="#111">S${q.id}</text>`;
   });
@@ -72,23 +90,23 @@ function renderFoundation(el){
   for(let k=0;k<pts.length-1;k++){ const a=pts[k],b=pts[k+1]; if(b-a<1e-3) continue; g+=dimV(Y(a),Y(b),xl,fin(b-a),X(0),9.5); }
   g+=dimH(X(0),X(Wf),Y(0)-76,`${fft(Wf)} overall`,Y(0),12);
   g+=dimV(Y(0),Y(Df),X(0)-74,`${fft(Df)}`,X(0),12);
-  g+=`<text x="${X(0)}" y="${mt-100}" font-size="10.5" fill="#333">DATUM 0,0 = top-left outside corner of this plan · screws ${fin(state.inset)} in from the outside edge · 5/8″ space at every pod joint · orange = shared screw</text>`;
+  g+=`<text x="${X(0)}" y="${mt-100}" font-size="10.5" fill="#333">DATUM 0,0 = top-left outside corner of this plan · screws ${fin(state.inset)} in from the outside edge · orange = shared, centred in the 5/8″ joint · grey = swivel head</text>`;
   g+=`<circle cx="${X(0)}" cy="${Y(0)}" r="5" fill="#fff" stroke="#d0661f" stroke-width="2"/>`;
   g+=`<text x="${X(Wf)}" y="${VH-10}" text-anchor="end" font-size="10" fill="#555">PLAN SEEN FROM ABOVE · red dashed = check diagonals</text></svg>`;
-  const spac=pods.map(p=>`${labels[p.i]}: ${fft((p.len*FT-2*state.inset)/Math.ceil((p.len*FT-2*state.inset)/96-1e-9))} on centre along the length`).join(' · ');
   let ct=`<table class="boxes"><thead><tr><th>Check</th><th>Between</th><th>Measure</th></tr></thead><tbody>`;
   checks.forEach(c=>{ ct+=`<tr><td>${c.group} · ${c.kind}</td><td>S${c.a.id} ↔ S${c.b.id}</td><td><b>${fin(c.len)}</b> (${fft(c.len)})</td></tr>`; });
   ct+=`</tbody></table>`;
-  let t=`<table class="boxes"><thead><tr><th>Screw</th><th>Pod</th><th>X from datum</th><th>Y from datum</th><th>Bracket</th></tr></thead><tbody>`;
-  sc.forEach(q=>{ t+=`<tr><td>S${q.id}</td><td>${labels[q.pod]}</td><td>${fin(q.X)}</td><td>${fin(q.Y)}</td><td>${q.shared?'<b style="color:#b4520f">Shared</b> · turned out under '+labels[q.toward]:'Standard · turned in, flush'}</td></tr>`; });
+  let t=`<table class="boxes"><thead><tr><th>Screw</th><th>Pod</th><th>X from datum</th><th>Y from datum</th><th>Head</th></tr></thead><tbody>`;
+  sc.forEach(q=>{ t+=`<tr><td>S${q.id}</td><td>${labels[q.pod]}</td><td>${fin(q.X)}</td><td>${fin(q.Y)}</td><td>${headText(q,labels,true)}</td></tr>`; });
   t+=`</tbody></table>`;
   el.innerHTML=`
     <div class="sheet-title"><div><div class="eyebrow" style="color:#555">Site sheet · Cubit Home</div><h3>${F.m.name} — ground screw layout</h3></div>
-      <div class="meta">${sc.length} heavy steel ground screws (${sc.filter(q=>q.shared).length} shared) · ${pods.length} pod${pods.length>1?'s':''} · footprint ${fft(Wf)} × ${fft(Df)}<br>${new Date().toISOString().slice(0,10)}</div></div>
+      <div class="meta">${sc.length} heavy steel ground screws (${sc.filter(q=>q.shared).length} shared in the joints) · ${pods.length} pod${pods.length>1?'s':''} · footprint ${fft(Wf)} × ${fft(Df)}<br>${new Date().toISOString().slice(0,10)}</div></div>
     <div class="sheet-tools"><label for="insetIn" style="font-size:13px">Screw inset from outside edge (inches)</label>
       <input id="insetIn" type="number" min="2" max="18" step="0.5" value="${state.inset}" style="width:80px;padding:6px 8px;border:1px solid #cfd4cc;border-radius:6px;font:inherit">
       <button class="btn" id="pdfBtn" hidden>Download PDF</button>
-      <span style="font-size:12.5px;color:#333">Max spacing 8′ — ${spac}</span></div>
+      <span style="font-size:12.5px;color:#333">No gap over 8′ along any outside edge or joint. Where pods meet they share one screw centred in the 5/8″ joint; around the outside each screw has a swivel head.</span></div>
+    ${F.warnings.length?`<p class="note" style="color:#b4520f;font-weight:600">Check this layout: ${F.warnings.map(w=>`S${sc.findIndex(q=>q.src===w.a)+1} – S${sc.findIndex(q=>q.src===w.b)+1} ${w.kind==='close'?'only':''} ${fin(w.d*FT)} apart`).join(' · ')}</p>`:''}
     <div class="elev">${g}</div>
     <div class="sheet-grid"><div class="tblwrap"><div class="eyebrow" style="color:#555;margin-bottom:4px">Squaring checks</div>${ct}<p class="note" style="color:#444;margin-top:6px">Measure centre to centre of the shafts; each reading should match within 1/8″. The two diagonals of each pod are equal. Whole-layout diagonals can differ slightly where a pod is offset by the 5/8″ joint space.</p></div>
       <div class="tblwrap" style="max-height:340px;overflow:auto"><div class="eyebrow" style="color:#555;margin-bottom:4px">Screw schedule</div>${t}</div></div>`;
@@ -160,9 +178,9 @@ function foundationPDF(){
     doc.setTextColor(...red); doc.setFont('helvetica','bold'); doc.setFontSize(8);
     doc.text(`S${d.a.id}-S${d.b.id} = ${fin(d.len)}`, mx, my-3, {align:'center'}); doc.text(`S${d2.a.id}-S${d2.b.id} = ${fin(d2.len)}`, mx, my+9, {align:'center'}); }
   sc.forEach(q=>{
-    const L1=15*s, W1=7*s, off=4.5*s, ax=Math.abs(q.dir[0])>0.5; const cx=X(q.X)+q.dir[0]*off, cy=Y(q.Y)+q.dir[1]*off; const w=ax?L1:W1, h=ax?W1:L1;
     if(q.shared){ doc.setFillColor(243,201,168); doc.setDrawColor(...org); } else { doc.setFillColor(227,230,224); doc.setDrawColor(86,96,107); }
-    doc.setLineWidth(0.6); doc.rect(cx-w/2,cy-h/2,w,h,'FD');
+    doc.setLineWidth(0.6);
+    headRects(q,s).forEach(([rx,ry,rw,rh])=>doc.rect(X(q.X)+rx,Y(q.Y)+ry,rw,rh,'FD'));
     doc.setFillColor(86,96,107); doc.setDrawColor(...ink); doc.circle(X(q.X),Y(q.Y),3.6,'FD');
     doc.setTextColor(...ink); doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.text('S'+q.id, X(q.X)+5, Y(q.Y)-4.5);
   });
@@ -175,8 +193,8 @@ function foundationPDF(){
   doc.setDrawColor(...org); doc.setFillColor(255,255,255); doc.setLineWidth(1.2); doc.circle(X(0),Y(0),3,'FD');
   // legend
   const lgY=PH_-M-40-14; doc.setFontSize(7.5); doc.setFont('helvetica','normal'); doc.setTextColor(60,60,60);
-  doc.setFillColor(243,201,168); doc.setDrawColor(...org); doc.rect(M,lgY-6,14,7,'FD'); doc.text('Shared screw - bracket turned OUT under the next pod', M+18, lgY);
-  doc.setFillColor(227,230,224); doc.setDrawColor(86,96,107); doc.rect(M+230,lgY-6,14,7,'FD'); doc.text('Standard - bracket turned IN, flush under its own pod', M+248, lgY);
+  doc.setFillColor(243,201,168); doc.setDrawColor(...org); doc.rect(M,lgY-6,14,7,'FD'); doc.text('Shared - head centred in the 5/8" joint (centre, tee or cross head)', M+18, lgY);
+  doc.setFillColor(227,230,224); doc.setDrawColor(86,96,107); doc.rect(M+260,lgY-6,14,7,'FD'); doc.text('Perimeter - swivel head, bracket turned in under the pod', M+278, lgY);
   doc.text('PLAN SEEN FROM ABOVE', PW_-M, lgY, {align:'right'});
   titleBlock(1,2);
   // ---- page 2: checks + schedule
@@ -194,10 +212,10 @@ function foundationPDF(){
   doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(60,60,60);
   doc.text(doc.splitTextToSize('Measure centre to centre of the screw shafts. Each reading should match this sheet within 1/8". The two diagonals of each pod are equal. Whole-layout diagonals differ slightly when pods are offset by the 5/8" joint space - use the numbers above, not each other.', 400), M, y2+14);
   doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(...ink); doc.text('Screw schedule', M+430, M+8);
-  const rows=sc.map(q=>[`S${q.id}`, labels[q.pod], fin(q.X), fin(q.Y), q.shared?'Shared, out under '+labels[q.toward]:'Standard, in']);
+  const rows=sc.map(q=>[`S${q.id}`, labels[q.pod], fin(q.X), fin(q.Y), headText(q,labels,false)]);
   const perCol=Math.floor((PH_-2*M-40-40)/13)-1;
-  table(M+430, M+18, ['Screw','Pod','X','Y','Bracket'], [32,62,46,46,140], rows.slice(0,perCol), 7);
-  if(rows.length>perCol){ doc.addPage(); table(M, M+18, ['Screw','Pod','X','Y','Bracket'], [32,62,46,46,140], rows.slice(perCol), 7); }
+  table(M+430, M+18, ['Screw','Pod','X','Y','Head'], [32,62,46,46,140], rows.slice(0,perCol), 7);
+  if(rows.length>perCol){ doc.addPage(); table(M, M+18, ['Screw','Pod','X','Y','Head'], [32,62,46,46,140], rows.slice(perCol), 7); }
   titleBlock(2,2);
   return doc.output('blob');
 }
