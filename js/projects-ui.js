@@ -18,7 +18,8 @@ function render(){
   const mine=Object.values(PROJECTS).sort((a,b)=>b.saved.localeCompare(a.saved));
   const shared=Object.values(SHARED);
   body.innerHTML=`
-    <div>
+    <p class="note viewer-only">You can open any shared project and explore it. Saving projects is for admins.</p>
+    <div class="edit-only">
       <label for="projName">${openId?'Open project':'Save what you have on screen'} · ${esc(m.name)}</label>
       <div class="row" style="margin-top:6px"><input type="text" id="projName" value="${esc(openId?PROJECTS[openId].name:'')}" placeholder="e.g. Tanja Leet · Expanse + 1" maxlength="80"></div>
       <div class="row" style="margin-top:8px">
@@ -34,11 +35,11 @@ function render(){
         :'<p class="note">No saved projects yet.</p>'}
     </div>
     ${shared.length?`<div><div class="eyebrow" style="margin-bottom:6px">Shared projects · everyone sees these</div><div class="projlist">${shared.map(p=>`<div class="projrow"><b>${esc(p.name)}</b><small>${esc(p.model.pods.length)} pods</small><div class="acts"><button class="btn ghost" data-open="${p.id}">Open</button></div></div>`).join('')}</div></div>`:''}
-    <div class="row">
+    <div class="row edit-only">
       <button class="btn ghost" id="projExport" ${mine.length?'':'disabled'}>Export my projects</button>
       <button class="btn ghost" id="projImport">Import a project file</button>
     </div>
-    <p class="note">Projects are kept in this browser. To pass one to someone else, export it and send them the file. To make it shared with everyone, send the file to be added to <code>data/projects.json</code>.</p>`;
+    <p class="note edit-only">Projects are kept in this browser. To pass one to someone else, export it and send them the file. To make it shared with everyone, send the file to be added to <code>data/projects.json</code>.</p>`;
   const name=body.querySelector('#projName');
   body.querySelector('#projSave').onclick=()=>{ const n=name.value.trim(); if(!n){ name.focus(); toast('Give the project a name first.'); return; } const r=saveProject(n,false); refreshAll(); render(); toast(`Saved “${n}”. ${countsText(r.counts)}`); };
   const sn=body.querySelector('#projSaveNew'); if(sn) sn.onclick=()=>{ const n=name.value.trim()||'Copy'; const r=saveProject(n,true); refreshAll(); render(); toast(`Saved “${n}” as a new project. ${countsText(r.counts)}`); };

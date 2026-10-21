@@ -149,7 +149,7 @@ function bindLayout(){
 function sizeText(pods){ const c={}; pods.forEach(p=>c[POD[p.t].len]=(c[POD[p.t].len]||0)+1); return Object.entries(c).sort((a,b)=>b[0]-a[0]).map(([l,n])=>(n>1?n+'×':'')+l).join(' + '); }
 
 function importBlock(){
-  return `<details><summary>Upload wall options</summary>
+  return `<details class="edit-only"><summary>Upload wall options</summary>
   <p>Upload a .json file of walls. Each wall drops into every slot of the same length. All sizes are inches, y from the bottom of the wall. Openings and outside items: x from the left end seen from <b>outside</b>. Inside boxes: x from the left end seen from <b>inside</b>, the way the electrician reads it. Use <code>"type": "int"</code> for a 4½″ wall between pods.</p>
 <pre>[{ "id": "W24-16", "name": "Office wall", "len": 24, "type": "ext",
    "openings": [{"kind":"window","x":40,"y":36,"w":48,"h":36},

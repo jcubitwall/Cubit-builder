@@ -31,6 +31,8 @@
       <button class="tog" id="tHouse" aria-pressed="true" title="Turn the house off to see only the ground screws and pads">House</button>
     </div>
     <button class="btn ghost" id="bPlan">Plan &amp; pods</button>
+    <span class="viewer-only who" title="You can explore everything; nothing you change is saved">View only · changes aren't saved</span>
+    <button class="btn ghost admin-only" id="bUpload">Upload STEP</button>
     <button class="btn ghost" id="bProjects">Projects</button>
     <button class="btn" id="bSheets">Assembly sheets</button>
   </header>
@@ -73,6 +75,21 @@
 <dialog id="projDlg" aria-labelledby="projTitle"><div class="dlg">
   <div class="dlg-h"><h2 id="projTitle">Projects</h2><button class="btn ghost" id="projClose">Close</button></div>
   <div id="projBody"></div>
+</div></dialog>
+<dialog id="upDlg" aria-labelledby="upTitle"><div class="dlg">
+  <div class="dlg-h"><h2 id="upTitle">Upload a STEP file</h2><button class="btn ghost" id="upClose">Close</button></div>
+  <form id="upForm">
+    <fieldset class="up-kind"><legend>What is in the file?</legend>
+      <label><input type="radio" name="kind" value="wall"> <b>Wall</b><span>one wall, standing upright</span></label>
+      <label><input type="radio" name="kind" value="pod"> <b>Pod</b><span>one pod with its walls, floors and roof</span></label>
+      <label><input type="radio" name="kind" value="home" checked> <b>Home</b><span>a whole home: pods, decks and all</span></label>
+    </fieldset>
+    <label class="fld">Name<input id="upName" type="text" maxlength="120" placeholder="e.g. Tanja Leet · Expanse + 1" required></label>
+    <label class="fld">STEP file<input id="upFile" type="file" accept=".step,.stp" required></label>
+    <div class="row"><button class="btn" id="upGo" type="submit">Upload and scan</button></div>
+    <p class="note">The file is scanned on the server, usually in 2–5 minutes. Everything new goes into the libraries (walls, floors and ceilings, pods, decks); a home also becomes a shared project. Only accurate models, please: whatever is in the file goes into the libraries.</p>
+  </form>
+  <div id="upStatus"></div>
 </div></dialog>
 <input type="file" id="projFile" accept=".json,application/json" hidden>
 <input type="file" id="fileIn" accept=".json,application/json" hidden>

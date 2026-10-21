@@ -382,8 +382,8 @@ function renderSide2(){
       <p class="note"><b>Decks</b> come from the deck library. A deck docks with its ledger (the dark edge) flush against a pod or another deck, in 8′ steps, with the same 5/8″ space at a pod. Its corners are notched for the steel corner posts, and its ground screws follow the same rules as the pods'.</p>
       ${(m.decks||[]).length?`<div class="fld">All decks stand on<div class="seg"><button class="fsbtn" id="allScrews" aria-pressed="${m.decks.every(d=>d.found!=='pads')}">Ground screws</button><button class="fsbtn" id="allPads" aria-pressed="${m.decks.every(d=>d.found==='pads')}">Concrete pads (floating)</button></div></div>`:''}
       ${m.custom||m.project?'':'<p class="note">This is a built-in home. Your first change makes your own copy, saved in this browser.</p>'}
-      <div class="row"><button class="btn" id="saveAll">Save these pods to the library</button></div>
-      <p class="note">Saves every pod of this home that isn't in the pod library yet, plus any wall, floor or ceiling that's new (like a mirrored wall). Saving a project does this too.</p>
+      <div class="row edit-only"><button class="btn" id="saveAll">Save these pods to the library</button></div>
+      <p class="note edit-only">Saves every pod of this home that isn't in the pod library yet, plus any wall, floor or ceiling that's new (like a mirrored wall). Saving a project does this too.</p>
     </div>`;
     if(el('allScrews')){ el('allScrews').onclick=()=>done(setDeckFoundation('all','screws'),'All decks on ground screws'); el('allPads').onclick=()=>done(setDeckFoundation('all','pads'),'All decks float on concrete pads'); }
     el('saveAll').onclick=()=>{ const c=saveToLibraries(m.name); renderPalette(); refresh(); toast(countsText(c)); };
@@ -397,8 +397,8 @@ function renderSide2(){
     <div class="row"><button class="btn" id="turn">Turn 90°</button><button class="btn ghost" id="del">Remove</button><button class="btn ghost" id="back">Done</button></div>
     <label class="fld">Replace with<select id="rep">${others}</select></label>
     <div class="row"><button class="btn ghost" id="doRep">Replace this pod</button></div>
-    <label class="fld">Name in the pod library<input id="pname" value="${esc(L?.name || `${p.len}′ pod · ${m.name} · Pod ${p.i+1}`)}"></label>
-    <div class="row"><button class="btn ghost" id="savePod">Save this pod to the library</button></div>
+    <label class="fld edit-only">Name in the pod library<input id="pname" value="${esc(L?.name || `${p.len}′ pod · ${m.name} · Pod ${p.i+1}`)}"></label>
+    <div class="row edit-only"><button class="btn ghost" id="savePod">Save this pod to the library</button></div>
     <p class="note">The pod keeps its walls, floors and ceilings when you move or turn it. A wall that stops being a joint (or becomes one) changes to a library wall of the right type.</p>
   </div>`;
   el('turn').onclick=()=>done(rotatePod(sel),'Pod turned 90°');

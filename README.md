@@ -2,7 +2,7 @@
 
 A web app for designing Cubit pod homes wall by wall, then producing what the shop and the site crew need to build them.
 
-**Live app:** https://jcubitwall.github.io/Cubit-builder/ (once GitHub Pages is switched on, see below)
+**Private app:** hosted on Cloudflare Pages behind Cloudflare Access, with viewer and admin roles and STEP uploads for admins. See [`docs/PRIVATE-SETUP.md`](docs/PRIVATE-SETUP.md).
 
 ## What it does
 
@@ -52,6 +52,7 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
 - **Exploded view:** it comes apart in two stages, the way assembly illustrations do, so nothing passes through anything else.
   1. **Pods and decks separate** along the plan grid. Every joint opens wide enough for both pods' walls.
   2. **Each pod comes apart:** roof and ceiling up, walls straight out, floors down.
+- **Who can do what:** on the private site, **viewers** explore everything but nothing they change is saved. **Admins** also save projects and libraries and can **Upload STEP** files. When you upload, choose whether the file is a **Wall**, a **Pod** or a whole **Home**; it is scanned on the server and the libraries update by themselves.
 - **Projects:** press **Projects** to save what's on screen under a name, for example *Tanja Leet · Expanse + 1*. A project keeps its own layout (including pods you added), every wall choice, which wall is A on each pod, which side faces the assemblers on each wall, and the screw inset. Projects are saved in your browser. **Export** makes a file you can send to someone, and projects listed in `data/projects.json` show up for everyone (marked *shared*).
 - **Panel labels, cut & stack (ShopSabre):** every 4×8 panel gets a code: pod number + wall letter + panel number, e.g. **3B-4** = Pod 3, Wall B, panel 4.
   - **Panel numbers stay with the panel.** Panel 1 is always the left end seen from the interior (side A on a wall between pods).
@@ -106,7 +107,11 @@ All walls are in **`data/walls.json`**, one wall per line, and they normally com
 
 Anyone can also upload a wall file from the app sidebar to try it out. Uploaded walls stay in that person's browser until they are added to `data/walls.json`.
 
-## Switching on GitHub Pages (one time)
+## Hosting
+
+The app is a static site plus three small Cloudflare Pages Functions in `functions/` (`/api/me`, `/api/upload`, `/api/imports`). Setup is in `docs/PRIVATE-SETUP.md`.
+
+## (Old) GitHub Pages
 
 1. On GitHub, open the repo → **Settings** → **Pages**.
 2. Under **Build and deployment**, set **Source** to *Deploy from a branch*.
@@ -144,7 +149,12 @@ js/sheets.js        wall assembly sheets
 js/foundation.js    foundation sheet + PDF
 js/labels.js        panel codes, assembly order, stacking, CNC flips, label PDF
 js/projects.js      saving / opening named projects (+ projects-ui.js for the dialog)
-tools/step-import/  scripts that turn a Shapr3D STEP file into walls and a model
+tools/step-import/  scripts that turn a Shapr3D STEP file into walls, pods and homes (import_step.py --kind home|pod|wall)
+functions/          Cloudflare Pages Functions: who you are (role), STEP upload, upload status
+.github/workflows/  import-step.yml: scans an uploaded STEP file and commits the results
+data/imports.json   log of STEP uploads (newest first)
+js/role.js          viewer / admin; viewers can explore but nothing is saved
+js/upload.js        the admin Upload STEP dialog
 ```
 
 There's no build step: it is plain HTML, CSS and JavaScript modules. To run it on your own computer, start any local web server in this folder (for example `python3 -m http.server`) and open http://localhost:8000. Double-clicking `index.html` won't work, because browsers block the data files when a page is opened that way.

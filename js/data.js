@@ -5,6 +5,7 @@
    Every wall: { id, name, len (ft), type 'ext'|'int', t (thickness in), openings:[{kind,x,y,w,h}], inside:[...], outside:[...] }
    A wall with "model": "<key>" belongs to that one home (e.g. walls scanned from its STEP file).
    Openings + outside items: x in inches from the LEFT END SEEN FROM OUTSIDE. Inside items: from the left end seen from INSIDE. */
+import { canSave } from './role.js';
 const MODELS = {};
 const LIB = [];
 const LAYERLIB = [];
@@ -31,6 +32,7 @@ async function loadData(){
   try{ const custom = JSON.parse(localStorage.getItem(CUSTOM_KEY)||'{}'); Object.entries(custom).forEach(([k,m])=>{ MODELS[k]={...m, custom:true}; }); }catch(e){}
 }
 function saveCustomModels(){
+  if(!canSave()) return;
   const out={}; Object.entries(MODELS).forEach(([k,m])=>{ if(m.custom) out[k]=m; });
   try{ localStorage.setItem(CUSTOM_KEY, JSON.stringify(out)); }catch(e){}
 }
@@ -53,10 +55,10 @@ const byId = id => {
 const mirrorId = id => { if(!id) return id; if(id.endsWith('~m')) return id.slice(0,-2); const w=byId(id); return w?.mirrorOf || id+'~m'; };
 const podById = id => id && PODLIB.find(p=>p.id===id);
 const deckById = id => id && DECKLIB.find(d=>d.id===id);
-function saveDeckLib(){ try{ localStorage.setItem(DECK_KEY, JSON.stringify(DECKLIB.filter(d=>d.src==='saved'))); }catch(e){} }
-function savePodLib(){ try{ localStorage.setItem(POD_KEY, JSON.stringify(PODLIB.filter(p=>p.src==='saved'))); }catch(e){} }
-function saveWallLib(){ try{ localStorage.setItem('cubit-walls-imported', JSON.stringify(LIB.filter(w=>w.src!=='library'))); }catch(e){} }
-function saveLayerLib(){ try{ localStorage.setItem('cubit-layers-saved', JSON.stringify(LAYERLIB.filter(l=>l.src==='saved'))); }catch(e){} }
+function saveDeckLib(){ if(!canSave()) return; try{ localStorage.setItem(DECK_KEY, JSON.stringify(DECKLIB.filter(d=>d.src==='saved'))); }catch(e){} }
+function savePodLib(){ if(!canSave()) return; try{ localStorage.setItem(POD_KEY, JSON.stringify(PODLIB.filter(p=>p.src==='saved'))); }catch(e){} }
+function saveWallLib(){ if(!canSave()) return; try{ localStorage.setItem('cubit-walls-imported', JSON.stringify(LIB.filter(w=>w.src!=='library'))); }catch(e){} }
+function saveLayerLib(){ if(!canSave()) return; try{ localStorage.setItem('cubit-layers-saved', JSON.stringify(LAYERLIB.filter(l=>l.src==='saved'))); }catch(e){} }
 const layerOptions = (kind,len) => LAYERLIB.filter(l=>l.kind===kind && l.len===len);
 const layerById = id => LAYERLIB.find(l=>l.id===id);
 

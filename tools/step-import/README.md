@@ -7,6 +7,8 @@ pip install cadquery-ocp numpy
 python3 tools/step-import/import_step.py  "home.step"  --name "Customer · Model"  [--id customer-model]  [--from expanse]  [--repo .]
 ```
 
+Kinds: `--kind home` (default) is a whole home saved as a shared project. `--kind pod` is one pod that only feeds the libraries. `--kind wall` is one upright wall added to the wall library (see `wall_import.py`). Admins can also upload from the app, and the scan then runs in the *Import STEP* GitHub Action (`run_job.py`).
+
 What it does:
 1. **Finds the pods** from the floor's bottom sheets (FRP). Each touching group of sheets is one pod, with sizes rounded to 8′, 16′ or 24′. The pods' long axis becomes the app's x axis, using a proper rotation so nothing is mirrored.
 2. **Scans every wall** of every pod with test rays on a 1″ × 2″ grid, then refines each opening edge to 1/64″. Openings are classified from the units inside them (`Door`, `Panorama Proto`, `Kitchen`, `Living`, `Frame`, `Window`): window, door, patio, cased opening (big, no unit), interior door (≤ 50″ wide and floor to < 90″), or vent (small). Each pod side is split into exterior and interior parts exactly as the app does.

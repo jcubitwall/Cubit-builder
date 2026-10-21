@@ -56,7 +56,7 @@ function renderCncSheet(el){
         </tbody></table>
       </div>
     </div>
-    <details class="cnc-set"><summary>Settings (saved in this browser)</summary>
+    <details class="cnc-set edit-only"><summary>Settings (saved in this browser)</summary>
       <div class="cnc-fields">
         <label class="fld">Overcut past an edge (in)<input type="number" step="0.0625" id="cOver" value="${S.overcut}"></label>
         <label class="fld">Smallest bit (in)<input type="number" step="0.0625" id="cTool" value="${S.minTool}"></label>

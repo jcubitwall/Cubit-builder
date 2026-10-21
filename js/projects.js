@@ -6,6 +6,7 @@ import { MODELS, LIB, LAYERLIB, PODLIB, DECKLIB, byId, layerById, podById, deckB
 import { state, save } from './state.js';
 import { saveToLibraries } from './pods.js';
 import { getBearing } from './orient.js';
+import { canSave } from './role.js';
 
 const KEY='cubit-projects';
 const PROJECTS={};          // id -> project (own, from this browser)
@@ -21,7 +22,7 @@ const keyOf = p => 'proj-'+p.id;
 function register(p){
   MODELS[keyOf(p)] = { ...clone(p.model), name:p.name, size:p.model.size||'', project:p.id, shared:!!p.shared, custom:false };
 }
-function persist(){ try{ localStorage.setItem(KEY, JSON.stringify(PROJECTS)); }catch(e){} }
+function persist(){ if(!canSave()) return; try{ localStorage.setItem(KEY, JSON.stringify(PROJECTS)); }catch(e){} }
 
 function snapshot(name, id){
   const m = MODELS[state.model];

@@ -293,9 +293,16 @@ def main():
     ap=argparse.ArgumentParser()
     ap.add_argument('step'); ap.add_argument('--name',required=True); ap.add_argument('--repo',default='.')
     ap.add_argument('--id',default=None); ap.add_argument('--from',dest='base',default='')
+    ap.add_argument('--kind',choices=['home','pod','wall'],default='home',
+                    help='home: a whole home (saved as a shared project); pod: one pod for the pod library; wall: one wall for the wall library')
     a=ap.parse_args()
+    if a.kind=='wall':
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import wall_import
+        return wall_import.run(a.step, a.name, a.repo)
     solids,origin=read_step(a.step); rays=Rays(origin)
     pods,orient=find_pods(solids)
+    if a.kind=='pod' and len(pods)!=1: sys.exit(f'Expected one pod in a pod file, found {len(pods)}. Upload it as a home instead.')
     log(f'{len(pods)} pods, long axis = STEP {orient}: '+', '.join(f"Pod {p['i']+1} {p['len']}′ @({p['nx']},{p['nz']})" for p in pods))
     smap=side_map(orient)
     today=datetime.date.today().isoformat(); source=f"{a.name} (STEP {today})"
@@ -383,7 +390,8 @@ def main():
               picks={},wallA={},faces={},inset=6)
     proj['from']=proj.pop('from_')
     projects=[p for p in projects if p.get('id')!=pid]+[proj]
-    json.dump(projects,open(os.path.join(R,'data/projects.json'),'w'),indent=2,ensure_ascii=False)
+    if a.kind=='home':   # a pod file only feeds the libraries
+        json.dump(projects,open(os.path.join(R,'data/projects.json'),'w'),indent=2,ensure_ascii=False)
     # ---- pod library: every pod of this home that isn't in data/pods.json yet
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import pods_lib
@@ -392,6 +400,6 @@ def main():
     except FileNotFoundError: plib=[]
     added_p=pods_lib.merge_pods(plib, pods_lib.pods_from_model(proj['model'], source), a.name)
     pods_lib.write_pods(pp, plib)
-    print(json.dumps(dict(project=pid,pods=len(pods),walls=len(new_walls),new_walls=added_w,layers=len(new_layers),new_layers=added_l,new_pods=added_p,decks=len(deck_places),new_decks=added_d)))
+    print(json.dumps(dict(kind=a.kind, project=pid if a.kind=='home' else None, pods=len(pods),walls=len(new_walls),new_walls=added_w,layers=len(new_layers),new_layers=added_l,new_pods=added_p,decks=len(deck_places),new_decks=added_d)))
 
 if __name__=='__main__': main()

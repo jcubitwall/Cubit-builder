@@ -1,0 +1,62 @@
+# Scans a STEP file uploaded by an admin in the app and adds what's new to the libraries.
+# Started by the site (functions/api/upload.js) with the file's key in the R2 bucket.
+name: Import STEP
+on:
+  workflow_dispatch:
+    inputs:
+      id:       { description: 'Upload id', required: true }
+      key:      { description: 'R2 object key', required: true }
+      kind:     { description: 'wall | pod | home', required: true }
+      name:     { description: 'Name', required: true }
+      filename: { description: 'Original file name', required: false }
+      by:       { description: 'Uploaded by', required: false }
+permissions:
+  contents: write
+concurrency:
+  group: import-step      # one at a time, so library numbers never clash
+  cancel-in-progress: false
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - name: Install the STEP reader
+        run: pip install cadquery-ocp numpy
+      # inputs are passed through env (never pasted into the script) and checked before use
+      - name: Fetch the file from R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          JOB_ID: ${{ inputs.id }}
+          JOB_KEY: ${{ inputs.key }}
+        run: |
+          [[ "$JOB_ID" =~ ^[0-9]{14}-[a-z0-9]{1,8}$ ]] || { echo "bad id"; exit 1; }
+          [[ "$JOB_KEY" == "incoming/$JOB_ID.step" ]] || { echo "bad key"; exit 1; }
+          mkdir -p incoming
+          aws s3 cp "s3://$R2_BUCKET/$JOB_KEY" "incoming/$JOB_ID.step" --endpoint-url "https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
+      - name: Scan and add to the libraries
+        env:
+          JOB_ID: ${{ inputs.id }}
+          JOB_KIND: ${{ inputs.kind }}
+          JOB_NAME: ${{ inputs.name }}
+          JOB_FILE: ${{ inputs.filename }}
+          JOB_BY: ${{ inputs.by }}
+        run: python3 -I tools/step-import/run_job.py "incoming/$JOB_ID.step"
+      - name: Commit
+        env:
+          JOB_KIND: ${{ inputs.kind }}
+          JOB_NAME: ${{ inputs.name }}
+          JOB_BY: ${{ inputs.by }}
+        run: |
+          rm -rf incoming
+          git config user.name "Cubit Builder"
+          git config user.email "actions@users.noreply.github.com"
+          git add data
+          git diff --cached --quiet || git commit -m "Import STEP: $JOB_KIND · $JOB_NAME (by $JOB_BY)"
+          git pull --rebase && git push

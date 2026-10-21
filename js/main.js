@@ -8,6 +8,8 @@ import { renderModels, renderSide } from './sidebar.js';
 import { openSheets, closeSheets } from './sheets.js';
 import { openPlan, closePlan } from './planner.js';
 import './fullscreen.js';
+import { loadRole } from './role.js';
+import { initUpload } from './upload.js';
 
 function bindTog(id,key,fn){ const b=document.getElementById(id); b.onclick=()=>{ state[key]=!state[key]; b.setAttribute('aria-pressed',state[key]); fn(); }; }
 bindTog('tExplode','exploded',()=>{ setExplodeGoal(state.exploded?1:0); });
@@ -20,8 +22,8 @@ document.getElementById('bSheets').onclick=()=>{ if(state.view==='sheets'){ clos
 document.getElementById('bPlan').onclick=()=>{ if(state.view==='plan'){ closePlan(); closeSheets(); } else openPlan(); };
 
 (async function boot(){
-  try{ await loadData(); await loadProjects(); }
+  try{ await loadRole(); await loadData(); await loadProjects(); }
   catch(e){ document.getElementById('sideH').innerHTML='<h2>Could not load the wall library</h2><p>Open the app from its web address (GitHub Pages) or a local web server, not by double-clicking the file.</p>'; return; }
-  initState(); initProjectsUI();
+  initState(); initProjectsUI(); initUpload();
   renderModels(); buildHome(); renderSide(); resize(); loop();
 })();
