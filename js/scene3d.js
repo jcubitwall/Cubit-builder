@@ -172,7 +172,7 @@ function buildHome(){
     const inner=new THREE.Group(); inner.add(...grp.children); grp.add(inner);
     inner.rotation.y=th; inner.position.set(off[0],0,off[1]);
     grp.position.set(ls.x, y, ls.z);
-    grp.userData={layerSlot:ls, mat, baseY:y};
+    grp.userData={layerSlot:ls, mat, baseY:y, bx:grp.position.x, bz:grp.position.z, pod:ls.pod.i};
     grp.traverse(o=>{ if(o.isMesh){ o.userData.slotId=ls.id; pickables.push(o); } });
     (isFloor?floorGroup:roofGroup).add(grp); layerGroups.push(grp);
   });
@@ -187,7 +187,7 @@ function buildHome(){
     inner.rotation.y=-d.rot*Math.PI/180; inner.position.set(off[0],0,off[1]); grp.add(inner);
     const y=((d.L.z||0)-WALL_BASE)/FT;
     grp.position.set(d.x+DOFF[k].ox, y, d.z+DOFF[k].oz);
-    grp.userData={deck:d, id:`deck:${k}`, mat, baseY:y};
+    grp.userData={deck:d, id:`deck:${k}`, mat, baseY:y, bx:grp.position.x, bz:grp.position.z, k};
     grp.traverse(o=>{ if(o.isMesh){ o.userData.slotId=`deck:${k}`; pickables.push(o); } });
     homeGroup.add(grp); deckGroups.push(grp);
   });
@@ -248,7 +248,7 @@ function buildHome(){
     arrow.rotation.x=-Math.PI/2;
     const ng=new THREE.Group(); ng.add(arrow);
     const lab=letterSprite('N',1.1); lab.position.set(0,0.8,-3.2); ng.add(lab);
-    ng.scale.setScalar(1.6); ng.rotation.y=B; ng.position.set(minx-5, -FLOOR+0.03, maxz+6); homeGroup.add(ng); }
+    ng.scale.setScalar(1.6); ng.rotation.y=B; ng.position.set(minx-9, -FLOOR+0.03, maxz+12); homeGroup.add(ng); }
   slots.forEach(s=>{
     const w=bodyWall(s, pickFor(s)); if(!w) return;
     const mat=new THREE.MeshStandardMaterial({color:s.type==='int'?0xece0c6:0xc9a46a,roughness:0.85});
@@ -274,20 +274,45 @@ function buildHome(){
   if(!buildHome.framed || buildHome.framed!==state.model){
     camera.position.set(span*1.0+14, span*0.95+12, span*1.35+18); controls.target.set(0,3.5,0); buildHome.framed=state.model;
   }
-  explodeT = state.exploded?1:0; applyExplode();
+  computeSpread(); explodeT = state.exploded?1:0; applyExplode();
 }
 let explodeT=0, explodeGoal=0;
+/* Exploded view, done the way assembly illustrations are (Li, Agrawala et al., "Automated generation of
+   interactive 3D exploded view diagrams", SIGGRAPH 2008): parts move apart in an order that respects what
+   blocks what, and sub-assemblies explode on their own.
+     1. the pods (and decks) separate first, along the plan grid, so every joint opens up wide enough
+        for both pods' walls to come out without meeting (SPREAD ≥ 2 × WALL_OUT + clearance);
+     2. then each pod comes apart: roof and ceiling up, walls straight out from the pod, floors down.
+   Nothing passes through anything at any point of the animation. */
+const WALL_OUT=2.6, SPREAD=2*WALL_OUT+2.2;
+let spread={pods:[], decks:[]};
+function computeSpread(){
+  // one SPREAD for every joint line (pod–pod or pod–deck) before a pod or deck, centred on the home
+  const P=podList(state.model), D=deckList(state.model), all=P.concat(D), E=1e-6;
+  const lines=axis=>{ const L=new Set(); all.forEach(a=>all.forEach(b=>{ if(a===b||(a.deck&&b.deck)) return;
+    if(axis==='x' && Math.abs(a.x1-b.x)<E && Math.min(a.z1,b.z1)-Math.max(a.z,b.z)>E) L.add(b.x);
+    if(axis==='z' && Math.abs(a.z1-b.z)<E && Math.min(a.x1,b.x1)-Math.max(a.x,b.x)>E) L.add(b.z); })); return [...L]; };
+  const lx=lines('x'), lz=lines('z');
+  const at=it=>[lx.filter(v=>v<=it.x+E).length*SPREAD, lz.filter(v=>v<=it.z+E).length*SPREAD];
+  const ps=P.map(at), ds=D.map(at), every=ps.concat(ds);
+  const mx=(Math.max(...every.map(v=>v[0]))+Math.min(...every.map(v=>v[0])))/2, mz=(Math.max(...every.map(v=>v[1]))+Math.min(...every.map(v=>v[1])))/2;
+  spread={ pods:ps.map(v=>[v[0]-mx,v[1]-mz]), decks:ds.map(v=>[v[0]-mx,v[1]-mz]) };
+}
+const ease = (a,b,t) => { const u=Math.min(1,Math.max(0,(t-a)/(b-a))); return u*u*(3-2*u); };
 function applyExplode(){
-  const e=explodeT;
+  const e=explodeT, eP=ease(0,0.55,e), eW=ease(0.4,1,e);   // stage 1: pods apart · stage 2: each pod comes apart
   const lift = e*2.5;   // the house rises off its ground screws
-  const hasInt = wallGroups.some(g=>g.userData.slot.type==='int');
-  const OFFS = {'floor-ext':-1.4, 'floor-int':0, 'ceiling-int':hasInt?7.5:4.5, 'roof':hasInt?10:6.5};
-  layerGroups.forEach(g=>{ g.position.y = g.userData.baseY + lift + e*OFFS[g.userData.layerSlot.kind]; });
-  deckGroups.forEach(g=>{ g.position.y = g.userData.baseY + lift + e*OFFS['floor-ext']; });
+  const OFFS = {'floor-ext':-1.4, 'floor-int':0, 'ceiling-int':5, 'roof':7.5};
+  const sp = k => spread.pods[k]||[0,0];
+  layerGroups.forEach(g=>{ const u=g.userData, v=sp(u.pod);
+    g.position.set(u.bx+v[0]*eP, u.baseY + lift + eW*OFFS[u.layerSlot.kind], u.bz+v[1]*eP); });
+  deckGroups.forEach(g=>{ const u=g.userData, v=spread.decks[u.k]||[0,0];
+    g.position.set(u.bx+v[0]*eP, u.baseY + lift + eW*OFFS['floor-ext'], u.bz+v[1]*eP); });
   wallGroups.forEach(g=>{
-    const int = g.userData.slot.type==='int';
-    g.position.copy(g.userData.base).addScaledVector(g.userData.n, int?0:e*4.5);
-    g.position.y = lift + e*(int?4.5:0.6);
+    const u=g.userData, v=sp(u.slot.pod.i);
+    g.position.copy(u.base).addScaledVector(u.n, eW*WALL_OUT);
+    g.position.x += v[0]*eP; g.position.z += v[1]*eP;
+    g.position.y = lift + eW*0.6;
   });
   if(roofGroup){ roofGroup.visible = state.house && (state.roof || e>0.01); }
 }

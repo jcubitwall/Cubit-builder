@@ -49,7 +49,9 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
   - **Leaving:** **Esc** or **F** leaves full screen.
   - **Tablets and phones:** full screen fills the window and only the **Exit** button leaves it, so a swipe can't close it by accident. For no browser bars at all, use Share → **Add to Home Screen**. The app then opens full screen like an app.
 - **House on / off:** the **House** toggle hides the walls, floors, roof and decks. Only the ground screws and concrete pads stay, with the footprints of the pods (solid) and decks (dashed) drawn on the ground.
-- **Exploded view:** walls, interior walls and roof pull apart, and the house lifts off its ground screws.
+- **Exploded view:** it comes apart in two stages, the way assembly illustrations do, so nothing passes through anything else.
+  1. **Pods and decks separate** along the plan grid. Every joint opens wide enough for both pods' walls.
+  2. **Each pod comes apart:** roof and ceiling up, walls straight out, floors down.
 - **Projects:** press **Projects** to save what's on screen under a name, for example *Tanja Leet · Expanse + 1*. A project keeps its own layout (including pods you added), every wall choice, which wall is A on each pod, which side faces the assemblers on each wall, and the screw inset. Projects are saved in your browser. **Export** makes a file you can send to someone, and projects listed in `data/projects.json` show up for everyone (marked *shared*).
 - **Panel labels, cut & stack (ShopSabre):** every 4×8 panel gets a code: pod number + wall letter + panel number, e.g. **3B-4** = Pod 3, Wall B, panel 4.
   - **Panel numbers stay with the panel.** Panel 1 is always the left end seen from the interior (side A on a wall between pods).
