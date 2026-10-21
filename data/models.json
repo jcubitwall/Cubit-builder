@@ -63,31 +63,46 @@
       }
     ]
   },
-  "four": {
-    "name": "Four-pod",
+  "expanse": {
+    "name": "Expanse",
     "size": "2×24 + 2×16",
+    "base": "expanse-leet",
+    "note": "Standard Expanse: two 24′ pods stacked, two 16′ pods stacked on the left end. Walls shared with the scanned Expanse + 1 are reused.",
     "pods": [
       {
-        "t": "L24",
+        "t": "P16",
         "x": 0,
         "z": 0
       },
       {
-        "t": "L24",
+        "t": "P16",
         "x": 0,
         "z": 8
       },
       {
-        "t": "P16",
-        "x": 24,
+        "t": "L24",
+        "x": 16,
         "z": 0
       },
       {
-        "t": "P16",
-        "x": 24,
+        "t": "L24",
+        "x": 16,
         "z": 8
       }
-    ]
+    ],
+    "picks": {
+      "1S0i": "EXL-P2-S8i",
+      "1N0": "EXL-P2-N8",
+      "1W8": "EXL-P2-W8",
+      "1E8i": "EXL-P2-E8i",
+      "2S16": "EXL-P3-S24",
+      "2N16i": "EXL-P3-N24i",
+      "2W0i": "EXL-P3-W0i",
+      "2E0": "EXL-P3-E0",
+      "3S16i": "EXL-P4-S24i",
+      "3W8i": "EXL-P4-W8i",
+      "3E8": "EXL-P4-E8"
+    }
   },
   "expanse-leet": {
     "name": "Expanse + 1",

@@ -6,7 +6,7 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
 
 ## What it does
 
-- **Pick a home model:** Life, Nest, Cove, Panorama, Four-pod and **Expanse + 1**, built from 8×8, 8×16 and 8×24 pods with a 5/8″ space at every joint. Expanse + 1 was scanned straight from the Shapr3D STEP file, with every opening measured.
+- **Pick a home model:** Life, Nest, Cove, Panorama, **Expanse** (two 24′ pods with two 16′ pods on the end) and **Expanse + 1**, built from 8×8, 8×16 and 8×24 pods with a 5/8″ space at every joint. Expanse + 1 was scanned straight from the Shapr3D STEP file, with every opening measured.
 - **Add pods:** open *Pods in this home · add a pod* in the sidebar. Pick a size and choose which pod and which wall to put it beside. Your layout is saved in your browser, and *Copy layout code* gives the text to paste into `data/models.json`.
 - **Swap any wall:** click a wall in 3D and choose another option of the same length. Exterior walls are 6½″. Where pods join, **each pod keeps its own 4½″ interior wall**.
 - **Wall letters:** every pod's walls are **A, B, C, D, going clockwise seen from above, starting at the wall with a door**. The app picks the door wall in this order: an exterior door first, then a patio door, then an interior door. If it picks the wrong one, click the wall and press **Make this Wall A**. A side that is part exterior and part interior keeps one letter, numbered clockwise (B1, B2).
