@@ -202,3 +202,16 @@ body.dragging, body.dragging *{cursor:grabbing!important}
 #plan .deck-l,.pod-item .deck-l{stroke:#3b3122;stroke-width:.3}
 #plan .deck-t{font-family:var(--mono);font-size:.8px;text-anchor:middle;fill:#3b3122;font-weight:600}
 .pod-item .deck-r{fill:#e6d7b5;stroke:#6b5a3a;stroke-width:.06}
+/* CNC cut files sheet */
+.cnc-warn{background:#fff4e5;border:1px solid #f0c48a;color:#5a3a10;border-radius:8px;padding:10px 12px;font-size:13px;margin:10px 0}
+.cnc-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:14px;align-items:start}
+.cnc-list{max-height:640px;overflow:auto}
+.cnc-list tr[data-i]{cursor:pointer}
+.cnc-list tr[data-i]:hover{background:#f6f3ec}
+.cnc-list tr.on{background:#fbe7d8}
+.cnc-list tr.grp td{background:#f1f3ef;font-size:11.5px;color:#444;font-weight:600}
+.cnc-w{margin:6px 0 10px;padding-left:18px;color:#b4520f;font-size:12.5px}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.cnc-set{margin-top:14px}
+.cnc-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:10px 0}
+@media (max-width: 900px){ .cnc-grid{grid-template-columns:1fr} }

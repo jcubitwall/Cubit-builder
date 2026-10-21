@@ -7,8 +7,8 @@
      interior side facing the assemblers → 1, 2, 3 … n
      exterior side facing the assemblers → n … 3, 2, 1
    Panels are stacked so the first one needed is on top.
-   ShopSabre: a face with cuts that don't go through (plug / switch boxes, outside fixtures) has to be
-   UP on the CNC. If that face isn't the face the assemblers need up, the panel is flipped before stacking. */
+   ShopSabre: a face with cuts that don't go through (plug / switch boxes, outside fixtures, the steel spine
+   notch on the outer face of a long wall's end panel) has to be UP on the CNC. If that face isn't the face the assemblers need up, the panel is flipped before stacking. */
 import { FT, PW } from './config.js';
 import { MODELS } from './data.js';
 import { slotsFor } from './layout.js';
@@ -28,9 +28,12 @@ function panelPlan(slot, w0, assembly = faceFor(slot)){
     const through = w.openings.filter(o=>o.x < x1-0.01 && o.x+o.w > x0+0.01);
     const intCuts = (w.inside||[]).filter(b=>{ const xe=L-b.x; return xe>=x0 && xe<x1; });
     const extCuts = (w.outside||[]).filter(b=>b.x>=x0 && b.x<x1);
-    const cnc = intCuts.length && extCuts.length ? 'both' : intCuts.length ? 'int' : extCuts.length ? 'ext' : assembly;
+    // steel spine notch at a pod corner: cut into the outer face of a long wall's end panel, so it counts as an outer-face cut
+    const notch = !!((w.notch?.[0] && k===0) || (w.notch?.[1] && x1>=L-0.01));
+    const outer = extCuts.length || notch;
+    const cnc = intCuts.length && outer ? 'both' : intCuts.length ? 'int' : outer ? 'ext' : assembly;
     const flip = cnc==='both' ? 'two-sided' : (cnc!==assembly ? 'flip' : 'none');
-    panels.push({ k, num, width, cut: width < PW-0.01, code:`${podNo}${slot.letter}-${num}`, through, intCuts, extCuts, cnc, flip });
+    panels.push({ k, num, width, cut: width < PW-0.01, code:`${podNo}${slot.letter}-${num}`, through, intCuts, extCuts, notch, cnc, flip });
   }
   // left → right as the assemblers see it
   const seq = assembly==='int' ? panels.slice().sort((a,b)=>a.num-b.num) : panels.slice().sort((a,b)=>b.num-a.num);
@@ -46,7 +49,7 @@ function stackTableHTML(plan){
   const {slot}=plan;
   let h=`<table class="boxes"><thead><tr><th>Stack</th><th>Label</th><th>Cuts</th><th>Cut on the CNC with</th><th>Before stacking</th></tr></thead><tbody>`;
   plan.seq.forEach(p=>{
-    const cuts=[p.through.length?`${p.through.length} through`:'', p.intCuts.length?`${p.intCuts.length} on ${faceShort(slot,'int').toLowerCase()}`:'', p.extCuts.length?`${p.extCuts.length} on ${faceShort(slot,'ext').toLowerCase()}`:''].filter(Boolean).join(', ')||'none';
+    const cuts=[p.through.length?`${p.through.length} through`:'', p.intCuts.length?`${p.intCuts.length} on ${faceShort(slot,'int').toLowerCase()}`:'', p.extCuts.length?`${p.extCuts.length} on ${faceShort(slot,'ext').toLowerCase()}`:'', p.notch?`spine notch on ${faceShort(slot,'ext').toLowerCase()}`:''].filter(Boolean).join(', ')||'none';
     const cnc = p.cnc==='both' ? `${faceShort(slot,'int')} up, then ${faceShort(slot,'ext')} up` : `${faceShort(slot,p.cnc)} up`;
     const flip = p.flip==='none' ? 'stack as cut' : p.flip==='flip' ? `<b class="flipflag">FLIP</b> so ${faceShort(slot,plan.assembly)} is up` : `<b class="flipflag">TWO-SIDED</b> · finish with ${faceShort(slot,plan.assembly)} up`;
     h+=`<tr><td>${p.stack}${p.stack===1?' (top)':p.stack===plan.n?' (bottom)':''}</td><td><b>${p.code}</b>${p.cut?` <span class="flipflag">cut to ${fin(p.width)}</span>`:''}</td><td>${cuts}</td><td>${cnc}</td><td>${flip}</td></tr>`;

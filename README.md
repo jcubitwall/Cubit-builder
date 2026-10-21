@@ -43,6 +43,10 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
   - **Stacking:** each wall's panels are stacked with the first one needed on top.
   - **Flipping:** box cut-outs that don't go all the way through have to face up on the CNC. If that face isn't the face the assemblers need up, the panel is marked **FLIP before stacking**. A panel with cut-outs on both faces is marked **TWO-SIDED**.
   - **Labels PDF:** a cut & stack list, then one 4″ × 2″ label per panel (Avery 5163 / 8163). Each label shows the code, its stack position, which face goes up, the CNC face, any flip warning, and a small strip showing where the panel sits in the wall.
+- **CNC cut files (step 1 towards direct G-code):** under **Assembly sheets → CNC cut files · DXF**, every pass of every panel is worked out in machine coordinates. That covers trims, openings, vents, box cut-outs and spine notches.
+  - **Cut order:** passes are numbered so each wall's pile comes off the machine in stacking order.
+  - **Download:** you get a zip of DXF files, with one layer per operation for VCarve toolpath templates, plus a manifest. See `docs/CNC.md`.
+  - **Not for cutting yet:** the zero corner, panel orientation, flip method, box sizes and depths still need to be confirmed with the shop.
 - **Wall assembly sheets:** one per wall. Flip between the front (interior) and back (exterior) face, and number the 4×8 SIP panels 1→6 or reversed. Each sheet has opening sizes, plug and switch locations, and a 3D view of the panels pulled apart.
 - **Foundation sheet:** a true plan seen from above, with every ground screw located, chain dimensions, diagonals for squaring, and a **Download PDF** button to email to the site crew.
   - **No doubled-up screws.** Where pods meet, one screw sits in the centre of the 5/8″ joint and carries both pods. Where three pods meet it gets a **tee** head; where four meet, a **cross** head. Screws closer than 3′ are merged into one; if the one removed was a corner, the remaining head gets a **corner arm** that reaches it.
@@ -116,6 +120,8 @@ js/sidebar.js       model list, wall options, wall upload
 js/planner.js       plan editor: drag and drop, turn, replace, remove pods
 js/pods.js          pod and deck editing rules, pod library, saving new items to the libraries
 js/decksheet.js     deck framing sheet and cut list
+js/cnc.js           CNC cut plan per panel pass, DXF writer, manifest, zip
+js/cncsheet.js      the CNC cut files sheet: cut order, previews, flags, download
 js/sheets.js        wall assembly sheets
 js/foundation.js    foundation sheet + PDF
 js/labels.js        panel codes, assembly order, stacking, CNC flips, label PDF
@@ -144,3 +150,4 @@ See that folder's README. The scan is exact, so **only upload accurate models**:
 - Floor and ceiling panel sheets (Fe / Fi / Re / Ri), including pot lights.
 - A shared wall library and saved homes for the whole team.
 - PDF export for the wall assembly sheets.
+- Direct ShopSabre G-code from the cut plan (see `docs/CNC.md`).
