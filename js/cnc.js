@@ -77,8 +77,11 @@ function passGeom(plan, p, face, trimmedAlready, S){
     p.through.forEach(o=>{
       let u0=Math.min(toU(o.x),toU(o.x+o.w)), u1=Math.max(toU(o.x),toU(o.x+o.w)), v0=o.y, v1=Math.min(H,o.y+o.h);
       const open=[];
-      if(u0<=0.01){ u0=-S.overcut; open.push('left'); } if(u1>=width-0.01){ u1=width+S.overcut; open.push('right'); }
-      if(v0<=0.01){ v0=-S.overcut; open.push('bottom'); } if(v1>=H-0.01){ v1=H+S.overcut; open.push('top'); }
+      // an opening within 1/4″ of a panel edge is meant to finish on that edge (openings are laid out on the
+      // panel joints); a sliver that thin wouldn't survive anyway, so the cut runs off the edge
+      const SNAP=0.25;
+      if(u0<=SNAP){ u0=-S.overcut; open.push('left'); } if(u1>=width-SNAP){ u1=width+S.overcut; open.push('right'); }
+      if(v0<=SNAP){ v0=-S.overcut; open.push('bottom'); } if(v1>=H-SNAP){ v1=H+S.overcut; open.push('top'); }
       const layer = o.kind==='vent' ? 'VENT_THRU' : 'OPENING_THRU';
       rect(layer, u0,u1,v0,v1, { open, what:o.kind, size:`${fin(o.w)} × ${fin(o.h)}` });
       // thin strips left next to a panel edge
