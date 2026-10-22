@@ -7,6 +7,10 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
 ## What it does
 
 - **Pick a home model:** Life, Nest, Cove, Panorama, and **Expanse** (two 24′ pods with two 16′ pods on the end), built from 8×8, 8×16 and 8×24 pods with a 5/8″ space at every joint. The Tanja Leet *Expanse + 1* (5 pods) is a shared project, scanned straight from the Shapr3D STEP file with every opening measured.
+- **Models and sub-models:** the header has one chip per model name: LifePod, Nest, Haven, Cove, Panorama and Expanse (`data/families.json`). Under the one you're on are its standard layout, its sub-models, and your own layouts. Admins can file any arrangement on screen (a standard home, your own layout or a project) under any model name with **Add this layout to a model**, in the home panel.
+  - Sub-models are shared with everyone: they're kept on the server (`api/catalog`, in R2) along with any library items they use.
+  - On a sub-model, admins can **Save changes for everyone**, rename it, move it to another model, or remove it.
+  - Haven has no standard layout yet, so it shows "no design yet" until something is added to it.
 - **Plan & pods (drag and drop):** press **Plan & pods** for a top view of the home on an 8′ grid.
   - **Add a pod:** drag a blank 8′, 16′ or 24′ pod, or a pod from the **pod library**, onto the plan.
   - **Snapping:** pods only dock flush end to end, or side by side in 8′ steps. A drop snaps to the nearest spot where the pod shares at least 8′ of wall with another pod. Overlapping or loose pods aren't allowed.

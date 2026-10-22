@@ -1,0 +1,8 @@
+[
+  { "id": "lifepod",  "name": "LifePod",  "base": "life" },
+  { "id": "nest",     "name": "Nest",     "base": "nest" },
+  { "id": "haven",    "name": "Haven",    "base": null },
+  { "id": "cove",     "name": "Cove",     "base": "cove" },
+  { "id": "panorama", "name": "Panorama", "base": "panorama" },
+  { "id": "expanse",  "name": "Expanse",  "base": "expanse" }
+]

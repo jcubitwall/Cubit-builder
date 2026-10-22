@@ -365,7 +365,7 @@ function onUp(e){
 }
 function done(why, msg){
   if(why){ toast(why); renderPlan(); return; }
-  renderModels(); refresh(); toast(msg + (MODELS[state.model].project?' · save the project to keep it':''));
+  renderModels(); refresh(); toast(msg + (MODELS[state.model].project?' · save the project to keep it':MODELS[state.model].sub?' · save the sub-model to share it':''));
 }
 
 /* ---------------------------------------------------------------- side panel */
@@ -375,13 +375,13 @@ function renderSide2(){
   if(selDeck!=null && !(m.decks||[])[selDeck]) selDeck=null;
   if(selDeck!=null){ renderDeckSide(m, side); return; }
   if(sel==null){
-    side.innerHTML=`<div class="side-h"><div class="eyebrow">Plan${m.custom?' · your layout':m.project?' · project':''}</div><h2>${esc(m.name)}</h2><p>${pods.length} pods${(m.decks||[]).length?` · ${m.decks.length} deck${m.decks.length>1?'s':''}`:''} · ${esc(m.size||'')}</p></div>
+    side.innerHTML=`<div class="side-h"><div class="eyebrow">Plan${m.custom?' · your layout':m.project?' · project':m.sub?' · sub-model':''}</div><h2>${esc(m.name)}</h2><p>${pods.length} pods${(m.decks||[]).length?` · ${m.decks.length} deck${m.decks.length>1?'s':''}`:''} · ${esc(m.size||'')}</p></div>
     <div class="side-b">
       <p class="note">Drag a pod from the left onto the plan. It snaps to the nearest spot where it docks: flush end to end, or side by side in 8′ steps. Press <b>R</b> while dragging to turn it 90°. Drag a pod to move it, or click it to turn, replace or remove it.</p>
       <p class="note">The 5/8″ space at every joint is added for you, and where two pods meet each keeps its own 4½″ wall. Changing a wall where two pods join changes the neighbour's wall to the same wall, mirrored.</p>
       <p class="note"><b>Decks</b> come from the deck library. A deck docks with its ledger (the dark edge) flush against a pod or another deck, in 8′ steps, with the same 5/8″ space at a pod. Its corners are notched for the steel corner posts, and its ground screws follow the same rules as the pods'.</p>
       ${(m.decks||[]).length?`<div class="fld">All decks stand on<div class="seg"><button class="fsbtn" id="allScrews" aria-pressed="${m.decks.every(d=>d.found!=='pads')}">Ground screws</button><button class="fsbtn" id="allPads" aria-pressed="${m.decks.every(d=>d.found==='pads')}">Concrete pads (floating)</button></div></div>`:''}
-      ${m.custom||m.project?'':'<p class="note">This is a built-in home. Your first change makes your own copy, saved in this browser.</p>'}
+      ${m.custom||m.project||m.sub?'':'<p class="note">This is a standard model. Your first change makes your own copy, saved in this browser; add it to a model name to share it as a sub-model.</p>'}
       <div class="row edit-only"><button class="btn" id="saveAll">Save these pods to the library</button></div>
       <p class="note edit-only">Saves every pod of this home that isn't in the pod library yet, plus any wall, floor or ceiling that's new (like a mirrored wall). Saving a project does this too.</p>
     </div>`;

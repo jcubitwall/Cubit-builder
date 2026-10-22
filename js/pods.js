@@ -112,7 +112,7 @@ function bake(key){
    Projects and own layouts are edited in place. Returns the key being edited. */
 function editKey(){
   const key=state.model, m=MODELS[key];
-  if(m.custom || m.project){ bake(key); return key; }
+  if(m.custom || m.project || m.sub){ bake(key); return key; }
   // the built-in home keeps its own picks; the copy carries them on its pods
   const nk='custom-'+Date.now().toString(36);
   MODELS[nk]={ name:m.name+' (custom)', size:m.size, base:m.base||key, pods:bakedPods(key), decks:clone(m.decks||[]), picks:{}, layerPicks:{}, custom:true };
@@ -282,7 +282,7 @@ function libraryPod(p, name, counts){
 /* bake the home on screen and put everything new into the libraries; `only` = one pod index */
 function saveToLibraries(homeName, only=null){
   const key=state.model, m=MODELS[key];
-  const own = m.custom || m.project;
+  const own = m.custom || m.project || m.sub;
   const pods = own ? (bake(key), m.pods) : bakedPods(key);   // a built-in home itself is never changed
   const counts={walls:0, layers:0, pods:0};
   pods.forEach((p,i)=>{

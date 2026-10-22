@@ -90,4 +90,4 @@ function importJSON(text){
   persist(); return n;
 }
 
-export { loadProjects, saveProject, openProject, deleteProject, renameProject, exportJSON, importJSON, PROJECTS, SHARED };
+export { snapshot, libraryFor, loadProjects, saveProject, openProject, deleteProject, renameProject, exportJSON, importJSON, PROJECTS, SHARED };

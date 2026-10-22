@@ -10,18 +10,33 @@ import { setDeckFoundation } from './pods.js';
 import { openSheets } from './sheets.js';
 import { pickFor, save, state, choose, pickLayer, chooseLayer, foundationOf, setFoundation } from './state.js';
 import { concretePlan } from './concrete.js';
+import { FAMILIES, familyOf, familyById, variantsOf, saveSub, removeSub, editSub } from './catalog.js';
+import { isAdmin, canSave } from './role.js';
 import { TYPES, unitsFor, unitFor, setUnit, unitSVG, unitLabel, catOf, okey } from './units.js';
 import { fin } from './format.js';
 
 const sideH=document.getElementById('sideH'), sideB=document.getElementById('sideB');
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
+/* the header: one chip per model name; under the one you're on, its standard layout and sub-models */
+const famPick = {};   // last home opened under each model name (this visit)
 function renderModels(){
   const el=document.getElementById('models');
-  const ents=Object.entries(MODELS);
-  el.innerHTML = ents.filter(([k,m])=>!m.project).map(([k,m])=>`<button class="chip" data-m="${k}" aria-pressed="${k===state.model}">${esc(m.name)}<small>${esc(m.size||'')}</small></button>`).join('')
-    + ents.filter(([k,m])=>m.project).map(([k,m])=>`<button class="chip proj" data-m="${k}" aria-pressed="${k===state.model}" title="Saved project">${esc(m.name)}<small>${m.shared?'shared':'project'}</small></button>`).join('');
-  el.querySelectorAll('button').forEach(b=>b.onclick=()=>{ state.model=b.dataset.m; state.selected=null; save(); renderModels(); buildHome(); renderSide(); if(state.view==='sheets') openSheets(); });
+  const fam=familyOf(state.model);
+  if(fam) famPick[fam]=state.model;
+  const tag = k => { const m=MODELS[k]; return familyById(familyOf(k))?.base===k ? 'standard' : m.sub ? 'sub-model' : m.custom ? 'your layout' : ''; };
+  let h = FAMILIES.map(f=>{ const v=variantsOf(f.id), base=f.base&&MODELS[f.base];
+    return `<button class="chip ${v.length?'':'empty'}" data-f="${f.id}" aria-pressed="${fam===f.id}">${esc(f.name)}<small>${v.length>1?`${v.length} designs`:base?esc(base.size||''):v.length?esc(MODELS[v[0]].size||''):'no design yet'}</small></button>`; }).join('')
+    + Object.entries(MODELS).filter(([k,m])=>m.project).map(([k,m])=>`<button class="chip proj" data-m="${k}" aria-pressed="${k===state.model}" title="Saved project">${esc(m.name)}<small>${m.shared?'shared':'project'}</small></button>`).join('');
+  const v = fam ? variantsOf(fam) : [];
+  if(v.length>1) h += `<div class="variants" role="group" aria-label="${esc(familyById(fam).name)} designs">${v.map(k=>`<button class="vchip" data-m="${k}" aria-pressed="${k===state.model}">${esc(MODELS[k].name)}<small>${tag(k)}</small></button>`).join('')}</div>`;
+  el.innerHTML = h;
+  const go = k => { state.model=k; state.selected=null; save(); renderModels(); buildHome(); renderSide(); if(state.view==='sheets') openSheets(); };
+  el.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>go(b.dataset.m));
+  el.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{
+    const f=b.dataset.f, list=variantsOf(f);
+    if(!list.length){ toast(`${familyById(f).name} has no design yet. Build a layout in Plan & pods, then add it to ${familyById(f).name}.`); return; }
+    go(famPick[f] && list.includes(famPick[f]) ? famPick[f] : list[0]); });
 }
 function wallListHTML(slots, current){
   const layers=layerSlotsFor(state.model);
@@ -66,15 +81,17 @@ function renderSide(){
   if(!s){
     const pods=m.pods.length, panels=slots.reduce((a,x)=>a+(pickFor(x)?panelCount(bodyWall(x,pickFor(x))):0),0);
     const area=m.pods.reduce((a,p)=>a+POD[p.t].len*8,0);
-    sideH.innerHTML=`<div class="eyebrow">Model${m.custom?' · your layout':''}</div><h2>${esc(m.name)}</h2><p>${pods} pods · ${area} sq ft${m.note?' · scanned from STEP':''}</p>`;
+    const fam=familyById(familyOf(state.model));
+    sideH.innerHTML=`<div class="eyebrow">${fam?esc(fam.name):'Model'}${m.sub?' · sub-model':m.custom?' · your layout':m.project?' · project':fam&&fam.base===state.model?' · standard':''}</div><h2>${esc(m.name)}</h2><p>${pods} pods · ${area} sq ft${m.note?' · scanned from STEP':''}</p>`;
     sideB.innerHTML=`
       <div class="stats"><div class="stat"><b>${pods}</b><span>pods</span></div><div class="stat"><b>${slots.filter(x=>x.type!=='int').length} + ${slots.filter(x=>x.type==='int').length}</b><span>outside + inside walls</span></div><div class="stat"><b>${panels}</b><span>SIP panels</span></div>${foundationOf(state.model)==='concrete' ? (()=>{ const c=concretePlan(state.model); return `<div class="stat"><b>${Math.round(c.icfLen)}′</b><span>ICF wall</span></div>`+(screwsFor(state.model,state.inset).length?`<div class="stat"><b>${screwsFor(state.model,state.inset).length}</b><span>deck screws</span></div>`:''); })() : `<div class="stat"><b>${screwsFor(state.model,state.inset).length}</b><span>ground screws</span></div>`}${(m.decks||[]).length?`<div class="stat"><b>${m.decks.length}</b><span>decks</span></div>`:''}</div>
       ${foundationBlock()}
+      ${catalogBlock()}
       <p class="note">Each pod's walls run A, B, C, D clockwise seen from above. A is the short end wall with the door, so A and C are the short end walls (they run straight through, corner to corner) and B and D are the long walls (they butt between the end walls). Click a wall to swap it or to change which wall is A.</p>
       ${wallListHTML(slots,null)}
       ${layoutBlock(m)}
       ${importBlock()}`;
-    bindLayout(); bindFoundation();
+    bindLayout(); bindFoundation(); bindCatalog();
   } else {
     const w=pickFor(s); const opts=optionsFor(s.len, s.type||'ext', state.model);
     const isInt=s.type==='int';
@@ -100,6 +117,35 @@ function renderSide(){
   }
   sideB.querySelectorAll('.wl button').forEach(b=>b.onclick=()=>{ state.selected=b.dataset.s; highlight(); renderSide(); });
   const imp=sideB.querySelector('#bImport'); if(imp) imp.onclick=()=>document.getElementById('fileIn').click();
+}
+
+/* filing this layout under a model name (admins) */
+function catalogBlock(){
+  if(!canSave()) return '';
+  const m=MODELS[state.model], fam=familyOf(state.model), opts=sel=>FAMILIES.map(f=>`<option value="${f.id}" ${f.id===sel?'selected':''}>${esc(f.name)}</option>`).join('');
+  if(m.sub) return `<details class="catalog"><summary>Sub-model of ${esc(familyById(m.family)?.name||'')} · manage</summary>
+      <div class="row"><button class="btn" id="subSave">Save changes for everyone</button></div>
+      <label class="fld">Name<input id="subName" value="${esc(m.name)}" maxlength="80"></label>
+      <label class="fld">Model<select id="subFam">${opts(m.family)}</select></label>
+      <div class="row"><button class="btn ghost" id="subEdit">Rename / move</button><button class="btn ghost" id="subDel">Remove</button></div>
+      <p class="note">Changes you make on screen (walls, pods, windows, foundation) stay on this device until you save them for everyone.</p></details>`;
+  return `<details class="catalog"><summary>Add this layout to a model</summary>
+      <label class="fld">Model<select id="subFam">${opts(fam||'')}</select></label>
+      <label class="fld">Sub-model name<input id="subName" maxlength="80" placeholder="e.g. Cove + Office"></label>
+      <label class="fld">Note (optional)<input id="subNote" maxlength="200" placeholder="e.g. extra 8′ pod for the Smith family, kept as an option"></label>
+      <div class="row"><button class="btn" id="subAdd">Add as a sub-model</button></div>
+      <p class="note">Files everything on screen (pods, decks, walls, windows and doors, foundation) under that model, for everyone.</p></details>`;
+}
+function bindCatalog(){
+  const $=id=>sideB.querySelector('#'+id), done=(k,msg)=>{ renderModels(); buildHome(); renderSide(); toast(msg); };
+  const fail=e=>toast('Not saved: '+e.message);
+  if($('subAdd')) $('subAdd').onclick=async()=>{ const name=$('subName').value.trim(); if(!name){ $('subName').focus(); toast('Give the sub-model a name.'); return; }
+    $('subAdd').disabled=true; try{ await saveSub({family:$('subFam').value, name, note:$('subNote').value.trim()}); done(null, `Added “${name}” to ${familyById($('subFam')?.value)?.name||'the model'}`); }catch(e){ fail(e); $('subAdd').disabled=false; } };
+  const m=MODELS[state.model];
+  if($('subSave')) $('subSave').onclick=async()=>{ try{ await saveSub({family:m.family, name:m.name, note:m.note, id:m.sub}); done(null,'Saved for everyone'); }catch(e){ fail(e); } };
+  if($('subEdit')) $('subEdit').onclick=async()=>{ const name=$('subName').value.trim()||m.name; try{ await editSub(m.sub, {name, family:$('subFam').value}); done(null,'Sub-model updated'); }catch(e){ fail(e); } };
+  if($('subDel')) $('subDel').onclick=async()=>{ const b=$('subDel'); if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to remove'; return; }
+    try{ await removeSub(m.sub); done(null,'Sub-model removed'); }catch(e){ fail(e); } };
 }
 
 /* what the home stands on */
