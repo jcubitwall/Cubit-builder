@@ -38,6 +38,8 @@ function panelPlan(slot, w0, assembly = faceFor(slot)){
   // left → right as the assemblers see it
   const seq = assembly==='int' ? panels.slice().sort((a,b)=>a.num-b.num) : panels.slice().sort((a,b)=>b.num-a.num);
   seq.forEach((p,i)=>{ p.order=i+1; p.stack=i+1; });   // stack position 1 = top of the pile
+  // OSB splines: each panel carries them on the edge that meets the next panel (its right edge as assembled)
+  seq.forEach((p,i)=>{ p.splineTo = seq[i+1]?.code || null; });
   return { slot, w, n, assembly, panels, seq };
 }
 function homePlans(){
@@ -47,12 +49,12 @@ function homePlans(){
 /* ---------- on-screen table for one wall ---------- */
 function stackTableHTML(plan){
   const {slot}=plan;
-  let h=`<table class="boxes"><thead><tr><th>Stack</th><th>Label</th><th>Cuts</th><th>Cut on the CNC with</th><th>Before stacking</th></tr></thead><tbody>`;
+  let h=`<table class="boxes"><thead><tr><th>Stack</th><th>Label</th><th>Cuts</th><th>Cut on the CNC with</th><th>Splines (staple on at the CNC)</th><th>Before stacking</th></tr></thead><tbody>`;
   plan.seq.forEach(p=>{
     const cuts=[p.through.length?`${p.through.length} through`:'', p.intCuts.length?`${p.intCuts.length} on ${faceShort(slot,'int').toLowerCase()}`:'', p.extCuts.length?`${p.extCuts.length} on ${faceShort(slot,'ext').toLowerCase()}`:'', p.notch?`spine notch on ${faceShort(slot,'ext').toLowerCase()}`:''].filter(Boolean).join(', ')||'none';
     const cnc = p.cnc==='both' ? `${faceShort(slot,'int')} up, then ${faceShort(slot,'ext')} up` : `${faceShort(slot,p.cnc)} up`;
     const flip = p.flip==='none' ? 'stack as cut' : p.flip==='flip' ? `<b class="flipflag">FLIP</b> so ${faceShort(slot,plan.assembly)} is up` : `<b class="flipflag">TWO-SIDED</b> · finish with ${faceShort(slot,plan.assembly)} up`;
-    h+=`<tr><td>${p.stack}${p.stack===1?' (top)':p.stack===plan.n?' (bottom)':''}</td><td><b>${p.code}</b>${p.cut?` <span class="flipflag">cut to ${fin(p.width)}</span>`:''}</td><td>${cuts}</td><td>${cnc}</td><td>${flip}</td></tr>`;
+    h+=`<tr><td>${p.stack}${p.stack===1?' (top)':p.stack===plan.n?' (bottom)':''}</td><td><b>${p.code}</b>${p.cut?` <span class="flipflag">cut to ${fin(p.width)}</span>`:''}</td><td>${cuts}</td><td>${cnc}</td><td>${p.splineTo?`right edge (meets ${p.splineTo})`:'none'}</td><td>${flip}</td></tr>`;
   });
   return h+`</tbody></table>`;
 }
@@ -118,7 +120,11 @@ function labelsPDF(plans, title){
       if(q===p){ doc.setFillColor(...org); doc.rect(sx+j*pw, sy, pw, ph, 'FD'); } else doc.rect(sx+j*pw, sy, pw, ph);
       doc.setFontSize(7); doc.setTextColor(q===p?255:60, q===p?255:60, q===p?255:60); doc.text(String(q.num), sx+j*pw+pw/2, sy+ph/2+2.5, {align:'center'});
     });
+    // splines: a heavy bar on this panel's right edge in the strip
+    const me=pl.seq.indexOf(p);
+    if(p.splineTo){ doc.setDrawColor(...ink); doc.setLineWidth(2.4); doc.line(sx+(me+1)*pw, sy-3, sx+(me+1)*pw, sy+ph+3); doc.setLineWidth(0.6); }
     doc.setTextColor(90,90,90); doc.setFontSize(6.5); doc.text('left  ->  right', sx+sw/2, sy+ph+9, {align:'center'});
+    doc.setTextColor(...ink); doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.text(p.splineTo?`SPLINES ON RIGHT EDGE`:'NO SPLINES', sx+sw/2, sy-6, {align:'center'}); doc.setFont('helvetica','normal');
     i++;
   });
   return doc.output('blob');

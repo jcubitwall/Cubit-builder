@@ -10,6 +10,8 @@ import { getBearing } from './orient.js';
 import { symbol, unitFor } from './units.js';
 import { concretePlan } from './concrete.js';
 import { deckMembers } from './deckframe.js';
+import { wallFraming } from './framing.js';
+import { FRAME } from './config.js';
 import { DECK } from './config.js';
 import { foundationOf } from './state.js';
 
@@ -26,7 +28,7 @@ scene.add(new THREE.HemisphereLight(0xffffff,0x8a8a80,0.85));
 const sun = new THREE.DirectionalLight(0xffffff,0.75); sun.position.set(30,50,20); scene.add(sun);
 const grid = new THREE.GridHelper(96,24,0x9aa39b,0xc3c9c1); grid.position.y=-FLOOR; scene.add(grid);
 let homeGroup = new THREE.Group(); scene.add(homeGroup);
-let wallGroups = [], layerGroups = [], deckGroups = [], roofGroup=null, ceilGroup=null, floorGroup=null, screwGroup=null, fpGroup=null, unitMeshes=[], floorMats=[], pickables=[];
+let framingMeshes = [], rimGroup = null, wallGroups = [], layerGroups = [], deckGroups = [], roofGroup=null, ceilGroup=null, floorGroup=null, screwGroup=null, fpGroup=null, unitMeshes=[], floorMats=[], pickables=[];
 
 function themeColors(){
   const dark = (document.documentElement.dataset.theme==='dark') || (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
@@ -180,7 +182,7 @@ function buildDeckMesh(L, mat){
 }
 function buildHome(){
   scene.remove(homeGroup); homeGroup=new THREE.Group(); scene.add(homeGroup);
-  wallGroups=[]; layerGroups=[]; deckGroups=[]; pickables=[]; floorMats=[];
+  wallGroups=[]; layerGroups=[]; deckGroups=[]; pickables=[]; floorMats=[]; framingMeshes=[];
   const slots = slotsFor(state.model); const model=MODELS[state.model];
   const OFF = podOffsets(state.model);
   const pods = podList(state.model).map((p,i)=>({...p,x:p.x+OFF[i].ox,z:p.z+OFF[i].oz}));
@@ -300,8 +302,23 @@ function buildHome(){
       const t=(w.t||6.5)/12, mid=wallLen(w)/2/FT;
       const lab=letterSprite(s.letter, 1.3); lab.position.set(mid, 4.6, -t-0.6); g.add(lab);   // on the inside face, mid-wall
     }
+    // framing lumber inside the wall: plates, end studs, jacks, OSB splines (shown with Layers → Framing)
+    const fr=wallFraming(s, pickFor(s));
+    if(fr){ const tt=(w.t||6.5)/FT, d=fr.lumber.d/FT, osb=FRAME.osb/FT, sp=FRAME.spline.t/FT;
+      fr.pieces.forEach(pc=>{
+        const isS=pc.kind==='Spline', dz = isS ? sp : d, zc = isS ? (pc.face==='outside face' ? -osb-sp/2 : -tt+osb+sp/2) : -tt/2;
+        const m=new THREE.Mesh(new THREE.BoxGeometry((pc.x1-pc.x0)/FT, (pc.y1-pc.y0)/FT, dz), isS?FRAME_MAT.osb:FRAME_MAT.wood);
+        m.position.set((pc.x0+pc.x1)/2/FT, (pc.y0+pc.y1)/2/FT, zc); m.userData.framing=true; m.renderOrder=2; g.add(m); framingMeshes.push(m); }); }
     homeGroup.add(g); wallGroups.push(g);
   });
+  // LVL rims of the floor and roof cassettes: four pieces per pod, open 1⅞″ squares at the outside corners
+  rimGroup=new THREE.Group(); homeGroup.add(rimGroup);
+  { const t=FRAME.lvl.t/FT;
+    pods.forEach(p=>[[0, FRAME.lvl.floor], [CEIL_Z, FRAME.lvl.roof]].forEach(([z0,h])=>{
+      const y=(z0-WALL_BASE)/FT, hh=h/FT, box=(x0,z0_,x1,z1)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(x1-x0,hh,z1-z0_),FRAME_MAT.lvl); m.position.set((x0+x1)/2, y+hh/2, (z0_+z1)/2); rimGroup.add(m); };
+      box(p.x+t, p.z, p.x+p.w-t, p.z+t); box(p.x+t, p.z+p.d-t, p.x+p.w-t, p.z+p.d);
+      box(p.x, p.z+t, p.x+t, p.z+p.d-t); box(p.x+p.w-t, p.z+t, p.x+p.w, p.z+p.d-t); })); }
+  framingMeshes=framingMeshes.filter(m=>wallGroups.some(g=>g===m.parent));
   unitMeshes=[]; wallGroups.forEach(g=>g.traverse(o=>{ if(o.userData.unit) unitMeshes.push(o); }));
   applyLayers();
   highlight();
@@ -312,6 +329,8 @@ function buildHome(){
   }
   computeSpread(); explodeT = state.exploded?1:0; applyExplode();
 }
+const FRAME_MAT = { wood:new THREE.MeshStandardMaterial({color:0xe0b36a, roughness:0.8}), osb:new THREE.MeshStandardMaterial({color:0xb7864a, roughness:0.9}), lvl:new THREE.MeshStandardMaterial({color:0xc9783a, roughness:0.75}) };
+const CEIL_Z = 106.6;   // bottom of the roof cassette (interior ceiling), inches above the bottom of the floor
 const CONC = { foam:new THREE.MeshStandardMaterial({color:0xe6ebef, roughness:0.95}), core:new THREE.MeshStandardMaterial({color:0xa9aba6, roughness:0.9}),
   foot:new THREE.MeshStandardMaterial({color:0x8f918c, roughness:0.95}), access:new THREE.MeshBasicMaterial({color:0xd0661f}) };
 /* the concrete foundation in plan feet (same frame as the pods); its top is the underside of the home */
@@ -378,6 +397,7 @@ function applyExplode(){
     g.position.x += v[0]*eP; g.position.z += v[1]*eP;
     g.position.y = lift + eW*0.6;
   });
+  if(rimGroup) rimGroup.visible=!!state.show.framing && e<0.01;
 }
 /* what shows: each layer on its own (Layers menu) */
 function applyLayers(){
@@ -390,6 +410,10 @@ function applyLayers(){
   fpGroup.visible=S.screws && !S.walls && !S.floors;
   floorMats.forEach(m=>{ m.transparent=S.screws; m.opacity=S.screws?0.35:1; m.depthWrite=!S.screws; m.needsUpdate=true; });
   unitMeshes.forEach(m=>m.visible=S.units);
+  // framing: the lumber shows through see-through walls
+  framingMeshes.forEach(m=>m.visible=S.framing && S.walls);
+  if(rimGroup) rimGroup.visible=S.framing && explodeT<0.01;
+  wallGroups.forEach(g=>{ const m=g.userData.mat; m.transparent=!!S.framing; m.opacity=S.framing?0.22:1; m.depthWrite=!S.framing; m.needsUpdate=true; });
   MAT.glass.opacity = state.glass ? 0.18 : 0.55;
   MAT.door.opacity = state.glass ? 0.25 : 1; MAT.door.depthWrite = !state.glass;
   MAT.glass.needsUpdate = MAT.door.needsUpdate = true;

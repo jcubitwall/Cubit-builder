@@ -23,6 +23,11 @@ const ICF = { foam:2.625, core:6, coreShared:8,   // 8″ core under the pod joi
    Decks sit ¾″ off the house (room for siding, ¾″ with ribs). */
 const DECK = { gap:0.75, ply:1.5, depth:7.25, plies:2, oc:24, notch:1.5, angle:'1½″ × 1½″ angle iron',
   stock:[8,10,12,14,16], kerf:0.125, board:{name:'5/4 × 6 deck board', t:1, w:5.5, gap:0.1875} };
+/* framing inside the SIPs: plates (single, recessed top and bottom inside the 96″ panel), an end stud at each
+   wall end, a jack each side of every opening (sides only), OSB splines at panel joints; LVL rims in the floor
+   and roof cassettes */
+const FRAME = { plate:1.5, ext:{name:'2×6', d:5.5}, int:{name:'2×4', d:3.5}, ply:1.5, osb:7/16,
+  spline:{t:0.5, w:3.5}, lvl:{t:1.875, floor:9.25, roof:11.875}, stock:[8,10,12,14,16] };
 const NOTCH = 1.75;       // steel spine notch at every pod corner, full height: 1¾″ × 1¾″ (measured from the STEP files)
 /* ============================================================ pod types
    Plan units are feet. x = along the pod length, z = across (8′). */
@@ -37,4 +42,4 @@ const LAYER_KINDS = {
   'ceiling-int': { label:'Interior ceiling', short:'Ceiling',     code:'CI', z:106.6,  t:6.47 },
   'roof':        { label:'Roof',             short:'Roof',        code:'RF', z:113.07, t:6.48 },
 };
-export { DECK, ICF, PAD_MAX, SCREW_MAX, NOTCH, H, T, TI, FLOOR, GAP, CEIL, PW, FT, POD, SIDE_NAME, WALL_BASE, LAYER_KINDS };
+export { FRAME, DECK, ICF, PAD_MAX, SCREW_MAX, NOTCH, H, T, TI, FLOOR, GAP, CEIL, PW, FT, POD, SIDE_NAME, WALL_BASE, LAYER_KINDS };

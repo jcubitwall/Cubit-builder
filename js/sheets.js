@@ -7,6 +7,8 @@ import { renderConcreteSheet } from './concretesheet.js';
 import { foundationOf } from './state.js';
 import { screwsFor, slotsFor, layerSlotsFor, deckList } from './layout.js';
 import { renderDeckSheet, renderDecksTakeoff } from './decksheet.js';
+import { renderFramingSheet, wallFramingHTML } from './framesheet.js';
+import { wallFraming } from './framing.js';
 import { renderCncSheet } from './cncsheet.js';
 import { LAYER_KINDS } from './config.js';
 import { panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall, layerHoles } from './panels.js';
@@ -26,7 +28,7 @@ function openSheets(){
   document.getElementById('planner').hidden=true; document.getElementById('bPlan').textContent='Plan & pods';
   document.getElementById('bSheets').textContent='Back to 3D';
   const slots=slotsFor(state.model);
-  if(!['__found','__labels','__cnc','__decks'].includes(state.sheetSlot) && !/^__deck:\d+$/.test(state.sheetSlot||'') && !slots.find(s=>s.id===state.sheetSlot) && !layerSlotsFor(state.model).find(l=>l.id===state.sheetSlot)) state.sheetSlot=slots[0].id;
+  if(!['__found','__labels','__cnc','__decks','__frame'].includes(state.sheetSlot) && !/^__deck:\d+$/.test(state.sheetSlot||'') && !slots.find(s=>s.id===state.sheetSlot) && !layerSlotsFor(state.model).find(l=>l.id===state.sheetSlot)) state.sheetSlot=slots[0].id;
   renderSheetList(); renderSheet();
 }
 function closeSheets(){
@@ -37,7 +39,7 @@ function renderSheetList(){
   const el=document.getElementById('sheetList'); const slots=slotsFor(state.model);
   const nS=screwsFor(state.model,state.inset).length;
   el.innerHTML=`<div class="side-h"><div class="eyebrow">${MODELS[state.model].name} · ${slots.length} walls</div></div>`+
-    `<div class="wl"><button class="${state.sheetSlot==='__found'?'on':''}" data-s="__found">${foundationOf(state.model)==='concrete'?`<span class="n">Foundation · concrete ICF</span><span class="l">footing + ICF</span><span class="o">Plan, section and takeoff for the concrete crew</span>`:`<span class="n">Foundation · ground screws</span><span class="l">${nS} screws</span><span class="o">Site plan with every screw located</span>`}</button><button class="${state.sheetSlot==='__labels'?'on':''}" data-s="__labels"><span class="n">Panel labels · cut &amp; stack</span><span class="l">all walls</span><span class="o">Stacking order, CNC flips, printable labels</span></button><button class="${state.sheetSlot==='__cnc'?'on':''}" data-s="__cnc"><span class="n">CNC cut files · DXF</span><span class="l">cut order</span><span class="o">Every panel pass for VCarve, in stacking order</span></button>${deckList(state.model).length?`<button class="${state.sheetSlot==='__decks'?'on':''}" data-s="__decks"><span class="n">Decks · lumber takeoff</span><span class="l">${deckList(state.model).length} deck${deckList(state.model).length>1?'s':''}</span><span class="o">Every piece of 2×8, boards to buy, spines</span></button>`:''}${deckList(state.model).map(d=>`<button class="${state.sheetSlot==='__deck:'+d.k?'on':''}" data-s="__deck:${d.k}"><span class="n">Deck ${d.k+1} · framing</span><span class="l">${d.L.w}′ × ${d.L.d}′</span><span class="o">${d.L.id} · framing plan, takeoff</span></button>`).join('')}</div>`+
+    `<div class="wl"><button class="${state.sheetSlot==='__found'?'on':''}" data-s="__found">${foundationOf(state.model)==='concrete'?`<span class="n">Foundation · concrete ICF</span><span class="l">footing + ICF</span><span class="o">Plan, section and takeoff for the concrete crew</span>`:`<span class="n">Foundation · ground screws</span><span class="l">${nS} screws</span><span class="o">Site plan with every screw located</span>`}</button><button class="${state.sheetSlot==='__labels'?'on':''}" data-s="__labels"><span class="n">Panel labels · cut &amp; stack</span><span class="l">all walls</span><span class="o">Stacking order, CNC flips, printable labels</span></button><button class="${state.sheetSlot==='__cnc'?'on':''}" data-s="__cnc"><span class="n">CNC cut files · DXF</span><span class="l">cut order</span><span class="o">Every panel pass for VCarve, in stacking order</span></button><button class="${state.sheetSlot==='__frame'?'on':''}" data-s="__frame"><span class="n">Framing · cut list</span><span class="l">lumber + LVL</span><span class="o">Plates, studs, jacks, splines, LVL rims · what to buy</span></button>${deckList(state.model).length?`<button class="${state.sheetSlot==='__decks'?'on':''}" data-s="__decks"><span class="n">Decks · lumber takeoff</span><span class="l">${deckList(state.model).length} deck${deckList(state.model).length>1?'s':''}</span><span class="o">Every piece of 2×8, boards to buy, spines</span></button>`:''}${deckList(state.model).map(d=>`<button class="${state.sheetSlot==='__deck:'+d.k?'on':''}" data-s="__deck:${d.k}"><span class="n">Deck ${d.k+1} · framing</span><span class="l">${d.L.w}′ × ${d.L.d}′</span><span class="o">${d.L.id} · framing plan, takeoff</span></button>`).join('')}</div>`+
     wallListHTML(slots,state.sheetSlot);
   el.querySelectorAll('.wl button').forEach(b=>b.onclick=()=>{ state.sheetSlot=b.dataset.s; renderSheetList(); renderSheet(); });
 }
@@ -47,6 +49,7 @@ function renderSheet(){
   if(state.sheetSlot==='__labels'){ renderLabelsHome(el); return; }
   if(state.sheetSlot==='__cnc'){ renderCncSheet(el); return; }
   if(state.sheetSlot==='__decks'){ renderDecksTakeoff(el); return; }
+  if(state.sheetSlot==='__frame'){ renderFramingSheet(el); return; }
   if(/^__deck:\d+$/.test(state.sheetSlot)){ renderDeckSheet(el, +state.sheetSlot.slice(7)); return; }
   const ls=layerSlotsFor(state.model).find(l=>l.id===state.sheetSlot);
   if(ls){ renderLayerSheet(el, ls); return; }
@@ -73,7 +76,8 @@ function renderSheet(){
     <div class="sheet-grid">
       <div id="wall3d"><span class="w3cap">3D · panels pulled apart · drag to turn</span></div>
       <div class="tblwrap">${boxTable(w,face,s)}</div>
-    </div>`;
+    </div>
+    <div class="tblwrap"><div class="eyebrow" style="color:#555;margin:10px 0 4px">Framing · this wall</div>${wallFramingHTML(wallFraming(s, pickFor(s)))}</div>`;
   el.querySelectorAll('[data-face]').forEach(b=>b.onclick=()=>{ setFace(s,b.dataset.face); renderSheet(); });
   el.querySelector('#wallLabels').onclick=()=>downloadBlob(labelsPDF([plan], MODELS[state.model].name), `${MODELS[state.model].name} - ${plan.slot.pod.label} Wall ${plan.slot.letter} labels.pdf`);
   buildWall3D(w);
@@ -125,6 +129,16 @@ function elevationSVG(w,face,rev,slot){
   g+=`<text x="${X(ltr?6:L-6)}" y="${mt-96}" text-anchor="${ltr?'start':'end'}" font-size="12" fill="#d0661f" font-weight="600">ASSEMBLE LEFT → RIGHT</text>`;
   // panel chain dims (top)
   spans.forEach(([a,b])=>{ const va = face==='ext' ? a : L-b, vb = face==='ext' ? b : L-a; g+=dimH(X(va),X(vb),mt-22,fin(vb-va),mt); });
+  // framing lumber (plates, end studs, jacks) and the OSB splines at the joints, with which panel carries them
+  if(slot){ const fr=wallFraming(slot, pickFor(slot));
+    if(fr){ fr.pieces.filter(p=>p.kind!=='Spline').forEach(p=>{ const x=vx(p.x0,p.x1-p.x0);
+        g+=`<rect x="${X(x)}" y="${Y(p.y1)}" width="${(p.x1-p.x0)*s}" height="${(p.y1-p.y0)*s}" fill="#e8c88f" fill-opacity=".85" stroke="#8a6a2f" stroke-width=".7"/>`; });
+      const seen=new Set();
+      fr.pieces.filter(p=>p.kind==='Spline' && p.face==='outside face').forEach(p=>{ const x=vx(p.x0,p.x1-p.x0);
+        g+=`<rect x="${X(x)}" y="${Y(p.y1)}" width="${(p.x1-p.x0)*s}" height="${(p.y1-p.y0)*s}" fill="none" stroke="#7a4fa0" stroke-width="1" stroke-dasharray="4 3"/>`;
+        if(!seen.has(p.joint)){ seen.add(p.joint); const jx=vx(p.joint,0);
+          g+=`<text transform="translate(${X(jx)+3} ${Y(48)}) rotate(-90)" text-anchor="middle" font-size="8.5" fill="#7a4fa0" font-weight="600">SPLINES ON ${p.carrier}</text>`; } });
+    } }
   // openings
   w.openings.forEach(o=>{
     const x=vx(o.x,o.w);

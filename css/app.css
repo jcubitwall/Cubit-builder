@@ -320,3 +320,7 @@ details.catalog summary{cursor:pointer;font-weight:600;font-size:13.5px}
 details.catalog[open] summary{margin-bottom:8px}
 details.catalog .fld{margin-top:6px}
 details.catalog .row{margin-top:8px}
+
+details.frwall{border:1px solid #d4d9d2;border-radius:6px;padding:6px 8px;margin-bottom:6px;background:#fafbf9}
+details.frwall summary{cursor:pointer;font-size:13px}
+details.frwall[open] summary{margin-bottom:6px}

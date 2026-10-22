@@ -26,6 +26,14 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
   - Units that fit the rough opening come first (no bigger, at most 2″ smaller). If only one fits, it is used automatically.
   - The 3D view and assembly sheets draw the standard symbols: the casement or door triangle points to the hinge, and sliders get an arrow on the moving panel. Man doors also show their swing on the floor.
   - Add real units with **Upload STEP → Window / door**. The `sample` units are placeholders sized to the scanned openings, and they drop out once a real unit of that kind is uploaded.
+- **Framing lumber and LVL** (`js/framing.js`, **Framing · cut list** sheet, Layers → Framing lumber & LVL):
+  - **Walls:** 2×6 in exterior walls and 2×4 in interior walls. Single plates are recessed top and bottom inside the 96″ panels.
+  - **Plates:** the top plate runs the full length of each wall, spliced anywhere. The bottom plate stops at doors, patio doors and cased openings.
+  - **End studs:** one at each wall end, 93″. It goes inboard of a spine notch.
+  - **Jacks:** one each side of every opening, the height of the opening, sides only. Door jacks sit on the bottom plate.
+  - **Splines:** two ½″ OSB × 3½″ at every panel joint, between the plates. Where an opening's edge is on the joint, its jack takes the joint for the opening's height and the splines run above and below. Each panel carries the splines on its right edge as assembled, the edge that meets the next panel; this is shown on the cut & stack table, the labels and the elevation.
+  - **LVL rims:** 1⅞″ × 9¼″ in the floor and 1⅞″ × 11⅞″ in the roof. Four pieces per pod, each the outside length minus 3¾″, touching only at the inside corners to leave the Einspine squares.
+  - **Cut list:** what to buy (2×6 and 2×4 in standard lengths, LVL linear feet, OSB sheets), the cut list by material and by wall, and a CSV.
 - **Decks:** every deck is conventional lumber framed by the same rules, whatever its size (`js/deckframe.js`).
   - Double 2×8 all round, so where two decks meet there are four plies on the screw.
   - 2×8 joists parallel to the house, 24″ or 16″ on centre (one setting per home, 24″ standard) from the house side; the last space is whatever is left.

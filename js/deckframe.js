@@ -26,13 +26,13 @@ const lenOf = m => Math.max(m[2]-m[1], m[4]-m[3]);
 /* buy-list: either one board per piece (the shortest standard length that holds it), or cuts packed longest
    first into 16′ boards that are then cut down to the shortest length that holds them. Whichever uses less
    lumber wins; on a tie, one piece per board (shorter, lighter boards, less cutting). */
-function packStock(cuts){
-  const fit = len => DECK.stock.find(f=>f*12>=len-1e-6);
+function packStock(cuts, stock=DECK.stock){
+  const fit = len => stock.find(f=>f*12>=len-1e-6);
   const single = cuts.map(c=>{ const ft=fit(c); if(!ft) throw new Error('A piece is longer than 16′'); return {cuts:[c], ft}; });
   const packed=[];
   cuts.slice().sort((a,b)=>b-a).forEach(c=>{
     const b=packed.find(b=>b.left>=c+DECK.kerf-1e-6);
-    if(b){ b.cuts.push(c); b.left-=c+DECK.kerf; } else packed.push({cuts:[c], left:DECK.stock[DECK.stock.length-1]*12-c-DECK.kerf});
+    if(b){ b.cuts.push(c); b.left-=c+DECK.kerf; } else packed.push({cuts:[c], left:stock[stock.length-1]*12-c-DECK.kerf});
   });
   packed.forEach(b=>{ b.ft=fit(b.cuts.reduce((a,c)=>a+c,0)+DECK.kerf*(b.cuts.length-1)); });
   const total = bs => bs.reduce((a,b)=>a+b.ft,0);
@@ -57,4 +57,4 @@ const deckSizes = m => { const c={}; (m.decks||[]).forEach(d=>{ c[d.lib]=(c[d.li
 /* the 16″ / 24″ joist spacing switch (one setting for all the decks of a home); bindOC wires it up */
 const ocSeg = () => `<div class="fld">Deck joists, on centre (all decks on this home)<div class="seg" role="group" aria-label="Deck joist spacing">${[16,24].map(v=>`<button class="fsbtn" data-oc="${v}" aria-pressed="${deckOCOf(state.model)===v}">${v}″</button>`).join('')}</div></div>`;
 function bindOC(root, after){ root.querySelectorAll('[data-oc]').forEach(b=>b.onclick=()=>{ setDeckOC(state.model, +b.dataset.oc); after(); }); }
-export { ocSeg, bindOC, deckName, deckSizes, deckMembers, joistCentres, deckTakeoff, lenOf };
+export { packStock, ocSeg, bindOC, deckName, deckSizes, deckMembers, joistCentres, deckTakeoff, lenOf };
