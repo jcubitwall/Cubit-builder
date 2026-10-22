@@ -1,7 +1,7 @@
 /* Cubit Builder — framesheet.js : the framing cut list for the whole home (walls by pod, LVL rims by pod) and
    what to buy, plus the framing table shown on each wall's assembly sheet. */
 import { MODELS } from './data.js';
-import { FRAME } from './config.js';
+import { FRAME, SPINE } from './config.js';
 import { fin, fft } from './format.js';
 import { state } from './state.js';
 import { homeFraming, podRims, framingTakeoff, platesByPod } from './framing.js';
@@ -54,10 +54,11 @@ function cornerSVG(){
   g+=`<path d="M${X(lv)} ${Y(0)} H${X(12)} M${X(lv)} ${Y(lv)} H${X(12)} M${X(0)} ${Y(lv)} V${Y(12)} M${X(lv)} ${Y(lv)} V${Y(12)}" fill="none" stroke="#c9783a" stroke-width="1.6" stroke-dasharray="5 3"/>`;
   // the Einspine notch
   g+=R(0,0,n,n,'#fff','stroke="#7a3fb0" stroke-width="1.6"');
+  g+=R(0,0,SPINE,SPINE,'#8a8f96','stroke="#333"');   // the Einspine, 1½″ × 1½″, tight to the outside corner
   const t=(x,y,txt,c='#222')=>`<text x="${x}" y="${y}" font-size="9.5" fill="${c}">${txt}</text>`;
   g+=t(X(12)+8, Y(0.6), 'END WALL (runs through)')+t(X(6.6), Y(12)-4, 'LONG WALL')+t(X(n+1.6)+2, Y(3.4), 'end stud 2×6');
   g+=t(X(12)+8, Y(3.0), 'corner stud: 2×6 ripped', '#6b4e1f')+t(X(12)+8, Y(3.0)+12, 'to 4¼″ behind the notch', '#6b4e1f');
-  g+=t(X(12)+8, Y(7.6), 'long wall end stud')+t(X(0), Y(0)-10, 'EINSPINE notch 1¾″ × 1¾″', '#7a3fb0')+t(X(12)+8, Y(10.5), 'LVL rims below/above (dashed):', '#c9783a')+t(X(12)+8, Y(10.5)+12, 'touch at the inside corner', '#c9783a');
+  g+=t(X(12)+8, Y(7.6), 'long wall end stud')+t(X(0), Y(0)-10, 'EINSPINE 1½″ × 1½″ in a 1¾″ notch (LVL leaves 1⅞″)', '#7a3fb0')+t(X(12)+8, Y(10.5), 'LVL rims below/above (dashed):', '#c9783a')+t(X(12)+8, Y(10.5)+12, 'touch at the inside corner', '#c9783a');
   g+=t(o, o*2+12*k-6, 'PLAN · outside corner top-left · plates are notched 1¾″ × 1¼″ the same way');
   return g+'</svg>';
 }
