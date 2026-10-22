@@ -14,6 +14,7 @@ import { initUpload } from './upload.js';
 import { loadUnits } from './units.js';
 import { loadCatalog } from './catalog.js';
 import { initPhone } from './phone.js';
+import { initZoomView } from './zoomview.js';
 
 function bindTog(id,key,fn){ const b=document.getElementById(id); b.onclick=()=>{ state[key]=!state[key]; b.setAttribute('aria-pressed',state[key]); fn(); }; }
 bindTog('tExplode','exploded',()=>{ explodeLayers(state.exploded); setExplodeGoal(state.exploded?1:0); });
@@ -24,5 +25,5 @@ document.getElementById('bPlan').onclick=()=>{ if(state.view==='plan'){ closePla
   try{ await loadRole(); await loadData(); await loadUnits(); await loadProjects(); await loadCatalog(); }
   catch(e){ document.getElementById('sideH').innerHTML='<h2>Could not load the wall library</h2><p>Open the app from its web address (GitHub Pages) or a local web server, not by double-clicking the file.</p>'; return; }
   initState(); initProjectsUI(); initUpload();
-  renderModels(); buildHome(); renderSide(); resize(); loop(); initPhone();
+  renderModels(); buildHome(); renderSide(); resize(); loop(); initPhone(); initZoomView();
 })();

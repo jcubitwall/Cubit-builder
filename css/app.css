@@ -389,3 +389,15 @@ dialog.sheet-dlg{margin:auto auto 0;width:100%;max-width:560px;border-radius:16p
 dialog.sheet-dlg .models{display:flex;flex-wrap:wrap;gap:8px}
 dialog.sheet-dlg{border:0;box-shadow:0 -12px 40px rgba(0,0,0,.25);padding-bottom:env(safe-area-inset-bottom)}
 dialog.sheet-dlg::backdrop{background:rgba(0,0,0,.35)}
+
+/* drawings: tap to open full screen and zoom */
+.elev svg{cursor:zoom-in}
+.zoomview{position:fixed;inset:0;z-index:200;background:#fff;touch-action:none;overflow:hidden}
+.zoomview[hidden]{display:none}
+.zv-bar{position:absolute;left:0;right:0;top:0;height:56px;padding:0 12px;padding-top:env(safe-area-inset-top);display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.94);border-bottom:1px solid #d4d9d2;z-index:2}
+.zv-bar span{flex:1;font-size:12.5px;color:#555}
+.zv-box{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
+html.zv-lock, html.zv-lock body{overflow:hidden}
+html.phone .elev{overflow:visible;position:relative}
+html.phone .elev svg{min-width:0}
+html.phone .elev::after{content:"Tap to zoom";position:absolute;right:6px;top:6px;font-size:11px;font-family:var(--mono);background:rgba(28,33,30,.78);color:#fff;padding:3px 7px;border-radius:6px;pointer-events:none}
