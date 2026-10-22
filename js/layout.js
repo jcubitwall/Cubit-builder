@@ -3,9 +3,9 @@
    Plan units are feet. Seen from above, +x is to the right and +z is down the screen, so going
    clockwise means S → E → N → W. A pod can be turned in 90° steps (rot 0/90/180/270, clockwise):
    at 0/180 its length runs along x, at 90/270 along z. */
-import { FT, GAP, POD, SIDE_NAME, LAYER_KINDS, SCREW_MAX, PAD_MAX } from './config.js';
+import { FT, GAP, POD, SIDE_NAME, LAYER_KINDS, SCREW_MAX, PAD_MAX, ICF } from './config.js';
 import { MODELS, podById, deckById } from './data.js';
-import { pickFor, state } from './state.js';
+import { pickFor, state, foundationOf } from './state.js';
 
 const EPS = 1e-6;
 const podList = modelKey => MODELS[modelKey].pods.map((p,i)=>{
@@ -213,14 +213,33 @@ function assignLetters(modelKey, slots, pods){
    Head types: swivel (one pod), centre (2 pods), tee (3 pods), cross (4 pods). */
 const NORM={S:[0,-1],N:[0,1],W:[-1,0],E:[1,0]};
 const HEAD_FOR = n => n<=1 ? 'swivel' : n===2 ? 'centre' : n===3 ? 'tee' : 'cross';
-function screwPlan(modelKey, insetIn){
+/* With a concrete foundation the pods need no screws (only decks do), and a deck side that faces the home keeps
+   its screws clear of the footing: they sit DECK_CLEAR out from the home's face instead of in the joint.
+   opts.pods: 'auto' (follow the home's foundation), true (always plan the pods: used by the concrete plan for
+   its inside supports), false. */
+const footOut = () => (ICF.footW/2 - (state.icf?.core||ICF.core)/2)/FT;    // footing edge, feet outside the home's face
+const DECK_CLEAR = () => footOut() + 6/FT;                                  // screw / pad centre at least 6″ past the footing
+function screwPlan(modelKey, insetIn, opts={}){
+  const withPods = opts.pods===undefined || opts.pods==='auto' ? foundationOf(modelKey)!=='concrete' : !!opts.pods;
+  const withDecks = opts.decks!==false;
   const i=insetIn/FT, E=1e-4, G=GAP, MAX=SCREW_MAX, MERGE=3, SLACK=0.25;   // screws closer than 3′ become one; a gap may run 3″ over 12′ (the 5/8″ joints add up) rather than add a screw
   const LO = layoutOffsets(modelKey), OFF=LO.pods, pl=podList(modelKey);
   // decks follow the same rules; their index follows the pods' (pods 0..n-1, then decks)
-  const P = pl.map(p=>{ const x=p.x+OFF[p.i].ox, z=p.z+OFF[p.i].oz; return {i:p.i, len:p.len, x, z, x1:x+p.w, z1:z+p.d}; })
+  const PODS = pl.map(p=>{ const x=p.x+OFF[p.i].ox, z=p.z+OFF[p.i].oz; return {i:p.i, len:p.len, x, z, x1:x+p.w, z1:z+p.d}; });
+  const P = (withPods ? PODS : [])
     // decks that float on concrete pads are left out: they get pads (padsFor), not screws
-    .concat(deckList(modelKey).filter(d=>d.found!=='pads').map(d=>{ const k=d.k, x=d.x+LO.decks[k].ox, z=d.z+LO.decks[k].oz; return {i:pl.length+k, len:0, deck:true, x, z, x1:x+d.w, z1:z+d.d}; }));
+    .concat(deckList(modelKey).filter(d=>withDecks && d.found!=='pads').map(d=>{ const k=d.k, x=d.x+LO.decks[k].ox, z=d.z+LO.decks[k].oz; return {i:pl.length+k, len:0, deck:true, x, z, x1:x+d.w, z1:z+d.d}; }));
   const lines=[];
+  // which sides of each deck face a home on concrete (their screws, corners included, stay clear of the footing)
+  const CL=Math.max(i, DECK_CLEAR()-G);
+  P.forEach(p=>{ p.fh={}; if(!p.deck || withPods) return;
+    PODS.forEach(q=>{
+      const ovX=Math.min(p.x1,q.x1)-Math.max(p.x,q.x)>E, ovZ=Math.min(p.z1,q.z1)-Math.max(p.z,q.z)>E;
+      const near=d=>d>=-0.01 && d<=0.3;   // the home's face within about 3½″ of the deck's edge
+      if(ovX && near(p.z-q.z1)) p.fh.S=true;
+      if(ovX && near(q.z-p.z1)) p.fh.N=true;
+      if(ovZ && near(p.x-q.x1)) p.fh.W=true;
+      if(ovZ && near(q.x-p.x1)) p.fh.E=true; }); });
   P.forEach(p=>{
     [{k:'S',ax:'x',e:p.z, a:p.x,b:p.x1,n:[0,-1]},{k:'N',ax:'x',e:p.z1,a:p.x,b:p.x1,n:[0,1]},
      {k:'W',ax:'z',e:p.x, a:p.z,b:p.z1,n:[-1,0]},{k:'E',ax:'z',e:p.x1,a:p.z,b:p.z1,n:[1,0]}].forEach(sd=>{
@@ -237,7 +256,14 @@ function screwPlan(modelKey, insetIn){
       if(sg>0) cov.forEach(([a,b,qi,jg])=>lines.push({kind:'joint', ax:sd.ax, c:sd.e+jg/2, a, b, pods:[p.i,qi]}));
       let segs=[[sd.a,sd.b]];
       cov.forEach(([c,d])=>{ const out=[]; segs.forEach(([u,v])=>{ if(d<=u+E||c>=v-E){out.push([u,v]);return;} if(c>u+E)out.push([u,c]); if(d<v-E)out.push([d,v]); }); segs=out; });
-      segs.filter(([u,v])=>v-u>E).forEach(([a,b])=>lines.push({kind:'ext', ax:sd.ax, c:sd.e-sg*i, edge:sd.e, a, b, pods:[p.i], n:sd.n}));
+      // a deck side facing a home on concrete: screws clear of the footing
+      const nearHome = s0 => p.deck && !withPods && PODS.some(q=>{ const qe = sd.ax==='x' ? (sg>0?q.z:q.z1) : (sg>0?q.x:q.x1), d=sg*(qe-sd.e);
+        return d>=-0.01 && d<=0.3 && Math.min(sd.ax==='x'?q.x1:q.z1, s0[1]) - Math.max(sd.ax==='x'?q.x:q.z, s0[0]) > E; });
+      segs.filter(([u,v])=>v-u>E).forEach(([a,b])=>{ const ins = nearHome([a,b]) ? Math.max(i, DECK_CLEAR()-G) : i;
+        // an end at the deck's corner next to a side facing the home also keeps clear
+        const insA = (sd.ax==='x' ? Math.abs(a-p.x)<E && p.fh.W : Math.abs(a-p.z)<E && p.fh.S) ? CL : i;
+        const insB = (sd.ax==='x' ? Math.abs(b-p.x1)<E && p.fh.E : Math.abs(b-p.z1)<E && p.fh.N) ? CL : i;
+        lines.push({kind:'ext', ax:sd.ax, c:sd.e-sg*ins, edge:sd.e, a, b, pods:[p.i], n:sd.n, insA, insB}); });
     });
   });
   // one line per straight joint, even when it runs past several pods
@@ -249,7 +275,10 @@ function screwPlan(modelKey, insetIn){
   const X = lines.filter(l=>l.kind==='ext');
   const crossing = (l, end) => J.find(o=>o.ax!==l.ax && Math.abs(o.c-end)<=G+E && l.c>=o.a-G-E && l.c<=o.b+G+E);
   const endsOf = l => [[l.a,+1],[l.b,-1]];
-  J.forEach(l=>{ l.st=endsOf(l).map(([e,dir])=>{ const o=crossing(l,e); return {t: o?o.c : e+dir*i}; });
+  // a joint between two decks that runs up to a home on concrete stops clear of the footing
+  const homeAt = (l,e,dir) => !withPods && PODS.some(q=>{ const lo=l.ax==='x'?q.z:q.x, hi=l.ax==='x'?q.z1:q.x1, f=dir>0 ? (l.ax==='x'?q.x1:q.z1) : (l.ax==='x'?q.x:q.z);
+    const d=dir*(e-f); return l.c>lo-E && l.c<hi+E && d>=-0.01 && d<=0.3; });
+  J.forEach(l=>{ l.st=endsOf(l).map(([e,dir])=>{ const o=crossing(l,e); return {t: o?o.c : e+dir*(homeAt(l,e,dir)?CL:i)}; });
     // joints crossing or teeing into this one
     J.forEach(o=>{ if(o.ax===l.ax) return; if(o.c>l.a+E && o.c<l.b-E && l.c>=o.a-G-E && l.c<=o.b+G+E) l.st.push({t:o.c}); });
   });
@@ -258,7 +287,7 @@ function screwPlan(modelKey, insetIn){
     // the joint carries on in line with this edge (an inside corner): its end screw serves this end
     const co=J.find(j=>j.ax===l.ax && Math.abs(Math.abs(j.c-l.edge)-G/2)<E && (Math.abs(j.a-e)<G+E || Math.abs(j.b-e)<G+E));
     if(co){ const js = Math.abs(co.a-e)<G+E ? co.st[0] : co.st[1]; return {t:js.t, virtual:true}; }
-    return {t:e+dir*i};
+    return {t:e+dir*(dir>0 ? (l.insA??i) : (l.insB??i))};
   }); });
   // stations → points, with even fill (no gap over SCREW_MAX)
   const pts=[];
@@ -275,6 +304,18 @@ function screwPlan(modelKey, insetIn){
     // keep the spot most lines agree on, joints first
     const score=q=>g.items.filter(o=>Math.hypot(o.p[0]-q.p[0],o.p[1]-q.p[1])<E).length*10 + (q.line.kind==='joint'?1:0);
     g.p=g.items.reduce((best,q)=>score(q)>score(best)?q:best, g.items[0]).p.slice();
+  });
+  // home on concrete: a deck screw that still lands within the clearance of the home (a deck joint meeting at a
+  // corner of the home) is pushed straight out from the nearest point of the home until it clears the footing
+  if(!withPods && PODS.length) groups.forEach(g=>{
+    for(let it=0; it<3; it++){
+      let best=null;
+      PODS.forEach(q=>{ const nx=Math.max(q.x,Math.min(q.x1,g.p[0])), nz=Math.max(q.z,Math.min(q.z1,g.p[1])), d=Math.hypot(g.p[0]-nx,g.p[1]-nz); if(!best||d<best.d) best={d,nx,nz}; });
+      if(!best || best.d>=CL+G-1e-3) break;
+      let ux=g.p[0]-best.nx, uz=g.p[1]-best.nz, L=Math.hypot(ux,uz);
+      if(L<1e-6){ ux=-1; uz=1; L=Math.SQRT2; }
+      g.p=[best.nx+ux/L*(CL+G), best.nz+uz/L*(CL+G)];
+    }
   });
   const screws = groups.map(g=>{
     const [x,z]=g.p;
@@ -305,8 +346,16 @@ const screwsFor = (modelKey, insetIn) => screwPlan(modelKey, insetIn).screws;
    and along each side no more than PAD_MAX apart; decks side by side share a pad where their corners meet */
 function padsFor(modelKey, insetIn){
   const i=insetIn/FT, LO=layoutOffsets(modelKey), out=[];
+  const conc = foundationOf(modelKey)==='concrete', OFF=LO.pods, G=GAP;
+  const PODS = podList(modelKey).map(p=>{ const x=p.x+OFF[p.i].ox, z=p.z+OFF[p.i].oz; return [x, z, x+p.w, z+p.d]; });
+  // inset on each side; a side facing a home on concrete keeps its pads clear of the footing
+  const faces = (side, e, a, b) => conc && PODS.some(([qx0,qz0,qx1,qz1])=>{
+    const qe = {S:qz1, N:qz0, W:qx1, E:qx0}[side], sg = {S:-1, N:1, W:-1, E:1}[side];
+    const lo = side==='S'||side==='N' ? Math.max(qx0,a) : Math.max(qz0,a), hi = side==='S'||side==='N' ? Math.min(qx1,b) : Math.min(qz1,b);
+    const d=sg*(qe-e); return d>=-0.01 && d<=0.3 && hi-lo>0.01; });
   deckList(modelKey).filter(d=>d.found==='pads').forEach(d=>{
-    const x0=d.x+LO.decks[d.k].ox+i, z0=d.z+LO.decks[d.k].oz+i, x1=d.x1+LO.decks[d.k].ox-i, z1=d.z1+LO.decks[d.k].oz-i;
+    const X0=d.x+LO.decks[d.k].ox, Z0=d.z+LO.decks[d.k].oz, X1=d.x1+LO.decks[d.k].ox, Z1=d.z1+LO.decks[d.k].oz, cl=Math.max(i, DECK_CLEAR()-G);
+    const x0=X0+(faces('W',X0,Z0,Z1)?cl:i), x1=X1-(faces('E',X1,Z0,Z1)?cl:i), z0=Z0+(faces('S',Z0,X0,X1)?cl:i), z1=Z1-(faces('N',Z1,X0,X1)?cl:i);
     const nx=Math.max(1,Math.ceil((x1-x0-0.25)/PAD_MAX)), nz=Math.max(1,Math.ceil((z1-z0-0.25)/PAD_MAX)), seen=new Set();
     const add=(x,z)=>{ const key=x.toFixed(3)+','+z.toFixed(3); if(!seen.has(key)){ seen.add(key); out.push({x,z,deck:d.k}); } };
     for(let a=0;a<=nx;a++){ add(x0+(x1-x0)*a/nx, z0); add(x0+(x1-x0)*a/nx, z1); }
@@ -315,6 +364,13 @@ function padsFor(modelKey, insetIn){
   // decks side by side share one pad where their corners meet (centred between them, like a shared screw)
   const merged=[];
   out.forEach(q=>{ const m=merged.find(g=>Math.hypot(g.x-q.x,g.z-q.z)<2); if(m){ m.n++; m.x+=(q.x-m.x)/m.n; m.z+=(q.z-m.z)/m.n; m.decks.add(q.deck); } else merged.push({...q, n:1, decks:new Set([q.deck])}); });
+  // like the screws: a pad that lands within the clearance of a home on concrete moves straight out from it
+  if(conc) merged.forEach(m=>{ const cl=Math.max(i, DECK_CLEAR()-G)+G;
+    for(let it=0; it<3; it++){ let best=null;
+      PODS.forEach(([x0,z0,x1,z1])=>{ const nx=Math.max(x0,Math.min(x1,m.x)), nz=Math.max(z0,Math.min(z1,m.z)), d=Math.hypot(m.x-nx,m.z-nz); if(!best||d<best.d) best={d,nx,nz}; });
+      if(!best || best.d>=cl-1e-3) break;
+      let ux=m.x-best.nx, uz=m.z-best.nz, L=Math.hypot(ux,uz); if(L<1e-6){ ux=-1; uz=1; L=Math.SQRT2; }
+      m.x=best.nx+ux/L*cl; m.z=best.nz+uz/L*cl; } });
   return merged.map(({n,decks,...q})=>({...q, shared:decks.size>1}));
 }
 
@@ -329,4 +385,4 @@ const partnerOf = (slot, slots) => slot.type!=='int' ? null :
   slots.find(q=>q.type==='int' && q.pod===slot.other && q.other===slot.pod && Math.abs(q.a-slot.a)<EPS && Math.abs(q.b-slot.b)<EPS) || null;
 const podLabels = modelKey => podList(modelKey).reduce((a,p)=>(a[p.i]=p.long,a),{});
 
-export { padsFor, deckList, layoutOffsets, podOffsets, slotsFor, NORM, screwsFor, screwPlan, HEAD_FOR, podList, podLabels, CW, layerSlotsFor, partnerOf, worldSide, localSide, isLongSide, ROT_SIDE };
+export { DECK_CLEAR, footOut, padsFor, deckList, layoutOffsets, podOffsets, slotsFor, NORM, screwsFor, screwPlan, HEAD_FOR, podList, podLabels, CW, layerSlotsFor, partnerOf, worldSide, localSide, isLongSide, ROT_SIDE };

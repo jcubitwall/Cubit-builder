@@ -3,6 +3,8 @@ import { FT, H, PW, T } from './config.js';
 import { MODELS } from './data.js';
 import { fft, fin } from './format.js';
 import { renderFoundation } from './foundation.js';
+import { renderConcreteSheet } from './concretesheet.js';
+import { foundationOf } from './state.js';
 import { screwsFor, slotsFor, layerSlotsFor, deckList } from './layout.js';
 import { renderDeckSheet } from './decksheet.js';
 import { renderCncSheet } from './cncsheet.js';
@@ -35,13 +37,13 @@ function renderSheetList(){
   const el=document.getElementById('sheetList'); const slots=slotsFor(state.model);
   const nS=screwsFor(state.model,state.inset).length;
   el.innerHTML=`<div class="side-h"><div class="eyebrow">${MODELS[state.model].name} · ${slots.length} walls</div></div>`+
-    `<div class="wl"><button class="${state.sheetSlot==='__found'?'on':''}" data-s="__found"><span class="n">Foundation · ground screws</span><span class="l">${nS} screws</span><span class="o">Site plan with every screw located</span></button><button class="${state.sheetSlot==='__labels'?'on':''}" data-s="__labels"><span class="n">Panel labels · cut &amp; stack</span><span class="l">all walls</span><span class="o">Stacking order, CNC flips, printable labels</span></button><button class="${state.sheetSlot==='__cnc'?'on':''}" data-s="__cnc"><span class="n">CNC cut files · DXF</span><span class="l">cut order</span><span class="o">Every panel pass for VCarve, in stacking order</span></button>${deckList(state.model).map(d=>`<button class="${state.sheetSlot==='__deck:'+d.k?'on':''}" data-s="__deck:${d.k}"><span class="n">Deck ${d.k+1} · framing</span><span class="l">${d.L.w}′ × ${d.L.d}′</span><span class="o">${d.L.id} · cut list, corner notches</span></button>`).join('')}</div>`+
+    `<div class="wl"><button class="${state.sheetSlot==='__found'?'on':''}" data-s="__found">${foundationOf(state.model)==='concrete'?`<span class="n">Foundation · concrete ICF</span><span class="l">footing + ICF</span><span class="o">Plan, section and takeoff for the concrete crew</span>`:`<span class="n">Foundation · ground screws</span><span class="l">${nS} screws</span><span class="o">Site plan with every screw located</span>`}</button><button class="${state.sheetSlot==='__labels'?'on':''}" data-s="__labels"><span class="n">Panel labels · cut &amp; stack</span><span class="l">all walls</span><span class="o">Stacking order, CNC flips, printable labels</span></button><button class="${state.sheetSlot==='__cnc'?'on':''}" data-s="__cnc"><span class="n">CNC cut files · DXF</span><span class="l">cut order</span><span class="o">Every panel pass for VCarve, in stacking order</span></button>${deckList(state.model).map(d=>`<button class="${state.sheetSlot==='__deck:'+d.k?'on':''}" data-s="__deck:${d.k}"><span class="n">Deck ${d.k+1} · framing</span><span class="l">${d.L.w}′ × ${d.L.d}′</span><span class="o">${d.L.id} · cut list, corner notches</span></button>`).join('')}</div>`+
     wallListHTML(slots,state.sheetSlot);
   el.querySelectorAll('.wl button').forEach(b=>b.onclick=()=>{ state.sheetSlot=b.dataset.s; renderSheetList(); renderSheet(); });
 }
 function renderSheet(){
   const el=document.getElementById('sheet');
-  if(state.sheetSlot==='__found'){ renderFoundation(el); return; }
+  if(state.sheetSlot==='__found'){ if(foundationOf(state.model)==='concrete') renderConcreteSheet(el); else renderFoundation(el); return; }
   if(state.sheetSlot==='__labels'){ renderLabelsHome(el); return; }
   if(state.sheetSlot==='__cnc'){ renderCncSheet(el); return; }
   if(/^__deck:\d+$/.test(state.sheetSlot)){ renderDeckSheet(el, +state.sheetSlot.slice(7)); return; }

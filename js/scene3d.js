@@ -8,6 +8,8 @@ import { renderSide } from './sidebar.js';
 import { pickFor, pickLayer, state } from './state.js';
 import { getBearing } from './orient.js';
 import { symbol, unitFor } from './units.js';
+import { concretePlan } from './concrete.js';
+import { foundationOf } from './state.js';
 
 /* ============================================================ 3D studio */
 const stage = document.getElementById('stage');
@@ -233,6 +235,8 @@ function buildHome(){
   // concrete pads under decks that float instead of sitting on screws
   { const padG=new THREE.BoxGeometry(16/FT, 8/FT, 16/FT), padM=new THREE.MeshStandardMaterial({color:0xa7a9a4, roughness:0.95});
     padsFor(state.model, state.inset).forEach(pd=>{ const m=new THREE.Mesh(padG,padM); m.position.set(pd.x, -WALL_BASE/FT - 4/FT, pd.z); screwGroup.add(m); }); }
+  // concrete foundation: footing, ICF (foam / core / foam) and the inside supports
+  if(foundationOf(state.model)==='concrete') screwGroup.add(buildConcrete());
   { // footprints on the ground so the screws can be read against the home when walls and floors are off
     fpGroup=new THREE.Group(); homeGroup.add(fpGroup);
     const fpMat=new THREE.LineBasicMaterial({color:0x3b3122}), dkMat=new THREE.LineDashedMaterial({color:0x8a7a5c, dashSize:0.6, gapSize:0.4});
@@ -312,6 +316,34 @@ function buildHome(){
     camera.position.set(span*1.0+14, span*0.95+12, span*1.35+18); controls.target.set(0,3.5,0); buildHome.framed=state.model;
   }
   computeSpread(); explodeT = state.exploded?1:0; applyExplode();
+}
+const CONC = { foam:new THREE.MeshStandardMaterial({color:0xe6ebef, roughness:0.95}), core:new THREE.MeshStandardMaterial({color:0xa9aba6, roughness:0.9}),
+  foot:new THREE.MeshStandardMaterial({color:0x8f918c, roughness:0.95}), access:new THREE.MeshBasicMaterial({color:0xd0661f}) };
+/* the concrete foundation in plan feet (same frame as the pods); its top is the underside of the home */
+function buildConcrete(){
+  const cp=concretePlan(state.model), g=new THREE.Group(), top=-FLOOR, yb=top-cp.BH, yf=yb-cp.FTk;
+  const ring=(outer, inner, y, h, mat)=>{
+    const sh=new THREE.Shape(outer.map(([x,z])=>new THREE.Vector2(x,-z)));
+    sh.holes.push(new THREE.Path(inner.map(([x,z])=>new THREE.Vector2(x,-z))));
+    const m=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,{depth:h, bevelEnabled:false}), mat); m.rotation.x=-Math.PI/2; m.position.y=y; g.add(m); };
+  const O=cp.off;
+  cp.band(O.foamOut, O.core0).forEach(b=>ring(b.outer,b.inner,yb,cp.BH,CONC.foam));
+  cp.band(O.core0, O.core1).forEach(b=>ring(b.outer,b.inner,yb,cp.BH-0.002,CONC.core));
+  cp.band(O.core1, O.foamIn).forEach(b=>ring(b.outer,b.inner,yb,cp.BH,CONC.foam));
+  cp.band(O.foot0, O.foot1).forEach(b=>ring(b.outer,b.inner,yf,cp.FTk,CONC.foot));
+  const box=(x0,z0,x1,z1,y,h,mat)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(x1-x0,h,z1-z0),mat); m.position.set((x0+x1)/2,y+h/2,(z0+z1)/2); g.add(m); };
+  cp.sections.forEach(sc=>{
+    const [x0,z0,x1,z1]=sc.rect, F=cp.F;
+    if(sc.ax==='x'){ box(x0,z0,x1,z0+F,yb,cp.BH,CONC.foam); box(x0,z0+F,x1,z1-F,yb,cp.BH-0.002,CONC.core); box(x0,z1-F,x1,z1,yb,cp.BH,CONC.foam); }
+    else { box(x0,z0,x0+F,z1,yb,cp.BH,CONC.foam); box(x0+F,z0,x1-F,z1,yb,cp.BH-0.002,CONC.core); box(x1-F,z0,x1,z1,yb,cp.BH,CONC.foam); }
+    const f=sc.foot; box(f[0],f[1],f[2],f[3],yf,cp.FTk,CONC.foot);
+  });
+  if(cp.access){   // crawl-space access: an orange frame on the outside face of the wall
+    const a=cp.access, w=a.w, along=a.ax==='x', out=0.25+0.01, cx=a.x+a.n[0]*out, cz=a.z+a.n[1]*out, th=0.08;
+    const fr=(dx,dz,ww,hh,y)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(along?ww:th, hh, along?th:ww), CONC.access); m.position.set(cx+(along?dx:0), y, cz+(along?0:dz)); g.add(m); };
+    fr(-w/2,-w/2,th,cp.BH,yb+cp.BH/2); fr(w/2,w/2,th,cp.BH,yb+cp.BH/2); fr(0,0,w,th,yb+cp.BH-th/2); fr(0,0,w,th,yb+th/2);
+  }
+  return g;
 }
 let explodeT=0, explodeGoal=0;
 /* Exploded view, done the way assembly illustrations are (Li, Agrawala et al., "Automated generation of

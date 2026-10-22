@@ -8,7 +8,8 @@ import { buildHome, highlight } from './scene3d.js';
 import { facing, fmtBearing } from './orient.js';
 import { setDeckFoundation } from './pods.js';
 import { openSheets } from './sheets.js';
-import { pickFor, save, state, choose, pickLayer, chooseLayer } from './state.js';
+import { pickFor, save, state, choose, pickLayer, chooseLayer, foundationOf, setFoundation } from './state.js';
+import { concretePlan } from './concrete.js';
 import { TYPES, unitsFor, unitFor, setUnit, unitSVG, unitLabel, catOf, okey } from './units.js';
 import { fin } from './format.js';
 
@@ -67,12 +68,13 @@ function renderSide(){
     const area=m.pods.reduce((a,p)=>a+POD[p.t].len*8,0);
     sideH.innerHTML=`<div class="eyebrow">Model${m.custom?' · your layout':''}</div><h2>${esc(m.name)}</h2><p>${pods} pods · ${area} sq ft${m.note?' · scanned from STEP':''}</p>`;
     sideB.innerHTML=`
-      <div class="stats"><div class="stat"><b>${pods}</b><span>pods</span></div><div class="stat"><b>${slots.filter(x=>x.type!=='int').length} + ${slots.filter(x=>x.type==='int').length}</b><span>outside + inside walls</span></div><div class="stat"><b>${panels}</b><span>SIP panels</span></div><div class="stat"><b>${screwsFor(state.model,state.inset).length}</b><span>ground screws</span></div>${(m.decks||[]).length?`<div class="stat"><b>${m.decks.length}</b><span>decks</span></div>`:''}</div>
+      <div class="stats"><div class="stat"><b>${pods}</b><span>pods</span></div><div class="stat"><b>${slots.filter(x=>x.type!=='int').length} + ${slots.filter(x=>x.type==='int').length}</b><span>outside + inside walls</span></div><div class="stat"><b>${panels}</b><span>SIP panels</span></div>${foundationOf(state.model)==='concrete' ? (()=>{ const c=concretePlan(state.model); return `<div class="stat"><b>${Math.round(c.icfLen)}′</b><span>ICF wall</span></div>`+(screwsFor(state.model,state.inset).length?`<div class="stat"><b>${screwsFor(state.model,state.inset).length}</b><span>deck screws</span></div>`:''); })() : `<div class="stat"><b>${screwsFor(state.model,state.inset).length}</b><span>ground screws</span></div>`}${(m.decks||[]).length?`<div class="stat"><b>${m.decks.length}</b><span>decks</span></div>`:''}</div>
+      ${foundationBlock()}
       <p class="note">Each pod's walls run A, B, C, D clockwise seen from above. A is the short end wall with the door, so A and C are the short end walls (they run straight through, corner to corner) and B and D are the long walls (they butt between the end walls). Click a wall to swap it or to change which wall is A.</p>
       ${wallListHTML(slots,null)}
       ${layoutBlock(m)}
       ${importBlock()}`;
-    bindLayout();
+    bindLayout(); bindFoundation();
   } else {
     const w=pickFor(s); const opts=optionsFor(s.len, s.type||'ext', state.model);
     const isInt=s.type==='int';
@@ -98,6 +100,17 @@ function renderSide(){
   }
   sideB.querySelectorAll('.wl button').forEach(b=>b.onclick=()=>{ state.selected=b.dataset.s; highlight(); renderSide(); });
   const imp=sideB.querySelector('#bImport'); if(imp) imp.onclick=()=>document.getElementById('fileIn').click();
+}
+
+/* what the home stands on */
+function foundationBlock(){
+  const f=foundationOf(state.model), c=f==='concrete'?concretePlan(state.model):null;
+  return `<div class="fld">Home stands on<div class="seg" role="group" aria-label="Foundation"><button class="fsbtn" data-found="screws" aria-pressed="${f!=='concrete'}">Ground screws</button><button class="fsbtn" data-found="concrete" aria-pressed="${f==='concrete'}">Concrete (ICF)</button></div></div>`
+    + (c ? `<p class="note">${c.brand.name} ICF on an 18″ × 6″ footing: ${Math.round(c.coreLen)}′ around the outside${c.sections.length?` and ${c.sections.length} inside support${c.sections.length>1?'s':''} (${c.sections.filter(s=>s.kind==='wall').length} wall section${c.sections.filter(s=>s.kind==='wall').length===1?'':'s'})`:''}. ${c.check.ok?'Every part of the crawl space can be reached.':'<b class="flipflag">Part of the crawl space is closed off.</b>'} Details on the foundation sheet.</p>` : '');
+}
+function bindFoundation(){
+  sideB.querySelectorAll('[data-found]').forEach(b=>b.onclick=()=>{ setFoundation(state.model, b.dataset.found); state.show.screws=true; buildHome(); renderSide();
+    toast(b.dataset.found==='concrete'?'Home on a concrete ICF foundation':'Home on ground screws'); });
 }
 
 /* windows & doors in the selected wall: which library unit goes in each opening */

@@ -22,6 +22,12 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
   - Units that fit the rough opening come first (no bigger, at most 2″ smaller). If only one fits, it is used automatically.
   - The 3D view and assembly sheets draw the standard symbols: the casement or door triangle points to the hinge, and sliders get an arrow on the moving panel. Man doors also show their swing on the floor.
   - Add real units with **Upload STEP → Window / door**. The `sample` units are placeholders sized to the scanned openings, and they drop out once a real unit of that kind is uploaded.
+- **Concrete foundation (ICF) instead of ground screws:** choose **Home stands on → Concrete (ICF)** in the home panel.
+  - **Perimeter:** an 18″ × 6″ footing under one course of ICF (Nudura 18″ or Fox Blocks 16″, 6″ or 8″ core, 2⅝″ foam each side) follows the whole home. The core's outer face is flush with the home's outermost face, so the outside foam is always fully outside the home and the home bears on concrete. Small steps from the 5/8″ joints (up to 3″) are squared off.
+  - **Inside supports:** short ICF sections run along the pod joints wherever the ground-screw rules would put an inside screw (never more than 12′ apart, crossings included). Sections within 4′ of each other become one wall, and a section within 2′ of the perimeter ties into it, unless that would close off part of the crawl space. Every part must stay reachable through gaps of at least 24″.
+  - **Crawl access:** a 28″ opening goes on the longest perimeter run not behind a deck. The 18″ ICF is under the 500 mm the National Building Code asks for, so the sheet says to step the footing down or add a floor hatch.
+  - **Decks:** they keep their own screws or pads, held 6″ past the footing.
+  - **Foundation sheet:** the plan with footing, ICF and supports dimensioned from the home's outside corner, a typical section, a takeoff (footing, ICF blocks, corners, end caps, concrete in ft³, yd³ and m³) and a PDF.
 - **Home orientation (for the screw installers):** the compass in the plan editor sets which way the home sits on site, at any angle. You can drag the dial, type a bearing, or tap N/E/S/W or ±15°. **North up** turns the plan so north points up the screen.
   - The bearing is saved with the home and its projects.
   - The 3D view shows a north arrow.

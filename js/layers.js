@@ -7,7 +7,7 @@ import { renderSide } from './sidebar.js';
 const ROWS = [
   ['Show'],
   ['roof','Roof','#4b514d'], ['ceiling','Ceiling','#d9d2bf'], ['walls','Walls','#c9a46a'], ['floors','Floors','#8d8f86'],
-  ['decks','Decks','#a88f5d'], ['screws','Ground screws & pads','#56606b'], ['units','Windows & doors','#8fc3ea'],
+  ['decks','Decks','#a88f5d'], ['screws','Foundation','#56606b'], ['units','Windows & doors','#8fc3ea'],
   ['-'],
   ['glass','See-through glass & doors'],
   ['-'],
