@@ -26,6 +26,14 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
   - Units that fit the rough opening come first (no bigger, at most 2″ smaller). If only one fits, it is used automatically.
   - The 3D view and assembly sheets draw the standard symbols: the casement or door triangle points to the hinge, and sliders get an arrow on the moving panel. Man doors also show their swing on the floor.
   - Add real units with **Upload STEP → Window / door**. The `sample` units are placeholders sized to the scanned openings, and they drop out once a real unit of that kind is uploaded.
+- **Decks:** every deck is conventional lumber framed by the same rules, whatever its size (`js/deckframe.js`).
+  - Double 2×8 all round, so where two decks meet there are four plies on the screw.
+  - 2×8 joists parallel to the house, 24″ on centre from the house side; the last space is whatever is left.
+  - Every corner notched 1½″ × 1½″ for a 1½″ × 1½″ angle-iron spine.
+  - Decks sit ¾″ off the house (room for ¾″ ribbed siding) and butt straight up to each other.
+  - **Decks · lumber takeoff** (with the assembly sheets) lists every piece with its cut length, the 2×8 to buy in standard lengths, deck boards and spines. Each deck's framing sheet has its own takeoff.
+  - The plan editor lists the deck size a home already uses first, and warns when a home mixes sizes.
+  - On a concrete foundation a deck gets no screws or pads against the house (its house side bears on the foundation), only out at its outer edges.
 - **Concrete foundation (ICF) instead of ground screws:** choose **Home stands on → Concrete (ICF)** in the home panel.
   - **Perimeter:** an 18″ × 6″ footing under one course of ICF (Nudura 18″ or Fox Blocks 16″, 6″ or 8″ core, 2⅝″ foam each side) follows the whole home. The core's outer face is flush with the home's outermost face, so the outside foam is always fully outside the home and the home bears on concrete. Small steps from the 5/8″ joints (up to 3″) are squared off.
   - **Inside supports:** short ICF sections with an 8″ core (two pods share them) run along the pod joints wherever the ground-screw rules would put an inside screw (never more than 12′ apart, crossings included). Sections within 4′ of each other become one wall, and a section within 2′ of the perimeter ties into it, unless that would close off part of the crawl space. Every part must stay reachable through gaps of at least 24″.

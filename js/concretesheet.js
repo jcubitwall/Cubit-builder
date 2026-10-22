@@ -152,7 +152,7 @@ function renderConcreteSheet(el){
     </div>
     ${cp.sections.length?`<div class="tblwrap"><div class="eyebrow" style="color:#555;margin:10px 0 4px">Inside supports · ends measured from the datum (X right, Y down), at the core centre</div><table class="boxes"><thead><tr><th>Support</th><th>Type</th><th>Length</th><th>From → to</th><th>Runs</th></tr></thead><tbody>${sup}</tbody></table>
       <p class="note" style="color:#444;margin-top:6px">Inside supports have an ${fin(ICF.coreShared)} core and run along the pod joints, under both pods, never more than 12′ apart (the ground-screw rules). Sections that came within 4′ of each other became one wall; every part of the crawl space stays reachable through gaps of at least 24″.</p></div>`:''}
-    ${ds?`<div class="tblwrap"><div class="eyebrow" style="color:#555;margin:10px 0 4px">Decks · screws and pads (kept ${fin((cp.off.foot0*FT)+6)} clear of the home's face, past the footing)</div><table class="boxes"><thead><tr><th>#</th><th>X</th><th>Y</th><th>What</th></tr></thead><tbody>${ds}</tbody></table></div>`:''}`;
+    ${ds?`<div class="tblwrap"><div class="eyebrow" style="color:#555;margin:10px 0 4px">Decks · screws and pads (none against the house: a deck's house side bears on the foundation)</div><table class="boxes"><thead><tr><th>#</th><th>X</th><th>Y</th><th>What</th></tr></thead><tbody>${ds}</tbody></table></div>`:''}`;
   const re=()=>{ save(); buildHome(); renderSide(); renderConcreteSheet(el); };
   const b=el.querySelector('#icfBrand'); if(b) b.onchange=()=>{ state.icf.brand=b.value; re(); };
   const c=el.querySelector('#icfCore'); if(c) c.onchange=()=>{ state.icf.core=+c.value; re(); };

@@ -9,6 +9,8 @@ import { pickFor, pickLayer, state } from './state.js';
 import { getBearing } from './orient.js';
 import { symbol, unitFor } from './units.js';
 import { concretePlan } from './concrete.js';
+import { deckMembers } from './deckframe.js';
+import { DECK } from './config.js';
 import { foundationOf } from './state.js';
 
 /* ============================================================ 3D studio */
@@ -171,16 +173,9 @@ function buildLayerMesh(L, mat){
 /* one deck frame in its own frame: x along the ledger (0..W), z outward (0..D), inches; y up from its underside */
 const DECK_MAT = new THREE.MeshStandardMaterial({color:0xa88f5d, roughness:0.9});
 function buildDeckMesh(L, mat){
-  const g=new THREE.Group(), W=L.W, D=L.D, t=L.lumber?.t||1.5, h=L.h||7.25, n=L.notch||0;
-  const R=L.rims||{ledger:true,far:true,left:true,right:true}, N=(cx,cz)=>(L.notches||[]).some(c=>c[0]===cx&&c[1]===cz);
-  const box=(x0,x1,z0,z1)=>{ if(x1-x0<0.01||z1-z0<0.01) return; const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT,h/FT,(z1-z0)/FT),mat); m.position.set((x0+x1)/2/FT,h/2/FT,(z0+z1)/2/FT); g.add(m); };
-  const sx0=R.left?t:0, sx1=W-(R.right?t:0);
-  if(R.ledger) box(Math.max(sx0,N(0,0)?n:0), Math.min(sx1,W-(N(1,0)?n:0)), 0, t);
-  if(R.far)    box(Math.max(sx0,N(0,1)?n:0), Math.min(sx1,W-(N(1,1)?n:0)), D-t, D);
-  if(R.left)   box(0, t, N(0,0)?n:0, D-(N(0,1)?n:0));
-  if(R.right)  box(W-t, W, N(1,0)?n:0, D-(N(1,1)?n:0));
-  const jz0=R.ledger?t:0, jz1=D-(R.far?t:0);
-  (L.joists?.at||[]).forEach(a=>{ if(L.joists.run==='z') box(a,a+t,jz0,jz1); else box(sx0,sx1,a,a+t); });
+  // framed by Cubit's deck rules (deckframe.js): double 2×8 rims, 2×8 joists 24″ o.c. from the house, notched corners
+  const g=new THREE.Group(), h=DECK.depth;
+  deckMembers(L).forEach(([nm,x0,x1,z0,z1])=>{ const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT,h/FT,(z1-z0)/FT),mat); m.position.set((x0+x1)/2/FT,h/2/FT,(z0+z1)/2/FT); g.add(m); });
   return g;
 }
 function buildHome(){

@@ -1,7 +1,9 @@
 /* Cubit Builder — planner.js : the plan editor. A top view of the home on the 8′ grid with a palette of
    pods (blank 8′/16′/24′ pods and the pod library). Drag a pod in, drag pods around, turn them in 90°
    steps, replace or remove them. Every drop snaps to the nearest spot where the pod docks properly. */
-import { POD } from './config.js';
+import { POD, DECK } from './config.js';
+import { deckMembers, joistCentres, deckName, deckSizes } from './deckframe.js';
+import { fin } from './format.js';
 import { MODELS, PODLIB, DECKLIB, byId, podById, deckById } from './data.js';
 import { slotsFor, podList, deckList } from './layout.js';
 import { state, save, pickFor } from './state.js';
@@ -54,16 +56,12 @@ function deckPt(d, L, u, v){
   return [d.x+a/12, d.z+b/12];
 }
 function deckSVG(d, L, cls=''){
-  const W=L.W, D=L.D, t=L.lumber?.t||1.5, n=L.notch||0, R=L.rims||{};
+  const W=L.W, D=L.D, n=DECK.notch;
   const P=(u,v)=>deckPt(d,L,u,v).map(c=>c.toFixed(3)).join(',');
   const poly=(pts,attr)=>`<polygon points="${pts.map(([u,v])=>P(u,v)).join(' ')}" ${attr}/>`;
   let g=poly([[0,0],[W,0],[W,D],[0,D]], `class="deck-r ${cls}"`);
-  (L.joists?.at||[]).forEach(a=>{ g+= L.joists.run==='z' ? poly([[a,t],[a+t,t],[a+t,D-t],[a,D-t]],'class="deck-j"') : poly([[t,a],[W-t,a],[W-t,a+t],[t,a+t]],'class="deck-j"'); });
-  if(R.ledger) g+=poly([[n,0],[W-n,0],[W-n,t],[n,t]],'class="deck-j"');
-  if(R.far) g+=poly([[n,D-t],[W-n,D-t],[W-n,D],[n,D]],'class="deck-j"');
-  if(R.left) g+=poly([[0,n],[t,n],[t,D-n],[0,D-n]],'class="deck-j"');
-  if(R.right) g+=poly([[W-t,n],[W,n],[W,D-n],[W-t,D-n]],'class="deck-j"');
-  (L.notches||[]).forEach(([cu,cv])=>{ const u0=cu?W-n:0, v0=cv?D-n:0; g+=poly([[u0,v0],[u0+n,v0],[u0+n,v0+n],[u0,v0+n]],'class="deck-n"'); });
+  deckMembers(L).forEach(([nm,u0,u1,v0,v1])=>{ g+=poly([[u0,v0],[u1,v0],[u1,v1],[u0,v1]],'class="deck-j"'); });
+  [[0,0],[1,0],[0,1],[1,1]].forEach(([cu,cv])=>{ const u0=cu?W-n:0, v0=cv?D-n:0; g+=poly([[u0,v0],[u0+n,v0],[u0+n,v0+n],[u0,v0+n]],'class="deck-n"'); });
   // ledger edge: the side that docks
   const [lx0,lz0]=deckPt(d,L,0,0), [lx1,lz1]=deckPt(d,L,W,0);
   g+=`<line x1="${lx0}" y1="${lz0}" x2="${lx1}" y2="${lz1}" class="deck-l"/>`;
@@ -87,7 +85,9 @@ function renderPalette(){
       ${lib.map(L=>`<div class="pod-item" data-lib="${esc(L.id)}" tabindex="0" role="button" aria-label="${esc(L.name)}">${podThumb(L)}<div><b>${esc(L.name)}</b><code>${esc(L.id)}${L.src==='saved'?' · saved here':''}</code>${L.src==='saved'?`<span class="pi-act"><button class="linkbtn" data-ren="${esc(L.id)}">Rename</button> <button class="linkbtn" data-del="${esc(L.id)}">Delete</button></span>`:''}</div></div>`).join('')}
       <div class="pal-h">Deck library · ${DECKLIB.length}</div>
       ${DECKLIB.length?'':'<p class="note">Empty. Import a STEP file with a porch or deck frame.</p>'}
-      ${DECKLIB.map(L=>`<div class="pod-item" data-deck="${esc(L.id)}" tabindex="0" role="button" aria-label="${esc(L.name)}">${deckThumb(L)}<div><b>${esc(L.name)}</b><code>${esc(L.id)} · ${L.W}″ × ${L.D}″ · notch ${L.notch}″</code></div></div>`).join('')}
+      ${(()=>{ const used=new Set((MODELS[state.model].decks||[]).map(d=>d.lib));
+        // the size this home already uses comes first: keep every deck the same size where you can
+        return DECKLIB.slice().sort((a,b)=>(used.has(b.id)-used.has(a.id))||a.id.localeCompare(b.id)).map(L=>`<div class="pod-item" data-deck="${esc(L.id)}" tabindex="0" role="button" aria-label="${esc(deckName(L))}">${deckThumb(L)}<div><b>${esc(deckName(L))}</b><code>${esc(L.id)}${used.has(L.id)?' · <b>on this home</b>':''}</code></div></div>`).join(''); })()}
     </div>`;
   el('palette').querySelectorAll('.pod-item').forEach(n=>{
     n.addEventListener('pointerdown', e=>{
@@ -379,7 +379,7 @@ function renderSide2(){
     <div class="side-b">
       <p class="note">Drag a pod from the left onto the plan. It snaps to the nearest spot where it docks: flush end to end, or side by side in 8′ steps. Press <b>R</b> while dragging to turn it 90°. Drag a pod to move it, or click it to turn, replace or remove it.</p>
       <p class="note">The 5/8″ space at every joint is added for you, and where two pods meet each keeps its own 4½″ wall. Changing a wall where two pods join changes the neighbour's wall to the same wall, mirrored.</p>
-      <p class="note"><b>Decks</b> come from the deck library. A deck docks with its ledger (the dark edge) flush against a pod or another deck, in 8′ steps, with the same 5/8″ space at a pod. Its corners are notched for the steel corner posts, and its ground screws follow the same rules as the pods'.</p>
+      <p class="note"><b>Decks</b> come from the deck library. A deck docks with its ledger (the dark edge) against a pod (¾″ off it, room for siding) or straight up to another deck, in 8′ steps. Every deck is framed the same way: double 2×8 all round, 2×8 joists 24″ o.c. from the house, corners notched 1½″ for the angle-iron spine. Its ground screws follow the same rules as the pods'. Keep every deck on a home the same size where you can.</p>
       ${(m.decks||[]).length?`<div class="fld">All decks stand on<div class="seg"><button class="fsbtn" id="allScrews" aria-pressed="${m.decks.every(d=>d.found!=='pads')}">Ground screws</button><button class="fsbtn" id="allPads" aria-pressed="${m.decks.every(d=>d.found==='pads')}">Concrete pads (floating)</button></div></div>`:''}
       ${m.custom||m.project||m.sub?'':'<p class="note">This is a standard model. Your first change makes your own copy, saved in this browser; add it to a model name to share it as a sub-model.</p>'}
       <div class="row edit-only"><button class="btn" id="saveAll">Save these pods to the library</button></div>
@@ -411,21 +411,21 @@ function renderSide2(){
 }
 function renderDeckSide(m, side){
   const d=deckList(state.model)[selDeck], L=d.L;
-  const opts=DECKLIB.map(x=>`<option value="${esc(x.id)}" ${x.id===L.id?'selected':''}>${esc(x.id)} · ${esc(x.name)}</option>`).join('');
-  const oc=(()=>{ const a=L.joists?.at||[]; const g=a.slice(1).map((v,i)=>Math.round(v-a[i])).sort((x,y)=>x-y); return g.length?g[g.length>>1]:0; })();
-  side.innerHTML=`<div class="side-h"><div class="eyebrow">Deck ${d.k+1} · ${L.w}′ × ${L.d}′ · ledger faces ${({0:'up',90:'right',180:'down',270:'left'})[d.rot]}</div><h2>${esc(L.name||L.id)}</h2><p><code>${esc(L.id)}</code> · ${L.W}″ × ${L.D}″ frame</p></div>
+  const opts=DECKLIB.map(x=>`<option value="${esc(x.id)}" ${x.id===L.id?'selected':''}>${esc(deckName(x))} · ${esc(x.id)}</option>`).join('');
+  const sizes=deckSizes(m), jc=joistCentres(L);
+  side.innerHTML=`<div class="side-h"><div class="eyebrow">Deck ${d.k+1} · ${L.w}′ × ${L.d}′ · ledger faces ${({0:'up',90:'right',180:'down',270:'left'})[d.rot]}</div><h2>${esc(deckName(L))}</h2><p><code>${esc(L.id)}</code> · ${L.W}″ × ${L.D}″ frame · ¾″ off the house</p></div>
   <div class="side-b">
     <div class="row"><button class="btn" id="dTurn">Turn</button><button class="btn ghost" id="dDel">Remove</button><button class="btn ghost" id="dBack">Done</button></div>
     <div class="fld">Stands on<div class="seg" role="group" aria-label="What this deck stands on"><button class="fsbtn" id="fScrews" aria-pressed="${d.found!=='pads'}">Ground screws</button><button class="fsbtn" id="fPads" aria-pressed="${d.found==='pads'}">Concrete pads (floating)</button></div></div>
     <label class="fld">Replace with<select id="dRep">${opts}</select></label>
     <div class="row"><button class="btn ghost" id="dDoRep">Replace this deck</button></div>
+    ${sizes.length>1?`<p class="note" style="color:#b4520f"><b>${sizes.length} deck sizes on this home</b> (${sizes.map(([id,n])=>`${n} × ${esc(deckName(deckById(id)||{w:'?',d:'?'}))}`).join(', ')}). Keep to one size where you can: the same frames and the same screw layout, no mix-ups.</p>`:''}
     <table class="boxes"><tbody>
-      <tr><td>Lumber</td><td>${L.lumber?.t}″ × ${L.lumber?.h}″</td></tr>
-      <tr><td>Joists</td><td>${(L.joists?.at||[]).length} · ${L.joists?.run==='x'?'parallel to the ledger':'out from the ledger'}${oc?` · ${oc}″ o.c.`:''}</td></tr>
-      <tr><td>Rims</td><td>${['ledger','left','right','far'].filter(k=>L.rims?.[k]).join(', ')||'none'}</td></tr>
-      <tr><td>Corner notches</td><td>${(L.notches||[]).length} × ${L.notch}″ × ${L.notch}″ for the steel corner</td></tr>
+      <tr><td>Rims</td><td>double 2×8 all round</td></tr>
+      <tr><td>Joists</td><td>${jc.length} × 2×8, parallel to the house, 24″ o.c. from the house side (last space ${fin(L.D-2*DECK.ply-(jc[jc.length-1]||2*DECK.ply))})</td></tr>
+      <tr><td>Corners</td><td>4 notches ${fin(DECK.notch)} × ${fin(DECK.notch)} for the ${DECK.angle} spine</td></tr>
     </tbody></table>
-    <p class="note">Drag the deck to move it; press R while dragging to turn it. ${L.source?`Scanned from ${esc(L.source)}.`:''}</p>
+    <p class="note">Drag the deck to move it; press R while dragging to turn it. The lumber takeoff is with the assembly sheets.</p>
   </div>`;
   el('dTurn').onclick=()=>done(turnDeck(selDeck),'Deck turned');
   el('dDel').onclick=()=>{ const why=removeDeck(selDeck); if(!why) selDeck=null; done(why,'Deck removed'); };

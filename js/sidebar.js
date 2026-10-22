@@ -186,7 +186,7 @@ function bindUnits(s, w){
 function renderDeckSide3d(k){
   const d=deckList(state.model)[k]; if(!d){ state.selected=null; renderSide(); return; }
   const L=d.L;
-  sideH.innerHTML=`<div class="eyebrow">Deck ${k+1} · ${L.w}′ × ${L.d}′ frame</div><h2>${esc(L.name||L.id)}</h2><p><code>${esc(L.id)}</code> · ${L.W}″ × ${L.D}″ · ${(L.notches||[]).length} corner notches ${L.notch}″</p>`;
+  sideH.innerHTML=`<div class="eyebrow">Deck ${k+1} · ${L.w}′ × ${L.d}′ frame</div><h2>${L.w}′ × ${L.d}′ deck</h2><p><code>${esc(L.id)}</code> · double 2×8 rims · 2×8 joists 24″ o.c. from the house · 4 corner notches 1½″ · ¾″ off the house</p>`;
   sideB.innerHTML=`<div class="row"><button class="btn" id="toSheet">Framing sheet</button><button class="btn ghost" id="toPlan">Move in the plan</button><button class="btn ghost" id="deselect">Back to model</button></div>
     <div class="fld">Stands on<div class="seg"><button class="fsbtn" id="fScrews" aria-pressed="${d.found!=='pads'}">Ground screws</button><button class="fsbtn" id="fPads" aria-pressed="${d.found==='pads'}">Concrete pads (floating)</button></div></div>
     <p class="note">Decks dock with their ledger against a pod or another deck. Swap, turn or remove decks in the plan editor.</p>`;

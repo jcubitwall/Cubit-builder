@@ -17,6 +17,12 @@ const PAD_MAX = 12;       // concrete pads under a floating deck: same rule as s
 const ICF = { foam:2.625, core:6, coreShared:8,   // 8″ core under the pod joints, where two pods share the support
   footW:18, footT:6, pier:48, access:28, pass:24,
   brands:{ nudura:{name:'Nudura', h:18, len:96}, fox:{name:'Fox Blocks', h:16, len:48} } };
+/* decks: always conventional lumber. Double 2×8 all round (so where two decks meet there are four plies to sit
+   on a screw), joists 2×8 at 24″ on centre running parallel to the house, measured from the house side, the
+   last space whatever is left. Every corner notched 1½″ × 1½″ for a short 1½″ × 1½″ angle-iron spine.
+   Decks sit ¾″ off the house (room for siding, ¾″ with ribs). */
+const DECK = { gap:0.75, ply:1.5, depth:7.25, plies:2, oc:24, notch:1.5, angle:'1½″ × 1½″ angle iron',
+  stock:[8,10,12,14,16], kerf:0.125, board:{name:'5/4 × 6 deck board', t:1, w:5.5, gap:0.1875} };
 const NOTCH = 1.75;       // steel spine notch at every pod corner, full height: 1¾″ × 1¾″ (measured from the STEP files)
 /* ============================================================ pod types
    Plan units are feet. x = along the pod length, z = across (8′). */
@@ -31,4 +37,4 @@ const LAYER_KINDS = {
   'ceiling-int': { label:'Interior ceiling', short:'Ceiling',     code:'CI', z:106.6,  t:6.47 },
   'roof':        { label:'Roof',             short:'Roof',        code:'RF', z:113.07, t:6.48 },
 };
-export { ICF, PAD_MAX, SCREW_MAX, NOTCH, H, T, TI, FLOOR, GAP, CEIL, PW, FT, POD, SIDE_NAME, WALL_BASE, LAYER_KINDS };
+export { DECK, ICF, PAD_MAX, SCREW_MAX, NOTCH, H, T, TI, FLOOR, GAP, CEIL, PW, FT, POD, SIDE_NAME, WALL_BASE, LAYER_KINDS };
