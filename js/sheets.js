@@ -45,6 +45,19 @@ function renderSheetList(){
     wallListHTML(slots,state.sheetSlot);
   el.querySelectorAll('.wl button').forEach(b=>b.onclick=()=>{ state.sheetSlot=b.dataset.s; renderSheetList(); renderSheet(); });
 }
+/* ‹ Prev · Next ›: step through every wall, floor and ceiling in the order of the list */
+function addNav(el){
+  const ids=[...document.querySelectorAll('#sheetList .wl button[data-s]')].map(b=>b.dataset.s).filter(id=>!id.startsWith('__'));
+  const i=ids.indexOf(state.sheetSlot); if(i<0) return;
+  const nm=id=>{ const b=document.querySelector(`#sheetList .wl button[data-s="${CSS.escape(id)}"] .n`); return b?b.textContent.trim():''; };
+  const pod=id=>{ const sl=slotsFor(state.model).find(x=>x.id===id)||layerSlotsFor(state.model).find(x=>x.id===id); return sl?sl.pod.label:''; };
+  el.insertAdjacentHTML('afterbegin', `<div class="sheet-nav"><button class="btn ghost" data-nav="-1" ${i===0?'disabled':''} aria-label="Previous">‹ Prev</button>
+    <span><b>${pod(ids[i])} · ${nm(ids[i])}</b><small>${i+1} of ${ids.length}${ids[i+1]?` · next: ${pod(ids[i+1])} · ${nm(ids[i+1])}`:''}</small></span>
+    <button class="btn" data-nav="1" ${i===ids.length-1?'disabled':''} aria-label="Next">Next ›</button></div>`);
+  el.querySelectorAll('[data-nav]').forEach(b=>b.onclick=()=>{ const j=i+(+b.dataset.nav); if(!ids[j]) return; state.sheetSlot=ids[j]; renderSheetList(); renderSheet();
+    const top=document.getElementById('sheet').getBoundingClientRect().top+scrollY-(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hh'))||0)-8;
+    scrollTo({top:Math.max(0,top), behavior:'instant'}); document.querySelector('#sheetList .wl button.on')?.scrollIntoView({block:'nearest'}); });
+}
 function renderSheet(){
   const el=document.getElementById('sheet');
   if(state.sheetSlot==='__found'){ if(foundationOf(state.model)==='concrete') renderConcreteSheet(el); else renderFoundation(el); return; }
@@ -56,7 +69,7 @@ function renderSheet(){
   if(state.sheetSlot==='__shop'){ renderShop(el); return; }
   if(/^__deck:\d+$/.test(state.sheetSlot)){ renderDeckSheet(el, +state.sheetSlot.slice(7)); return; }
   const ls=layerSlotsFor(state.model).find(l=>l.id===state.sheetSlot);
-  if(ls){ renderLayerSheet(el, ls); return; }
+  if(ls){ renderLayerSheet(el, ls); addNav(el); return; }
   const s=slotsFor(state.model).find(x=>x.id===state.sheetSlot); const w=bodyWall(s, pickFor(s));
   const isInt = s.type==='int';
   const faceA = isInt ? `Side A · faces ${s.pod.label}` : 'Front · interior side';
@@ -76,15 +89,14 @@ function renderSheet(){
     </div>
     <div><span class="facebadge ${face}">${(face==='int'?faceA:faceB).toUpperCase()}</span><span style="font-size:12.5px;color:#333">${isInt?'Plug and switch boxes on this side shown.':face==='int'?'Boxes for plugs and switches shown. Openings shown as seen from inside.':'Openings and outside plugs and lights only.'} Assemble left → right: <b>${plan.seq.map(p=>p.num).join(' → ')}</b>. Stack with ${plan.seq[0].code} on top.</span></div>
     <div class="elev">${elevationSVG(w,face,false,s)}</div>
+    <div id="wall3d" class="w3full"><span class="w3cap">3D · panels pulled apart · drag to turn</span></div>
     <div class="tblwrap"><div class="eyebrow" style="color:#555;margin-bottom:4px">Cut &amp; stack · ShopSabre</div>${stackTableHTML(plan)}</div>
-    <div class="sheet-grid">
-      <div id="wall3d"><span class="w3cap">3D · panels pulled apart · drag to turn</span></div>
-      <div class="tblwrap">${boxTable(w,face,s)}</div>
-    </div>
+    <div class="tblwrap">${boxTable(w,face,s)}</div>
     <div class="tblwrap"><div class="eyebrow" style="color:#555;margin:10px 0 4px">Framing · this wall</div>${wallFramingHTML(wallFraming(s, pickFor(s)))}</div>`;
   el.querySelectorAll('[data-face]').forEach(b=>b.onclick=()=>{ setFace(s,b.dataset.face); renderSheet(); });
   el.querySelector('#wallLabels').onclick=()=>downloadBlob(labelsPDF([plan], MODELS[state.model].name), `${MODELS[state.model].name} - ${plan.slot.pod.label} Wall ${plan.slot.letter} labels.pdf`);
   buildWall3D(w);
+  addNav(el);
 }
 
 function boxTable(w,face,slot){
