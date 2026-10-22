@@ -11,6 +11,12 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
   - Sub-models are shared with everyone: they're kept on the server (`api/catalog`, in R2) along with any library items they use.
   - On a sub-model, admins can **Save changes for everyone**, rename it, move it to another model, or remove it.
   - Haven has no standard layout yet, so it shows "no design yet" until something is added to it.
+- **Phone layout** (screens up to 700px wide): a small header with the home as a picker, and a tab bar along the bottom with **3D · Take-off · Shopping · Sheets · Plan**.
+  - Shopping and Plan are for admins only; viewers just look.
+  - The 3D view fills the screen. Tap a wall (or **Details**) and its panel slides up from the bottom; **Layers** and **Exploded view** sit on the view.
+  - **Take-off** lists everything by build stage (Foundation → Floor → Walls → Roof & ceiling → Decks → Windows & doors → Fasteners) as big readable lines.
+  - **Shopping** is the buy list: purchase lengths, sheets, blocks and concrete. Lines tick off as they're bought; on the private site every admin sees the same ticks (`api/shop`). **Share list** sends it as text to Messages, Mail or the supplier.
+  - Both lists are also in the assembly sheets on bigger screens.
 - **Plan & pods (drag and drop):** press **Plan & pods** for a top view of the home on an 8′ grid.
   - **Add a pod:** drag a blank 8′, 16′ or 24′ pod, or a pod from the **pod library**, onto the plan.
   - **Snapping:** pods only dock flush end to end, or side by side in 8′ steps. A drop snaps to the nearest spot where the pod shares at least 8′ of wall with another pod. Overlapping or loose pods aren't allowed.

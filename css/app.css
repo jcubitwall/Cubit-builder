@@ -330,3 +330,62 @@ details.frwall[open] summary{margin-bottom:6px}
 .plate-pair{display:flex;gap:8px;flex-wrap:wrap}
 .plate-pod svg{display:block;max-width:300px;height:auto}
 .plate-pod svg.corner-svg{max-width:min(520px,100%)}
+
+/* ---------------- take-off and shopping lists (phone tabs, and sheets on bigger screens) ---------------- */
+.to-head{margin-bottom:10px}
+.to-head h3{font-family:var(--display);font-size:20px;margin:2px 0 6px}
+.to-head .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.muted{color:var(--ink-2);font-size:12.5px}
+.to-stage{border:1px solid var(--line);border-radius:12px;background:var(--surface);margin-bottom:10px;overflow:hidden}
+.to-stage summary{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:12px 14px;cursor:pointer;font-size:15px;list-style:none}
+.to-stage summary::-webkit-details-marker{display:none}
+.to-stage summary span{font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+.to-stage[open] summary{border-bottom:1px solid var(--line)}
+.to-list, .shop{list-style:none;margin:0;padding:0}
+.to-list li, .shop-l{display:flex;gap:12px;align-items:baseline;padding:10px 14px;border-bottom:1px solid var(--line)}
+.to-list li:last-child{border-bottom:0}
+.to-n{flex:none;min-width:2.6em;text-align:right;font-family:var(--display);font-weight:800;font-size:19px;font-variant-numeric:tabular-nums}
+.to-w{display:flex;flex-direction:column;gap:2px;min-width:0}
+.to-w b{font-weight:600;font-size:14.5px}
+.to-w small{color:var(--ink-2);font-size:12px}
+.shop{border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
+.shop-g{padding:10px 14px 6px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);background:var(--surface-2);border-bottom:1px solid var(--line)}
+.shop-l{cursor:pointer;align-items:center;min-height:52px}
+.shop-l input{flex:none;width:22px;height:22px;accent-color:var(--accent)}
+.shop-l.done .to-w b, .shop-l.done .to-n{color:var(--ink-2);text-decoration:line-through}
+.pview{padding:4px 0 16px}
+
+/* ---------------- phone layout ---------------- */
+.home-pick, .tabs{display:none}
+html.phone .app{padding:0;gap:0}
+html.phone header.bar{position:sticky;top:0;z-index:30;flex-wrap:nowrap;gap:8px;padding:8px 12px;padding-top:max(8px, env(safe-area-inset-top));background:var(--bg);border-bottom:1px solid var(--line)}
+html.phone .brand span{display:none}
+html.phone .brand b{font-size:16px}
+html.phone header.bar > :is(.models,.spacer,#bPlan,#bProjects,#bSheets,#bUpload,.who){display:none!important}
+html.phone .home-pick{display:flex;align-items:center;gap:6px;flex:1;min-width:0;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:7px 10px;font:inherit;cursor:pointer}
+html.phone .home-pick .hp-k{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+html.phone .home-pick .hp-n{flex:1;min-width:0;font-weight:700;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+html.phone .tabs{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+html.phone .tabs button{display:flex;flex-direction:column;align-items:center;gap:2px;border:0;background:none;color:var(--ink-2);font:inherit;font-size:11px;padding:7px 0 6px;cursor:pointer;min-height:54px}
+html.phone .tabs button svg{width:24px;height:24px}
+html.phone .tabs button[aria-pressed="true"]{color:var(--accent)}
+html.phone.role-viewer .tabs .edit-only{display:none}
+html.phone .studio{position:fixed;left:0;right:0;top:var(--hh,56px);bottom:calc(55px + env(safe-area-inset-bottom));display:block;min-height:0;height:auto;margin:0}
+html.phone .studio #stage{position:absolute;inset:0;border-radius:0;min-height:0;height:auto}
+html.phone .studio .hint, html.phone #bFull{display:none}
+html.phone .fs-tools{display:flex}
+html.phone .fs-tools .toggles{display:flex}
+html.phone .fs-tools .tog{background:color-mix(in srgb,var(--surface) 92%,transparent);padding:6px 9px;font-size:12.5px}
+html.phone .studio > aside{position:absolute;left:0;right:0;bottom:0;top:auto;width:auto;max-height:62%;z-index:6;border-radius:16px 16px 0 0;box-shadow:0 -10px 30px rgba(0,0,0,.18);transform:none;transition:transform .22s ease;display:flex}
+html.phone .studio.side-closed > aside{transform:translateY(105%);display:flex}
+html.phone .studio .side-tab{display:grid;right:auto;left:50%;top:auto;bottom:10px;transform:translateX(-50%);width:auto;height:30px;padding:0 14px;border:1px solid var(--line);border-radius:999px;gap:6px;grid-auto-flow:column;align-items:center}
+html.phone .studio .side-tab .vh{position:static;width:auto;height:auto;clip:auto;font-size:12.5px;color:var(--ink)}
+html.phone .studio .side-tab svg{transform:rotate(90deg)}
+html.phone .studio .side-tab[aria-expanded="true"] svg{transform:rotate(-90deg)}
+html.phone .studio:not(.side-closed) .side-tab{bottom:calc(62% + 8px)}
+html.phone :is(#sheets,#planner,.pview){padding:10px 12px calc(70px + env(safe-area-inset-bottom))}
+html.phone .layers-pop{max-height:calc(100% - 120px)}
+dialog.sheet-dlg{margin:auto auto 0;width:100%;max-width:560px;border-radius:16px 16px 0 0;max-height:80vh}
+dialog.sheet-dlg .models{display:flex;flex-wrap:wrap;gap:8px}
+dialog.sheet-dlg{border:0;box-shadow:0 -12px 40px rgba(0,0,0,.25);padding-bottom:env(safe-area-inset-bottom)}
+dialog.sheet-dlg::backdrop{background:rgba(0,0,0,.35)}

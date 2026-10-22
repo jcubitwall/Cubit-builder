@@ -123,23 +123,24 @@ function framingTakeoff(walls=homeFraming(), rims=podRims()){
   rims.forEach(R=>R.pieces.forEach(([name,h,len,n])=>put(`LVL 1⅞″ × ${h===FRAME.lvl.floor?'9¼″':'11⅞″'}`, name, len, n)));
   const out=Object.entries(groups).map(([mat,g])=>{
     const cuts=Object.values(g.cuts).sort((a,b)=>a.name.localeCompare(b.name)||b.len-a.len);
-    let buy='';
+    let buy='', order=null;
     if(/^2×/.test(mat)){
       // lengths over 16′ (top plates on long walls) are bought as 16′ plus the rest; the splice can go anywhere
       const parts=g.all.flatMap(l=>{ const r=[]; let x=l; while(x>192+1e-6){ r.push(192); x-=192; } r.push(x); return r; });
-      const st=packStock(parts, FRAME.stock); buy=Object.entries(st.byLen).sort((a,b)=>+a[0]-+b[0]).map(([ft,n])=>`${n} × ${ft}′`).join(' · ');
+      const st=packStock(parts, FRAME.stock); order=Object.entries(st.byLen).map(([ft,n])=>({n, what:`${mat} × ${ft}′`})); buy=Object.entries(st.byLen).sort((a,b)=>+a[0]-+b[0]).map(([ft,n])=>`${n} × ${ft}′`).join(' · ');
     } else if(/OSB/.test(mat)){
       // ripped from 4 × 8 sheets along the 8′ length: 13 strips of 3½″ per sheet (⅛″ kerf)
-      const st=packStock(g.all, [8]), strips=st.boards.length, sheets=Math.ceil(strips/13);
+      const st=packStock(g.all, [8]), strips=st.boards.length, sheets=Math.ceil(strips/13); order=[{n:sheets, what:'4 × 8 × ½″ OSB sheet (rip 3½″ splines)'}];
       buy=`${strips} strips of 3½″ × 8′ → ${sheets} sheet${sheets===1?'':'s'} of 4 × 8 × ½″ OSB`;
     } else {
+      const by={}; g.all.forEach(l=>{ const ft=Math.ceil(l/12-1e-6); by[ft]=(by[ft]||0)+1; }); order=Object.entries(by).map(([ft,n])=>({n, what:`${mat} × ${ft}′`}));
       const lf=g.all.reduce((a,b)=>a+b,0)/12; buy=`${g.all.length} pieces · ${lf.toFixed(1)} linear ft (order lengths to suit; longest piece ${(Math.max(...g.all)/12).toFixed(2)}′)`;
     }
-    return { mat, cuts, pieces:g.all.length, buy };
+    return { mat, cuts, pieces:g.all.length, buy, order };
   });
   // Einspines: one at every pod corner; Dynobite screws through each spine into the corner wood
   const spines=rims.length*4, S=SPINE_SCREWS, wallN=S.wallSides*(Math.ceil(H/S.wallEvery)-1), per=S.perLVL*S.lvlEnds+wallN;
-  out.push({ mat:`Einspine screws (${S.size})`, cuts:[{name:`per Einspine: ${S.perLVL} into each of the ${S.lvlEnds} LVL ends + ${wallN} up the wall (1 per side every 2′)`, len:0, n:per}], pieces:spines*per, buy:`${spines*per} screws · ${per} per Einspine × ${spines} Einspines (4 per pod)`, fastener:true });
+  out.push({ mat:`Einspine screws (${S.size})`, cuts:[{name:`per Einspine: ${S.perLVL} into each of the ${S.lvlEnds} LVL ends + ${wallN} up the wall (1 per side every 2′)`, len:0, n:per}], pieces:spines*per, buy:`${spines*per} screws · ${per} per Einspine × ${spines} Einspines (4 per pod)`, fastener:true, order:[{n:spines*per, what:`${S.size} screw (Einspine)`}] });
   const order=m=>/^LVL/.test(m)?0:/2×6/.test(m)?1:/2×4/.test(m)?2:/OSB/.test(m)?3:4;
   return out.sort((a,b)=>order(a.mat)-order(b.mat));
 }

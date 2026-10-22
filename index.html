@@ -20,6 +20,7 @@
 <div class="app">
   <header class="bar">
     <div class="brand"><b>Cubit Builder</b><span>beta</span></div>
+    <button class="home-pick" id="bHome" aria-haspopup="dialog" aria-controls="homeDlg"><span class="hp-k">Home</span><span class="hp-n" id="bHomeName">…</span><svg viewBox="0 0 12 8" width="12" height="8" aria-hidden="true"><path d="M1 1.5 6 6.5 11 1.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <div class="models" id="models" role="group" aria-label="Home model"></div>
     <div class="spacer"></div>
     <div class="toggles" id="studioTools">
@@ -41,7 +42,7 @@
         <button class="fsbtn" id="bFull" aria-pressed="false" title="Full screen 3D (F)"><span aria-hidden="true">⛶</span> <span class="lbl">Full screen</span></button>
       </div>
       <div class="layers-pop" id="layersPop" hidden role="group" aria-label="Layers"></div>
-      <button class="side-tab" id="bSide" aria-expanded="true" aria-controls="sideH" title="Show or hide the panel (T)"><svg viewBox="0 0 10 16" width="10" height="16" aria-hidden="true"><path d="M7 2 2 8l5 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="vh">Panel</span></button>
+      <button class="side-tab" id="bSide" aria-expanded="true" aria-controls="sideH" title="Show or hide the panel (T)"><svg viewBox="0 0 10 16" width="10" height="16" aria-hidden="true"><path d="M7 2 2 8l5 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="vh">Details</span></button>
     </div>
     <aside>
       <div class="side-h" id="sideH"></div>
@@ -56,11 +57,24 @@
     <aside id="planSide"></aside>
   </section>
 
+  <section id="phoneView" class="pview" hidden></section>
   <section id="sheets" hidden>
     <nav id="sheetList" aria-label="Walls in this home"></nav>
     <div class="sheet" id="sheet"></div>
   </section>
+  <nav class="tabs" id="tabs" aria-label="Views">
+    <button data-tab="3d" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 21 8v8l-9 5-9-5V8z M12 13l9-5 M12 13v8 M12 13 3 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>3D</button>
+    <button data-tab="take"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z M9 10h7 M9 14h7 M9 18h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>Take-off</button>
+    <button data-tab="shop" class="edit-only"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h2l2 11h10l2-8H7 M10 20a1 1 0 1 0 0-.01 M17 20a1 1 0 1 0 0-.01" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>Shopping</button>
+    <button data-tab="sheets"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z M4 9h16 M9 9v10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>Sheets</button>
+    <button data-tab="plan" class="edit-only"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M16.5 14v6 M13.5 17h6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>Plan</button>
+  </nav>
 </div>
+<dialog id="homeDlg" class="sheet-dlg" aria-labelledby="homeTitle"><div class="dlg">
+  <div class="dlg-h"><h2 id="homeTitle">Homes</h2><button class="btn ghost" id="homeClose">Done</button></div>
+  <div id="homeBody"></div>
+  <div class="row edit-only" style="margin-top:12px"><button class="btn ghost" id="hProjects">Projects</button><button class="btn ghost admin-only" id="hUpload">Upload STEP</button></div>
+</div></dialog>
 <dialog id="projDlg" aria-labelledby="projTitle"><div class="dlg">
   <div class="dlg-h"><h2 id="projTitle">Projects</h2><button class="btn ghost" id="projClose">Close</button></div>
   <div id="projBody"></div>

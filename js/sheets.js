@@ -9,6 +9,8 @@ import { screwsFor, slotsFor, layerSlotsFor, deckList } from './layout.js';
 import { renderDeckSheet, renderDecksTakeoff } from './decksheet.js';
 import { renderFramingSheet, wallFramingHTML } from './framesheet.js';
 import { wallFraming } from './framing.js';
+import { takeoffHTML } from './takeoff.js';
+import { renderShop } from './shop.js';
 import { renderCncSheet } from './cncsheet.js';
 import { LAYER_KINDS } from './config.js';
 import { panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall, layerHoles } from './panels.js';
@@ -28,7 +30,7 @@ function openSheets(){
   document.getElementById('planner').hidden=true; document.getElementById('bPlan').textContent='Plan & pods';
   document.getElementById('bSheets').textContent='Back to 3D';
   const slots=slotsFor(state.model);
-  if(!['__found','__labels','__cnc','__decks','__frame'].includes(state.sheetSlot) && !/^__deck:\d+$/.test(state.sheetSlot||'') && !slots.find(s=>s.id===state.sheetSlot) && !layerSlotsFor(state.model).find(l=>l.id===state.sheetSlot)) state.sheetSlot=slots[0].id;
+  if(!['__found','__labels','__cnc','__decks','__frame','__take','__shop'].includes(state.sheetSlot) && !/^__deck:\d+$/.test(state.sheetSlot||'') && !slots.find(s=>s.id===state.sheetSlot) && !layerSlotsFor(state.model).find(l=>l.id===state.sheetSlot)) state.sheetSlot=slots[0].id;
   renderSheetList(); renderSheet();
 }
 function closeSheets(){
@@ -39,7 +41,7 @@ function renderSheetList(){
   const el=document.getElementById('sheetList'); const slots=slotsFor(state.model);
   const nS=screwsFor(state.model,state.inset).length;
   el.innerHTML=`<div class="side-h"><div class="eyebrow">${MODELS[state.model].name} · ${slots.length} walls</div></div>`+
-    `<div class="wl"><button class="${state.sheetSlot==='__found'?'on':''}" data-s="__found">${foundationOf(state.model)==='concrete'?`<span class="n">Foundation · concrete ICF</span><span class="l">footing + ICF</span><span class="o">Plan, section and takeoff for the concrete crew</span>`:`<span class="n">Foundation · ground screws</span><span class="l">${nS} screws</span><span class="o">Site plan with every screw located</span>`}</button><button class="${state.sheetSlot==='__labels'?'on':''}" data-s="__labels"><span class="n">Panel labels · cut &amp; stack</span><span class="l">all walls</span><span class="o">Stacking order, CNC flips, printable labels</span></button><button class="${state.sheetSlot==='__cnc'?'on':''}" data-s="__cnc"><span class="n">CNC cut files · DXF</span><span class="l">cut order</span><span class="o">Every panel pass for VCarve, in stacking order</span></button><button class="${state.sheetSlot==='__frame'?'on':''}" data-s="__frame"><span class="n">Framing · cut list</span><span class="l">lumber + LVL</span><span class="o">Plates, studs, jacks, splines, LVL rims · what to buy</span></button>${deckList(state.model).length?`<button class="${state.sheetSlot==='__decks'?'on':''}" data-s="__decks"><span class="n">Decks · lumber takeoff</span><span class="l">${deckList(state.model).length} deck${deckList(state.model).length>1?'s':''}</span><span class="o">Every piece of 2×8, boards to buy, spines</span></button>`:''}${deckList(state.model).map(d=>`<button class="${state.sheetSlot==='__deck:'+d.k?'on':''}" data-s="__deck:${d.k}"><span class="n">Deck ${d.k+1} · framing</span><span class="l">${d.L.w}′ × ${d.L.d}′</span><span class="o">${d.L.id} · framing plan, takeoff</span></button>`).join('')}</div>`+
+    `<div class="wl"><button class="${state.sheetSlot==='__take'?'on':''}" data-s="__take"><span class="n">Take-off · by build stage</span><span class="l">everything</span><span class="o">Foundation → floor → walls → roof → decks → windows → fasteners</span></button><button class="edit-only ${state.sheetSlot==='__shop'?'on':''}" data-s="__shop"><span class="n">Shopping list</span><span class="l">to buy</span><span class="o">Tick off as it's bought · share with the supplier</span></button><button class="${state.sheetSlot==='__found'?'on':''}" data-s="__found">${foundationOf(state.model)==='concrete'?`<span class="n">Foundation · concrete ICF</span><span class="l">footing + ICF</span><span class="o">Plan, section and takeoff for the concrete crew</span>`:`<span class="n">Foundation · ground screws</span><span class="l">${nS} screws</span><span class="o">Site plan with every screw located</span>`}</button><button class="${state.sheetSlot==='__labels'?'on':''}" data-s="__labels"><span class="n">Panel labels · cut &amp; stack</span><span class="l">all walls</span><span class="o">Stacking order, CNC flips, printable labels</span></button><button class="${state.sheetSlot==='__cnc'?'on':''}" data-s="__cnc"><span class="n">CNC cut files · DXF</span><span class="l">cut order</span><span class="o">Every panel pass for VCarve, in stacking order</span></button><button class="${state.sheetSlot==='__frame'?'on':''}" data-s="__frame"><span class="n">Framing · cut list</span><span class="l">lumber + LVL</span><span class="o">Plates, studs, jacks, splines, LVL rims · what to buy</span></button>${deckList(state.model).length?`<button class="${state.sheetSlot==='__decks'?'on':''}" data-s="__decks"><span class="n">Decks · lumber takeoff</span><span class="l">${deckList(state.model).length} deck${deckList(state.model).length>1?'s':''}</span><span class="o">Every piece of 2×8, boards to buy, spines</span></button>`:''}${deckList(state.model).map(d=>`<button class="${state.sheetSlot==='__deck:'+d.k?'on':''}" data-s="__deck:${d.k}"><span class="n">Deck ${d.k+1} · framing</span><span class="l">${d.L.w}′ × ${d.L.d}′</span><span class="o">${d.L.id} · framing plan, takeoff</span></button>`).join('')}</div>`+
     wallListHTML(slots,state.sheetSlot);
   el.querySelectorAll('.wl button').forEach(b=>b.onclick=()=>{ state.sheetSlot=b.dataset.s; renderSheetList(); renderSheet(); });
 }
@@ -50,6 +52,8 @@ function renderSheet(){
   if(state.sheetSlot==='__cnc'){ renderCncSheet(el); return; }
   if(state.sheetSlot==='__decks'){ renderDecksTakeoff(el); return; }
   if(state.sheetSlot==='__frame'){ renderFramingSheet(el); return; }
+  if(state.sheetSlot==='__take'){ el.innerHTML=takeoffHTML(); return; }
+  if(state.sheetSlot==='__shop'){ renderShop(el); return; }
   if(/^__deck:\d+$/.test(state.sheetSlot)){ renderDeckSheet(el, +state.sheetSlot.slice(7)); return; }
   const ls=layerSlotsFor(state.model).find(l=>l.id===state.sheetSlot);
   if(ls){ renderLayerSheet(el, ls); return; }
