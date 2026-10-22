@@ -4,7 +4,8 @@ import { MODELS } from './data.js';
 import { FRAME } from './config.js';
 import { fin, fft } from './format.js';
 import { state } from './state.js';
-import { homeFraming, podRims, framingTakeoff } from './framing.js';
+import { homeFraming, podRims, framingTakeoff, platesByPod } from './framing.js';
+import { layoutOffsets, podList } from './layout.js';
 import { downloadBlob } from './sheets.js';
 
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -24,6 +25,20 @@ function csv(walls, rims){
   rims.forEach(R=>R.pieces.forEach(([name,h,len,n])=>rows.push(['lvl', R.pod.label, name, n, `LVL 1-7/8 x ${h}`, +len.toFixed(4), fft(len), 'outside length minus the 1-7/8 corner squares'])));
   return rows.map(r=>r.map(q).join(',')).join('\n');
 }
+/* plate layout for one pod: its floor (bottom plates) or its ceiling (top plates), seen from above */
+function platePlanSVG(P, which){
+  const LO=layoutOffsets(state.model), pd=podList(state.model).find(q=>q.i===P.pod.i), ox=pd.x+LO.pods[pd.i].ox, oz=pd.z+LO.pods[pd.i].oz, W=pd.w, D=pd.d;
+  const s=Math.min(260/(W*12), 200/(D*12))*12, m=28, VW=W*s+2*m, VH=D*s+2*m+14, X=x=>m+(x-ox)*s, Y=z=>m+(z-oz)*s;
+  let g=`<svg viewBox="0 0 ${VW.toFixed(0)} ${VH.toFixed(0)}" width="${VW.toFixed(0)}" font-family="IBM Plex Mono, monospace" role="img" aria-label="${which} plates"><rect x="${m}" y="${m}" width="${W*s}" height="${D*s}" fill="#f6f1e6" stroke="#111" stroke-width="1.2"/>`;
+  P[which].forEach(pl=>{ const [x0,z0,x1,z1]=pl.rect;
+    g+=`<rect x="${X(x0)}" y="${Y(z0)}" width="${Math.max(1,(x1-x0)*s)}" height="${Math.max(1,(z1-z0)*s)}" fill="#e0b36a" stroke="#6b4e1f" stroke-width=".6"/>`;
+    if(pl.len>=10){ const cx=X((x0+x1)/2), cz=Y((z0+z1)/2), inside=[ (m+W*s/2)-cx, (m+D*s/2)-cz ], k=Math.hypot(...inside)||1;
+      const tx=cx+inside[0]/k*11, tz=cz+inside[1]/k*11;
+      g+=`<text x="${tx}" y="${tz+3}" ${pl.ax==='z'?`transform="rotate(-90 ${tx} ${tz+3})"`:''} text-anchor="middle" font-size="8" fill="#6b4e1f">${fin(pl.len)}</text>`; } });
+  g+=`<text x="${m}" y="${VH-6}" font-size="9" fill="#333">${which==='floor'?'FLOOR · bottom plates':'CEILING · top plates (seen from above)'}</text>`;
+  return g+'</svg>';
+}
+const bevelSVG = () => `<svg viewBox="0 0 230 92" width="230" font-family="IBM Plex Mono, monospace" role="img" aria-label="Plate bevel"><path d="M20 70 L20 53 L37 36 L103 36 L120 53 L120 70 Z" fill="#e0b36a" stroke="#6b4e1f"/><text x="70" y="62" text-anchor="middle" font-size="9">bottom plate</text><text x="6" y="22" font-size="9" fill="#2f6db5">¾″ bevels: the wall comes down over it</text><line x1="10" y1="70" x2="130" y2="70" stroke="#999"/><text x="140" y="60" font-size="9" fill="#333">top plate: the</text><text x="140" y="72" font-size="9" fill="#333">same, bevels</text><text x="140" y="84" font-size="9" fill="#333">facing down</text></svg>`;
 function renderFramingSheet(el){
   const walls=homeFraming(), rims=podRims(), T=framingTakeoff(walls, rims), m=MODELS[state.model];
   const total=T.reduce((a,g)=>a+g.pieces,0);
@@ -36,6 +51,9 @@ function renderFramingSheet(el){
     <table class="boxes"><thead><tr><th>Material</th><th>Pieces</th><th>Buy</th></tr></thead><tbody>${T.map(g=>`<tr><td><b>${esc(g.mat)}</b></td><td>${g.pieces}</td><td>${esc(g.buy)}</td></tr>`).join('')}</tbody></table>
     <div class="eyebrow" style="color:#555;margin:12px 0 4px">Cut list by material</div>
     ${T.map(g=>`<div class="tblwrap" style="margin-bottom:8px"><table class="boxes"><thead><tr><th colspan="3">${esc(g.mat)}</th></tr><tr><th>Piece</th><th>Qty</th><th>Length</th></tr></thead><tbody>${g.cuts.map(c=>`<tr><td>${esc(c.name)}</td><td>${c.n}</td><td><b>${fin(c.len)}</b> (${fft(c.len)})</td></tr>`).join('')}</tbody></table></div>`).join('')}
+    <div class="eyebrow" style="color:#555;margin:12px 0 4px">Plate layout · bottom plates go on the floor first, top plates on the ceiling</div>
+    <p class="note" style="color:#444">Fasten the bottom plates to each pod's floor, then set the walls down over them; fasten the top plates to the ceiling so they lock into the walls as the ceiling is lowered. Each plate's outer edge sits ½″ in from the floor (or ceiling) edge, behind the outside OSB. Bevel the two corners that face the incoming wall (bottom plates: top corners; top plates: bottom corners) about ¾″.</p>
+    <div class="plates">${platesByPod(walls).map(P=>`<div class="plate-pod"><b>${esc(P.pod.label)}</b><div class="plate-pair">${platePlanSVG(P,'floor')}${platePlanSVG(P,'ceiling')}</div></div>`).join('')}<div class="plate-pod"><b>Bevel</b>${bevelSVG()}</div></div>
     <div class="eyebrow" style="color:#555;margin:12px 0 4px">LVL rims by pod</div>
     <table class="boxes"><thead><tr><th>Pod</th><th>Floor rim 1⅞″ × 9¼″</th><th>Roof rim 1⅞″ × 11⅞″</th></tr></thead><tbody>${rims.map(R=>`<tr><td>${esc(R.pod.label)}</td><td>2 × ${fin(R.pieces[0][2])} · 2 × ${fin(R.pieces[1][2])}</td><td>2 × ${fin(R.pieces[2][2])} · 2 × ${fin(R.pieces[3][2])}</td></tr>`).join('')}</tbody></table>
     <div class="eyebrow" style="color:#555;margin:12px 0 4px">By wall</div>

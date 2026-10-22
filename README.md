@@ -28,7 +28,7 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
   - Add real units with **Upload STEP → Window / door**. The `sample` units are placeholders sized to the scanned openings, and they drop out once a real unit of that kind is uploaded.
 - **Framing lumber and LVL** (`js/framing.js`, **Framing · cut list** sheet, Layers → Framing lumber & LVL):
   - **Walls:** 2×6 in exterior walls and 2×4 in interior walls. Single plates are recessed top and bottom inside the 96″ panels.
-  - **Plates:** the top plate runs the full length of each wall, spliced anywhere. The bottom plate stops at doors, patio doors and cased openings.
+  - **Plates:** bottom plates are fastened to the floor first and the walls set down over them; top plates are fastened to the ceiling and lock into the walls as it's lowered. Both have the two corners facing the incoming wall bevelled ¾″. The top plate runs the full length of each wall, spliced anywhere; the bottom plate stops at doors, patio doors and cased openings. The framing sheet draws each pod's floor and ceiling plate layout (outer edge ½″ in from the edge), and in the exploded 3D view the plates stay with the floor and ceiling.
   - **End studs:** one at each wall end, 93″. It goes inboard of a spine notch.
   - **Jacks:** one each side of every opening, the height of the opening, sides only. Door jacks sit on the bottom plate.
   - **Splines:** two ½″ OSB × 3½″ at every panel joint, between the plates. Where an opening's edge is on the joint, its jack takes the joint for the opening's height and the splines run above and below. Each panel carries the splines on its right edge as assembled, the edge that meets the next panel; this is shown on the cut & stack table, the labels and the elevation.

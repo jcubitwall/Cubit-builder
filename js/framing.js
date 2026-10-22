@@ -3,8 +3,10 @@
 
    Walls (2×6 in the 6½″ exterior walls, 2×4 in the 4½″ interior walls), in the wall's own inches: x from the
    left end seen from outside, y up from the bottom of the 96″ panel.
-   · Top plate: single, recessed into the top of the panels, runs the full length of the wall (splice anywhere).
-   · Bottom plate: single, recessed into the bottom; stops at doors, patio doors and cased openings.
+   · Bottom plate: single, fastened to the FLOOR first; the wall is set down over it (recessed into the bottom of
+     the panels). Stops at doors, patio doors and cased openings. Its two top corners are bevelled ¾″.
+   · Top plate: single, fastened to the CEILING; it locks into the top of the walls as the ceiling is lowered.
+     Runs the full length of the wall (splice anywhere). Its two bottom corners are bevelled ¾″.
    · End stud: one at each end of the wall, between the plates (93″), for the long SIP screws.
    · Jacks: one each side of every window and door, the height of the opening (sides only, no headers, no
      sill or head pieces). A door's jacks sit on the bottom plate.
@@ -29,10 +31,10 @@ function wallFraming(slot, w0){
   const L=wallLen(w), P=FRAME.plate, lum=slot.type==='int' ? FRAME.int : FRAME.ext, t=FRAME.ply;
   const out=[], add=(kind, x0, x1, y0, y1, note='')=>{ if(x1-x0>0.01 && y1-y0>0.01) out.push({kind, x0, x1, y0, y1, len: kind.endsWith('plate') ? x1-x0 : y1-y0, note, lumber:lum.name}); };
   // plates
-  add('Top plate', 0, L, H-P, H, 'full length · splice anywhere');
+  add('Top plate', 0, L, H-P, H, 'on the ceiling · full length, splice anywhere · bevel 2 bottom corners ¾″');
   let segs=[[0,L]];
   w.openings.filter(isFloorOpening).forEach(o=>{ segs=segs.flatMap(([a,b])=>{ const c=o.x, d=o.x+o.w; if(d<=a||c>=b) return [[a,b]]; const r=[]; if(c>a) r.push([a,c]); if(d<b) r.push([d,b]); return r; }); });
-  segs.forEach(([a,b])=>add('Bottom plate', a, b, 0, P, 'stops at doors'));
+  segs.forEach(([a,b])=>add('Bottom plate', a, b, 0, P, 'on the floor · stops at doors · bevel 2 top corners ¾″'));
   // jacks
   const jacks=[];
   w.openings.filter(o=>o.kind!=='vent').forEach(o=>{
@@ -99,4 +101,17 @@ function framingTakeoff(walls=homeFraming(), rims=podRims()){
   const order=m=>/^LVL/.test(m)?0:/2×6/.test(m)?1:/2×4/.test(m)?2:3;
   return out.sort((a,b)=>order(a.mat)-order(b.mat));
 }
-export { wallFraming, homeFraming, podRims, framingTakeoff, isFloorOpening };
+/* where the plates go on each pod's floor (bottom plates) and ceiling (top plates), in plan feet: each plate's
+   outer edge sits ½″ in from the wall's outer face (behind the ⁷⁄₁₆″ OSB, centred in the foam core) */
+function platesByPod(walls=homeFraming()){
+  const by={};
+  walls.forEach(W=>{ const s=W.slot, r=[s.n[1],-s.n[0]], tl=(W.w.trim?.[0]||0)/FT, base=[s.p0[0]+r[0]*tl, s.p0[1]+r[1]*tl];
+    const inset=(FRAME.osb+((s.type==='int'?4.5:6.5)-2*FRAME.osb-W.lumber.d)/2)/FT, d=W.lumber.d/FT;
+    W.pieces.filter(p=>/plate/.test(p.kind)).forEach(p=>{
+      const a=[base[0]+r[0]*p.x0/FT-s.n[0]*inset, base[1]+r[1]*p.x0/FT-s.n[1]*inset], b=[base[0]+r[0]*p.x1/FT-s.n[0]*(inset+d), base[1]+r[1]*p.x1/FT-s.n[1]*(inset+d)];
+      const rect=[Math.min(a[0],b[0]), Math.min(a[1],b[1]), Math.max(a[0],b[0]), Math.max(a[1],b[1])];
+      ((by[s.pod.i] ||= {pod:s.pod, floor:[], ceiling:[]})[p.kind==='Bottom plate'?'floor':'ceiling']).push({rect, len:p.len, wall:s.letter, lumber:W.lumber.name, ax: Math.abs(r[0])>0.5 ? 'x' : 'z'});
+    }); });
+  return Object.values(by).sort((a,b)=>a.pod.i-b.pod.i);
+}
+export { platesByPod, wallFraming, homeFraming, podRims, framingTakeoff, isFloorOpening };

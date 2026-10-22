@@ -26,7 +26,8 @@ const DECK = { gap:0.75, ply:1.5, depth:7.25, plies:2, oc:24, notch:1.5, angle:'
 /* framing inside the SIPs: plates (single, recessed top and bottom inside the 96″ panel), an end stud at each
    wall end, a jack each side of every opening (sides only), OSB splines at panel joints; LVL rims in the floor
    and roof cassettes */
-const FRAME = { plate:1.5, ext:{name:'2×6', d:5.5}, int:{name:'2×4', d:3.5}, ply:1.5, osb:7/16,
+const FRAME = { plate:1.5, bevel:0.75,   // plates: two corners bevelled ¾″ so the wall / ceiling slips on
+  ext:{name:'2×6', d:5.5}, int:{name:'2×4', d:3.5}, ply:1.5, osb:7/16,
   spline:{t:0.5, w:3.5}, lvl:{t:1.875, floor:9.25, roof:11.875}, stock:[8,10,12,14,16] };
 const NOTCH = 1.75;       // steel spine notch at every pod corner, full height: 1¾″ × 1¾″ (measured from the STEP files)
 /* ============================================================ pod types

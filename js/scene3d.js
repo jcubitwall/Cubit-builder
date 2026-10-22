@@ -28,7 +28,7 @@ scene.add(new THREE.HemisphereLight(0xffffff,0x8a8a80,0.85));
 const sun = new THREE.DirectionalLight(0xffffff,0.75); sun.position.set(30,50,20); scene.add(sun);
 const grid = new THREE.GridHelper(96,24,0x9aa39b,0xc3c9c1); grid.position.y=-FLOOR; scene.add(grid);
 let homeGroup = new THREE.Group(); scene.add(homeGroup);
-let framingMeshes = [], rimGroup = null, wallGroups = [], layerGroups = [], deckGroups = [], roofGroup=null, ceilGroup=null, floorGroup=null, screwGroup=null, fpGroup=null, unitMeshes=[], floorMats=[], pickables=[];
+let framingMeshes = [], plateMeshes = [], rimGroup = null, wallGroups = [], layerGroups = [], deckGroups = [], roofGroup=null, ceilGroup=null, floorGroup=null, screwGroup=null, fpGroup=null, unitMeshes=[], floorMats=[], pickables=[];
 
 function themeColors(){
   const dark = (document.documentElement.dataset.theme==='dark') || (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
@@ -182,7 +182,7 @@ function buildDeckMesh(L, mat){
 }
 function buildHome(){
   scene.remove(homeGroup); homeGroup=new THREE.Group(); scene.add(homeGroup);
-  wallGroups=[]; layerGroups=[]; deckGroups=[]; pickables=[]; floorMats=[]; framingMeshes=[];
+  wallGroups=[]; layerGroups=[]; deckGroups=[]; pickables=[]; floorMats=[]; framingMeshes=[]; plateMeshes=[];
   const slots = slotsFor(state.model); const model=MODELS[state.model];
   const OFF = podOffsets(state.model);
   const pods = podList(state.model).map((p,i)=>({...p,x:p.x+OFF[i].ox,z:p.z+OFF[i].oz}));
@@ -308,7 +308,12 @@ function buildHome(){
       fr.pieces.forEach(pc=>{
         const isS=pc.kind==='Spline', dz = isS ? sp : d, zc = isS ? (pc.face==='outside face' ? -osb-sp/2 : -tt+osb+sp/2) : -tt/2;
         const m=new THREE.Mesh(new THREE.BoxGeometry((pc.x1-pc.x0)/FT, (pc.y1-pc.y0)/FT, dz), isS?FRAME_MAT.osb:FRAME_MAT.wood);
-        m.position.set((pc.x0+pc.x1)/2/FT, (pc.y0+pc.y1)/2/FT, zc); m.userData.framing=true; m.renderOrder=2; g.add(m); framingMeshes.push(m); }); }
+        m.position.set((pc.x0+pc.x1)/2/FT, (pc.y0+pc.y1)/2/FT, zc); m.userData.framing=true; m.renderOrder=2;
+        if(/plate/.test(pc.kind)){
+          // plates belong to the floor (bottom) and the ceiling (top): they stay with those when the home explodes
+          g.updateMatrix(); m.applyMatrix4(g.matrix); m.userData.plate={pod:s.pod.i, top:pc.kind==='Top plate', base:m.position.clone()};
+          homeGroup.add(m); plateMeshes.push(m); framingMeshes.push(m);
+        } else { g.add(m); framingMeshes.push(m); } }); }
     homeGroup.add(g); wallGroups.push(g);
   });
   // LVL rims of the floor and roof cassettes: four pieces per pod, open 1⅞″ squares at the outside corners
@@ -318,7 +323,6 @@ function buildHome(){
       const y=(z0-WALL_BASE)/FT, hh=h/FT, box=(x0,z0_,x1,z1)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(x1-x0,hh,z1-z0_),FRAME_MAT.lvl); m.position.set((x0+x1)/2, y+hh/2, (z0_+z1)/2); rimGroup.add(m); };
       box(p.x+t, p.z, p.x+p.w-t, p.z+t); box(p.x+t, p.z+p.d-t, p.x+p.w-t, p.z+p.d);
       box(p.x, p.z+t, p.x+t, p.z+p.d-t); box(p.x+p.w-t, p.z+t, p.x+p.w, p.z+p.d-t); })); }
-  framingMeshes=framingMeshes.filter(m=>wallGroups.some(g=>g===m.parent));
   unitMeshes=[]; wallGroups.forEach(g=>g.traverse(o=>{ if(o.userData.unit) unitMeshes.push(o); }));
   applyLayers();
   highlight();
@@ -397,6 +401,7 @@ function applyExplode(){
     g.position.x += v[0]*eP; g.position.z += v[1]*eP;
     g.position.y = lift + eW*0.6;
   });
+  plateMeshes.forEach(m=>{ const u=m.userData.plate, v=sp(u.pod); m.position.set(u.base.x+v[0]*eP, u.base.y+lift+eW*(u.top?OFFS['ceiling-int']:OFFS['floor-int']), u.base.z+v[1]*eP); });
   if(rimGroup) rimGroup.visible=!!state.show.framing && e<0.01;
 }
 /* what shows: each layer on its own (Layers menu) */
