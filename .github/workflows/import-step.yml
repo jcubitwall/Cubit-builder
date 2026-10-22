@@ -32,7 +32,7 @@ jobs:
           JOB_URL: ${{ inputs.url }}
         run: |
           [[ "$JOB_ID" =~ ^[0-9]{14}-[a-z0-9]{1,8}$ ]] || { echo "bad id"; exit 1; }
-          [[ "$JOB_URL" =~ ^https://[a-f0-9]{32}\.r2\.cloudflarestorage\.com/ ]] || { echo "bad url"; exit 1; }
+          [[ "$JOB_URL" =~ ^https://([a-z0-9-]+\.)?cubit-builder\.pages\.dev/api/file\?id=[0-9]{14}-[a-z0-9]+\&exp=[0-9]+\&sig=[a-f0-9]{64}$ ]] || { echo "bad url"; exit 1; }
           mkdir -p incoming
           curl -fsS --max-time 300 -o "incoming/$JOB_ID.step" "$JOB_URL"
       - name: Scan and add to the libraries

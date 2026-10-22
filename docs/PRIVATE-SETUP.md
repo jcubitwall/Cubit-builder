@@ -10,9 +10,9 @@ browser ──► Cloudflare Access (login) ──► Cloudflare Pages (the app 
                                                │  admin upload
                                                ▼
                                           R2 bucket (the STEP file)
-                                               │  starts (with a 1-hour download link)
+                                               │  starts (with a signed 1-hour download link)
                                                ▼
-                                   GitHub Action "Import STEP" (scans with OCP)
+                                   GitHub Action "Import STEP" (fetches /api/file, scans with OCP)
                                                │  commits data/*.json
                                                ▼
                                    Cloudflare Pages redeploys the site
@@ -26,6 +26,8 @@ All of this runs on free plans:
 | Cloudflare Pages | free plan |
 | R2 | 10 GB |
 | GitHub Actions | 2,000 minutes a month on a private repo; one import takes about 3–5 minutes |
+
+Uploads are limited to 95 MB per file (the Cloudflare free plan's request limit).
 
 ---
 
@@ -55,7 +57,10 @@ All of this runs on free plans:
 ## 4. Storage for uploaded STEP files (R2)
 
 1. Open **R2 → Create bucket** and name it `cubit-step-files`.
-2. Open **R2 → Manage R2 API tokens → Create API token**. Choose *Object Read & Write*, limited to that bucket. Copy the **Access Key ID**, the **Secret Access Key** and your **Account ID**.
+
+No R2 keys are needed: the site reads the bucket through its binding.
+
+**Leave `/api/file` open.** Add a second Access application, *Cubit Builder - scan download*, for `cubit-builder.pages.dev/api/file`, with one policy: Action **Bypass**, Include **Everyone**. GitHub can't log in, so this path stays open. The site only serves a file there with a link it signed itself (with `IMPORT_SECRET`), and each link works for one hour.
 
 ## 5. A GitHub token so the site can start a scan
 
@@ -73,15 +78,12 @@ Open the Pages project → **Settings → Variables and Secrets**, for Productio
 
 | Name | Value |
 |---|---|
-| `ACCESS_TEAM` | `yourteam.cloudflareaccess.com` |
+| `ACCESS_TEAM` | `yourteam.cloudflareaccess.com` (optional; read from the login token if missing) |
 | `ACCESS_AUD` | the AUD tag from step 3 |
 | `ADMIN_EMAILS` | admin emails, comma-separated, e.g. `johnny@…,kian@…` |
 | `GITHUB_REPO` | `jcubitwall/Cubit-builder` |
 | `GITHUB_TOKEN` | the token from step 5 (type **Secret**) |
-| `R2_ACCOUNT_ID` | your Cloudflare Account ID |
-| `R2_ACCESS_KEY_ID` | from step 4 (type **Secret**) |
-| `R2_SECRET_ACCESS_KEY` | from step 4 (type **Secret**) |
-| `R2_BUCKET` | `cubit-step-files` |
+| `IMPORT_SECRET` | any long random string (type **Secret**) |
 
 Then open **Settings → Bindings → Add → R2 bucket**. Variable name: `STEPS`, bucket: `cubit-step-files`.
 
@@ -89,7 +91,7 @@ Open **Deployments** and use **Retry deployment** on the latest one, so these se
 
 ## 7. GitHub needs no secrets
 
-The site gives each scan a one-hour download link to the uploaded file. GitHub never holds any Cloudflare keys.
+The site gives each scan a signed one-hour link to the uploaded file. GitHub never holds any Cloudflare keys.
 
 ## 8. Try it
 

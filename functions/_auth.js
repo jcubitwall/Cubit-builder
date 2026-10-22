@@ -4,7 +4,8 @@
    look the email up in ADMIN_EMAILS: admins can upload STEP files; everyone else is a viewer.
 
    Settings (Cloudflare Pages → Settings → Variables and secrets):
-     ACCESS_TEAM    your Access team domain, e.g. cubit.cloudflareaccess.com
+     ACCESS_TEAM    your Access team domain, e.g. cubit.cloudflareaccess.com (optional: if it is not set, the
+                    team is read from the token's issuer, which must be a *.cloudflareaccess.com address)
      ACCESS_AUD     the Application Audience (AUD) tag of the Access application
      ADMIN_EMAILS   comma-separated admin emails
 */
@@ -13,13 +14,19 @@ const b64url = s => Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/').p
 const cookie = (req, name) => (req.headers.get('Cookie')||'').split(/;\s*/).map(p=>p.split('=')).find(([k])=>k===name)?.[1];
 
 async function verify(token, env){
-  if(!token || !env.ACCESS_TEAM || !env.ACCESS_AUD) return null;
+  if(!token || !env.ACCESS_AUD) return null;
   const [h, p, sig] = token.split('.');
   if(!sig) return null;
   const header = JSON.parse(new TextDecoder().decode(b64url(h)));
-  if(Date.now()-certCache.at > 3600e3){
-    const r = await fetch(`https://${env.ACCESS_TEAM}/cdn-cgi/access/certs`);
-    certCache = { at: Date.now(), keys: (await r.json()).keys || [] };
+  let team = env.ACCESS_TEAM;
+  if(!team){
+    const iss = JSON.parse(new TextDecoder().decode(b64url(p))).iss || '';
+    const m = iss.match(/^https:\/\/([a-z0-9-]+\.cloudflareaccess\.com)$/); if(!m) return null;
+    team = m[1];
+  }
+  if(Date.now()-certCache.at > 3600e3 || certCache.team !== team){
+    const r = await fetch(`https://${team}/cdn-cgi/access/certs`);
+    certCache = { at: Date.now(), team, keys: (await r.json()).keys || [] };
   }
   const jwk = certCache.keys.find(k=>k.kid===header.kid); if(!jwk) return null;
   const key = await crypto.subtle.importKey('jwk', jwk, {name:'RSASSA-PKCS1-v1_5', hash:'SHA-256'}, false, ['verify']);
