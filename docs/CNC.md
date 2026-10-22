@@ -48,9 +48,24 @@ Open **Assembly sheets → CNC cut files · DXF**.
 - **Job size:** 48 × 96 × 6.5″ (a whole SIP panel per sheet).
 - **SIP panel cutter:** tool #13, ¾″ 2-flute end mill, 10,000 rpm, feed 180 ipm, plunge 150 ipm, chip load 0.009″, stepover 0.3″ (40 %), pass depth 6.55″ (one pass right through 6.5″).
 - **Box pockets** (toolpaths named `Receptacles`, `Oven_Plug`): pocket, offset, climb, start depth 0, cut depth 3.0″, no ramp, no profile pass, pocket allowance 0.
-- **Safe Z** 7.5″. **Home** X0 Y0 Z7.5. Start depth 0 means Z zero is on the panel's top face (to confirm).
+- **Safe Z** = thickness + 1 (7.5″ / 5.5″). **Home** X0 Y0.
+- **Post:** `ShopSabre ATC Arc (inch) (*.tap)`, a copy is in `tools/cnc/reference/`.
 
-Still needed: the .tap files and the post-processor name (how the header, tool change and footer are written), plus the tools and depths for chases, de-foam channels, light holes and openings.
+### Confirmed from the shop's .tap files (tools/cnc/reference)
+
+- **Z = 0 is the table**, not the top of the panel. A 3″ pocket in a 4.5″ panel goes to Z1.5; through cuts go to Z −0.05.
+- **X runs across the 48″ width, Y along the 96″ length**, with the origin at the panel's lower-left. (The DXF step-1 plan in `js/cnc.js` assumed 96″ along X and Z 0 on top: that has to change to match.)
+- **File names:** `<n>-<side><face>_<panels>_Sip-<thick>.tap`. n = panel order. Side a/b = first/second time on the table. Face E = exterior up, I = interior up. A one-sided panel is just `I`.
+- **The flip mirrors X:** the exterior cut at X46.625 lines up with interior X1.375.
+- **Exterior-face cuts** (aE files): a single ¾″ line 1.0–1.75″ in from the Einspine edge, down to Z0.53. It goes through the outer skin and foam and leaves the inner skin.
+- **Box pockets:** single 2⅜″ × 3⅝″, double 4⅛″ × 3⅝″, 3″ deep. On exterior walls (A1) the box is also cut right through.
+- **Parts and holes:** two passes (Z0.125, then Z −0.05). Single lines (door and window cuts) take one pass at Z −0.05, with the tool centre ⅜″ inside the finished edge.
+- **Round holes:** 2½″ through (C2), cut on a 0.875″ radius.
+- **Several parts per blank:** A1, A2 (header 12⅞″ × 72″) and A3 are cut out of one 48″ × 96″ panel.
+
+### G-code generator (js/gcode.js)
+
+It writes the post's exact format. `tools/cnc/check.sh` re-makes all six reference panels and simulates them against the shop's own files. Every one cuts exactly the same, and four are byte-identical; the other two only start their pocket rings at a different corner.
 
 ## Step 2: G-code in shadow mode
 
