@@ -13,7 +13,7 @@ import { ocSeg, bindOC } from './deckframe.js';
 import { concretePlan } from './concrete.js';
 import { FAMILIES, familyOf, familyById, variantsOf, saveSub, removeSub, editSub } from './catalog.js';
 import { isAdmin, canSave } from './role.js';
-import { TYPES, unitsFor, unitFor, setUnit, unitSVG, unitLabel, catOf, okey } from './units.js';
+import { TYPES, unitsFor, unitFor, setUnit, unitSVG, unitLabel, catOf, okey, pairOf, doorOwner, setDoorOwner } from './units.js';
 import { fin } from './format.js';
 
 const sideH=document.getElementById('sideH'), sideB=document.getElementById('sideB');
@@ -166,13 +166,18 @@ function unitsBlock(s, w){
   const ops=(w?.openings||[]).filter(catOf).sort((a,b)=>a.x-b.x);
   if(!ops.length) return '';
   const n={};
-  return `<div class="eyebrow">Windows &amp; doors · seen from outside, left to right</div><div class="units">${ops.map(o=>{
+  return `<div class="eyebrow">Windows &amp; doors · seen from ${s.type==='int'?esc(s.other.label):'outside'}, left to right</div><div class="units">${ops.map(o=>{
     n[o.kind]=(n[o.kind]||0)+1;
+    const pr=pairOf(s,o), own=doorOwner(s,o).id===s.id;
+    if(pr && !own) return `<div class="unit-row"><div class="unit-pic">${unitSVG('none','L',o.w,o.h)}</div><div class="unit-main"><b>${KIND_NAME[o.kind]} ${n[o.kind]}</b> <span class="muted">${fin(o.w)} × ${fin(o.h)} R.O. · between ${esc(s.pod.label)} and ${esc(pr.slot.pod.label)}</span>
+      <span class="muted">The door is in ${esc(pr.slot.pod.label)}'s wall (${esc(pr.slot.label)}). This wall has the matching rough opening only.</span>
+      <div class="unit-opts"><button class="btn ghost" data-own="${esc(okey(o))}">Put the door in ${esc(s.pod.label)}</button><button class="btn ghost" data-goto="${esc(pr.slot.id)}">Open ${esc(pr.slot.label)}</button></div></div></div>`;
     const r=unitFor(s,o), list=unitsFor(o), T=r&&TYPES[r.unit.type];
     const sel=`<select data-k="${esc(okey(o))}" aria-label="Unit for ${KIND_NAME[o.kind]} ${n[o.kind]}"><option value="">${r&&r.how==='auto'?'Automatic: '+esc(r.unit.name):'Not chosen yet'}</option>${list.map(({u,fit})=>`<option value="${esc(u.id)}" ${r&&r.how!=='auto'&&r.unit.id===u.id?'selected':''}>${esc(u.name)}${fit?'':' — does not fit'}</option>`).join('')}</select>`;
     const hand = T?.hand ? `<span class="seg sm" role="group" aria-label="${T.hand} side"><button data-h="L" data-k="${esc(okey(o))}" aria-pressed="${r.hand!=='R'}">${T.hand==='Hinge'?'Hinge L':'Left'}</button><button data-h="R" data-k="${esc(okey(o))}" aria-pressed="${r.hand==='R'}">${T.hand==='Hinge'?'Hinge R':'Right'}</button></span>` : '';
-    const swing = T?.swing ? `<span class="seg sm" role="group" aria-label="Swing"><button data-sw="in" data-k="${esc(okey(o))}" aria-pressed="${r.swing!=='out'}">In</button><button data-sw="out" data-k="${esc(okey(o))}" aria-pressed="${r.swing==='out'}">Out</button></span>` : '';
-    return `<div class="unit-row"><div class="unit-pic">${r?unitSVG(r.unit.type,r.hand,o.w,o.h):unitSVG('none','L',o.w,o.h)}</div><div class="unit-main"><b>${KIND_NAME[o.kind]} ${n[o.kind]}</b> <span class="muted">${fin(o.w)} × ${fin(o.h)} R.O.${o.y>0?' · sill '+fin(o.y):''}</span>${sel}${hand||swing?`<div class="unit-opts">${hand}${swing}</div>`:''}${r?`<span class="muted">${esc(unitLabel(r))}${r.unit.sample?' · sample unit':''}</span>`:''}</div></div>`;
+    const swing = T?.swing ? `<span class="seg sm" role="group" aria-label="Swing"><button data-sw="in" data-k="${esc(okey(o))}" aria-pressed="${r.swing!=='out'}">${pr?'Into '+esc(s.pod.label):'In'}</button><button data-sw="out" data-k="${esc(okey(o))}" aria-pressed="${r.swing==='out'}">${pr?'Into '+esc(pr.slot.pod.label):'Out'}</button></span>` : '';
+    const ownerSeg = pr ? `<span class="muted">Between ${esc(s.pod.label)} and ${esc(pr.slot.pod.label)}: only one wall gets the door. It's in this one (${esc(s.pod.label)}); ${esc(pr.slot.label)} has the matching rough opening. <button class="linkbtn" data-move="${esc(okey(o))}">Move it to ${esc(pr.slot.pod.label)}'s wall</button></span>` : '';
+    return `<div class="unit-row"><div class="unit-pic">${r?unitSVG(r.unit.type,r.hand,o.w,o.h):unitSVG('none','L',o.w,o.h)}</div><div class="unit-main"><b>${KIND_NAME[o.kind]} ${n[o.kind]}</b> <span class="muted">${fin(o.w)} × ${fin(o.h)} R.O.${o.y>0?' · sill '+fin(o.y):''}</span>${sel}${hand||swing?`<div class="unit-opts">${hand}${swing}</div>`:''}${ownerSeg}${r?`<span class="muted">${esc(pr?unitLabel(r).replace(/swings (in|out)/, m=>'swings into '+(m.endsWith('in')?s.pod.label:pr.slot.pod.label)):unitLabel(r))}${r.unit.sample?' · sample unit':''}</span>`:''}</div></div>`;
   }).join('')}</div>${!ops.every(o=>unitsFor(o).length)?'<p class="note">Add a window or door to the library with <b>Upload STEP → Window / door</b>.</p>':''}`;
 }
 function bindUnits(s, w){
@@ -182,6 +187,10 @@ function bindUnits(s, w){
   sideB.querySelectorAll('.units select').forEach(el=>el.onchange=()=>{ const o=byK(el.dataset.k); setUnit(s,o, el.value?{u:el.value, hand:cur(o)?.hand||'L', swing:cur(o)?.swing||'in'}:null); done(); });
   sideB.querySelectorAll('.units [data-h]').forEach(b=>b.onclick=()=>{ const o=byK(b.dataset.k), c=cur(o); if(c){ setUnit(s,o,{...c, hand:b.dataset.h}); done(); } });
   sideB.querySelectorAll('.units [data-sw]').forEach(b=>b.onclick=()=>{ const o=byK(b.dataset.k), c=cur(o); if(c){ setUnit(s,o,{...c, swing:b.dataset.sw}); done(); } });
+  // a door between two pods: which pod's wall holds it
+  sideB.querySelectorAll('.units [data-own]').forEach(b=>b.onclick=()=>{ setDoorOwner(s, byK(b.dataset.own)); done(); });
+  sideB.querySelectorAll('.units [data-move]').forEach(b=>b.onclick=()=>{ const o=byK(b.dataset.move), pr=pairOf(s,o); if(pr){ setDoorOwner(pr.slot, pr.o); state.selected=pr.slot.id; done(); } });
+  sideB.querySelectorAll('.units [data-goto]').forEach(b=>b.onclick=()=>{ state.selected=b.dataset.goto; highlight(); renderSide(); });
 }
 
 function renderDeckSide3d(k){

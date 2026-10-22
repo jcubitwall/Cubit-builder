@@ -15,6 +15,9 @@
    rough opening. If several fit, it is left for the person to choose. */
 import { state, save } from './state.js';
 import { MODELS } from './data.js';
+import { slotsFor, partnerOf } from './layout.js';
+import { bodyWall } from './panels.js';
+import { pickFor } from './state.js';
 
 const TYPES = {
   picture:  { label:'Picture (fixed)', cat:'window' },
@@ -40,12 +43,50 @@ const unitsFor = o => { const c=catOf(o), real=UNITLIB.some(u=>!u.sample && TYPE
   .map(u=>({u, fit:fits(u,o)})).sort((a,b)=>(b.fit-a.fit) || (a.u.name>b.u.name?1:-1)); };
 const okey = o => o.key ?? `${o.kind}@${Math.round(o.x)}`;
 
+/* Where two pods meet each keeps its own 4½″ wall, so a door between them has a rough opening in BOTH walls,
+   but only ONE of them gets the door. pairOf finds the matching opening in the neighbour's wall (same place in
+   plan, within 3″). */
+const FT_=12;
+function planMid(slot, o){
+  const w=bodyWall(slot, pickFor(slot)), r=[slot.n[1],-slot.n[0]], tl=(w?.trim?.[0]||0), x=(o.x+o.w/2+tl)/FT_;
+  return [slot.p0[0]+r[0]*x, slot.p0[1]+r[1]*x];
+}
+function pairOf(slot, o){
+  if(slot.type!=='int' || catOf(o)!=='door' && catOf(o)!=='patio') return null;
+  const all=slotsFor(state.model), me=all.find(x=>x.id===slot.id); if(!me) return null;
+  const q=partnerOf(me, all); if(!q) return null;
+  const wq=bodyWall(q, pickFor(q)); if(!wq) return null;
+  const m=planMid(slot,o);
+  const oq=wq.openings.find(x=>catOf(x)===catOf(o) && Math.hypot(...planMid(q,x).map((v,i)=>v-m[i]))<0.25);
+  return oq ? {slot:q, o:oq} : null;
+}
+const ownPick = (slot, o) => state.units?.[state.model]?.[slot.id]?.[okey(o)] ?? MODELS[state.model]?.units?.[slot.id]?.[okey(o)];
+/* which of the two pods has the door (its slot); by default the lower-numbered pod */
+function doorOwner(slot, o){
+  const pr=pairOf(slot, o); if(!pr) return slot;
+  const a=ownPick(slot,o), b=ownPick(pr.slot, pr.o);
+  const same=x=>x.id===slot.id;
+  if(a===false && b!==false) return pr.slot;
+  if(b===false && a!==false) return slot;
+  if(a && !b) return slot; if(b && !a) return pr.slot;
+  return slot.pod.i <= pr.slot.pod.i ? slot : pr.slot;
+}
+/* put the door in this pod's wall (and none in the neighbour's) */
+function setDoorOwner(slot, o){
+  const pr=pairOf(slot, o); if(!pr) return;
+  const cur=doorOwner(slot,o), carry = cur.id!==slot.id ? unitFor(pr.slot, pr.o) : null;
+  setUnit(pr.slot, pr.o, false);
+  if(carry) setUnit(slot, o, {u:carry.unit.id, hand:carry.hand==='R'?'L':'R', swing:carry.swing==='in'?'out':'in'});   // the same door: same hinge and swing, seen from the other side
+  else if(ownPick(slot,o)===false) setUnit(slot, o, null);
+}
+
 /* { unit, hand, swing, how:'chosen'|'home'|'auto' } or null */
 function unitFor(slot, o){
   if(!catOf(o) || !slot) return null;
   const k=okey(o);
   const pick = state.units?.[state.model]?.[slot.id]?.[k] || MODELS[state.model]?.units?.[slot.id]?.[k];
   if(pick===false) return null;
+  if(!pick && pairOf(slot,o) && doorOwner(slot,o).id!==slot.id) return null;   // the door is in the neighbour's wall
   if(pick && unitById(pick.u)){ const u=unitById(pick.u); return { unit:u, hand:pick.hand||u.hand||'L', swing:pick.swing||u.swing||'in', how: state.units?.[state.model]?.[slot.id]?.[k]?'chosen':'home' }; }
   const fitting = unitsFor(o).filter(x=>x.fit);
   if(fitting.length===1){ const u=fitting[0].u; return { unit:u, hand:u.hand||'L', swing:u.swing||'in', how:'auto' }; }
@@ -95,4 +136,4 @@ const handText = (u, hand, swing) => {
 };
 const unitLabel = (r) => r ? `${TYPES[r.unit.type]?.label||r.unit.type}${handText(r.unit,r.hand,r.swing)?' · '+handText(r.unit,r.hand,r.swing):''}` : '';
 
-export { TYPES, UNITLIB, loadUnits, unitById, unitsFor, unitFor, setUnit, symbol, unitSVG, unitLabel, handText, catOf, okey, fits };
+export { pairOf, doorOwner, setDoorOwner, TYPES, UNITLIB, loadUnits, unitById, unitsFor, unitFor, setUnit, symbol, unitSVG, unitLabel, handText, catOf, okey, fits };

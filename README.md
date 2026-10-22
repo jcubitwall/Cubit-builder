@@ -25,6 +25,7 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
   - Select a wall to choose the unit for each opening, with its hinge or sliding side seen from outside and a door's swing.
   - Units that fit the rough opening come first (no bigger, at most 2″ smaller). If only one fits, it is used automatically.
   - The 3D view and assembly sheets draw the standard symbols: the casement or door triangle points to the hinge, and sliders get an arrow on the moving panel. Man doors also show their swing on the floor.
+  - **Doors between pods:** both pods' walls have the rough opening, but only one gets the door. By default it's the lower-numbered pod. On either wall you can move the door to the other pod's wall and choose which pod it swings into; the hinge and swing stay the same when it moves.
   - Add real units with **Upload STEP → Window / door**. The `sample` units are placeholders sized to the scanned openings, and they drop out once a real unit of that kind is uploaded.
 - **Framing lumber and LVL** (`js/framing.js`, **Framing · cut list** sheet, Layers → Framing lumber & LVL):
   - **Walls:** 2×6 in exterior walls and 2×4 in interior walls. Single plates are recessed top and bottom inside the 96″ panels.
