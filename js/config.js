@@ -29,7 +29,8 @@ const DECK = { gap:0.75, ply:1.5, depth:7.25, plies:2, oc:24, notch:1.5, angle:'
 const FRAME = { plate:1.5, bevel:0.75,   // plates: two corners bevelled ¾″ so the wall / ceiling slips on
   ext:{name:'2×6', d:5.5}, int:{name:'2×4', d:3.5}, ply:1.5, osb:7/16,
   spline:{t:0.5, w:3.5}, lvl:{t:1.875, floor:9.25, roof:11.875}, stock:[8,10,12,14,16] };
-const SPINE = 1.5;        // the Einspine itself: 1½″ × 1½″ steel, full height at every pod corner, ¾″ nut at the top for the lifting eyebolt
+const SPINE = 1.5;
+const SPINE_SCREWS = { size:'3½″ Dynobite', perLVL:3, lvlEnds:4, wallSides:2, wallEvery:24 };   // 3 into each of the 4 LVL ends + 1 per side every 2′ up the wall = 18 per spine        // the Einspine itself: 1½″ × 1½″ steel, full height at every pod corner, ¾″ nut at the top for the lifting eyebolt
 const NOTCH = 1.75;       // steel spine notch at every pod corner, full height: 1¾″ × 1¾″ (measured from the STEP files)
 /* ============================================================ pod types
    Plan units are feet. x = along the pod length, z = across (8′). */
@@ -44,4 +45,4 @@ const LAYER_KINDS = {
   'ceiling-int': { label:'Interior ceiling', short:'Ceiling',     code:'CI', z:106.6,  t:6.47 },
   'roof':        { label:'Roof',             short:'Roof',        code:'RF', z:113.07, t:6.48 },
 };
-export { SPINE, FRAME, DECK, ICF, PAD_MAX, SCREW_MAX, NOTCH, H, T, TI, FLOOR, GAP, CEIL, PW, FT, POD, SIDE_NAME, WALL_BASE, LAYER_KINDS };
+export { SPINE_SCREWS, SPINE, FRAME, DECK, ICF, PAD_MAX, SCREW_MAX, NOTCH, H, T, TI, FLOOR, GAP, CEIL, PW, FT, POD, SIDE_NAME, WALL_BASE, LAYER_KINDS };

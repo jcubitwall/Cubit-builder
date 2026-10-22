@@ -16,7 +16,7 @@
      sees the wall) on the edge that meets the next panel; the last panel carries none.
    Floors and roofs: 1⅞″ LVL rim, 9¼″ in the floor and 11⅞″ in the roof, four pieces per pod touching only at
    the inside corners, leaving a 1⅞″ square at each outside corner for the Einspine. */
-import { FRAME, H, FT } from './config.js';
+import { FRAME, H, FT, SPINE_SCREWS } from './config.js';
 import { panelSpans, wallLen, bodyWall } from './panels.js';
 import { slotsFor, podList } from './layout.js';
 import { pickFor, state } from './state.js';
@@ -137,7 +137,10 @@ function framingTakeoff(walls=homeFraming(), rims=podRims()){
     }
     return { mat, cuts, pieces:g.all.length, buy };
   });
-  const order=m=>/^LVL/.test(m)?0:/2×6/.test(m)?1:/2×4/.test(m)?2:3;
+  // Einspines: one at every pod corner; Dynobite screws through each spine into the corner wood
+  const spines=rims.length*4, S=SPINE_SCREWS, wallN=S.wallSides*(Math.ceil(H/S.wallEvery)-1), per=S.perLVL*S.lvlEnds+wallN;
+  out.push({ mat:`Einspine screws (${S.size})`, cuts:[{name:`per Einspine: ${S.perLVL} into each of the ${S.lvlEnds} LVL ends + ${wallN} up the wall (1 per side every 2′)`, len:0, n:per}], pieces:spines*per, buy:`${spines*per} screws · ${per} per Einspine × ${spines} Einspines (4 per pod)`, fastener:true });
+  const order=m=>/^LVL/.test(m)?0:/2×6/.test(m)?1:/2×4/.test(m)?2:/OSB/.test(m)?3:4;
   return out.sort((a,b)=>order(a.mat)-order(b.mat));
 }
 /* where the plates go on each pod's floor (bottom plates) and ceiling (top plates), in plan feet: each plate's

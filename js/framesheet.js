@@ -23,6 +23,7 @@ function csv(walls, rims){
   const q=v=>`"${String(v).replace(/"/g,'""')}"`, rows=[['group','wall_or_pod','piece','qty','size','length_in','length_ft_in','where']];
   walls.forEach(W=>wallRows(W).forEach(r=>rows.push(['wall', `${W.slot.label} (${W.w.id})`, r.kind, r.n, r.kind==='Spline'?'1/2 OSB x 3-1/2':r.lumber, +r.len.toFixed(4), fft(r.len), [...r.notes].join(' | ')])));
   rims.forEach(R=>R.pieces.forEach(([name,h,len,n])=>rows.push(['lvl', R.pod.label, name, n, `LVL 1-7/8 x ${h}`, +len.toFixed(4), fft(len), 'outside length minus the 1-7/8 corner squares'])));
+  rows.push(['fastener','all pods','Einspine screws 3-1/2 Dynobite', rims.length*4*18, '3-1/2 Dynobite', '', '', '18 per Einspine: 3 into each of 4 LVL ends + 1 per side every 2 ft']);
   return rows.map(r=>r.map(q).join(',')).join('\n');
 }
 /* plate layout for one pod: its floor (bottom plates) or its ceiling (top plates), seen from above */
@@ -64,7 +65,7 @@ function cornerSVG(){
 }
 function renderFramingSheet(el){
   const walls=homeFraming(), rims=podRims(), T=framingTakeoff(walls, rims), m=MODELS[state.model];
-  const total=T.reduce((a,g)=>a+g.pieces,0);
+  const total=T.filter(g=>!g.fastener).reduce((a,g)=>a+g.pieces,0);
   el.innerHTML=`
     <div class="sheet-title"><div><div class="eyebrow" style="color:#555">Framing · Cubit Home</div><h3>${esc(m.name)} — framing cut list</h3></div>
       <div class="meta">${total} pieces · ${walls.length} walls · ${rims.length} pods<br>${new Date().toISOString().slice(0,10)}</div></div>
@@ -73,10 +74,10 @@ function renderFramingSheet(el){
     <div class="eyebrow" style="color:#555;margin:6px 0 4px">What to buy</div>
     <table class="boxes"><thead><tr><th>Material</th><th>Pieces</th><th>Buy</th></tr></thead><tbody>${T.map(g=>`<tr><td><b>${esc(g.mat)}</b></td><td>${g.pieces}</td><td>${esc(g.buy)}</td></tr>`).join('')}</tbody></table>
     <div class="eyebrow" style="color:#555;margin:12px 0 4px">Cut list by material</div>
-    ${T.map(g=>`<div class="tblwrap" style="margin-bottom:8px"><table class="boxes"><thead><tr><th colspan="3">${esc(g.mat)}</th></tr><tr><th>Piece</th><th>Qty</th><th>Length</th></tr></thead><tbody>${g.cuts.map(c=>`<tr><td>${esc(c.name)}</td><td>${c.n}</td><td><b>${fin(c.len)}</b> (${fft(c.len)})</td></tr>`).join('')}</tbody></table></div>`).join('')}
+    ${T.filter(g=>!g.fastener).map(g=>`<div class="tblwrap" style="margin-bottom:8px"><table class="boxes"><thead><tr><th colspan="3">${esc(g.mat)}</th></tr><tr><th>Piece</th><th>Qty</th><th>Length</th></tr></thead><tbody>${g.cuts.map(c=>`<tr><td>${esc(c.name)}</td><td>${c.n}</td><td><b>${fin(c.len)}</b> (${fft(c.len)})</td></tr>`).join('')}</tbody></table></div>`).join('')}
     <div class="eyebrow" style="color:#555;margin:12px 0 4px">Plate layout · bottom plates go on the floor first, top plates on the ceiling</div>
     <p class="note" style="color:#444">Fasten the bottom plates to each pod's floor, then set the walls down over them; fasten the top plates to the ceiling so they lock into the walls as the ceiling is lowered. Each plate's outer edge sits ½″ in from the floor (or ceiling) edge, behind the outside OSB. Bevel the two corners that face the incoming wall (bottom plates: top corners; top plates: bottom corners) about ¾″.</p>
-    <div class="plates">${platesByPod(walls).map(P=>`<div class="plate-pod"><b>${esc(P.pod.label)}</b><div class="plate-pair">${platePlanSVG(P,'floor')}${platePlanSVG(P,'ceiling')}</div></div>`).join('')}<div class="plate-pod"><b>Bevel</b>${bevelSVG()}</div><div class="plate-pod"><b>Pod corner · Einspine</b>${cornerSVG()}<p class="note" style="color:#444;max-width:420px">Wood behind both faces of the spine from the bottom of the floor to the top of the roof: floor LVL ends, the notched bottom plate, the two corner studs, the notched top plate, the roof LVL ends. Every Dynobite screw through the spine lands in wood.</p></div></div>
+    <div class="plates">${platesByPod(walls).map(P=>`<div class="plate-pod"><b>${esc(P.pod.label)}</b><div class="plate-pair">${platePlanSVG(P,'floor')}${platePlanSVG(P,'ceiling')}</div></div>`).join('')}<div class="plate-pod"><b>Bevel</b>${bevelSVG()}</div><div class="plate-pod"><b>Pod corner · Einspine</b>${cornerSVG()}<p class="note" style="color:#444;max-width:420px">Wood behind both faces of the spine from the bottom of the floor to the top of the roof: floor LVL ends, the notched bottom plate, the two corner studs, the notched top plate, the roof LVL ends. Every Dynobite screw through the spine lands in wood: 3 into each of the 4 LVL ends and 1 per side every 2′ up the wall, 18 per Einspine (3½″).</p></div></div>
     <div class="eyebrow" style="color:#555;margin:12px 0 4px">LVL rims by pod</div>
     <table class="boxes"><thead><tr><th>Pod</th><th>Floor rim 1⅞″ × 9¼″</th><th>Roof rim 1⅞″ × 11⅞″</th></tr></thead><tbody>${rims.map(R=>`<tr><td>${esc(R.pod.label)}</td><td>2 × ${fin(R.pieces[0][2])} · 2 × ${fin(R.pieces[1][2])}</td><td>2 × ${fin(R.pieces[2][2])} · 2 × ${fin(R.pieces[3][2])}</td></tr>`).join('')}</tbody></table>
     <div class="eyebrow" style="color:#555;margin:12px 0 4px">By wall</div>
