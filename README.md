@@ -28,7 +28,7 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
   - Add real units with **Upload STEP → Window / door**. The `sample` units are placeholders sized to the scanned openings, and they drop out once a real unit of that kind is uploaded.
 - **Decks:** every deck is conventional lumber framed by the same rules, whatever its size (`js/deckframe.js`).
   - Double 2×8 all round, so where two decks meet there are four plies on the screw.
-  - 2×8 joists parallel to the house, 24″ on centre from the house side; the last space is whatever is left.
+  - 2×8 joists parallel to the house, 24″ or 16″ on centre (one setting per home, 24″ standard) from the house side; the last space is whatever is left.
   - Every corner notched 1½″ × 1½″ for a 1½″ × 1½″ angle-iron spine.
   - Decks sit ¾″ off the house (room for ¾″ ribbed siding) and butt straight up to each other.
   - **Decks · lumber takeoff** (with the assembly sheets) lists every piece with its cut length, the 2×8 to buy in standard lengths, deck boards and spines. Each deck's framing sheet has its own takeoff.

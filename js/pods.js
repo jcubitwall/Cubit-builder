@@ -118,6 +118,7 @@ function editKey(){
   MODELS[nk]={ name:m.name+' (custom)', size:m.size, base:m.base||key, pods:bakedPods(key), decks:clone(m.decks||[]), picks:{}, layerPicks:{}, custom:true };
   if(state.bearing?.[key]!=null) state.bearing[nk]=state.bearing[key];
   if(state.found?.[key]!=null) state.found[nk]=state.found[key];
+  if(state.deckOC?.[key]!=null) state.deckOC[nk]=state.deckOC[key];
   if(state.units?.[key]) state.units[nk]=clone(state.units[key]);
   state.model=nk;
   return nk;

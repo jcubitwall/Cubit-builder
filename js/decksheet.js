@@ -6,7 +6,9 @@ import { fft, fin } from './format.js';
 import { deckList } from './layout.js';
 import { dimH, dimV } from './sheets.js';
 import { state } from './state.js';
-import { deckMembers, joistCentres, deckTakeoff, deckName, deckSizes } from './deckframe.js';
+import { deckMembers, joistCentres, deckTakeoff, deckName, deckSizes, ocSeg, bindOC } from './deckframe.js';
+import { deckOCOf } from './state.js';
+import { buildHome } from './scene3d.js';
 
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -21,12 +23,12 @@ function planSVG(L){
   g+=`<text x="${X(W/2)}" y="${Y(0)-44}" text-anchor="middle" font-size="11" font-weight="700" fill="#3b3122">HOUSE SIDE (LEDGER) · ¾″ off the house · straight up to another deck</text>`;
   g+=dimH(X(0),X(W),Y(0)-18,`${fin(W)} (${fft(W)})`,Y(0),11);
   g+=dimV(Y(0),Y(D),X(0)-30,`${fin(D)} (${fft(D)})`,X(0),11);
-  // joist centres from the house side, 24″ o.c.; the last space is what's left
+  // joist centres from the house side, 24″ (or 16″) o.c.; the last space is what's left
   const jc=joistCentres(L), pts=[0, ...jc, D];
   for(let i=0;i<pts.length-1;i++) g+=dimV(Y(pts[i]),Y(pts[i+1]),X(W)+36,fin(pts[i+1]-pts[i])+(i===pts.length-2?' (last)':' o.c.'),X(W),9.5);
   g+=`<text x="${X(W)+60}" y="${Y(0)+12}" font-size="9.5" fill="#555">to joist centres</text>`;
   g+=`<text x="${X(0)}" y="${Y(D)+34}" font-size="10" fill="#7a3fb0" font-weight="600">□ 4 corner notches ${fin(DECK.notch)} × ${fin(DECK.notch)} for the ${DECK.angle} spine</text>`;
-  g+=`<text x="${X(0)}" y="${Y(D)+50}" font-size="10" fill="#333">Rims: double 2×8 all round · joists: 2×8, parallel to the house, 24″ o.c. from the house side</text>`;
+  g+=`<text x="${X(0)}" y="${Y(D)+50}" font-size="10" fill="#333">Rims: double 2×8 all round · joists: 2×8, parallel to the house, ${deckOCOf(state.model)}″ o.c. from the house side</text>`;
   return g+'</svg>';
 }
 function takeoffHTML(T, count){
@@ -48,8 +50,10 @@ function renderDeckSheet(el, k){
     <div class="sheet-title"><div><div class="eyebrow" style="color:#555">Deck framing · Cubit Home</div><h3>Deck ${k+1} — ${esc(deckName(L))}</h3></div>
       <div class="meta">${esc(MODELS[state.model].name)} · ${esc(L.id)} · ${deckMembers(L).length} pieces of 2×8<br>${new Date().toISOString().slice(0,10)}</div></div>
     <p class="note" style="color:#333">Seen from above with the house side at the top. Screws or pads for this deck are on the foundation sheet.</p>
+    <div class="sheet-tools edit-only">${ocSeg()}</div>
     <div class="elev">${planSVG(L)}</div>
     <div class="tblwrap"><div class="eyebrow" style="color:#555;margin-bottom:4px">Lumber takeoff · this deck</div>${takeoffHTML(deckTakeoff([L]),1)}</div>`;
+  bindOC(el, ()=>{ buildHome(); renderDeckSheet(el,k); });
 }
 function renderDecksTakeoff(el){
   const ds=deckList(state.model), sizes=deckSizes(MODELS[state.model]);
@@ -58,8 +62,10 @@ function renderDecksTakeoff(el){
     <div class="sheet-title"><div><div class="eyebrow" style="color:#555">Decks · Cubit Home</div><h3>${esc(MODELS[state.model].name)} — deck lumber takeoff</h3></div>
       <div class="meta">${ds.length} deck${ds.length===1?'':'s'} · ${sizes.map(([id,n])=>`${n} × ${esc(deckName(ds.find(d=>d.lib===id).L))}`).join(' · ')}<br>${new Date().toISOString().slice(0,10)}</div></div>
     ${sizes.length>1?`<p class="note" style="color:#b4520f;font-weight:600">${sizes.length} different deck sizes on this home. Keep to one size where you can: the same frames, the same screw layout, no mix-ups.</p>`:''}
+    <div class="sheet-tools edit-only">${ocSeg()}</div>
     <div class="tblwrap">${takeoffHTML(T, ds.length)}</div>
     <div class="tblwrap" style="margin-top:10px"><div class="eyebrow" style="color:#555;margin-bottom:4px">Per deck</div><table class="boxes"><thead><tr><th>Deck</th><th>Size</th><th>Joists</th><th>Pieces</th></tr></thead><tbody>
       ${ds.map(d=>`<tr><td>Deck ${d.k+1}</td><td>${esc(deckName(d.L))}</td><td>${joistCentres(d.L).length}</td><td>${deckMembers(d.L).length}</td></tr>`).join('')}</tbody></table></div>`;
+  bindOC(el, ()=>{ buildHome(); renderDecksTakeoff(el); });
 }
 export { renderDeckSheet, renderDecksTakeoff };

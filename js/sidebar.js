@@ -8,7 +8,8 @@ import { buildHome, highlight } from './scene3d.js';
 import { facing, fmtBearing } from './orient.js';
 import { setDeckFoundation } from './pods.js';
 import { openSheets } from './sheets.js';
-import { pickFor, save, state, choose, pickLayer, chooseLayer, foundationOf, setFoundation } from './state.js';
+import { pickFor, save, state, choose, pickLayer, chooseLayer, foundationOf, setFoundation, deckOCOf } from './state.js';
+import { ocSeg, bindOC } from './deckframe.js';
 import { concretePlan } from './concrete.js';
 import { FAMILIES, familyOf, familyById, variantsOf, saveSub, removeSub, editSub } from './catalog.js';
 import { isAdmin, canSave } from './role.js';
@@ -186,10 +187,12 @@ function bindUnits(s, w){
 function renderDeckSide3d(k){
   const d=deckList(state.model)[k]; if(!d){ state.selected=null; renderSide(); return; }
   const L=d.L;
-  sideH.innerHTML=`<div class="eyebrow">Deck ${k+1} · ${L.w}′ × ${L.d}′ frame</div><h2>${L.w}′ × ${L.d}′ deck</h2><p><code>${esc(L.id)}</code> · double 2×8 rims · 2×8 joists 24″ o.c. from the house · 4 corner notches 1½″ · ¾″ off the house</p>`;
+  sideH.innerHTML=`<div class="eyebrow">Deck ${k+1} · ${L.w}′ × ${L.d}′ frame</div><h2>${L.w}′ × ${L.d}′ deck</h2><p><code>${esc(L.id)}</code> · double 2×8 rims · 2×8 joists ${deckOCOf(state.model)}″ o.c. from the house · 4 corner notches 1½″ · ¾″ off the house</p>`;
   sideB.innerHTML=`<div class="row"><button class="btn" id="toSheet">Framing sheet</button><button class="btn ghost" id="toPlan">Move in the plan</button><button class="btn ghost" id="deselect">Back to model</button></div>
     <div class="fld">Stands on<div class="seg"><button class="fsbtn" id="fScrews" aria-pressed="${d.found!=='pads'}">Ground screws</button><button class="fsbtn" id="fPads" aria-pressed="${d.found==='pads'}">Concrete pads (floating)</button></div></div>
+    <div class="edit-only">${ocSeg()}</div>
     <p class="note">Decks dock with their ledger against a pod or another deck. Swap, turn or remove decks in the plan editor.</p>`;
+  bindOC(sideB, ()=>{ buildHome(); renderSide(); });
   const setF=f=>{ setDeckFoundation(k,f); state.selected='deck:'+k; renderModels(); buildHome(); renderSide(); toast(f==='pads'?'Deck floats on concrete pads':'Deck on ground screws'); };
   sideB.querySelector('#fScrews').onclick=()=>setF('screws'); sideB.querySelector('#fPads').onclick=()=>setF('pads');
   sideB.querySelector('#toSheet').onclick=()=>{ state.sheetSlot='__deck:'+k; openSheets(); };

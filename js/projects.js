@@ -3,7 +3,7 @@
    is A, which side faces the assemblers, and the ground-screw inset. Projects live in this browser;
    "Export" makes a file to share, and projects in data/projects.json are shared with everyone. */
 import { MODELS, LIB, LAYERLIB, PODLIB, DECKLIB, byId, layerById, podById, deckById, savePodLib, saveWallLib, saveLayerLib, saveDeckLib } from './data.js';
-import { state, save, foundationOf } from './state.js';
+import { state, save, foundationOf, deckOCOf } from './state.js';
 import { saveToLibraries } from './pods.js';
 import { getBearing } from './orient.js';
 import { canSave } from './role.js';
@@ -30,7 +30,7 @@ function snapshot(name, id){
   if(model.base===undefined) delete model.base;
   if(m.base) model.base=m.base;
   return { id, name, saved:new Date().toISOString(), from:m.project ? (MODELS[state.model].from||state.model) : state.model, model,
-    picks: clone(state.picks[state.model]||{}), layerPicks: clone(state.layerPicks[state.model]||{}), wallA: clone(state.wallA[state.model]||{}), faces: clone(state.faces[state.model]||{}), inset: state.inset, bearing: getBearing(), found: foundationOf(state.model), units: clone(state.units?.[state.model]||{}) };
+    picks: clone(state.picks[state.model]||{}), layerPicks: clone(state.layerPicks[state.model]||{}), wallA: clone(state.wallA[state.model]||{}), faces: clone(state.faces[state.model]||{}), inset: state.inset, bearing: getBearing(), found: foundationOf(state.model), deckOC: deckOCOf(state.model), units: clone(state.units?.[state.model]||{}) };
 }
 /* Save: updates the open project, or makes a new one */
 function saveProject(name, asNew=false){
@@ -41,7 +41,7 @@ function saveProject(name, asNew=false){
   const k=keyOf(p);
   // carry this browser's choices over to the project key
   state.picks[k]=clone(p.picks); state.layerPicks[k]=clone(p.layerPicks||{}); (state.bearing ||= {})[k]=p.bearing; state.wallA[k]=clone(p.wallA); state.faces[k]=clone(p.faces);
-  (state.found ||= {})[k]=p.found; (state.units ||= {})[k]=clone(p.units||{});
+  (state.found ||= {})[k]=p.found; (state.deckOC ||= {})[k]=p.deckOC; (state.units ||= {})[k]=clone(p.units||{});
   register(p); state.model=k; save();
   // new walls, floors, ceilings and pods of this home go into their libraries; the project then refers to them
   const counts = saveToLibraries(name);
@@ -59,6 +59,7 @@ function openProject(id){
   if(p.inset) state.inset=p.inset;
   if(p.bearing!=null && (state.bearing?.[k]==null || PROJECTS[id])) (state.bearing ||= {})[k]=p.bearing;
   if(p.found && (state.found?.[k]==null || PROJECTS[id])) (state.found ||= {})[k]=p.found;
+  if(p.deckOC && (state.deckOC?.[k]==null || PROJECTS[id])) (state.deckOC ||= {})[k]=p.deckOC;
   if(p.units && (state.units?.[k]==null || PROJECTS[id])) (state.units ||= {})[k]=clone(p.units);
   state.model=k; state.selected=null; save();
 }

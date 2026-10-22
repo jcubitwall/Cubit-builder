@@ -5,18 +5,19 @@
    · Perimeter: double 2×8 all round. The outer ply of the house and far rims runs between the corner notches,
      the inner ply between the side rims; both side plies run between the notches.
    · Corners: a 1½″ × 1½″ notch at every corner for the angle-iron spine.
-   · Joists: single 2×8 parallel to the house, 24″ on centre measured from the house side of the deck, between
+   · Joists: single 2×8 parallel to the house, 24″ (or 16″) on centre measured from the house side of the deck, between
      the side rims. The last space (to the far rim) is whatever is left. */
 import { DECK } from './config.js';
+import { state, deckOCOf, setDeckOC } from './state.js';
 
-function deckMembers(L){
+function deckMembers(L, oc=deckOCOf(state.model)){
   const W=L.W, D=L.D, t=DECK.ply, n=DECK.notch, out=[];
   // [name, u0, u1, v0, v1]
   out.push(['Ledger rim · outer ply', n, W-n, 0, t], ['Ledger rim · inner ply', 2*t, W-2*t, t, 2*t]);
   out.push(['Far rim · outer ply', n, W-n, D-t, D], ['Far rim · inner ply', 2*t, W-2*t, D-2*t, D-t]);
   out.push(['Side rim · outer ply', 0, t, n, D-n], ['Side rim · inner ply', t, 2*t, n, D-n]);
   out.push(['Side rim · outer ply', W-t, W, n, D-n], ['Side rim · inner ply', W-2*t, W-t, n, D-n]);
-  for(let c=DECK.oc; c+t/2 <= D-2*t-0.01; c+=DECK.oc) out.push(['Joist', 2*t, W-2*t, c-t/2, c+t/2]);
+  for(let c=oc; c+t/2 <= D-2*t-0.01; c+=oc) out.push(['Joist', 2*t, W-2*t, c-t/2, c+t/2]);
   return out;
 }
 const joistCentres = L => deckMembers(L).filter(m=>m[0]==='Joist').map(m=>(m[3]+m[4])/2);
@@ -53,4 +54,7 @@ function deckTakeoff(Ls){
 const deckName = L => `${L.w}′ × ${L.d}′ deck`;
 /* which deck frames a home uses, most used first: [[libId, count], ...] */
 const deckSizes = m => { const c={}; (m.decks||[]).forEach(d=>{ c[d.lib]=(c[d.lib]||0)+1; }); return Object.entries(c).sort((a,b)=>b[1]-a[1]); };
-export { deckName, deckSizes, deckMembers, joistCentres, deckTakeoff, lenOf };
+/* the 16″ / 24″ joist spacing switch (one setting for all the decks of a home); bindOC wires it up */
+const ocSeg = () => `<div class="fld">Deck joists, on centre (all decks on this home)<div class="seg" role="group" aria-label="Deck joist spacing">${[16,24].map(v=>`<button class="fsbtn" data-oc="${v}" aria-pressed="${deckOCOf(state.model)===v}">${v}″</button>`).join('')}</div></div>`;
+function bindOC(root, after){ root.querySelectorAll('[data-oc]').forEach(b=>b.onclick=()=>{ setDeckOC(state.model, +b.dataset.oc); after(); }); }
+export { ocSeg, bindOC, deckName, deckSizes, deckMembers, joistCentres, deckTakeoff, lenOf };

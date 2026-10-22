@@ -2,11 +2,11 @@
    pods (blank 8′/16′/24′ pods and the pod library). Drag a pod in, drag pods around, turn them in 90°
    steps, replace or remove them. Every drop snaps to the nearest spot where the pod docks properly. */
 import { POD, DECK } from './config.js';
-import { deckMembers, joistCentres, deckName, deckSizes } from './deckframe.js';
+import { deckMembers, joistCentres, deckName, deckSizes, ocSeg, bindOC } from './deckframe.js';
 import { fin } from './format.js';
 import { MODELS, PODLIB, DECKLIB, byId, podById, deckById } from './data.js';
 import { slotsFor, podList, deckList } from './layout.js';
-import { state, save, pickFor } from './state.js';
+import { state, save, pickFor, deckOCOf } from './state.js';
 import { getBearing, setBearing, northVec, fmtBearing } from './orient.js';
 import { setDeckFoundation, deckFoot, addDeck, moveDeck, removeDeck, replaceDeck, deckSpots, turnDeck, foot, addPod, movePod, rotatePod, replacePod, deletePod, dockSpots, saveToLibraries, countsText, renameLibPod, deleteLibPod } from './pods.js';
 import { buildHome } from './scene3d.js';
@@ -379,12 +379,14 @@ function renderSide2(){
     <div class="side-b">
       <p class="note">Drag a pod from the left onto the plan. It snaps to the nearest spot where it docks: flush end to end, or side by side in 8′ steps. Press <b>R</b> while dragging to turn it 90°. Drag a pod to move it, or click it to turn, replace or remove it.</p>
       <p class="note">The 5/8″ space at every joint is added for you, and where two pods meet each keeps its own 4½″ wall. Changing a wall where two pods join changes the neighbour's wall to the same wall, mirrored.</p>
-      <p class="note"><b>Decks</b> come from the deck library. A deck docks with its ledger (the dark edge) against a pod (¾″ off it, room for siding) or straight up to another deck, in 8′ steps. Every deck is framed the same way: double 2×8 all round, 2×8 joists 24″ o.c. from the house, corners notched 1½″ for the angle-iron spine. Its ground screws follow the same rules as the pods'. Keep every deck on a home the same size where you can.</p>
+      <p class="note"><b>Decks</b> come from the deck library. A deck docks with its ledger (the dark edge) against a pod (¾″ off it, room for siding) or straight up to another deck, in 8′ steps. Every deck is framed the same way: double 2×8 all round, 2×8 joists 24″ (or 16″) o.c. from the house, corners notched 1½″ for the angle-iron spine. Its ground screws follow the same rules as the pods'. Keep every deck on a home the same size where you can.</p>
+      ${(m.decks||[]).length?ocSeg():''}
       ${(m.decks||[]).length?`<div class="fld">All decks stand on<div class="seg"><button class="fsbtn" id="allScrews" aria-pressed="${m.decks.every(d=>d.found!=='pads')}">Ground screws</button><button class="fsbtn" id="allPads" aria-pressed="${m.decks.every(d=>d.found==='pads')}">Concrete pads (floating)</button></div></div>`:''}
       ${m.custom||m.project||m.sub?'':'<p class="note">This is a standard model. Your first change makes your own copy, saved in this browser; add it to a model name to share it as a sub-model.</p>'}
       <div class="row edit-only"><button class="btn" id="saveAll">Save these pods to the library</button></div>
       <p class="note edit-only">Saves every pod of this home that isn't in the pod library yet, plus any wall, floor or ceiling that's new (like a mirrored wall). Saving a project does this too.</p>
     </div>`;
+    bindOC(side, ()=>refresh());
     if(el('allScrews')){ el('allScrews').onclick=()=>done(setDeckFoundation('all','screws'),'All decks on ground screws'); el('allPads').onclick=()=>done(setDeckFoundation('all','pads'),'All decks float on concrete pads'); }
     el('saveAll').onclick=()=>{ const c=saveToLibraries(m.name); renderPalette(); refresh(); toast(countsText(c)); };
     return;
@@ -417,16 +419,18 @@ function renderDeckSide(m, side){
   <div class="side-b">
     <div class="row"><button class="btn" id="dTurn">Turn</button><button class="btn ghost" id="dDel">Remove</button><button class="btn ghost" id="dBack">Done</button></div>
     <div class="fld">Stands on<div class="seg" role="group" aria-label="What this deck stands on"><button class="fsbtn" id="fScrews" aria-pressed="${d.found!=='pads'}">Ground screws</button><button class="fsbtn" id="fPads" aria-pressed="${d.found==='pads'}">Concrete pads (floating)</button></div></div>
+    ${ocSeg()}
     <label class="fld">Replace with<select id="dRep">${opts}</select></label>
     <div class="row"><button class="btn ghost" id="dDoRep">Replace this deck</button></div>
     ${sizes.length>1?`<p class="note" style="color:#b4520f"><b>${sizes.length} deck sizes on this home</b> (${sizes.map(([id,n])=>`${n} × ${esc(deckName(deckById(id)||{w:'?',d:'?'}))}`).join(', ')}). Keep to one size where you can: the same frames and the same screw layout, no mix-ups.</p>`:''}
     <table class="boxes"><tbody>
       <tr><td>Rims</td><td>double 2×8 all round</td></tr>
-      <tr><td>Joists</td><td>${jc.length} × 2×8, parallel to the house, 24″ o.c. from the house side (last space ${fin(L.D-2*DECK.ply-(jc[jc.length-1]||2*DECK.ply))})</td></tr>
+      <tr><td>Joists</td><td>${jc.length} × 2×8, parallel to the house, ${deckOCOf(state.model)}″ o.c. from the house side (last space ${fin(L.D-2*DECK.ply-(jc[jc.length-1]||2*DECK.ply))})</td></tr>
       <tr><td>Corners</td><td>4 notches ${fin(DECK.notch)} × ${fin(DECK.notch)} for the ${DECK.angle} spine</td></tr>
     </tbody></table>
     <p class="note">Drag the deck to move it; press R while dragging to turn it. The lumber takeoff is with the assembly sheets.</p>
   </div>`;
+  bindOC(side, ()=>refresh());
   el('dTurn').onclick=()=>done(turnDeck(selDeck),'Deck turned');
   el('dDel').onclick=()=>{ const why=removeDeck(selDeck); if(!why) selDeck=null; done(why,'Deck removed'); };
   el('dBack').onclick=()=>{ selDeck=null; renderPlan(); renderSide2(); };

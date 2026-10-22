@@ -173,7 +173,7 @@ function buildLayerMesh(L, mat){
 /* one deck frame in its own frame: x along the ledger (0..W), z outward (0..D), inches; y up from its underside */
 const DECK_MAT = new THREE.MeshStandardMaterial({color:0xa88f5d, roughness:0.9});
 function buildDeckMesh(L, mat){
-  // framed by Cubit's deck rules (deckframe.js): double 2×8 rims, 2×8 joists 24″ o.c. from the house, notched corners
+  // framed by Cubit's deck rules (deckframe.js): double 2×8 rims, 2×8 joists 24″ or 16″ o.c. from the house, notched corners
   const g=new THREE.Group(), h=DECK.depth;
   deckMembers(L).forEach(([nm,x0,x1,z0,z1])=>{ const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT,h/FT,(z1-z0)/FT),mat); m.position.set((x0+x1)/2/FT,h/2/FT,(z0+z1)/2/FT); g.add(m); });
   return g;
