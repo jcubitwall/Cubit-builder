@@ -41,6 +41,17 @@ Open **Assembly sheets → CNC cut files · DXF**.
 - **Through cuts:** the shop's long bits cut the full panel depth in one pass from either face. Trims, openings and vents therefore go in the first pass, and they never cause a flip. Only cuts that stop part-way decide which face is up: box cut-outs and the spine notch.
 - **Spine notch:** it counts as an outer-face cut. A corner panel of an end wall is therefore cut outer face up, then flipped if it is assembled interior side up.
 
+## What the shop runs today (from VCarve screenshots, 22 Oct 2026)
+
+- **Machine:** ShopSabre IS 510 (5′ × 10′ bed), HSD spindle, tool changer (rack 4–15 plus 3 on the side), vacuum table.
+- **Software:** VCarve Pro 12.505. One job per pod, e.g. `Kya24-LP-X_Sip-6.5`, with one sheet per panel (`K24-LP-X_D4`, `K24-LP-X_A1-A2-A3` …). Layers include `Chases` and `Level 1`.
+- **Job size:** 48 × 96 × 6.5″ (a whole SIP panel per sheet).
+- **SIP panel cutter:** tool #13, ¾″ 2-flute end mill, 10,000 rpm, feed 180 ipm, plunge 150 ipm, chip load 0.009″, stepover 0.3″ (40 %), pass depth 6.55″ (one pass right through 6.5″).
+- **Box pockets** (toolpaths named `Receptacles`, `Oven_Plug`): pocket, offset, climb, start depth 0, cut depth 3.0″, no ramp, no profile pass, pocket allowance 0.
+- **Safe Z** 7.5″. **Home** X0 Y0 Z7.5. Start depth 0 means Z zero is on the panel's top face (to confirm).
+
+Still needed: the .tap files and the post-processor name (how the header, tool change and footer are written), plus the tools and depths for chases, de-foam channels, light holes and openings.
+
 ## Step 2: G-code in shadow mode
 
 - **How it works:** the app writes ShopSabre G-code from the same cut plan. The post-processor is copied from a program the machine already runs, and only bits from a locked tool list can be used.
