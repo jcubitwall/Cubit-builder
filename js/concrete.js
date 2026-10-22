@@ -6,7 +6,7 @@
      concrete core: the core's outer face is flush with the home's outer face, so the outside foam (2⅝″) is
      entirely outside the home and the inside foam is inside it. The footing is centred under the ICF.
    · INSIDE SUPPORTS: wherever the ground-screw rules would put a screw that is not on the perimeter (down the
-     pod joints, where joints cross, never more than 12′ apart), a short section of the same ICF on its own
+     pod joints, where joints cross, never more than 12′ apart), a short section of ICF with an 8″ core on its own
      footing, running along the joint (4′, half a Nudura block), so both pods bear on it.
    · Where short sections along one joint come within 4′ of each other they become one longer wall section
      (fewer ends to form and cap), and a section that would stop within 2′ of the perimeter ties into it.
@@ -108,7 +108,7 @@ function concretePlan(modelKey){
     }));
     return best;
   };
-  const halfW=(C+2*F)/2;
+  const CI=ICF.coreShared/FT, halfW=(CI+2*F)/2;   // inside supports carry two pods: 8″ core
   const rectOf = s => s.ax==='x' ? [s.a, s.c-halfW, s.b, s.c+halfW] : [s.c-halfW, s.a, s.c+halfW, s.b];
   const ok = list => crawlCheck(loops, off.foamIn, list.map(rectOf)).ok;
   // 1. join sections along the same joint that come within 4′ of each other
@@ -146,10 +146,10 @@ function concretePlan(modelKey){
   const secLen=sections.reduce((a,s)=>a+s.len,0), ends=sections.length*2 - sections.reduce((a,s)=>a+(s.tied||0),0);
   const footArea = loops.reduce((a,l)=>{ const A=offsetLoop(l,off.foot0), B=offsetLoop(l,off.foot1); return a+Math.abs(Math.abs(area(A))-Math.abs(area(B))); },0)
                  + sections.reduce((a,s)=>a+(s.foot[2]-s.foot[0])*(s.foot[3]-s.foot[1]),0);
-  const footVol=footArea*FTk, coreVol=(coreLen+secLen)*C*BH - (access ? access.w*C*BH : 0);
-  const icfLen=coreLen+secLen, blocks=Math.ceil(icfLen*FT/brand.len*1.05);
+  const footVol=footArea*FTk, coreVol=coreLen*C*BH + secLen*CI*BH - (access ? access.w*C*BH : 0);
+  const icfLen=coreLen+secLen, blocks=Math.ceil(coreLen*FT/brand.len*1.05), blocksIn=Math.ceil(secLen*FT/brand.len*1.05);
   return { loops, off, band, rects, stations, sections, access, check, brand,
-    C, F, FW, FTk, BH, perimLen, coreLen, secLen, icfLen, corners, ends, blocks, footArea, footVol, coreVol,
+    C, CI, F, FW, FTk, BH, blocksIn, perimLen, coreLen, secLen, icfLen, corners, ends, blocks, footArea, footVol, coreVol,
     warnings: [ ...(check.ok?[]:[{kind:'closed', text:`Part of the crawl space can't be reached through a 24″ gap (${check.regions} separate areas). Open up a support.`}]),
       ...(access?[{kind:'access', text:`Crawl-space access: ${ICF.access}″ wide opening in the perimeter. The ICF is only ${brand.h}″ tall, under the 500 mm (19¾″) the National Building Code asks for (9.18.2.1, 500 × 700 mm with a door or hatch): step the footing down there or add a floor hatch.`}]:[{kind:'access', text:'No perimeter run long enough for a crawl-space access opening: plan a floor hatch.'}]) ] };
 }

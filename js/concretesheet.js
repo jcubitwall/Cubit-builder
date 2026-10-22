@@ -119,10 +119,11 @@ function takeoff(cp){
   const footLen = cp.footArea/cp.FW;
   return [
     ['Footing', `${fft(footLen*FT)} of ${fin(ICF.footW)} × ${fin(ICF.footT)} (perimeter + under the inside supports)`, vol(cp.footVol)],
-    ['ICF wall', `${fft(cp.icfLen*FT)} · ${cp.brand.name} ${fin(cp.brand.h)} high, ${fin(cp.C*FT)} core · about ${cp.blocks} blocks of ${fin(cp.brand.len)} (5% waste; corners from the supplier)`, ''],
+    ['ICF perimeter', `${fft(cp.coreLen*FT)} · ${cp.brand.name} ${fin(cp.brand.h)} high, ${fin(cp.C*FT)} core · about ${cp.blocks} blocks of ${fin(cp.brand.len)} (5% waste; corners from the supplier)`, ''],
+    ...(cp.secLen ? [['ICF inside', `${fft(cp.secLen*FT)} · ${fin(cp.CI*FT)} core under the pod joints · about ${cp.blocksIn} blocks of ${fin(cp.brand.len)}`, '']] : []),
     ['Corners', `${cp.corners.out} outside 90° · ${cp.corners.in} inside 90°`, ''],
     ['Form ends', `${cp.ends} end caps on the inside supports${cp.access?' + 2 at the crawl access':''}`, ''],
-    ['Core fill', `${fin(cp.C*FT)} × ${fin(cp.brand.h)} core${cp.access?', less the access opening':''}`, vol(cp.coreVol)],
+    ['Core fill', `${fin(cp.C*FT)} perimeter${cp.secLen?` + ${fin(cp.CI*FT)} inside`:''} × ${fin(cp.brand.h)}${cp.access?', less the access opening':''}`, vol(cp.coreVol)],
     ['Concrete total', 'footing + core, before waste (order about 10% more)', vol(cp.footVol+cp.coreVol)],
   ];
 }
@@ -139,7 +140,7 @@ function renderConcreteSheet(el){
       <div class="meta">${cp.brand.name} on an ${fin(ICF.footW)} × ${fin(ICF.footT)} footing · ${fft(cp.coreLen*FT)} perimeter · ${cp.sections.length} inside support${cp.sections.length===1?'':'s'} · concrete ${yd3(cp.footVol+cp.coreVol).toFixed(1)} yd³ (${m3(cp.footVol+cp.coreVol).toFixed(1)} m³)<br>${new Date().toISOString().slice(0,10)}</div></div>
     <div class="sheet-tools edit-only">
       <label style="font-size:13px">ICF <select id="icfBrand" style="font:inherit;padding:5px 8px;border:1px solid #cfd4cc;border-radius:6px">${Object.entries(ICF.brands).map(([k,b])=>`<option value="${k}" ${state.icf.brand===k?'selected':''}>${b.name} · ${b.h}″ high</option>`).join('')}</select></label>
-      <label style="font-size:13px">Core <select id="icfCore" style="font:inherit;padding:5px 8px;border:1px solid #cfd4cc;border-radius:6px">${[6,8].map(c=>`<option value="${c}" ${state.icf.core===c?'selected':''}>${c}″</option>`).join('')}</select></label>
+      <label style="font-size:13px">Perimeter core <select id="icfCore" style="font:inherit;padding:5px 8px;border:1px solid #cfd4cc;border-radius:6px">${[6,8].map(c=>`<option value="${c}" ${state.icf.core===c?'selected':''}>${c}″</option>`).join('')}</select></label>
       <button class="btn" id="cPdf">Download PDF</button>
     </div>
     ${cp.warnings.map(w=>`<p class="note" style="color:${w.kind==='closed'?'#b4520f':'#333'};${w.kind==='closed'?'font-weight:600':''}">${w.kind==='closed'?'⚠ ':''}${esc(w.text)}</p>`).join('')}
@@ -150,7 +151,7 @@ function renderConcreteSheet(el){
         <p class="note" style="color:#444;margin-top:6px">Rebar, frost depth, soil bearing and anchor bolts or straps are not shown: follow the engineer's or the local code's details. Quantities are net.</p></div>
     </div>
     ${cp.sections.length?`<div class="tblwrap"><div class="eyebrow" style="color:#555;margin:10px 0 4px">Inside supports · ends measured from the datum (X right, Y down), at the core centre</div><table class="boxes"><thead><tr><th>Support</th><th>Type</th><th>Length</th><th>From → to</th><th>Runs</th></tr></thead><tbody>${sup}</tbody></table>
-      <p class="note" style="color:#444;margin-top:6px">Inside supports run along the pod joints, under both pods, never more than 12′ apart (the ground-screw rules). Sections that came within 4′ of each other became one wall; every part of the crawl space stays reachable through gaps of at least 24″.</p></div>`:''}
+      <p class="note" style="color:#444;margin-top:6px">Inside supports have an ${fin(ICF.coreShared)} core and run along the pod joints, under both pods, never more than 12′ apart (the ground-screw rules). Sections that came within 4′ of each other became one wall; every part of the crawl space stays reachable through gaps of at least 24″.</p></div>`:''}
     ${ds?`<div class="tblwrap"><div class="eyebrow" style="color:#555;margin:10px 0 4px">Decks · screws and pads (kept ${fin((cp.off.foot0*FT)+6)} clear of the home's face, past the footing)</div><table class="boxes"><thead><tr><th>#</th><th>X</th><th>Y</th><th>What</th></tr></thead><tbody>${ds}</tbody></table></div>`:''}`;
   const re=()=>{ save(); buildHome(); renderSide(); renderConcreteSheet(el); };
   const b=el.querySelector('#icfBrand'); if(b) b.onchange=()=>{ state.icf.brand=b.value; re(); };

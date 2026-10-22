@@ -106,7 +106,7 @@ function renderSide(){
 function foundationBlock(){
   const f=foundationOf(state.model), c=f==='concrete'?concretePlan(state.model):null;
   return `<div class="fld">Home stands on<div class="seg" role="group" aria-label="Foundation"><button class="fsbtn" data-found="screws" aria-pressed="${f!=='concrete'}">Ground screws</button><button class="fsbtn" data-found="concrete" aria-pressed="${f==='concrete'}">Concrete (ICF)</button></div></div>`
-    + (c ? `<p class="note">${c.brand.name} ICF on an 18″ × 6″ footing: ${Math.round(c.coreLen)}′ around the outside${c.sections.length?` and ${c.sections.length} inside support${c.sections.length>1?'s':''} (${c.sections.filter(s=>s.kind==='wall').length} wall section${c.sections.filter(s=>s.kind==='wall').length===1?'':'s'})`:''}. ${c.check.ok?'Every part of the crawl space can be reached.':'<b class="flipflag">Part of the crawl space is closed off.</b>'} Details on the foundation sheet.</p>` : '');
+    + (c ? `<p class="note">${c.brand.name} ICF on an 18″ × 6″ footing: ${Math.round(c.coreLen)}′ around the outside${c.sections.length?` and ${c.sections.length} inside support${c.sections.length>1?'s':''} with an 8″ core (${c.sections.filter(s=>s.kind==='wall').length} wall section${c.sections.filter(s=>s.kind==='wall').length===1?'':'s'})`:''}. ${c.check.ok?'Every part of the crawl space can be reached.':'<b class="flipflag">Part of the crawl space is closed off.</b>'} Details on the foundation sheet.</p>` : '');
 }
 function bindFoundation(){
   sideB.querySelectorAll('[data-found]').forEach(b=>b.onclick=()=>{ setFoundation(state.model, b.dataset.found); state.show.screws=true; buildHome(); renderSide();

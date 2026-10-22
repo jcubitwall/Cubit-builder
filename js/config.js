@@ -14,7 +14,8 @@ const SCREW_MAX = 12;     // ground screws no more than 12′ apart (corners alw
 const PAD_MAX = 12;       // concrete pads under a floating deck: same rule as screws, corners always, no more than 12′ apart (to confirm)
 /* concrete foundation (instead of ground screws): an 18″ × 6″ perimeter footing under one course of ICF.
    The home bears on the concrete core; the outside foam sits fully outside the home's outer face. */
-const ICF = { foam:2.625, core:6, footW:18, footT:6, pier:48, access:28, pass:24,
+const ICF = { foam:2.625, core:6, coreShared:8,   // 8″ core under the pod joints, where two pods share the support
+  footW:18, footT:6, pier:48, access:28, pass:24,
   brands:{ nudura:{name:'Nudura', h:18, len:96}, fox:{name:'Fox Blocks', h:16, len:48} } };
 const NOTCH = 1.75;       // steel spine notch at every pod corner, full height: 1¾″ × 1¾″ (measured from the STEP files)
 /* ============================================================ pod types
