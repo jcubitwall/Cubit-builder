@@ -9,7 +9,7 @@ import { layoutOffsets, podList } from './layout.js';
 import { downloadBlob } from './sheets.js';
 
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const ORDER = ['Top plate','Bottom plate','End stud','Corner stud','Jack','Spline'];
+const ORDER = ['Top plate','Bottom plate','Corner post','End stud','Corner stud','Jack','Spline'];
 /* one wall's pieces grouped by kind and length */
 function wallRows(W){
   const g={}; W.pieces.forEach(p=>{ const k=p.kind+'|'+p.len.toFixed(3); (g[k] ||= {kind:p.kind, len:p.len, n:0, lumber:p.lumber, notes:new Set()}).n++; g[k].notes.add(p.kind==='Spline' ? `${p.carrier} carries → ${p.receiver}` : p.note); });
