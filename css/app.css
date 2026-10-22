@@ -329,3 +329,4 @@ details.frwall[open] summary{margin-bottom:6px}
 .plate-pod{border:1px solid #d4d9d2;border-radius:6px;padding:6px 8px;background:#fafbf9;font-size:12.5px}
 .plate-pair{display:flex;gap:8px;flex-wrap:wrap}
 .plate-pod svg{display:block;max-width:300px;height:auto}
+.plate-pod svg.corner-svg{max-width:min(520px,100%)}

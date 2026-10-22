@@ -24,17 +24,22 @@ import { panelPlan } from './labels.js';
 import { packStock } from './deckframe.js';
 
 const SNAP = 0.25;
+const fmtIn = v => { const n=Math.round(v*16); const w=Math.floor(n/16), f=n%16, g=(a,b)=>b?g(b,a%b):a, d=g(f,16); return (w?w:'')+(f?`${w?' ':''}${f/d}/${16/d}`:'')+'″'; };
 const isFloorOpening = o => o.kind!=='vent' && o.kind!=='window' && o.y < 1.6;
 
 function wallFraming(slot, w0){
   const w=bodyWall(slot, w0); if(!w) return null;
   const L=wallLen(w), P=FRAME.plate, lum=slot.type==='int' ? FRAME.int : FRAME.ext, t=FRAME.ply;
-  const out=[], add=(kind, x0, x1, y0, y1, note='')=>{ if(x1-x0>0.01 && y1-y0>0.01) out.push({kind, x0, x1, y0, y1, len: kind.endsWith('plate') ? x1-x0 : y1-y0, note, lumber:lum.name}); };
+  const out=[], add=(kind, x0, x1, y0, y1, note='', extra={})=>{ if(x1-x0>0.01 && y1-y0>0.01) out.push({kind, x0, x1, y0, y1, len: kind.endsWith('plate') ? x1-x0 : y1-y0, note, lumber:lum.name, ...extra}); };
+  // the Einspine notch at a pod corner (end walls only): the plates are notched around it too
+  const [nl,nr]=w.notch||[0,0], wt=(slot.type==='int'?4.5:6.5), zc0=(wt-lum.d)/2;   // lumber sits zc0 in from the outer face
+  const pn=(a,b)=>{ const n=[]; if(nl && a<0.01) n.push('left'); if(nr && b>L-0.01) n.push('right'); return n; };
+  const notchTxt=ends=>ends.length?` · notch ${fmtIn(nl||nr)} × ${fmtIn((nl||nr)-zc0)} at the ${ends.join(' and ')} end${ends.length>1?'s':''} for the Einspine`:'';
   // plates
-  add('Top plate', 0, L, H-P, H, 'on the ceiling · full length, splice anywhere · bevel 2 bottom corners ¾″');
+  add('Top plate', 0, L, H-P, H, 'on the ceiling · full length, splice anywhere · bevel 2 bottom corners ¾″'+notchTxt(pn(0,L)), {notch:pn(0,L)});
   let segs=[[0,L]];
   w.openings.filter(isFloorOpening).forEach(o=>{ segs=segs.flatMap(([a,b])=>{ const c=o.x, d=o.x+o.w; if(d<=a||c>=b) return [[a,b]]; const r=[]; if(c>a) r.push([a,c]); if(d<b) r.push([d,b]); return r; }); });
-  segs.forEach(([a,b])=>add('Bottom plate', a, b, 0, P, 'on the floor · stops at doors · bevel 2 top corners ¾″'));
+  segs.forEach(([a,b])=>add('Bottom plate', a, b, 0, P, 'on the floor · stops at doors · bevel 2 top corners ¾″'+notchTxt(pn(a,b)), {notch:pn(a,b)}));
   // jacks
   const jacks=[];
   w.openings.filter(o=>o.kind!=='vent').forEach(o=>{
@@ -45,11 +50,15 @@ function wallFraming(slot, w0){
       jacks.push({x0,x1}); add('Jack', x0, x1, y0, y1, `${name} ${side} side, opening ${o.w.toFixed(2)} wide`);
     });
   });
-  // end studs (inboard of a steel spine notch, and left out where a jack already sits at the end)
-  const [nl,nr]=w.notch||[0,0];
-  [[nl, nl+t, 'left end'], [L-nr-t, L-nr, 'right end']].forEach(([a,b,side])=>{
+  // end studs; at a pod corner the end wall wraps the Einspine notch with two pieces so every Dynobite screw
+  // through either face of the spine lands in wood: a full stud just inboard of the notch, and a stud ripped
+  // to fit behind the notch at the very end of the wall (from the notch back to the inside of the core)
+  [[nl, nl+t, 'left end', 0], [L-nr-t, L-nr, 'right end', L-t]].forEach(([a,b,side,cx])=>{
     if(jacks.some(j=>j.x0<b-0.1 && j.x1>a+0.1)) return;
-    add('End stud', a, b, P, H-P, side+((side==='left end'?nl:nr)?' · inboard of the spine notch':''));
+    const n = side==='left end' ? nl : nr;
+    add('End stud', a, b, P, H-P, side+(n?' · just inboard of the Einspine notch':''));
+    if(n){ const z0=n, z1=wt-zc0, rip=z1-z0;
+      add('Corner stud', cx, cx+t, P, H-P, `${side} · behind the Einspine notch · rip a ${lum.name} to ${fmtIn(rip)}`, {zf:[z0,z1], rip}); }
   });
   // splines at each panel joint, between the plates, minus openings at or over the joint
   const plan=panelPlan(slot, w0), spans=panelSpans(w), joints=spans.slice(0,-1).map(s=>s[1]);

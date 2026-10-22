@@ -306,7 +306,7 @@ function buildHome(){
     const fr=wallFraming(s, pickFor(s));
     if(fr){ const tt=(w.t||6.5)/FT, d=fr.lumber.d/FT, osb=FRAME.osb/FT, sp=FRAME.spline.t/FT;
       fr.pieces.forEach(pc=>{
-        const isS=pc.kind==='Spline', dz = isS ? sp : d, zc = isS ? (pc.face==='outside face' ? -osb-sp/2 : -tt+osb+sp/2) : -tt/2;
+        const isS=pc.kind==='Spline', dz = isS ? sp : pc.zf ? (pc.zf[1]-pc.zf[0])/FT : d, zc = isS ? (pc.face==='outside face' ? -osb-sp/2 : -tt+osb+sp/2) : pc.zf ? -(pc.zf[0]+pc.zf[1])/2/FT : -tt/2;
         const m=new THREE.Mesh(new THREE.BoxGeometry((pc.x1-pc.x0)/FT, (pc.y1-pc.y0)/FT, dz), isS?FRAME_MAT.osb:FRAME_MAT.wood);
         m.position.set((pc.x0+pc.x1)/2/FT, (pc.y0+pc.y1)/2/FT, zc); m.userData.framing=true; m.renderOrder=2;
         if(/plate/.test(pc.kind)){
