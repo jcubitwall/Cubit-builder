@@ -115,7 +115,7 @@ function renderLayerSide(ls){
   sideH.innerHTML=`<div class="eyebrow">${K.label} · ${ls.len}′ × 8′ · ${(L.t||K.t)}″ thick</div><h2>${ls.label}</h2><p>now <b>${esc(L.id)}</b> ${esc(L.name)}</p>`;
   sideB.innerHTML=`
     <div class="row"><button class="btn" id="toSheet">Layer sheet</button><button class="btn ghost" id="deselect">Back to model</button></div>
-    ${ls.kind==='ceiling-int'||ls.kind==='roof' ? '<p class="note">Turn on Roof (or Exploded view) to see the ceiling and roof in 3D.</p>':''}
+    ${ls.kind==='ceiling-int'||ls.kind==='roof' ? '<p class="note">Turn on Ceiling or Roof under Layers (or use Exploded view) to see them in 3D.</p>':''}
     <div class="eyebrow">${opts.length} ${K.label.toLowerCase()} option${opts.length===1?'':'s'} for a ${ls.len}′ pod · seen from above</div>
     ${opts.length?'':`<p class="note">Nothing in the library for this yet. It fills up as STEP files are imported.</p>`}
     <div class="opts">${opts.map(o=>`<button class="opt" data-o="${esc(o.id)}" aria-pressed="${o.id===L.id}">${layerThumb(o)}<b>${esc(o.name)}</b><code>${esc(o.id)}</code></button>`).join('')}</div>`;

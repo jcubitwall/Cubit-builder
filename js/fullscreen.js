@@ -1,20 +1,28 @@
 /* Cubit Builder — fullscreen.js : full-screen 3D with the tools and data one tap (or key) away.
    Full screen fills the whole display (browser full screen where it's allowed, otherwise the whole window).
-   The toggles move onto a floating bar; the walls / options panel slides in from the right with
-   "Panel" or the T key, and opens by itself when you click a wall. F toggles full screen; Esc leaves it. */
+   The toggles move onto a floating bar. The walls / options panel opens and hides with the small arrow on
+   the right edge (or T), in full screen and in the normal view, and opens by itself when you click
+   something. F toggles full screen; Esc leaves it. */
 import { resize } from './scene3d.js';
 import { state } from './state.js';
 
 const studio=document.getElementById('studio'), aside=studio.querySelector('aside');
-const bFull=document.getElementById('bFull'), bPanel=document.getElementById('bPanel');
+const bFull=document.getElementById('bFull'), bSide=document.getElementById('bSide');
 const tools=document.getElementById('studioTools'), fsTools=document.getElementById('fsTools'), home=tools.parentNode, homeNext=tools.nextSibling;
 let on=false;
 const touchFirst = matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches;
 
-function setPanel(open){ studio.classList.toggle('panel-open', open); bPanel.setAttribute('aria-pressed', open); }
+let sideNormal=true;   // panel open in the normal (not full-screen) view
+function setPanel(open){
+  if(on) studio.classList.toggle('panel-open', open); else sideNormal=open;
+  studio.classList.toggle('side-closed', !on && !open);
+  bSide.setAttribute('aria-expanded', open); bSide.title = (open?'Hide':'Show')+' the panel (T)';
+  requestAnimationFrame(resize);
+}
+const panelOpen=()=> on ? studio.classList.contains('panel-open') : sideNormal;
 function enter(){
   if(on || state.view!=='studio') return;
-  on=true; studio.classList.add('fs'); bFull.setAttribute('aria-pressed','true'); bFull.querySelector('.lbl').textContent='Exit';
+  on=true; studio.classList.add('fs'); studio.classList.remove('side-closed'); bFull.setAttribute('aria-pressed','true'); bFull.querySelector('.lbl').textContent='Exit';
   fsTools.appendChild(tools);
   setPanel(!!state.selected);
   // computers use the browser's real full screen (Esc leaves). Tablets and phones fill the window instead:
@@ -27,23 +35,24 @@ function enter(){
 function exit(){
   if(!on) return;
   on=false; studio.classList.remove('fs','panel-open'); bFull.setAttribute('aria-pressed','false'); bFull.querySelector('.lbl').textContent='Full screen';
+  setPanel(sideNormal);
   home.insertBefore(tools, homeNext);
   document.documentElement.classList.remove('fs-lock');
   if(document.fullscreenElement) document.exitFullscreen().catch(()=>{});
   requestAnimationFrame(resize);
 }
 bFull.onclick=()=> on ? exit() : enter();
-bPanel.onclick=()=> setPanel(!studio.classList.contains('panel-open'));
+bSide.onclick=()=> setPanel(!panelOpen());
 document.addEventListener('fullscreenchange', ()=>{ if(!document.fullscreenElement && on) exit(); else requestAnimationFrame(resize); });
 document.addEventListener('keydown', e=>{
   if(e.target.closest('input,textarea,select,[contenteditable]') || e.metaKey || e.ctrlKey || e.altKey) return;
   if(state.view!=='studio') return;
   if(e.key==='f'||e.key==='F'){ e.preventDefault(); on ? exit() : enter(); }
-  if((e.key==='t'||e.key==='T') && on){ e.preventDefault(); bPanel.click(); }
+  if(e.key==='t'||e.key==='T'){ e.preventDefault(); bSide.click(); }
   if(e.key==='Escape' && on && !document.fullscreenElement) exit();
 });
-// clicking a wall, floor or deck in full screen brings the panel in with its options
-studio.querySelector('#stage').addEventListener('pointerup', ()=>{ if(on) setTimeout(()=>{ if(state.selected) setPanel(true); }, 0); });
+// clicking a wall, floor or deck brings the panel in with its options
+studio.querySelector('#stage').addEventListener('pointerup', e=>{ if(e.target.tagName!=='CANVAS') return; setTimeout(()=>{ if(state.selected && !panelOpen()) setPanel(true); }, 0); });
 
 export { enter as enterFullscreen, exit as exitFullscreen };
 // leaving the 3D view (sheets, plan) always leaves full screen first

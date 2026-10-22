@@ -24,11 +24,6 @@
     <div class="spacer"></div>
     <div class="toggles" id="studioTools">
       <button class="tog" id="tExplode" aria-pressed="false">Exploded view</button>
-      <button class="tog" id="tRoof" aria-pressed="false">Roof</button>
-      <button class="tog" id="tLetters" aria-pressed="true">Wall letters</button>
-      <button class="tog" id="tNums" aria-pressed="true">Panel numbers</button>
-      <button class="tog" id="tScrews" aria-pressed="false">Ground screws</button>
-      <button class="tog" id="tHouse" aria-pressed="true" title="Turn the house off to see only the ground screws and pads">House</button>
     </div>
     <button class="btn ghost" id="bPlan">Plan &amp; pods</button>
     <span class="viewer-only who" title="You can explore everything; nothing you change is saved">View only · changes aren't saved</span>
@@ -39,20 +34,14 @@
 
   <main class="studio" id="studio">
     <div id="stage">
-      <div class="legend" aria-hidden="true">
-        <span><i style="background:#c9a46a"></i>Exterior SIP 6½″</span>
-        <span><i style="background:#ece0c6"></i>Interior wall 4½″</span>
-        <span><i style="background:#56606b"></i>Ground screw</span>
-        <span><i style="background:#8fc3ea"></i>Window</span>
-        <span><i style="background:#6b4a2f"></i>Door</span>
-        <span><i style="background:#d0661f"></i>Selected wall</span>
-      </div>
       <div class="hint">Drag to orbit · scroll to zoom · click a wall to swap it</div>
       <div class="fs-bar">
         <div id="fsTools" class="fs-tools"></div>
-        <button class="fsbtn" id="bPanel" aria-pressed="false" title="Show or hide the walls and options panel (T)">Panel</button>
+        <button class="fsbtn" id="bLayers" aria-expanded="false" aria-controls="layersPop" title="Show or hide parts of the home (L)"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 1.5 15 5 8 8.5 1 5Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="m1 8 7 3.5L15 8M1 11l7 3.5 7-3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg> Layers</button>
         <button class="fsbtn" id="bFull" aria-pressed="false" title="Full screen 3D (F)"><span aria-hidden="true">⛶</span> <span class="lbl">Full screen</span></button>
       </div>
+      <div class="layers-pop" id="layersPop" hidden role="group" aria-label="Layers"></div>
+      <button class="side-tab" id="bSide" aria-expanded="true" aria-controls="sideH" title="Show or hide the panel (T)"><svg viewBox="0 0 10 16" width="10" height="16" aria-hidden="true"><path d="M7 2 2 8l5 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="vh">Panel</span></button>
     </div>
     <aside>
       <div class="side-h" id="sideH"></div>

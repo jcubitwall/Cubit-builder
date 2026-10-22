@@ -3,7 +3,8 @@ import { MODELS, byId, optionsFor, layerOptions, layerById, podById } from './da
 import { LAYER_KINDS, T, TI } from './config.js';
 import { canSave } from './role.js';
 
-const state = { model:'cove', picks:{}, layerPicks:{}, wallA:{}, faces:{}, bearing:{}, northUp:false, house:true, selected:null, exploded:false, roof:false, nums:true, letters:true, screws:false, inset:6, view:'studio', face:'int', reverse:false, sheetSlot:null };
+const state = { model:'cove', picks:{}, layerPicks:{}, wallA:{}, faces:{}, bearing:{}, northUp:false, selected:null, exploded:false, nums:true, letters:true,
+  show:{ roof:false, ceiling:false, walls:true, floors:true, decks:true, screws:false, units:true }, glass:false, inset:6, view:'studio', face:'int', reverse:false, sheetSlot:null };
 const KEY='cubit-wall-studio';
 function initState(){
   try{
@@ -15,10 +16,14 @@ function initState(){
     if(s.bearing) state.bearing=s.bearing;
     if(s.northUp) state.northUp=true;
     if(s.inset) state.inset=s.inset;
+    if(s.show) Object.assign(state.show, s.show);
+    if(s.glass) state.glass=true;
+    if(s.nums===false) state.nums=false;
+    if(s.letters===false) state.letters=false;
     if(s.model&&MODELS[s.model]) state.model=s.model;
   }catch(e){}
 }
-function save(){ if(!canSave()) return; try{ localStorage.setItem(KEY, JSON.stringify({picks:state.picks, layerPicks:state.layerPicks, wallA:state.wallA, faces:state.faces, bearing:state.bearing, northUp:state.northUp, inset:state.inset, model:state.model})); }catch(e){} }
+function save(){ if(!canSave()) return; try{ localStorage.setItem(KEY, JSON.stringify({picks:state.picks, layerPicks:state.layerPicks, wallA:state.wallA, faces:state.faces, bearing:state.bearing, northUp:state.northUp, inset:state.inset, model:state.model, show:state.show, glass:state.glass, nums:state.nums, letters:state.letters})); }catch(e){} }
 const fits = (w,slot) => w && w.len===slot.len && (w.type||'ext')===(slot.type||'ext');
 /* Which wall sits in a slot: the person's own choice, else the model's own wall (models.json "picks"),
    else a sensible sample wall of the right length and type. */

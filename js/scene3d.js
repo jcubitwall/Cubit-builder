@@ -21,7 +21,7 @@ scene.add(new THREE.HemisphereLight(0xffffff,0x8a8a80,0.85));
 const sun = new THREE.DirectionalLight(0xffffff,0.75); sun.position.set(30,50,20); scene.add(sun);
 const grid = new THREE.GridHelper(96,24,0x9aa39b,0xc3c9c1); grid.position.y=-FLOOR; scene.add(grid);
 let homeGroup = new THREE.Group(); scene.add(homeGroup);
-let wallGroups = [], layerGroups = [], deckGroups = [], roofGroup=null, floorGroup=null, screwGroup=null, pickables=[];
+let wallGroups = [], layerGroups = [], deckGroups = [], roofGroup=null, ceilGroup=null, floorGroup=null, screwGroup=null, fpGroup=null, unitMeshes=[], floorMats=[], pickables=[];
 
 function themeColors(){
   const dark = (document.documentElement.dataset.theme==='dark') || (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
@@ -32,7 +32,7 @@ applyTheme(); matchMedia('(prefers-color-scheme: dark)').addEventListener('chang
 
 const MAT = {
   glass: new THREE.MeshStandardMaterial({color:0x8fc3ea,transparent:true,opacity:0.55,roughness:0.1}),
-  door: new THREE.MeshStandardMaterial({color:0x6b4a2f,roughness:0.7}),
+  door: new THREE.MeshStandardMaterial({color:0x6b4a2f,roughness:0.7,transparent:true,opacity:1}),
   outlet: new THREE.MeshStandardMaterial({color:0xf2f2f2}),
   sw: new THREE.MeshStandardMaterial({color:0x2f6db5}),
   extOutlet: new THREE.MeshStandardMaterial({color:0x2f8a57}),
@@ -90,7 +90,7 @@ function buildWallMesh(w, mat, opts={}){
     const m=new THREE.Mesh(new THREE.BoxGeometry(o.w/FT,o.h/FT,thick), o.kind==='window'?MAT.glass:MAT.door);
     m.position.set((o.x+o.w/2)/FT,(o.y+o.h/2)/FT,-t/2);
     if(o.kind==='patio'){ m.material=MAT.glass; }
-    g.add(m);
+    m.userData.unit=true; g.add(m);
     m.userData.k=panelAt(w, o.x+o.w/2);
   });
   // boxes: inside on interior face, outside on exterior face
@@ -147,7 +147,7 @@ function buildDeckMesh(L, mat){
 }
 function buildHome(){
   scene.remove(homeGroup); homeGroup=new THREE.Group(); scene.add(homeGroup);
-  wallGroups=[]; layerGroups=[]; deckGroups=[]; pickables=[];
+  wallGroups=[]; layerGroups=[]; deckGroups=[]; pickables=[]; floorMats=[];
   const slots = slotsFor(state.model); const model=MODELS[state.model];
   const OFF = podOffsets(state.model);
   const pods = podList(state.model).map((p,i)=>({...p,x:p.x+OFF[i].ox,z:p.z+OFF[i].oz}));
@@ -158,11 +158,12 @@ function buildHome(){
   const cx=(minx+maxx)/2, cz=(minz+maxz)/2;
   homeGroup.position.set(-cx,0,-cz);
   // floor and ceiling layers (exterior floor, interior floor, interior ceiling, roof) + ground screws
-  roofGroup=new THREE.Group(); floorGroup=new THREE.Group(); homeGroup.add(floorGroup);
+  roofGroup=new THREE.Group(); ceilGroup=new THREE.Group(); floorGroup=new THREE.Group(); homeGroup.add(floorGroup);
   layerSlotsFor(state.model).forEach(ls=>{
     const L=pickLayer(ls); const isFloor=ls.kind.startsWith('floor');
-    const see = isFloor ? state.screws : true;   // ceiling + roof stay see-through so they never hide the walls
-    const mat=new THREE.MeshStandardMaterial({color:LAYER_COLOR[ls.kind], roughness:0.85, transparent:see, opacity: isFloor ? (state.screws?0.35:1) : 0.42, depthWrite: !(!isFloor)});
+    // ceiling + roof stay see-through so they never hide the walls; floors go see-through when the ground screws show
+    const mat=new THREE.MeshStandardMaterial({color:LAYER_COLOR[ls.kind], roughness:0.85, transparent:!isFloor, opacity: isFloor ? 1 : 0.42, depthWrite: isFloor});
+    if(isFloor) floorMats.push(mat);
     const grp=buildLayerMesh(L, mat);
     const y=((L.z??LAYER_KINDS[ls.kind].z)-WALL_BASE)/FT;
     // turned pods: rotate the layer about its corner, then move that corner back onto the footprint
@@ -174,9 +175,9 @@ function buildHome(){
     grp.position.set(ls.x, y, ls.z);
     grp.userData={layerSlot:ls, mat, baseY:y, bx:grp.position.x, bz:grp.position.z, pod:ls.pod.i};
     grp.traverse(o=>{ if(o.isMesh){ o.userData.slotId=ls.id; pickables.push(o); } });
-    (isFloor?floorGroup:roofGroup).add(grp); layerGroups.push(grp);
+    (isFloor?floorGroup:ls.kind==='roof'?roofGroup:ceilGroup).add(grp); layerGroups.push(grp);
   });
-  homeGroup.add(roofGroup); roofGroup.visible=state.roof;
+  homeGroup.add(ceilGroup); homeGroup.add(roofGroup);
   // decks (porch frames), docked with the same 5/8″ space as pods
   deckGroups=[];
   const DOFF=layoutOffsets(state.model).decks;
@@ -192,14 +193,14 @@ function buildHome(){
     homeGroup.add(grp); deckGroups.push(grp);
   });
   // with the house turned off, only the ground screws, pads and footprints show
-  screwGroup=new THREE.Group(); homeGroup.add(screwGroup); screwGroup.visible=state.screws || !state.house;
+  screwGroup=new THREE.Group(); homeGroup.add(screwGroup);
   // concrete pads under decks that float instead of sitting on screws
   { const padG=new THREE.BoxGeometry(16/FT, 8/FT, 16/FT), padM=new THREE.MeshStandardMaterial({color:0xa7a9a4, roughness:0.95});
     padsFor(state.model, state.inset).forEach(pd=>{ const m=new THREE.Mesh(padG,padM); m.position.set(pd.x, -WALL_BASE/FT - 4/FT, pd.z); screwGroup.add(m); }); }
-  if(!state.house){
-    // footprints on the ground so the screws can be read against the home
+  { // footprints on the ground so the screws can be read against the home when walls and floors are off
+    fpGroup=new THREE.Group(); homeGroup.add(fpGroup);
     const fpMat=new THREE.LineBasicMaterial({color:0x3b3122}), dkMat=new THREE.LineDashedMaterial({color:0x8a7a5c, dashSize:0.6, gapSize:0.4});
-    const loop=(x0,z0,x1,z1,mat)=>{ const g=new THREE.BufferGeometry().setFromPoints([[x0,z0],[x1,z0],[x1,z1],[x0,z1],[x0,z0]].map(([x,z])=>new THREE.Vector3(x,-FLOOR+0.01,z))); const l=new THREE.Line(g,mat); l.computeLineDistances(); screwGroup.add(l); };
+    const loop=(x0,z0,x1,z1,mat)=>{ const g=new THREE.BufferGeometry().setFromPoints([[x0,z0],[x1,z0],[x1,z1],[x0,z1],[x0,z0]].map(([x,z])=>new THREE.Vector3(x,-FLOOR+0.01,z))); const l=new THREE.Line(g,mat); l.computeLineDistances(); fpGroup.add(l); };
     pods.forEach(p=>loop(p.x,p.z,p.x+p.w,p.z+p.d,fpMat));
     const LOd2=layoutOffsets(state.model).decks;
     deckList(state.model).forEach((d,k)=>loop(d.x+LOd2[k].ox,d.z+LOd2[k].oz,d.x1+LOd2[k].ox,d.z1+LOd2[k].oz,dkMat));
@@ -266,8 +267,8 @@ function buildHome(){
     }
     homeGroup.add(g); wallGroups.push(g);
   });
-  // house off: hide walls, floors, ceilings, roof and decks
-  if(!state.house){ wallGroups.forEach(g=>g.visible=false); floorGroup.visible=false; roofGroup.visible=false; deckGroups.forEach(g=>g.visible=false); }
+  unitMeshes=[]; wallGroups.forEach(g=>g.traverse(o=>{ if(o.userData.unit) unitMeshes.push(o); }));
+  applyLayers();
   highlight();
   // frame camera
   const span=Math.max(maxx-minx,maxz-minz);
@@ -314,7 +315,22 @@ function applyExplode(){
     g.position.x += v[0]*eP; g.position.z += v[1]*eP;
     g.position.y = lift + eW*0.6;
   });
-  if(roofGroup){ roofGroup.visible = state.house && (state.roof || e>0.01); }
+}
+/* what shows: each layer on its own (Layers menu) */
+function applyLayers(){
+  if(!floorGroup) return;
+  const S=state.show;
+  wallGroups.forEach(g=>g.visible=S.walls);
+  floorGroup.visible=S.floors; ceilGroup.visible=S.ceiling; roofGroup.visible=S.roof;
+  deckGroups.forEach(g=>g.visible=S.decks);
+  screwGroup.visible=S.screws;
+  fpGroup.visible=S.screws && !S.walls && !S.floors;
+  floorMats.forEach(m=>{ m.transparent=S.screws; m.opacity=S.screws?0.35:1; m.depthWrite=!S.screws; m.needsUpdate=true; });
+  unitMeshes.forEach(m=>m.visible=S.units);
+  MAT.glass.opacity = state.glass ? 0.18 : 0.55;
+  MAT.door.opacity = state.glass ? 0.25 : 1; MAT.door.depthWrite = !state.glass;
+  MAT.glass.needsUpdate = MAT.door.needsUpdate = true;
+  controls.maxPolarAngle = S.screws ? Math.PI*0.62 : Math.PI*0.495;
 }
 function highlight(){
   deckGroups.forEach(g=>{ const sel=g.userData.id===state.selected; g.userData.mat.color.set(sel?0xe0864a:0xa88f5d); g.userData.mat.emissive.set(sel?0x3a1a05:0x000000); });
@@ -353,6 +369,6 @@ function loop(){
   if(state.view==='sheets' && w3) { w3.controls.update(); w3.renderer.render(w3.scene,w3.camera); }
 }
 function setExplodeGoal(v){ explodeGoal=v; }
-function refreshRoof(){ if(roofGroup) roofGroup.visible=state.house && (state.roof||explodeT>0.01); }
 
-export { stage, renderer, scene, camera, controls, sun, grid, homeGroup, wallGroups, themeColors, applyTheme, MAT, lineMat, numberSprite, buildWallMesh, buildHome, explodeT, applyExplode, highlight, resize, ray, loop, setExplodeGoal, refreshRoof, roofGroup, floorGroup, screwGroup, pickables, explodeGoal, mouse };
+
+export { stage, renderer, scene, camera, controls, sun, grid, homeGroup, wallGroups, themeColors, applyTheme, MAT, lineMat, numberSprite, buildWallMesh, buildHome, explodeT, applyExplode, highlight, resize, ray, loop, setExplodeGoal, applyLayers, roofGroup, floorGroup, screwGroup, pickables, explodeGoal, mouse };

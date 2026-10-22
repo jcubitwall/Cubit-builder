@@ -225,7 +225,6 @@ body.dragging, body.dragging *{cursor:grabbing!important}
 .fs-tools{display:none}
 .studio.fs{position:fixed;inset:0;z-index:50;height:100vh!important;min-height:0;margin:0;gap:0;grid-template-columns:1fr!important;grid-template-rows:1fr!important;background:var(--stage)}
 .studio.fs #stage{border-radius:0;min-height:0;height:100%}
-.studio.fs #bPanel{display:inline-block}
 .studio.fs .fs-tools{display:flex}
 .studio.fs .fs-tools .toggles{display:flex;gap:6px;flex-wrap:wrap}
 .studio.fs .fs-tools .tog{background:color-mix(in srgb,var(--surface) 92%,transparent)}
@@ -271,3 +270,30 @@ dialog#upDlg::backdrop{background:rgba(20,24,22,.45)}
 .up-kind legend{font-size:12.5px;color:var(--ink-2);padding:0 4px}
 .up-kind label{display:grid;grid-template-columns:auto auto 1fr;gap:8px;align-items:baseline;cursor:pointer;font-size:14px}
 .up-kind label span{color:var(--ink-2);font-size:12.5px}
+
+/* panel tab on the right edge of the 3D view: points left to open the panel, right to hide it */
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.side-tab{position:absolute;right:0;top:50%;transform:translateY(-50%);z-index:7;width:22px;height:56px;display:grid;place-items:center;padding:0;border:1px solid var(--line);border-right:0;border-radius:10px 0 0 10px;background:color-mix(in srgb,var(--surface) 90%,transparent);color:var(--ink-2);cursor:pointer;transition:right .22s ease,color .15s}
+.side-tab:hover{color:var(--accent)}
+.side-tab:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.side-tab svg{transition:transform .22s ease}
+.side-tab[aria-expanded="true"] svg{transform:scaleX(-1)}
+.studio.side-closed{grid-template-columns:minmax(0,1fr)}
+.studio.side-closed > aside{display:none}
+.studio.fs.side-closed > aside{display:flex}
+.studio.fs .side-tab{right:0}
+.studio.fs.panel-open .side-tab{right:calc(min(380px, 100vw - 24px) + 12px)}
+@media (max-width: 900px){ .studio:not(.fs) .side-tab{display:none} }
+/* layers menu */
+.layers-pop{position:absolute;left:12px;top:54px;z-index:8;width:220px;max-height:calc(100% - 70px);overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.18);padding:6px}
+.studio.fs .layers-pop{top:max(54px, calc(env(safe-area-inset-top) + 42px))}
+.layers-pop h4{margin:8px 8px 4px;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);font-weight:500}
+.lay-row{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;border:0;background:none;color:var(--ink);font:inherit;font-size:13.5px;padding:7px 8px;border-radius:8px;cursor:pointer;text-align:left;min-height:36px}
+.lay-row:hover{background:var(--surface-2)}
+.lay-row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.lay-row .sw{flex:none;width:30px;height:18px;border-radius:9px;background:var(--line);position:relative;transition:background .15s}
+.lay-row .sw::after{content:"";position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+.lay-row[aria-checked="true"] .sw{background:var(--accent)}
+.lay-row[aria-checked="true"] .sw::after{transform:translateX(12px)}
+.lay-row i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:8px;vertical-align:0}
+.lay-sep{height:1px;background:var(--line);margin:6px 4px}
