@@ -297,3 +297,13 @@ dialog#upDlg::backdrop{background:rgba(20,24,22,.45)}
 .lay-row[aria-checked="true"] .sw::after{transform:translateX(12px)}
 .lay-row i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:8px;vertical-align:0}
 .lay-sep{height:1px;background:var(--line);margin:6px 4px}
+
+/* windows & doors in a wall */
+.units{display:flex;flex-direction:column;gap:8px}
+.unit-row{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--surface-2)}
+.unit-pic{flex:none;width:48px;display:grid;place-items:center;color:var(--ink)}
+.unit-main{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1;font-size:13px}
+.unit-main .muted{color:var(--ink-2);font-size:12px}
+.unit-main select{font:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);width:100%}
+.unit-opts{display:flex;gap:6px;flex-wrap:wrap}
+.seg.sm button{padding:5px 9px;font-size:12px}

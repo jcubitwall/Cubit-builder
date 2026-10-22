@@ -7,6 +7,7 @@ import { w3 } from './sheets.js';
 import { renderSide } from './sidebar.js';
 import { pickFor, pickLayer, state } from './state.js';
 import { getBearing } from './orient.js';
+import { symbol, unitFor } from './units.js';
 
 /* ============================================================ 3D studio */
 const stage = document.getElementById('stage');
@@ -43,6 +44,41 @@ const MAT = {
   roof: new THREE.MeshStandardMaterial({color:0x4b514d,transparent:true,opacity:0.92,roughness:0.8})
 };
 const lineMat = new THREE.LineBasicMaterial({color:0x3b3122});
+MAT.frame = new THREE.MeshStandardMaterial({color:0xf3f2ee, roughness:0.6});
+const symMat = new THREE.LineBasicMaterial({color:0x1c3d5a});
+/* one window or door from the library, centred in its rough opening; wall-local feet (x along, y up, z out) */
+function buildUnit(o, r, t){
+  const u=r.unit, g=new THREE.Group(), W=Math.min(u.w,o.w), Hh=Math.min(u.h,o.h);
+  const x0=o.x+(o.w-W)/2, y0=o.y+(o.h-Hh)/2, d=Math.min(u.d||4.5, t*FT-0.5)/FT, zc=-t/2, fw=1.75;
+  const box=(x,y,w,h,dd,mat)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(w/FT,h/FT,dd),mat); m.position.set((x+w/2)/FT,(y+h/2)/FT,zc); g.add(m); return m; };
+  // frame
+  box(x0,y0,fw,Hh,d,MAT.frame); box(x0+W-fw,y0,fw,Hh,d,MAT.frame);
+  box(x0+fw,y0+Hh-fw,W-2*fw,fw,d,MAT.frame); box(x0+fw,y0,W-2*fw,fw,d,MAT.frame);
+  // glass, or the door leaf with its knob on the handle side
+  if(u.type==='entry'){
+    box(x0+fw,y0+fw,W-2*fw,Hh-2*fw,0.14,MAT.door);
+    const kx = r.hand==='R' ? x0+fw+3 : x0+W-fw-3, knob=new THREE.SphereGeometry(0.12,12,8);
+    [zc+0.12, zc-0.12].forEach(z=>{ const k=new THREE.Mesh(knob,MAT.steel); k.position.set(kx/FT, (y0+36)/FT, z); g.add(k); });
+  } else box(x0+fw,y0+fw,W-2*fw,Hh-2*fw,0.05,MAT.glass);
+  // symbol on both faces
+  const sym=symbol(u.type, r.hand, W, Hh), pts=[];
+  [0.02, -t-0.02].forEach(z=>{
+    sym.segs.forEach(([a,b,c,e])=>pts.push((x0+a)/FT,(y0+b)/FT,z,(x0+c)/FT,(y0+e)/FT,z));
+    sym.arrows.forEach(([a,b,c,e])=>{ pts.push((x0+a)/FT,(y0+b)/FT,z,(x0+c)/FT,(y0+e)/FT,z);
+      const ang=Math.atan2(e-b,c-a), k=3; [ang+2.6, ang-2.6].forEach(q=>pts.push((x0+c)/FT,(y0+e)/FT,z,(x0+c+k*Math.cos(q))/FT,(y0+e+k*Math.sin(q))/FT,z)); });
+  });
+  // a man door's swing on the floor: a quarter circle from the hinge, inside (in) or outside (out)
+  if(u.type==='entry'){
+    const hx = r.hand==='R' ? x0+W : x0, dir = r.hand==='R' ? -1 : 1, R=W, zs = r.swing==='out' ? 1 : -1, zb = r.swing==='out' ? 0.02 : -t-0.02;
+    let px=hx+dir*R, pz=0;
+    for(let i=1;i<=16;i++){ const a=i/16*Math.PI/2, nx=hx+dir*R*Math.cos(a), nz=R*Math.sin(a);
+      pts.push(px/FT,(y0+0.3)/FT,zb+zs*pz/FT, nx/FT,(y0+0.3)/FT,zb+zs*nz/FT); px=nx; pz=nz; }
+    pts.push(hx/FT,(y0+0.3)/FT,zb, hx/FT,(y0+0.3)/FT,zb+zs*R/FT);
+  }
+  const lg=new THREE.BufferGeometry(); lg.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
+  g.add(new THREE.LineSegments(lg,symMat));
+  return g;
+}
 
 function letterSprite(txt, size){
   const c=document.createElement('canvas'); c.width=256; c.height=160; const g=c.getContext('2d');
@@ -83,15 +119,15 @@ function buildWallMesh(w, mat, opts={}){
     pg.add(new THREE.LineSegments(lg,lineMat));
     g.add(pg); panels.push(pg);
   }
-  // openings: glass / door leaf
+  // openings: the unit chosen for it (frame, glass or door leaf, and its symbol), else plain glass / door leaf
   w.openings.forEach(o=>{
     if(o.kind==='opening'||o.kind==='vent') return;   // cased opening / vent: just a hole
-    const thick = o.kind==='window'? 0.05 : 0.12;
-    const m=new THREE.Mesh(new THREE.BoxGeometry(o.w/FT,o.h/FT,thick), o.kind==='window'?MAT.glass:MAT.door);
-    m.position.set((o.x+o.w/2)/FT,(o.y+o.h/2)/FT,-t/2);
-    if(o.kind==='patio'){ m.material=MAT.glass; }
-    m.userData.unit=true; g.add(m);
-    m.userData.k=panelAt(w, o.x+o.w/2);
+    const r=opts.unitOf ? opts.unitOf(o) : null;
+    const m = r ? buildUnit(o, r, t) : (()=>{ const thick = o.kind==='window'? 0.05 : 0.12;
+      const b=new THREE.Mesh(new THREE.BoxGeometry(o.w/FT,o.h/FT,thick), o.kind==='door'?MAT.door:MAT.glass);
+      b.position.set((o.x+o.w/2)/FT,(o.y+o.h/2)/FT,-t/2); return b; })();
+    m.userData.unit=true; m.userData.k=panelAt(w, o.x+o.w/2);
+    g.add(m);
   });
   // boxes: inside on interior face, outside on exterior face
   w.inside.forEach(b=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(2.5/FT,4/FT,0.06), b.kind==='switch'?MAT.sw:MAT.outlet);
@@ -253,7 +289,7 @@ function buildHome(){
   slots.forEach(s=>{
     const w=bodyWall(s, pickFor(s)); if(!w) return;
     const mat=new THREE.MeshStandardMaterial({color:s.type==='int'?0xece0c6:0xc9a46a,roughness:0.85});
-    const built=buildWallMesh(w,mat,{nums:state.nums,numSize:1.0});
+    const built=buildWallMesh(w,mat,{nums:state.nums,numSize:1.0,unitOf:o=>unitFor(s,o)});
     const g=built.group;
     const r=[s.n[1],-s.n[0]];
     g.rotation.y=Math.atan2(-r[1],r[0]);

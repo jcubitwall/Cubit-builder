@@ -293,9 +293,14 @@ def main():
     ap=argparse.ArgumentParser()
     ap.add_argument('step'); ap.add_argument('--name',required=True); ap.add_argument('--repo',default='.')
     ap.add_argument('--id',default=None); ap.add_argument('--from',dest='base',default='')
-    ap.add_argument('--kind',choices=['home','pod','wall'],default='home',
+    ap.add_argument('--unit-type',default=''); ap.add_argument('--hand',default='L'); ap.add_argument('--swing',default='in')
+    ap.add_argument('--kind',choices=['home','pod','wall','unit'],default='home',
                     help='home: a whole home (saved as a shared project); pod: one pod for the pod library; wall: one wall for the wall library')
     a=ap.parse_args()
+    if a.kind=='unit':
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import unit_import
+        return unit_import.run(a.step, a.name, a.unit_type, a.hand, a.swing, a.repo)
     if a.kind=='wall':
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         import wall_import

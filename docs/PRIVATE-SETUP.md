@@ -114,3 +114,4 @@ The site gives each scan a signed one-hour link to the uploaded file. GitHub nev
   - The outside face is the one with a body named `OSB out`. If no body has that name, the face towards −Y is taken as outside.
   - A long wall that butts between end walls is centred in its nominal length.
   - Openings are found the same way as in a home.
+- **Window / door:** one unit standing upright, modelled at its real size (the unit, not the rough opening). Pick its type (picture, casement, awning, single hung, slider, man door, patio slider) and, where it matters, which side is hinged or slides (seen from outside) and which way a door swings. The size is read from the file. In the app, each window and door opening then offers the units that fit it (no bigger than the rough opening, at most 2″ smaller).

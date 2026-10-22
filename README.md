@@ -16,6 +16,12 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
   - **Joints:** the 5/8″ space at every joint is always added.
   - **Pods keep their parts:** a pod keeps its own walls, floors and ceilings when it is moved or turned.
   - **Your own copy:** editing a built-in home makes your own copy. Editing a project changes the project; save it to keep the change.
+- **3D view:** **Layers** switches each part on or off: roof, ceiling, walls, floors, decks, ground screws and pads, windows and doors. It also has see-through glass and doors, wall letters and panel numbers. The small arrow on the right edge opens and hides the panel, in full screen and in the normal view; tapping a wall opens it too.
+- **Windows & doors:** the window & door library is in `data/units.json`, with picture, casement, awning, single hung, slider, man door and patio slider units.
+  - Select a wall to choose the unit for each opening, with its hinge or sliding side seen from outside and a door's swing.
+  - Units that fit the rough opening come first (no bigger, at most 2″ smaller). If only one fits, it is used automatically.
+  - The 3D view and assembly sheets draw the standard symbols: the casement or door triangle points to the hinge, and sliders get an arrow on the moving panel. Man doors also show their swing on the floor.
+  - Add real units with **Upload STEP → Window / door**. The `sample` units are placeholders sized to the scanned openings, and they drop out once a real unit of that kind is uploaded.
 - **Home orientation (for the screw installers):** the compass in the plan editor sets which way the home sits on site, at any angle. You can drag the dial, type a bearing, or tap N/E/S/W or ±15°. **North up** turns the plan so north points up the screen.
   - The bearing is saved with the home and its projects.
   - The 3D view shows a north arrow.

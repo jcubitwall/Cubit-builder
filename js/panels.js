@@ -25,7 +25,7 @@ function bodyWall(slot, w){
   // the end walls run to the pod corners, where a 1¾″ × 1¾″ notch for the steel spine comes out of the outside face
   const notch = slot && slot.short && slot.corner ? [slot.corner[0]?NOTCH:0, slot.corner[1]?NOTCH:0] : [0,0];
   return { ...w, L, trim:[tl,tr], notch, fitted:true,
-    openings: w.openings.map(clip).filter(Boolean),
+    openings: w.openings.map(o=>clip({...o, key:o.key ?? `${o.kind}@${Math.round(o.x)}`})).filter(Boolean),
     inside: (w.inside||[]).map(b=>({...b, x:b.x-tr})).filter(b=>b.x>0 && b.x<L),     // inside items are measured from the inside-left = outside-right end
     outside: (w.outside||[]).map(b=>({...b, x:b.x-tl})).filter(b=>b.x>0 && b.x<L) };
 }

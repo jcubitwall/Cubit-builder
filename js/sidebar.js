@@ -9,6 +9,8 @@ import { facing, fmtBearing } from './orient.js';
 import { setDeckFoundation } from './pods.js';
 import { openSheets } from './sheets.js';
 import { pickFor, save, state, choose, pickLayer, chooseLayer } from './state.js';
+import { TYPES, unitsFor, unitFor, setUnit, unitSVG, unitLabel, catOf, okey } from './units.js';
+import { fin } from './format.js';
 
 const sideH=document.getElementById('sideH'), sideB=document.getElementById('sideB');
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -79,6 +81,7 @@ function renderSide(){
       <div class="row"><button class="btn" id="toSheet">Assembly sheet</button>${(s.short || s.pod.len<=8) ? `<button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button>` : ''}<button class="btn ghost" id="deselect">Back to model</button></div>
       ${(state.wallA?.[state.model]?.[s.pod.i] || m.pods[s.pod.i]?.a) ? `<p class="note">Wall A for ${s.pod.label} was set by hand. <button class="linkbtn" id="autoA">Go back to automatic</button></p>`:''}
       ${isInt&&partnerOf(s,slots)?`<p class="note">Joins ${s.other.label} (${esc(partnerOf(s,slots).label)}). Picking a wall here gives that wall the same one, mirrored, so openings line up.</p>`:''}
+      ${unitsBlock(s, bodyWall(s,w))}
       <div class="eyebrow">${opts.length} options for a ${s.len}′ ${isInt?'interior':'exterior'} wall · seen from ${isInt?s.other.label:'outside'}</div>
       ${opts.length?'':`<p class="note">Nothing in the library for a ${s.len}′ ${isInt?'interior':'exterior'} wall yet. Upload a STEP file of a home that has one and it will be added.</p>`}
       <div class="opts">${opts.map(o=>`<button class="opt" data-o="${esc(o.id)}" aria-pressed="${w&&o.id===w.id}">${thumbSVG(o)}<b>${esc(o.name)}</b><code>${esc(o.id)}${o.src==='imported'?' · uploaded':''}${o.src==='saved'?' · saved here':''}${o.model?' · this home':''}</code></button>`).join('')}</div>`;
@@ -87,6 +90,7 @@ function renderSide(){
       // where two pods join, the neighbour's wall becomes the same wall, mirrored
       const pt=partnerOf(s, slots); if(pt) choose(pt, mirrorId(b.dataset.o));
       buildHome(); renderSide(); toast(`${s.label} → ${b.dataset.o}`+(pt?` · ${pt.label} → mirrored`:'')); });
+    bindUnits(s, bodyWall(s,w));
     sideB.querySelector('#toSheet').onclick=()=>{ state.sheetSlot=s.id; openSheets(); };
     sideB.querySelector('#deselect').onclick=()=>{ state.selected=null; highlight(); renderSide(); };
     const mk=sideB.querySelector('#makeA'); if(mk) mk.onclick=()=>{ ((state.wallA[state.model] ||= {}))[s.pod.i]=s.side; save(); buildHome(); renderSide(); toast(`${s.pod.label}: this is now Wall A`); };
@@ -94,6 +98,30 @@ function renderSide(){
   }
   sideB.querySelectorAll('.wl button').forEach(b=>b.onclick=()=>{ state.selected=b.dataset.s; highlight(); renderSide(); });
   const imp=sideB.querySelector('#bImport'); if(imp) imp.onclick=()=>document.getElementById('fileIn').click();
+}
+
+/* windows & doors in the selected wall: which library unit goes in each opening */
+const KIND_NAME = { window:'Window', door:'Door', patio:'Patio door' };
+function unitsBlock(s, w){
+  const ops=(w?.openings||[]).filter(catOf).sort((a,b)=>a.x-b.x);
+  if(!ops.length) return '';
+  const n={};
+  return `<div class="eyebrow">Windows &amp; doors · seen from outside, left to right</div><div class="units">${ops.map(o=>{
+    n[o.kind]=(n[o.kind]||0)+1;
+    const r=unitFor(s,o), list=unitsFor(o), T=r&&TYPES[r.unit.type];
+    const sel=`<select data-k="${esc(okey(o))}" aria-label="Unit for ${KIND_NAME[o.kind]} ${n[o.kind]}"><option value="">${r&&r.how==='auto'?'Automatic: '+esc(r.unit.name):'Not chosen yet'}</option>${list.map(({u,fit})=>`<option value="${esc(u.id)}" ${r&&r.how!=='auto'&&r.unit.id===u.id?'selected':''}>${esc(u.name)}${fit?'':' — does not fit'}</option>`).join('')}</select>`;
+    const hand = T?.hand ? `<span class="seg sm" role="group" aria-label="${T.hand} side"><button data-h="L" data-k="${esc(okey(o))}" aria-pressed="${r.hand!=='R'}">${T.hand==='Hinge'?'Hinge L':'Left'}</button><button data-h="R" data-k="${esc(okey(o))}" aria-pressed="${r.hand==='R'}">${T.hand==='Hinge'?'Hinge R':'Right'}</button></span>` : '';
+    const swing = T?.swing ? `<span class="seg sm" role="group" aria-label="Swing"><button data-sw="in" data-k="${esc(okey(o))}" aria-pressed="${r.swing!=='out'}">In</button><button data-sw="out" data-k="${esc(okey(o))}" aria-pressed="${r.swing==='out'}">Out</button></span>` : '';
+    return `<div class="unit-row"><div class="unit-pic">${r?unitSVG(r.unit.type,r.hand,o.w,o.h):unitSVG('none','L',o.w,o.h)}</div><div class="unit-main"><b>${KIND_NAME[o.kind]} ${n[o.kind]}</b> <span class="muted">${fin(o.w)} × ${fin(o.h)} R.O.${o.y>0?' · sill '+fin(o.y):''}</span>${sel}${hand||swing?`<div class="unit-opts">${hand}${swing}</div>`:''}${r?`<span class="muted">${esc(unitLabel(r))}${r.unit.sample?' · sample unit':''}</span>`:''}</div></div>`;
+  }).join('')}</div>${!ops.every(o=>unitsFor(o).length)?'<p class="note">Add a window or door to the library with <b>Upload STEP → Window / door</b>.</p>':''}`;
+}
+function bindUnits(s, w){
+  const ops=(w?.openings||[]).filter(catOf), byK=k=>ops.find(o=>okey(o)===k);
+  const cur=o=>{ const r=unitFor(s,o); return r?{u:r.unit.id, hand:r.hand, swing:r.swing}:null; };
+  const done=()=>{ buildHome(); renderSide(); };
+  sideB.querySelectorAll('.units select').forEach(el=>el.onchange=()=>{ const o=byK(el.dataset.k); setUnit(s,o, el.value?{u:el.value, hand:cur(o)?.hand||'L', swing:cur(o)?.swing||'in'}:null); done(); });
+  sideB.querySelectorAll('.units [data-h]').forEach(b=>b.onclick=()=>{ const o=byK(b.dataset.k), c=cur(o); if(c){ setUnit(s,o,{...c, hand:b.dataset.h}); done(); } });
+  sideB.querySelectorAll('.units [data-sw]').forEach(b=>b.onclick=()=>{ const o=byK(b.dataset.k), c=cur(o); if(c){ setUnit(s,o,{...c, swing:b.dataset.sw}); done(); } });
 }
 
 function renderDeckSide3d(k){

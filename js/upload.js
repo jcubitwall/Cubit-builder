@@ -10,6 +10,7 @@ let watching=null, timer=null;
 
 function summaryText(s){
   if(!s) return '';
+  if(s.kind==='unit') return `${s.new_units?'New unit':'Already in the library as'} <b>${esc(s.unit)}</b> · ${esc(s.type)} · ${s.w}″ × ${s.h}″ × ${s.d}″ deep${s.note?' · <span class="flipflag">'+esc(s.note)+'</span>':''}`;
   if(s.kind==='wall') return `${s.new_walls?'New wall':'Already in the library as'} <b>${esc(s.wall)}</b> · ${esc(s.type==='int'?'interior':'exterior')} · ${s.openings} opening${s.openings===1?'':'s'} · ${esc(s.fitted||'')}${/no "OSB out"/.test(s.outside_face||'')?' · <span class="flipflag">outside face guessed (no “OSB out” body): check it</span>':''}`;
   const bits=[`${s.pods} pod${s.pods===1?'':'s'}`, `${s.new_walls} new wall${s.new_walls===1?'':'s'}`, `${s.new_layers} new floor/ceiling layer${s.new_layers===1?'':'s'}`, `${s.new_pods} new pod${s.new_pods===1?'':'s'}`];
   if(s.decks!=null) bits.push(`${s.decks} deck${s.decks===1?'':'s'} (${s.new_decks} new)`);
@@ -41,9 +42,16 @@ function initUpload(){
   const dlg=el('upDlg');
   el('bUpload').onclick=()=>{ dlg.showModal(); refresh(); };
   el('upClose').onclick=()=>dlg.close();
+  const unitUI=()=>{ const k=new FormData(el('upForm')).get('kind'), t=el('upType').value;
+    el('upUnit').hidden = k!=='unit';
+    el('upHandF').hidden = !['casement','slider','entry','patio'].includes(t);
+    el('upSwingF').hidden = t!=='entry'; };
+  el('upForm').addEventListener('change', unitUI);
   el('upForm').onsubmit=async e=>{
     e.preventDefault();
-    const f=el('upFile').files[0], name=el('upName').value.trim(), kind=new FormData(el('upForm')).get('kind');
+    const f=el('upFile').files[0], name=el('upName').value.trim();
+    let kind=new FormData(el('upForm')).get('kind');
+    if(kind==='unit') kind=`unit-${el('upType').value}-${el('upHand').value}-${el('upSwing').value}`;
     if(!f || !name) return;
     const go=el('upGo'); go.disabled=true; go.textContent='Uploading…';
     try{
@@ -51,7 +59,7 @@ function initUpload(){
       const r=await fetch('api/upload?'+q, { method:'PUT', body:f, headers:{'content-type':'application/octet-stream'} });
       const out=await r.json().catch(()=>({error:`Server said ${r.status}`}));
       if(!r.ok) throw new Error(out.error||`Server said ${r.status}`);
-      watching={ id:out.id, name, kind }; el('upForm').reset();
+      watching={ id:out.id, name, kind: kind.startsWith('unit')?'window / door':kind }; el('upForm').reset(); unitUI();
       toast('Uploaded. Scanning on the server…');
       refresh(); clearInterval(timer); timer=setInterval(refresh, 15000);
     }catch(err){ toast(err.message); el('upStatus').innerHTML=`<p class="note flipflag">${esc(err.message)}</p>`; }

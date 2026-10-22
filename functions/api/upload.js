@@ -8,14 +8,14 @@
              IMPORT_SECRET (any long random string: signs the one-hour download link, see api/file.js). */
 import { whoIs, json } from '../_auth.js';
 import { signLink } from '../_sign.js';
-const KINDS = ['wall','pod','home'];
+const KINDS = ['wall','pod','home'], UNIT = /^unit-(picture|casement|awning|single|slider|entry|patio)-[LR]-(in|out)$/;
 export async function onRequestPut({ request, env }){
   const me = await whoIs(request, env);
   if(me.role !== 'admin') return json({ error:'Only admins can upload STEP files.' }, 403);
   if(!env.STEPS || !env.GITHUB_TOKEN || !env.GITHUB_REPO || !env.IMPORT_SECRET) return json({ error:'Uploads are not set up yet (R2 bucket STEPS, IMPORT_SECRET, GITHUB_TOKEN, GITHUB_REPO).' }, 500);
   const u = new URL(request.url);
   const kind = u.searchParams.get('kind'), name = (u.searchParams.get('name')||'').trim().slice(0,120), filename = (u.searchParams.get('filename')||'upload.step').slice(0,160);
-  if(!KINDS.includes(kind)) return json({ error:'Pick Wall, Pod or Home.' }, 400);
+  if(!KINDS.includes(kind) && !UNIT.test(kind||'')) return json({ error:'Pick Wall, Pod, Home or Window / door.' }, 400);
   if(!name) return json({ error:'Give it a name.' }, 400);
   if(!/\.(step|stp)$/i.test(filename)) return json({ error:'That is not a STEP file (.step / .stp).' }, 400);
   const size = +request.headers.get('content-length') || 0;

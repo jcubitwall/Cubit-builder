@@ -3,7 +3,7 @@ import { MODELS, byId, optionsFor, layerOptions, layerById, podById } from './da
 import { LAYER_KINDS, T, TI } from './config.js';
 import { canSave } from './role.js';
 
-const state = { model:'cove', picks:{}, layerPicks:{}, wallA:{}, faces:{}, bearing:{}, northUp:false, selected:null, exploded:false, nums:true, letters:true,
+const state = { model:'cove', picks:{}, units:{}, layerPicks:{}, wallA:{}, faces:{}, bearing:{}, northUp:false, selected:null, exploded:false, nums:true, letters:true,
   show:{ roof:false, ceiling:false, walls:true, floors:true, decks:true, screws:false, units:true }, glass:false, inset:6, view:'studio', face:'int', reverse:false, sheetSlot:null };
 const KEY='cubit-wall-studio';
 function initState(){
@@ -11,6 +11,7 @@ function initState(){
     const s=JSON.parse(localStorage.getItem(KEY)||'{}');
     if(s.picks) state.picks=s.picks;
     if(s.wallA) state.wallA=s.wallA;
+    if(s.units) state.units=s.units;
     if(s.faces) state.faces=s.faces;
     if(s.layerPicks) state.layerPicks=s.layerPicks;
     if(s.bearing) state.bearing=s.bearing;
@@ -23,7 +24,7 @@ function initState(){
     if(s.model&&MODELS[s.model]) state.model=s.model;
   }catch(e){}
 }
-function save(){ if(!canSave()) return; try{ localStorage.setItem(KEY, JSON.stringify({picks:state.picks, layerPicks:state.layerPicks, wallA:state.wallA, faces:state.faces, bearing:state.bearing, northUp:state.northUp, inset:state.inset, model:state.model, show:state.show, glass:state.glass, nums:state.nums, letters:state.letters})); }catch(e){} }
+function save(){ if(!canSave()) return; try{ localStorage.setItem(KEY, JSON.stringify({picks:state.picks, units:state.units, layerPicks:state.layerPicks, wallA:state.wallA, faces:state.faces, bearing:state.bearing, northUp:state.northUp, inset:state.inset, model:state.model, show:state.show, glass:state.glass, nums:state.nums, letters:state.letters})); }catch(e){} }
 const fits = (w,slot) => w && w.len===slot.len && (w.type||'ext')===(slot.type||'ext');
 /* Which wall sits in a slot: the person's own choice, else the model's own wall (models.json "picks"),
    else a sensible sample wall of the right length and type. */

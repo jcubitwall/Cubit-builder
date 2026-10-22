@@ -6,7 +6,7 @@ on:
     inputs:
       id:       { description: 'Upload id', required: true }
       url:      { description: 'One-hour download link for the file', required: true }
-      kind:     { description: 'wall | pod | home', required: true }
+      kind:     { description: 'wall | pod | home | unit-<type>-<L|R>-<in|out>', required: true }
       name:     { description: 'Name', required: true }
       filename: { description: 'Original file name', required: false }
       by:       { description: 'Uploaded by', required: false }

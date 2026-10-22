@@ -72,11 +72,19 @@
       <label><input type="radio" name="kind" value="wall"> <b>Wall</b><span>one wall, standing upright</span></label>
       <label><input type="radio" name="kind" value="pod"> <b>Pod</b><span>one pod with its walls, floors and roof</span></label>
       <label><input type="radio" name="kind" value="home" checked> <b>Home</b><span>a whole home: pods, decks and all</span></label>
+      <label><input type="radio" name="kind" value="unit"> <b>Window / door</b><span>one unit at its real size, standing upright</span></label>
     </fieldset>
+    <div class="up-unit" id="upUnit" hidden>
+      <label class="fld">Type<select id="upType">
+        <option value="casement">Casement</option><option value="picture">Picture (fixed)</option><option value="awning">Awning</option>
+        <option value="single">Single hung</option><option value="slider">Slider</option><option value="entry">Man door</option><option value="patio">Patio slider</option></select></label>
+      <label class="fld" id="upHandF">Seen from outside<select id="upHand"><option value="L">Hinge / moving panel on the left</option><option value="R">Hinge / moving panel on the right</option></select></label>
+      <label class="fld" id="upSwingF" hidden>Swings<select id="upSwing"><option value="in">In</option><option value="out">Out</option></select></label>
+    </div>
     <label class="fld">Name<input id="upName" type="text" maxlength="120" placeholder="e.g. Tanja Leet · Expanse + 1" required></label>
     <label class="fld">STEP file<input id="upFile" type="file" accept=".step,.stp" required></label>
     <div class="row"><button class="btn" id="upGo" type="submit">Upload and scan</button></div>
-    <p class="note">The file is scanned on the server, usually in 2–5 minutes. Everything new goes into the libraries (walls, floors and ceilings, pods, decks); a home also becomes a shared project. Only accurate models, please: whatever is in the file goes into the libraries.</p>
+    <p class="note">The file is scanned on the server, usually in 2–5 minutes. Everything new goes into the libraries (walls, floors and ceilings, pods, decks, windows and doors); a home also becomes a shared project. Only accurate models, please: whatever is in the file goes into the libraries.</p>
   </form>
   <div id="upStatus"></div>
 </div></dialog>

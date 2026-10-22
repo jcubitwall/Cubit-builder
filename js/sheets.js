@@ -9,6 +9,8 @@ import { renderCncSheet } from './cncsheet.js';
 import { LAYER_KINDS } from './config.js';
 import { panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall, layerHoles } from './panels.js';
 import { buildWallMesh, resize } from './scene3d.js';
+import { unitFor, symbol, unitLabel } from './units.js';
+const sheetSlotNow = () => slotsFor(state.model).find(x=>x.id===state.sheetSlot);
 import { wallListHTML } from './sidebar.js';
 import { pickFor, pickLayer, state, setFace } from './state.js';
 import { panelPlan, homePlans, stackTableHTML, labelsPDF, faceFor, faceShort } from './labels.js';
@@ -63,31 +65,31 @@ function renderSheet(){
       <button class="btn ghost" id="wallLabels" style="color:#111;border-color:#cfd4cc">Labels for this wall (PDF)</button>
     </div>
     <div><span class="facebadge ${face}">${(face==='int'?faceA:faceB).toUpperCase()}</span><span style="font-size:12.5px;color:#333">${isInt?'Plug and switch boxes on this side shown.':face==='int'?'Boxes for plugs and switches shown. Openings shown as seen from inside.':'Openings and outside plugs and lights only.'} Assemble left → right: <b>${plan.seq.map(p=>p.num).join(' → ')}</b>. Stack with ${plan.seq[0].code} on top.</span></div>
-    <div class="elev">${elevationSVG(w,face,false)}</div>
+    <div class="elev">${elevationSVG(w,face,false,s)}</div>
     <div class="tblwrap"><div class="eyebrow" style="color:#555;margin-bottom:4px">Cut &amp; stack · ShopSabre</div>${stackTableHTML(plan)}</div>
     <div class="sheet-grid">
       <div id="wall3d"><span class="w3cap">3D · panels pulled apart · drag to turn</span></div>
-      <div class="tblwrap">${boxTable(w,face)}</div>
+      <div class="tblwrap">${boxTable(w,face,s)}</div>
     </div>`;
   el.querySelectorAll('[data-face]').forEach(b=>b.onclick=()=>{ setFace(s,b.dataset.face); renderSheet(); });
   el.querySelector('#wallLabels').onclick=()=>downloadBlob(labelsPDF([plan], MODELS[state.model].name), `${MODELS[state.model].name} - ${plan.slot.pod.label} Wall ${plan.slot.letter} labels.pdf`);
   buildWall3D(w);
 }
 
-function boxTable(w,face){
+function boxTable(w,face,slot){
   const L=wallLen(w);
   // positions in the current view, measured from the left end as seen in this view
   const ops=w.openings.map(o=>({...o, vx: face==='ext'? o.x : L-o.x-o.w}));
   const items = face==='int' ? w.inside.map(b=>({...b,vx:b.x})) : w.outside.map(b=>({...b,vx:b.x}));
   const names={outlet:(face==='int'||w.type==='int')?'Plug box':'Outside plug (WP)',switch:'Switch box',light:'Outside light',data:'Data box'};
-  let h=`<table class="boxes"><thead><tr><th>Item</th><th>From left end</th><th>Height</th><th>Size</th><th>Panel</th></tr></thead><tbody>`;
+  let h=`<table class="boxes"><thead><tr><th>Item</th><th>From left end</th><th>Height</th><th>Size</th><th>Panel</th><th>Unit</th></tr></thead><tbody>`;
   const n=panelCount(w);
   const pn = vx => panelNum(n, panelAt(w, face==='ext' ? vx : L-vx), false);
-  ops.sort((a,b)=>a.vx-b.vx).forEach(o=>{ h+=`<tr><td>${o.kind==='window'?'Window opening':o.kind==='door'?'Door opening':o.kind==='opening'?'Cased opening':o.kind==='vent'?'Vent / duct hole':'Patio door opening'}</td><td>${fin(o.vx)}</td><td>sill ${fin(o.y)}</td><td>${fin(o.w)} × ${fin(o.h)}</td><td>${pn(o.vx+o.w/2)}</td></tr>`; });
-  items.sort((a,b)=>a.vx-b.vx).forEach(b=>{ h+=`<tr><td>${names[b.kind]||b.kind}</td><td>${fin(b.vx)} (centre)</td><td>${fin(b.y)}</td><td>—</td><td>${pn(b.vx)}</td></tr>`; });
+  ops.sort((a,b)=>a.vx-b.vx).forEach(o=>{ h+=`<tr><td>${o.kind==='window'?'Window opening':o.kind==='door'?'Door opening':o.kind==='opening'?'Cased opening':o.kind==='vent'?'Vent / duct hole':'Patio door opening'}</td><td>${fin(o.vx)}</td><td>sill ${fin(o.y)}</td><td>${fin(o.w)} × ${fin(o.h)}</td><td>${pn(o.vx+o.w/2)}</td><td>${(()=>{ const r=unitFor(slot,o); return r?`${r.unit.id} · ${unitLabel(r)}`:(o.kind==='window'||o.kind==='door'||o.kind==='patio'?'<i>not chosen</i>':'—'); })()}</td></tr>`; });
+  items.sort((a,b)=>a.vx-b.vx).forEach(b=>{ h+=`<tr><td>${names[b.kind]||b.kind}</td><td>${fin(b.vx)} (centre)</td><td>${fin(b.y)}</td><td>—</td><td>${pn(b.vx)}</td><td></td></tr>`; });
   return h+`</tbody></table>`;
 }
-function elevationSVG(w,face,rev){
+function elevationSVG(w,face,rev,slot){
   const L=wallLen(w), n=panelCount(w), spans=panelSpans(w);
   const s=Math.min(6, 900/L), Wd=L*s, Hd=H*s, ml=90, mt=110, mr=90, mb=130;
   const VW=Wd+ml+mr, VH=Hd+mt+mb;
@@ -129,9 +131,15 @@ function elevationSVG(w,face,rev){
     }
     const col = o.kind==='window' ? '#cfe6f7' : o.kind==='door' ? '#d9c3ac' : o.kind==='opening' ? '#ffffff' : o.kind==='vent' ? '#bbbbbb' : '#cfe6f7';
     g+=`<rect x="${X(x)}" y="${Y(o.y+o.h)}" width="${o.w*s}" height="${o.h*s}" fill="${col}" stroke="#111" stroke-width="1.6"/>`;
-    g+=`<line x1="${X(x)}" y1="${Y(o.y+o.h)}" x2="${X(x+o.w)}" y2="${Y(o.y)}" stroke="#111" stroke-width=".5"/><line x1="${X(x+o.w)}" y1="${Y(o.y+o.h)}" x2="${X(x)}" y2="${Y(o.y)}" stroke="#111" stroke-width=".5"/>`;
+    const ur=unitFor(slot,o);
+    if(ur){   // the unit's symbol (casement / door triangle points to the hinge, arrows on sliding panels), mirrored when seen from inside
+      const sym=symbol(ur.unit.type, ur.hand, o.w, o.h), fx=v=> face==='ext' ? x+v : x+o.w-v;
+      sym.segs.forEach(([a,b,c,d])=>{ g+=`<line x1="${X(fx(a))}" y1="${Y(o.y+b)}" x2="${X(fx(c))}" y2="${Y(o.y+d)}" stroke="#1c3d5a" stroke-width="1" stroke-dasharray="6 4"/>`; });
+      sym.arrows.forEach(([a,b,c,d])=>{ g+=`<line x1="${X(fx(a))}" y1="${Y(o.y+b)}" x2="${X(fx(c))}" y2="${Y(o.y+d)}" stroke="#1c3d5a" stroke-width="1.4" marker-end="url(#ar)"/>`; });
+    } else g+=`<line x1="${X(x)}" y1="${Y(o.y+o.h)}" x2="${X(x+o.w)}" y2="${Y(o.y)}" stroke="#111" stroke-width=".5"/><line x1="${X(x+o.w)}" y1="${Y(o.y+o.h)}" x2="${X(x)}" y2="${Y(o.y)}" stroke="#111" stroke-width=".5"/>`;
     const lbl = `${fin(o.w)} × ${fin(o.h)}`;
-    g+=`<rect x="${X(x+o.w/2)-58}" y="${Y(o.y+o.h/2)-17}" width="116" height="30" fill="#fff" stroke="#111" stroke-width=".6"/>`;
+    g+=`<rect x="${X(x+o.w/2)-58}" y="${Y(o.y+o.h/2)-17}" width="116" height="${ur?42:30}" fill="#fff" stroke="#111" stroke-width=".6"/>`;
+    if(ur) g+=`<text x="${X(x+o.w/2)}" y="${Y(o.y+o.h/2)+21}" text-anchor="middle" font-size="8.5" fill="#1c3d5a" font-weight="600">${ur.unit.id}${ur.unit.type==='casement'||ur.unit.type==='entry'?' · '+(ur.hand==='R'?'RH':'LH'):''}</text>`;
     g+=`<text x="${X(x+o.w/2)}" y="${Y(o.y+o.h/2)-3}" text-anchor="middle" font-size="11.5" font-weight="600">${lbl}</text>`;
     g+=`<text x="${X(x+o.w/2)}" y="${Y(o.y+o.h/2)+9}" text-anchor="middle" font-size="9.5" fill="#333">${o.kind==='window'?'sill '+fin(o.y):o.kind==='door'?'door R.O.':o.kind==='opening'?'cased opening':o.kind==='vent'?'vent @ '+fin(o.y):'patio R.O.'}</text>`;
     // vertical: sill + head on the right of opening
@@ -192,7 +200,7 @@ function buildWall3D(w){
   if(w3.obj) w3.scene.remove(w3.obj);
   const mat=new THREE.MeshStandardMaterial({color:0xc9a46a,roughness:0.85});
   const zNum = state.face==='int' ? -((w.t||T)/FT)-0.4 : 0.4;
-  const built=buildWallMesh(w,mat,{nums:true,reverse:state.reverse,numSize:1.3,numZ:zNum});
+  const built=buildWallMesh(w,mat,{nums:true,reverse:state.reverse,numSize:1.3,numZ:zNum,unitOf:o=>unitFor(sheetSlotNow(),o)});
   const L=wallLen(w)/FT, gap=0.6;
   // pull panels apart; move loose items with their panel
   built.group.children.forEach(c=>{ const k=c.userData.k; if(k!==undefined) c.position.x += k*gap; });

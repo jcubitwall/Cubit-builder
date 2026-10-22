@@ -1,16 +1,18 @@
 """Run one uploaded STEP import (used by .github/workflows/import-step.yml) and log it to data/imports.json.
 
-Reads the job from the environment: JOB_ID, JOB_KIND (wall | pod | home), JOB_NAME, JOB_FILE, JOB_BY.
+Reads the job from the environment: JOB_ID, JOB_KIND (wall | pod | home | unit-<type>-<L|R>-<in|out>), JOB_NAME, JOB_FILE, JOB_BY.
 Whatever happens, an entry is written to data/imports.json (newest first) so the app can show it."""
 import datetime, json, os, re, subprocess, sys
 
 def main(step):
     here = os.path.dirname(os.path.abspath(__file__))
     kind, name = os.environ['JOB_KIND'], os.environ['JOB_NAME']
-    if kind not in ('wall', 'pod', 'home'): sys.exit('kind must be wall, pod or home')
+    m = re.fullmatch(r'unit-(picture|casement|awning|single|slider|entry|patio)-([LR])-(in|out)', kind)
+    if kind not in ('wall', 'pod', 'home') and not m: sys.exit('kind must be wall, pod, home or unit-<type>-<hand>-<swing>')
     entry = dict(id=os.environ['JOB_ID'], kind=kind, name=name, file=os.environ.get('JOB_FILE', ''), by=os.environ.get('JOB_BY', ''),
                  started=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'))
-    cmd = [sys.executable, '-I', os.path.join(here, 'import_step.py'), step, '--kind', kind, '--name', name, '--repo', '.']
+    cmd = [sys.executable, '-I', os.path.join(here, 'import_step.py'), step, '--kind', 'unit' if m else kind, '--name', name, '--repo', '.']
+    if m: cmd += ['--unit-type', m[1], '--hand', m[2], '--swing', m[3]]; entry['kind'] = 'window / door'
     if kind == 'home': cmd += ['--id', re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-') or entry['id']]
     p = subprocess.run(cmd, capture_output=True, text=True)
     lines = [l for l in p.stdout.strip().splitlines() if l.startswith('{')]
