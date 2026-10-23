@@ -21,6 +21,19 @@ bindTog('tExplode','exploded',()=>{ explodeLayers(state.exploded); setExplodeGoa
 document.getElementById('bSheets').onclick=()=>{ if(state.view==='sheets'){ closeSheets(); } else { state.sheetSlot = state.selected || null; openSheets(); } };
 document.getElementById('bPlan').onclick=()=>{ if(state.view==='plan'){ closePlan(); closeSheets(); } else openPlan(); };
 
+/* iPad: spread three fingers to explode the home, pinch three fingers to put it back together. The button stays
+   for mouse and phone. OrbitControls ignores three-finger touches, so the two don't fight. */
+(()=>{ const stage=document.getElementById('stage'); let g=null;
+  const spread=t=>{ const n=t.length; let cx=0,cy=0; for(const p of t){ cx+=p.clientX; cy+=p.clientY; } cx/=n; cy/=n;
+    let d=0; for(const p of t) d+=Math.hypot(p.clientX-cx, p.clientY-cy); return d/n; };
+  const want=on=>{ if(!!state.exploded!==on) document.getElementById('tExplode').click(); };
+  stage.addEventListener('touchstart', e=>{ if(e.touches.length===3){ g={d0:spread(e.touches), done:false}; e.preventDefault(); } }, {passive:false});
+  stage.addEventListener('touchmove', e=>{ if(!g || e.touches.length!==3) return; e.preventDefault(); if(g.done) return;
+    const r=spread(e.touches)/g.d0; if(r>1.2){ want(true); g.done=true; } else if(r<0.83){ want(false); g.done=true; } }, {passive:false});
+  stage.addEventListener('touchend', e=>{ if(e.touches.length<3) g=null; });
+  stage.addEventListener('touchcancel', ()=>{ g=null; });
+})();
+
 /* the how-to hints step aside once you've used the view */
 document.querySelectorAll('.hint').forEach(h=>{ const host=h.parentNode; const off=()=>{ h.classList.add('gone'); host.removeEventListener('pointerdown',off); }; host.addEventListener('pointerdown',off); });
 
