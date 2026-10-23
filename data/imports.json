@@ -1,5 +1,16 @@
 [
  {
+  "id": "20261023161406-6c09",
+  "kind": "pod",
+  "name": "Preston Cudmore",
+  "file": "Cubit Builder SIP File.step",
+  "by": "heinrich@cubithome.com",
+  "started": "2026-10-23T16:14:29+00:00",
+  "status": "failed",
+  "error": "read 8 solids in 0.2s\nNo pods found: the floor bottom sheets (FRP) were not recognised.",
+  "finished": "2026-10-23T16:14:30+00:00"
+ },
+ {
   "id": "20261023155928-cxoe",
   "kind": "pod",
   "name": "Preston Cudmore",
