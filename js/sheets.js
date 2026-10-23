@@ -37,6 +37,7 @@ function closeSheets(){
   state.view='studio'; sheetsEl.hidden=true; studioEl.hidden=false; document.getElementById('studioTools').hidden=false;
   document.getElementById('bSheets').textContent='Assembly sheets'; resize();
 }
+const esc = t => String(t).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function renderSheetList(){
   const el=document.getElementById('sheetList'); const slots=slotsFor(state.model);
   const nS=screwsFor(state.model,state.inset).length;
@@ -44,7 +45,12 @@ function renderSheetList(){
     `<details class="podgrp" ${!state.sheetSlot||String(state.sheetSlot).startsWith('__')?'open':''}><summary class="podhead">Whole home<span>take-off · shop · CNC</span></summary><div class="wl"><button class="${state.sheetSlot==='__take'?'on':''}" data-s="__take"><span class="n">Take-off · by build stage</span><span class="l">everything</span><span class="o">Foundation → floor → walls → roof → decks → windows → fasteners</span></button><button class="edit-only ${state.sheetSlot==='__shop'?'on':''}" data-s="__shop"><span class="n">Shopping list</span><span class="l">to buy</span><span class="o">Tick off as it's bought · share with the supplier</span></button><button class="${state.sheetSlot==='__found'?'on':''}" data-s="__found">${foundationOf(state.model)==='concrete'?`<span class="n">Foundation · concrete ICF</span><span class="l">footing + ICF</span><span class="o">Plan, section and takeoff for the concrete crew</span>`:`<span class="n">Foundation · ground screws</span><span class="l">${nS} screws</span><span class="o">Site plan with every screw located</span>`}</button><button class="${state.sheetSlot==='__labels'?'on':''}" data-s="__labels"><span class="n">Panel labels · cut &amp; stack</span><span class="l">all walls</span><span class="o">Stacking order, CNC flips, printable labels</span></button><button class="${state.sheetSlot==='__cnc'?'on':''}" data-s="__cnc"><span class="n">CNC cut files · G-code</span><span class="l">.tap for ShopSabre</span><span class="o">Every panel, ready for the CNC · DXF for VCarve too</span></button><button class="${state.sheetSlot==='__frame'?'on':''}" data-s="__frame"><span class="n">Framing · cut list</span><span class="l">lumber + LVL</span><span class="o">Plates, studs, jacks, splines, LVL rims · what to buy</span></button>${deckList(state.model).length?`<button class="${state.sheetSlot==='__decks'?'on':''}" data-s="__decks"><span class="n">Decks · lumber takeoff</span><span class="l">${deckList(state.model).length} deck${deckList(state.model).length>1?'s':''}</span><span class="o">Every piece of 2×8, boards to buy, spines</span></button>`:''}${deckList(state.model).map(d=>`<button class="${state.sheetSlot==='__deck:'+d.k?'on':''}" data-s="__deck:${d.k}"><span class="n">Deck ${d.k+1} · framing</span><span class="l">${d.L.w}′ × ${d.L.d}′</span><span class="o">${d.L.id} · framing plan, takeoff</span></button>`).join('')}</div></details>`+
     wallListHTML(slots,state.sheetSlot);
   el.querySelectorAll('.wl button').forEach(b=>{ const o=b.querySelector('.o'); if(o && !b.title) b.title=o.textContent;
-    b.onclick=()=>{ state.sheetSlot=b.dataset.s; renderSheetList(); renderSheet(); }; });
+    b.onclick=()=>{ state.sheetSlot=b.dataset.s; el.classList.remove('open'); renderSheetList(); renderSheet(); window.scrollTo(0,0); }; });
+  // phone: the list folds into one picker button; tap it for the full list
+  const cur=el.querySelector('.wl button.on'), pod=cur?.closest('details.podgrp')?.querySelector('summary')?.childNodes[0]?.textContent?.trim();
+  const name=cur ? (cur.querySelector('.n')?.innerText||'').replace(/\s+/g,' ').trim() : 'Choose a sheet';
+  el.insertAdjacentHTML('afterbegin', `<button class="sl-pick" aria-expanded="false"><span><small>${esc(pod && !String(state.sheetSlot).startsWith('__') ? pod : 'Sheet')}</small>${esc(name)}</span><svg viewBox="0 0 12 8" width="12" height="8" aria-hidden="true"><path d="M1 1.5 6 6.5 11 1.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`);
+  el.querySelector('.sl-pick').onclick=()=>{ const on=el.classList.toggle('open'); el.querySelector('.sl-pick').setAttribute('aria-expanded',on); };
 }
 /* ‹ Prev · Next ›: step through every wall, floor and ceiling in the order of the list */
 function addNav(el){
@@ -320,3 +326,5 @@ function renderLayerSheet(el, ls){
     <div class="elev">${g}</div>
     <div class="tblwrap">${t}</div>`;
 }
+/* phone: tapping outside the open sheet list closes it */
+document.addEventListener('pointerdown', e=>{ const el=document.getElementById('sheetList'); if(el?.classList.contains('open') && !el.contains(e.target)){ el.classList.remove('open'); el.querySelector('.sl-pick')?.setAttribute('aria-expanded','false'); } });

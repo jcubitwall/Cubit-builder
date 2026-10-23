@@ -50,7 +50,7 @@ function tapSection(){
     </div>`;
 }
 function renderCncSheet(el){
-  const cp=cutPlan(), S=cp.S, runs=cp.runs;
+  const cp=cutPlan(), S=cp.S, runs=cp.runs, tapHTML=tapSection();
   if(pick>=runs.length) pick=0;
   const panels=new Set(runs.map(r=>r.p.code)).size, twoSided=runs.filter(r=>r.pass==='B').length, flips=runs.filter(r=>/^FLIP, then/.test(r.after)).length;
   const nWarn=runs.filter(r=>r.warn.length).length;
@@ -63,8 +63,8 @@ function renderCncSheet(el){
   const r=runs[pick];
   el.innerHTML=`
     <div class="sheet-title"><div><div class="eyebrow" style="color:#555">Shop sheet · Cubit Home</div><h3>${esc(cp.home)} — CNC cut files</h3></div>
-      <div class="meta">${runs.length} files · ${panels} panels · ${twoSided} two-sided · ${flips} flipped for stacking<br>${new Date().toISOString().slice(0,10)}</div></div>
-    ${tapSection()}
+      <div class="meta">${TP.files.length} .tap files · ${new Set(TP.files.map(f=>f.panel)).size} panels on the CNC · ${TP.blank.length} with no CNC work<br>${new Date().toISOString().slice(0,10)}</div></div>
+    ${tapHTML}
     <details class="cnc-old" style="margin-top:22px"><summary>DXF files for VCarve (older route)</summary>
     <div class="cnc-warn"><b>Not for cutting yet.</b> These DXF files follow conventions that still have to be confirmed with the shop: which corner is zero, which way the panel lies, how a panel is flipped and lined up again, box sizes and depths. Check one panel against VCarve before using any of them.</div>
     <div class="sheet-tools"><button class="btn" id="cncZip">Download cut files (DXF zip)</button><button class="btn ghost" id="cncCsv">Manifest (CSV)</button>
