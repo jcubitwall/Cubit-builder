@@ -16,7 +16,9 @@
    "rims": "LVL 1 7/8 x 9 1/2, all round, corners open for the Einspines",
    "eps": "8 x 1 1/2 strips all round in the gap",
    "blocks": "2x4 16 flat across every joint at 32 and 64",
-   "gap": 1.5
+   "gap": 1.5,
+   "frame": "steel 2 x 3 tube, one 8x8 section per 8 ft of pod",
+   "acp": "2 mm, 4x8 sheets on the very bottom"
   },
   "source": "Standard floor cassette · from the shop K24 floor model (2026-10-23)"
  },
@@ -37,7 +39,9 @@
    "rims": "LVL 1 7/8 x 9 1/2, all round, corners open for the Einspines",
    "eps": "8 x 1 1/2 strips all round in the gap",
    "blocks": "2x4 16 flat across every joint at 32 and 64",
-   "gap": 1.5
+   "gap": 1.5,
+   "frame": "steel 2 x 3 tube, one 8x8 section per 8 ft of pod",
+   "acp": "2 mm, 4x8 sheets on the very bottom"
   },
   "source": "Standard floor cassette · from the shop K24 floor model (2026-10-23)"
  },
@@ -60,7 +64,9 @@
    "rims": "LVL 1 7/8 x 9 1/2, all round, corners open for the Einspines",
    "eps": "8 x 1 1/2 strips all round in the gap",
    "blocks": "2x4 16 flat across every joint at 32 and 64",
-   "gap": 1.5
+   "gap": 1.5,
+   "frame": "steel 2 x 3 tube, one 8x8 section per 8 ft of pod",
+   "acp": "2 mm, 4x8 sheets on the very bottom"
   },
   "source": "Standard floor cassette · from the shop K24 floor model (2026-10-23)"
  },
@@ -83,7 +89,9 @@
    "rims": "LVL 1 7/8 x 9 1/2, all round, corners open for the Einspines",
    "eps": "8 x 1 1/2 strips all round in the gap",
    "blocks": "2x4 16 flat across every joint at 32 and 64",
-   "gap": 1.5
+   "gap": 1.5,
+   "frame": "steel 2 x 3 tube, one 8x8 section per 8 ft of pod",
+   "acp": "2 mm, 4x8 sheets on the very bottom"
   },
   "source": "Standard floor cassette · from the shop K24 floor model (2026-10-23)"
  },
@@ -108,7 +116,9 @@
    "rims": "LVL 1 7/8 x 9 1/2, all round, corners open for the Einspines",
    "eps": "8 x 1 1/2 strips all round in the gap",
    "blocks": "2x4 16 flat across every joint at 32 and 64",
-   "gap": 1.5
+   "gap": 1.5,
+   "frame": "steel 2 x 3 tube, one 8x8 section per 8 ft of pod",
+   "acp": "2 mm, 4x8 sheets on the very bottom"
   },
   "source": "Standard floor cassette · from the shop K24 floor model (2026-10-23)"
  },
@@ -133,7 +143,9 @@
    "rims": "LVL 1 7/8 x 9 1/2, all round, corners open for the Einspines",
    "eps": "8 x 1 1/2 strips all round in the gap",
    "blocks": "2x4 16 flat across every joint at 32 and 64",
-   "gap": 1.5
+   "gap": 1.5,
+   "frame": "steel 2 x 3 tube, one 8x8 section per 8 ft of pod",
+   "acp": "2 mm, 4x8 sheets on the very bottom"
   },
   "source": "Standard floor cassette · from the shop K24 floor model (2026-10-23)"
  },

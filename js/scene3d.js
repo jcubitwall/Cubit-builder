@@ -336,7 +336,13 @@ function buildHome(){
       const put=([u0,u1,v0,v1],mat,kind)=>{ const [x0,x1,z0,z1] = along ? [u0,u1,v0,v1] : [v0,v1,u0,u1];
         const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT, gh*0.98, (z1-z0)/FT), mat);
         m.position.set(p.x+(x0+x1)/2/FT, gy+gh/2, p.z+(z0+z1)/2/FT); m.userData={pod:p.i, lay:'floor-int', base:m.position.clone(), build:kind}; rimGroup.add(m); };
-      B.eps.forEach(r=>put(r, FRAME_MAT.eps, 'eps')); B.blocks.forEach(r=>put(r, FRAME_MAT.wood, 'block')); });
+      B.eps.forEach(r=>put(r, FRAME_MAT.eps, 'eps')); B.blocks.forEach(r=>put(r, FRAME_MAT.wood, 'block'));
+      // under the floor: the steel frames (2″ × 3″ tube, 8′ × 8′ sections) and 2 mm ACP sheets on the very bottom
+      const fr=FLOOR_BUILD.frame, ac=FLOOR_BUILD.acp, under=(r,y0,h,mat,kind)=>{ const [x0,x1,z0,z1] = along ? r : [r[2],r[3],r[0],r[1]];
+        const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT, h/FT, (z1-z0)/FT), mat);
+        m.position.set(p.x+(x0+x1)/2/FT, (y0-WALL_BASE)/FT+h/2/FT, p.z+(z0+z1)/2/FT); m.userData={pod:p.i, lay:'frame', base:m.position.clone(), build:kind, always:true}; rimGroup.add(m); };
+      B.tubes.forEach(r=>under(r, -fr.h, fr.h, FRAME_MAT.steel, 'tube'));
+      B.acp.forEach(r=>under([r[0]+0.05,r[1]-0.05,r[2],r[3]], -fr.h-ac.t, ac.t, FRAME_MAT.acp, 'acp')); });
   }
   unitMeshes=[]; wallGroups.forEach(g=>g.traverse(o=>{ if(o.userData.unit) unitMeshes.push(o); }));
   applyLayers();
@@ -348,7 +354,7 @@ function buildHome(){
   }
   computeSpread(); explodeT = state.exploded?1:0; applyExplode();
 }
-const FRAME_MAT = { eps:new THREE.MeshStandardMaterial({color:0xe9eef2, roughness:0.95}), wood:new THREE.MeshStandardMaterial({color:0xe0b36a, roughness:0.8}), osb:new THREE.MeshStandardMaterial({color:0xb7864a, roughness:0.9}), lvl:new THREE.MeshStandardMaterial({color:0xc9783a, roughness:0.75}) };
+const FRAME_MAT = { steel:new THREE.MeshStandardMaterial({color:0x3d4247, roughness:0.45, metalness:0.6}), acp:new THREE.MeshStandardMaterial({color:0xc9ccd0, roughness:0.35, metalness:0.3}), eps:new THREE.MeshStandardMaterial({color:0xe9eef2, roughness:0.95}), wood:new THREE.MeshStandardMaterial({color:0xe0b36a, roughness:0.8}), osb:new THREE.MeshStandardMaterial({color:0xb7864a, roughness:0.9}), lvl:new THREE.MeshStandardMaterial({color:0xc9783a, roughness:0.75}) };
 const CEIL_Z = 106.6;   // bottom of the roof cassette (interior ceiling), inches above the bottom of the floor
 const CONC = { foam:new THREE.MeshStandardMaterial({color:0xe6ebef, roughness:0.95}), core:new THREE.MeshStandardMaterial({color:0xa9aba6, roughness:0.9}),
   foot:new THREE.MeshStandardMaterial({color:0x8f918c, roughness:0.95}), access:new THREE.MeshBasicMaterial({color:0xd0661f}) };
@@ -404,7 +410,7 @@ const ease = (a,b,t) => { const u=Math.min(1,Math.max(0,(t-a)/(b-a))); return u*
 function applyExplode(){
   const e=explodeT, eP=ease(0,0.55,e), eW=ease(0.4,1,e);   // stage 1: pods apart · stage 2: each pod comes apart
   const lift = e*2.5;   // the house rises off its ground screws
-  const OFFS = {'floor-ext':-2.2, 'floor-int':0, 'ceiling-int':5, 'roof':7.5};
+  const OFFS = {frame:-4, 'floor-ext':-2.2, 'floor-int':0, 'ceiling-int':5, 'roof':7.5};
   const sp = k => state.focusPod!=null ? [0,0] : (spread.pods[k]||[0,0]);   // one pod on its own comes apart where it stands
   layerGroups.forEach(g=>{ const u=g.userData, v=sp(u.pod);
     g.position.set(u.bx+v[0]*eP, u.baseY + lift + eW*OFFS[u.layerSlot.kind], u.bz+v[1]*eP); });
@@ -424,8 +430,8 @@ function applyExplode(){
 function applyRimVis(){
   if(!rimGroup) return; const S=state.show, F=state.focusPod, ex=explodeT>0.01;
   rimGroup.visible=true;
-  rimGroup.children.forEach(m=>{ const u=m.userData, layerOn = u.lay==='floor-int' ? S.floors : (S.ceiling||S.roof);
-    m.visible = (F==null || u.pod===F) && (S.framing || (ex && layerOn)); });
+  rimGroup.children.forEach(m=>{ const u=m.userData, layerOn = u.lay==='floor-int'||u.lay==='frame' ? S.floors : (S.ceiling||S.roof);
+    m.visible = (F==null || u.pod===F) && (u.always ? S.floors : (S.framing || (ex && layerOn))); });
 }
 /* what shows: each layer on its own (Layers menu) */
 function applyLayers(){
