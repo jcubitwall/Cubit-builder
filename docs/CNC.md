@@ -82,3 +82,27 @@ The order is:
 3. box pockets and flips
 
 Each one starts with an air cut, then a scrap panel.
+
+## Shop answers (22 Oct 2026)
+
+- **Box layouts** are fixed per pod type, or per wall.
+- **Job setup** (from the photo): double sided, 48 × 96, Z zero = machine bed, XY datum lower-left, flip side to side.
+- **Openings** are cut at the rough opening. Doors and windows are a little smaller, to leave room for foam sealing.
+- **Tool:** only #13, the long ¾″ bit.
+- **Nesting:** parts go on any free space on a blank. Saving material is key (A1, A2 and A3 share one blank).
+- **Files** are saved to a folder on the local network, and the CNC PC picks them up from there.
+- **First test:** Johnny.
+
+## Step 2 status: .tap files from the app (js/tap.js)
+
+The CNC sheet now offers a ".tap zip" download, with one file per panel side, named like the shop's.
+
+- **Included:** openings (the shop's C2, D3 and D5 paths come out identical), trims, Einspine slots, boxes once a wall has a box layout, and vents.
+- **`tools/cnc/check.sh`** checks the generator against 13 real shop files.
+- **Not done yet:**
+  - box layouts per pod type or wall
+  - nesting several small parts on one blank
+  - the end-wall Einspine edge (see the open question)
+  - roof and floor panels
+
+**Open question.** C1's cuts only line up with the schematic if C1 is 46¼″ wide, with the corner Einspine taking the first 1¾″. The door head stops at X46.25, and the jamb sits 21⅝″ from the edge against the schematic's 23⅜″. In A1-A2-A3, the second outside slot lands exactly on A3's cut edge.

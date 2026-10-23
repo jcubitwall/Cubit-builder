@@ -3,12 +3,13 @@
 import { MODELS } from './data.js';
 import { fin } from './format.js';
 import { cutPlan, cutFilesZip, manifestCSV, cncSettings, saveCncSettings, LAYERS } from './cnc.js';
+import { tapPlan, tapZip, tapSVG } from './tap.js';
 import { downloadBlob } from './sheets.js';
 import { state } from './state.js';
 
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const COL = { SHEET_REF:'#9aa09a', PANEL_REF:'#56605a', TRIM_CUT:'#c0392b', OPENING_THRU:'#2f6db5', VENT_THRU:'#16a0a0', BOX_POCKET:'#2f8a57', SPINE_NOTCH:'#7a3fb0' };
-let pick = 0;
+let pick = 0, tpick = 0;
 
 function previewSVG(r){
   const s=7.2, pad=34, W=r.items.reduce((a,i)=>Math.max(a,i.x1),96)+1, Hh=r.blankW;
@@ -26,6 +27,28 @@ function previewSVG(r){
   return g+'</svg>';
 }
 
+let TP=null;
+function tapSection(){
+  TP=tapPlan(); const F=TP.files; if(tpick>=F.length) tpick=0;
+  if(!F.length) return '';
+  const f=F[tpick]; let last=null, rows='';
+  F.forEach((x,i)=>{ if(x.wall!==last){ rows+=`<tr class="grp"><td colspan="4">${esc(x.wall)}</td></tr>`; last=x.wall; }
+    rows+=`<tr class="${i===tpick?'on':''}" data-t="${i}"><td>${esc(x.name)}</td><td>${x.side.includes('E')?'exterior up':'interior up'}</td><td>${x.ops.length}</td><td>${x.warn.length?`<span class="flipflag">⚠ ${x.warn.length}</span>`:''}</td></tr>`; });
+  return `<h4 style="margin:6px 0 6px">G-code for the ShopSabre (.tap)</h4>
+    <div class="cnc-warn"><b>Test first.</b> Written in the shop's own format (ShopSabre ATC post, tool 13, Z zero on the bed, flip side to side) and checked against 13 of the shop's real files. Run each new panel type as an air cut, then on scrap, before cutting a real panel. Boxes only appear once a wall has a box layout.</div>
+    <div class="sheet-tools"><button class="btn" id="tapZip">Download all .tap files (zip)</button><button class="btn ghost" id="tapOne">This file only</button>
+      <span style="font-size:12.5px;color:#333">Save the zip's tap folder to the shop's network folder; the CNC PC picks them up from there.</span></div>
+    <div class="cnc-grid">
+      <div class="tblwrap cnc-list">${TP.blank.length?`<p class="note">No CNC work, no file: ${esc(TP.blank.join(', '))}</p>`:''}<table class="boxes"><thead><tr><th>File</th><th>Face up</th><th>Cuts</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="cnc-prev">
+        <div class="eyebrow" style="color:#555">${esc(f.name)} · ${fin(f.width)} wide · ${f.thick}″ SIP</div>
+        <div class="elev">${tapSVG(f.text, f.thick)}</div>
+        <p class="note"><span class="sw" style="background:#c0392b"></span> right through · <span class="sw" style="background:#7a3fb0"></span> Einspine slot (to Z 0.53) · <span class="sw" style="background:#2f8a57"></span> 3″ box pocket · dashed = rapid moves</p>
+        ${f.warn.length?`<ul class="cnc-w">${f.warn.map(w=>`<li>⚠ ${esc(w)}</li>`).join('')}</ul>`:''}
+        <ul class="note">${f.ops.map(o=>`<li>${esc(o.what||o.kind)}</li>`).join('')||'<li>No cuts on this face.</li>'}</ul>
+      </div>
+    </div>`;
+}
 function renderCncSheet(el){
   const cp=cutPlan(), S=cp.S, runs=cp.runs;
   if(pick>=runs.length) pick=0;
@@ -41,6 +64,8 @@ function renderCncSheet(el){
   el.innerHTML=`
     <div class="sheet-title"><div><div class="eyebrow" style="color:#555">Shop sheet · Cubit Home</div><h3>${esc(cp.home)} — CNC cut files</h3></div>
       <div class="meta">${runs.length} files · ${panels} panels · ${twoSided} two-sided · ${flips} flipped for stacking<br>${new Date().toISOString().slice(0,10)}</div></div>
+    ${tapSection()}
+    <h4 style="margin:22px 0 6px">DXF files for VCarve (older route)</h4>
     <div class="cnc-warn"><b>Not for cutting yet.</b> These DXF files follow conventions that still have to be confirmed with the shop: which corner is zero, which way the panel lies, how a panel is flipped and lined up again, box sizes and depths. Check one panel against VCarve before using any of them.</div>
     <div class="sheet-tools"><button class="btn" id="cncZip">Download cut files (DXF zip)</button><button class="btn ghost" id="cncCsv">Manifest (CSV)</button>
       <span style="font-size:12.5px;color:#333">Files are numbered in cut order. Within each wall the last panel needed is cut first, so the pile comes off the machine in stacking order.</span></div>
@@ -68,6 +93,9 @@ function renderCncSheet(el){
       <div class="row"><button class="btn ghost" id="cSave">Save settings</button></div>
     </details>`;
   el.querySelectorAll('tr[data-i]').forEach(tr=>tr.onclick=()=>{ pick=+tr.dataset.i; renderCncSheet(el); });
+  el.querySelectorAll('tr[data-t]').forEach(tr=>tr.onclick=()=>{ tpick=+tr.dataset.t; renderCncSheet(el); });
+  el.querySelector('#tapZip').onclick=()=>downloadBlob(tapZip(TP), `${MODELS[state.model].name.replace(/[^\w .+-]+/g,'').trim()} - ShopSabre tap files.zip`);
+  el.querySelector('#tapOne').onclick=()=>{ const f=TP.files[tpick]; downloadBlob(new Blob([f.text],{type:'text/plain'}), f.name); };
   const name=MODELS[state.model].name.replace(/[^\w .+-]+/g,'').trim();
   el.querySelector('#cncZip').onclick=()=>downloadBlob(cutFilesZip(cp), `${name} - CNC cut files.zip`);
   el.querySelector('#cncCsv').onclick=()=>downloadBlob(new Blob([manifestCSV(cp)],{type:'text/csv'}), `${name} - CNC manifest.csv`);

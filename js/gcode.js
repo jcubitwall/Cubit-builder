@@ -21,7 +21,8 @@
      { kind:'line',   pts:[[x,y],…], z? }                    tool centre on the line (already offset)
      { kind:'pocket', x0,y0,x1,y1, z }                        the finished pocket (tool kept inside)
      { kind:'hole',   x0,y0,x1,y1, z?, passes? }              rectangular through-hole (tool inside)
-     { kind:'circle', cx,cy, d, z?, passes? }                 round through-hole (tool inside)
+     { kind:'circle', cx,cy, d, z?, passes?, bridge? }        round through-hole (tool inside); bridge = material
+                                                              left at the bottom (open hole, plug stays put)
      { kind:'part',   x0,y0,x1,y1, passes? }                  cut a part out (tool outside, round corners)
 */
 const TOOLS = { 13: { name:'End mill ¾″ (SIP panel cutter)', d:0.75, rpm:10000, feed:180, plunge:150, step:0.3 } };
@@ -82,6 +83,18 @@ function gcode(job){
       const R=[op.x0+r, op.y0+r, op.x1-r, op.y1-r], zs=op.passes||[SKIN, op.z??THRU];
       zs.forEach((z,i)=>{ if(i) plunge(z); else down(R[0], R[1], z, newSeg);
         lineTo(R[0],R[3]); lineTo(R[2],R[3]); lineTo(R[2],R[1]); lineTo(R[0],R[1]); });
+    }
+    else if(op.kind==='circle' && op.bridge){
+      // round hole with a bridge of material left at the bottom so the plug can't fly: clockwise from the
+      // left end of the gap, over the top, to the right end (as in the shop's D4 vent)
+      const rr=op.d/2-r, a=Math.asin(Math.min(1,(op.bridge+T.d)/2/rr)), zs=op.passes||[op.z??THRU];
+      const at = t => [op.cx+rr*Math.cos(t), op.cy+rr*Math.sin(t)];
+      const stops=[-Math.PI/2-a, -Math.PI, Math.PI/2, 0, -Math.PI/2+a].map((t,i)=>i===1?Math.PI:t);
+      zs.forEach((z,i)=>{ const s0=at(stops[0]);
+        if(i) plunge(z); else down(s0[0], s0[1], z, newSeg);
+        let cur=s0;
+        [at(Math.PI), at(Math.PI/2), at(0), at(stops[4])].forEach(q=>{ arcTo(true, q[0], q[1], op.cx-cur[0], op.cy-cur[1]); cur=q; });
+        if(zs.length>1 && i<zs.length-1){ P.rapid(null,null,near); P.rapid(s0[0],s0[1],null); } });
     }
     else if(op.kind==='circle'){
       const rr=op.d/2-r, zs=op.passes||[op.z??THRU];
