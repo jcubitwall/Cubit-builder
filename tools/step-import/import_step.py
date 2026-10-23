@@ -79,7 +79,13 @@ class Rays:
 
 # ------------------------------------------------------------------ pods
 def find_pods(solids):
-    sheets=[s for s in solids if s['b'][2]<0.3 and s['b'][5]-s['b'][2]<1.0 and (s['b'][3]-s['b'][0])>40 and (s['b'][4]-s['b'][1])>40]
+    big=lambda s:(s['b'][3]-s['b'][0])>40 and (s['b'][4]-s['b'][1])>40
+    sheets=[s for s in solids if s['b'][2]<0.3 and s['b'][5]-s['b'][2]<1.0 and big(s)]
+    if not sheets:
+        # no FRP bottom sheet drawn: use the exterior floor itself (the lowest SIP slabs, about 4½″ thick), as in the
+        # panel-by-panel models (whole floor as one body, or one body per 4 × 8 panel)
+        sheets=[s for s in solids if s['b'][2]<0.3 and 2.5<s['b'][5]-s['b'][2]<7.0 and big(s)]
+        if sheets: log(f'  no FRP sheet: found the pods from {len(sheets)} exterior floor bodies')
     # union sheets that touch (pods are separated by the 5/8" joint)
     par=list(range(len(sheets)))
     def f(a):
@@ -99,7 +105,7 @@ def find_pods(solids):
         L=round(max(dx,dy)/96)*96; W=round(min(dx,dy)/96)*96
         if W!=96 or L not in (96,192,288): log('  skipping odd floor group', round(dx,2), round(dy,2)); continue
         pods.append(dict(x0=x0,y0=y0,x1=x1,y1=y1,len=L//12,long='y' if dy>=dx else 'x'))
-    if not pods: sys.exit('No pods found: the floor bottom sheets (FRP) were not recognised.')
+    if not pods: sys.exit('No pods found: no floor at the bottom of the model (an FRP sheet, or the 4½″ exterior floor, 8′ wide and 8′, 16′ or 24′ long).')
     orient=collections.Counter(p['long'] for p in pods).most_common(1)[0][0]
     if any(p['long']!=orient and p['len']>8 for p in pods): sys.exit('Pods run in different directions; rotated pods are not supported yet.')
     Ymax=max(p['y1'] for p in pods)
