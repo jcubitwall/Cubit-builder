@@ -60,7 +60,24 @@ function extend(p, q, open, {L,Rr,B,T,W}){
    own x convention) to the face that is up. Through holes cut right through (a bridge is left in holes 4″ and up so the
    plug stays put, as in the shop's D4 vent); recesses are cleared to their depth. */
 function shapedOp(ops, o, U, t, z, W, warn, item=false){
-  const tool=TOOLS[13].d, what = o.shape==='round' ? `${item?'recess':'hole'} ⌀ ${fin(o.d||o.dia)}` : `${item?'chase':'slot'} ${fin(o.sw)} wide`;
+  const tool=TOOLS[13].d, thru=z<=THRU+1e-6;
+  const what = o.shape==='round' ? `${item?'recess':'hole'} ⌀ ${fin(o.d||o.dia)}` : o.shape==='slot' ? `${item?'chase':'slot'} ${fin(o.sw)} wide`
+             : o.shape==='poly' ? `${thru?'shaped cut':'shaped pocket'} ${fin(o.w||0)} × ${fin(o.h||0)}` : `${o.kind==='box'?'box':'pocket'} ${fin(o.w)} × ${fin(o.h)}`;
+  if(o.shape==='poly'){
+    // any other outline: the ¾″ bit follows the paths worked out from the drawing (profile inside a through cut,
+    // clearing rings for a pocket); a cut narrower than the bit can't be made with it
+    const rings=(o.tool||[]).map(r=>r.map(([x,y])=>[U(x), y]));
+    if(!rings.length){ warn.push(`${what} is narrower than the ¾″ bit: not cut`); return; }
+    if(thru) rings.forEach(pts=>ops.push({tp:'shaped', kind:'loop', pts, what, waste:null}));
+    else ops.push({tp:'pockets', kind:'rings', rings, z, what});
+    return;
+  }
+  if(o.shape==='rect' || (!o.shape && o.w && o.h)){   // a box or pocket at its drawn size (placed by its centre)
+    const c=U(o.x);
+    if(Math.min(o.w,o.h) < tool-0.01){ warn.push(`${what} is narrower than the ¾″ bit: not cut`); return; }
+    ops.push({tp: o.kind==='box'?'boxes':'pockets', kind:'pocket', x0:c-o.w/2, x1:c+o.w/2, y0:o.y-o.h/2, y1:o.y+o.h/2, z, what});
+    return;
+  }
   if(o.shape==='round'){
     const d=o.d||o.dia, cx = item ? U(o.x) : U(o.x+o.w/2), cy = item ? o.y : o.y+o.h/2;
     if(d < tool-0.01){ warn.push(`${what} is smaller than the ¾″ bit`); return; }
@@ -107,7 +124,9 @@ function tapPlan(){
       p.through.forEach(o=>{
         const a=u(o.x+o.w), b=u(o.x), u0=Math.min(a,b), u1=Math.max(a,b), v0=o.y, v1=o.y+o.h;
         if(u1<=0 || u0>=W) return;
-        if(o.shape==='round' || o.shape==='slot'){ shapedOp(I, o, u, t, THRU, W, warn); return; }
+        if(o.shape==='round' || o.shape==='slot' || o.shape==='poly'){
+          if(o.shape==='poly' && (u0<-0.01 || u1>W+0.01)){ warn.push(`shaped cut ${fin(o.w)} × ${fin(o.h)} runs over a panel joint: not cut, check the drawing`); return; }
+          shapedOp(I, o, u, t, THRU, W, warn); return; }
         if(o.kind==='vent' && u0>SNAP && u1<W-SNAP){ I.push({tp:'vents', kind:'hole', x0:u0, x1:u1, y0:v0, y1:v1, what:'vent', waste:[u0,u1,v0,v1]}); return; }
         const waste=[Math.max(u0,0), Math.min(u1,W), Math.max(v0,0), Math.min(v1,H)];   // the piece that should drop out
         openingCut(u0,u1,v0,v1,W).forEach((pts,i)=>I.push({tp:'openings', kind:'line', pts, what:`${o.kind} ${fin(o.w)} × ${fin(o.h)}`, waste: i===0 ? waste : null}));

@@ -20,6 +20,9 @@ Needs:  pip install cadquery-ocp numpy
 Axes:   app plan x = the pods' long axis, app plan z across; mapped with a proper rotation (never mirrored).
 """
 import argparse, json, math, os, re, sys, time, collections, statistics, tempfile, datetime
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import exact2d
+from shapely.geometry import box as sbox
 from OCP.STEPControl import STEPControl_Reader
 from OCP.TopExp import TopExp_Explorer
 from OCP.TopAbs import TopAbs_SOLID
@@ -224,29 +227,34 @@ def scan_wall(solids, rays, pod, side):
         if h: depths[round(h[1]*16)/16]+=1
     ops=openings_from_grid(grid, zs, lambda q: solid(ua+q[0], q[1]), ua, C, side, pod, solids)
     depth=depths.most_common(1)[0][0] if depths else None
-    # round holes, recesses and chase slots, exactly as drawn: axis across the wall
-    ax='y' if side in 'SN' else 'x'; blind=[]
-    if depth:
-        seen=set()
-        for c in cands:
-            for cy in cylinders(c, ORIGIN):
-                if cy['ax']!=ax or cy['hi']<a-0.2 or cy['lo']>b+0.2: continue
-                u,zc=cy['c']; u2,z2=cy.get('c2',cy['c']); r=cy['r']
-                if not (ua-0.1<min(u,u2) and max(u,u2)<ub+0.1 and WALL_Z[0]<min(zc,z2) and max(zc,z2)<WALL_Z[1]): continue
-                key=(cy['type'],round(u*8),round(zc*8),round(u2*8),round(z2*8),round(r*16))
-                if key in seen: continue
-                seen.add(key)
-                U0,U1=min(u,u2)-ua-r, max(u,u2)-ua+r; Z0_,Z1_=min(zc,z2)-r-WALL_Z[0], max(zc,z2)+r-WALL_Z[0]
-                ops=[o for o in ops if not (o['u0']>=U0-1.5 and o['u1']<=U1+1.5 and o['z0']>=Z0_-2 and o['z1']<=Z1_+2)]   # the grid's squared-off copy
-                span=cy['hi']-cy['lo']
-                feat = dict(shape='round', d=2*r) if cy['type']=='circle' else dict(shape='slot', w=2*r, ends=[[u-ua, zc-WALL_Z[0]],[u2-ua, z2-WALL_Z[0]]])
-                if span>=depth*0.85:
-                    ops.append(dict(kind='vent', u0=U0, u1=U1, z0=Z0_, z1=Z1_, **feat))
+    # every cut exactly as drawn: sections through the wall's own bodies at every depth where something changes
+    ax='y' if side in 'SN' else 'x'; k=exact2d.AX[ax]; blind=[]
+    own=[c for c in cands if c['b'][k]>=a-0.2 and c['b'][k+3]<=b+0.2 and c['b'][k+3]-c['b'][k]>1]
+    if own and depth:
+        try:
+            iu=0 if ax=='y' else 1
+            u0=max(ua,min(c['b'][iu] for c in own)); u1=min(ub,max(c['b'][iu+3] for c in own))
+            outline=sbox(u0, max(WALL_Z[0],min(c['b'][2] for c in own)), u1, min(WALL_Z[1],max(c['b'][5] for c in own)))
+            s0=min(c['b'][k] for c in own); s1=max(c['b'][k+3] for c in own)
+            C=exact2d.cuts(own, ax, outline, s0, s1, ORIGIN, outside_low=abs(line-s0)<abs(line-s1))
+            exact=[]; Z0=WALL_Z[0]
+            mv=lambda P: [[round(x-ua,4), round(z-Z0,4)] for x,z in P]
+            for c in C:
+                d=exact2d.describe(c['poly']); feat=dict(shape=d['shape'])
+                if d['shape']=='round': feat['d']=d['d']
+                if d['shape']=='poly':
+                    feat['path']=mv(d['path']); feat['tool']=[mv(r) for r in exact2d.toolpaths(c['poly'], c['face'])]
+                U0,U1,ZA,ZB=d['x']-ua, d['x']+d['w']-ua, d['y']-Z0, d['y']+d['h']-Z0
+                if c['face']=='through':
+                    kind = classify_opening(U0,U1,ZA,ZB, side, pod, ua, solids) if d['shape']=='rect' else 'vent'
+                    exact.append(dict(kind=kind, u0=U0, u1=U1, z0=ZA, z1=ZB, **({} if d['shape']=='rect' else feat)))
                 else:
-                    outer = abs(cy['lo']-line)<0.4 or abs(cy['hi']-line)<0.4   # opens on the outside face
-                    blind.append(dict(u=(u+u2)/2-ua, z=(zc+z2)/2-WALL_Z[0], depth=round(span,3), face='outside' if outer else 'inside', **feat))
-        n_r=sum(1 for o in ops if o.get('shape')); 
-        if blind or n_r: log(f"  {side}: {n_r} round holes / slots through, {len(blind)} round recesses / chases")
+                    if d['shape']=='rect': feat.update(w=d['w'], h=d['h'], box=exact2d.is_box(d['w'],d['h']))
+                    blind.append(dict(u=(U0+U1)/2, z=(ZA+ZB)/2, depth=c['depth'], face=c['face'], **feat))
+            ops=exact
+            log(f"  {side}: exact read · {len(ops)} through, {len(blind)} part-way cuts")
+        except Exception as e:
+            log(f"  {side}: exact read failed ({e}); using the grid")
     return dict(ua=ua,ub=ub,openings=ops,depth=depth,blind=blind)
 
 def components(grid, C, R):
@@ -299,6 +307,20 @@ def openings_from_grid(grid, zs, solid_at, ua, C, side, pod, solids):
         out.append(dict(kind=kind,u0=left,u1=right,z0=bottom-WALL_Z[0],z1=top-WALL_Z[0]))
     return out
 
+def classify_opening(left, right, bottom, top, side, pod, ua, solids):
+    """window / door / patio from the units in it, else vent / door / cased opening by size (z from the wall bottom)"""
+    units=[s for s in solids if UNIT.match(s['name']) and not s['name'].lower().startswith('handle') and '**3' not in s['name']]
+    kind='opening'; zb,zt=bottom+WALL_Z[0], top+WALL_Z[0]
+    for un in units:
+        b=un['b']; lineval = (pod['y0'] if side=='S' else pod['y1']) if side in 'SN' else (pod['x0'] if side=='W' else pod['x1'])
+        if side in 'SN': ok = b[0]<ua+right-1 and b[3]>ua+left+1 and abs((b[1]+b[4])/2-lineval)<10
+        else:            ok = b[1]<ua+right-1 and b[4]>ua+left+1 and abs((b[0]+b[3])/2-lineval)<10
+        if ok and b[2]<zt and b[5]>zb:
+            n=un['name'].lower(); kind = 'door' if n.startswith('door') else 'patio' if n.startswith('panorama') else 'window'
+    if kind=='opening' and right-left<=14 and top-bottom<=8: kind='vent'
+    if kind=='opening' and bottom<0.5 and right-left<50 and top<90: kind='door'
+    return kind
+
 # ------------------------------------------------------------------ horizontal layers
 def scan_layer(solids, rays, pod, kind, step=2.0):
     zb,zt,_=LAYERS[kind]
@@ -324,21 +346,24 @@ def scan_layer(solids, rays, pod, kind, step=2.0):
         B = y0 if j0==0 else bisect(lambda y: solid(xm,y), y0+(j0-0.5)*step, y0+(j0+0.5)*step)
         T = y1 if j1==ny-1 else bisect(lambda y: solid(xm,y), y0+(j1+0.5)*step, y0+(j1+1.5)*step)
         holes.append((L,B,Rr,T))
-    # round holes, recesses and chase slots, exactly as drawn (vertical axis)
-    seen=set()
-    for c in cands:
-        for cy in cylinders(c, ORIGIN):
-            if cy['ax']!='z' or cy['hi']<zb-0.2 or cy['lo']>zt+0.2: continue
-            (cx,cyy)=cy['c']; (cx2,cy2)=cy.get('c2',cy['c']); r=cy['r']
-            if not (x0<min(cx,cx2) and max(cx,cx2)<x1 and y0<min(cyy,cy2) and max(cyy,cy2)<y1): continue
-            key=(cy['type'],round(cx*8),round(cyy*8),round(cx2*8),round(cy2*8),round(r*16))
-            if key in seen: continue
-            seen.add(key)
-            L_,B_,R_,T_=min(cx,cx2)-r,min(cyy,cy2)-r,max(cx,cx2)+r,max(cyy,cy2)+r
-            holes=[h for h in holes if not (len(h)==4 and h[0]>=L_-2.5 and h[2]<=R_+2.5 and h[1]>=B_-2.5 and h[3]<=T_+2.5)]
-            span=min(cy['hi'],zt)-max(cy['lo'],zb)
-            face = 'through' if span>=(zt-zb)*0.8 else ('top' if cy['hi']>=zt-0.4 else 'bottom')
-            holes.append((L_,B_,R_,T_, cy['type'], 2*r, round(span,3), face, [(cx,cyy),(cx2,cy2)]))
+    # every cut exactly as drawn: sections through the layer's own bodies at every depth where something changes
+    own=[c for c in cands if min(c['b'][5],zt)-max(c['b'][2],zb) >= 0.5*(c['b'][5]-c['b'][2])]
+    if own:
+        try:
+            outline=sbox(max(x0,min(c['b'][0] for c in own)), max(y0,min(c['b'][1] for c in own)), min(x1,max(c['b'][3] for c in own)), min(y1,max(c['b'][4] for c in own)))
+            s0=max(zb,min(c['b'][2] for c in own)); s1=min(zt,max(c['b'][5] for c in own))
+            C=exact2d.cuts(own, 'z', outline, s0, s1, ORIGIN, outside_low=True)
+            ex_holes=[]
+            for c in C:
+                d=exact2d.describe(c['poly'])
+                h=dict(L=d['x'], B=d['y'], R=d['x']+d['w'], T=d['y']+d['h'], shape=d['shape'], face={'through':'through','outside':'bottom','inside':'top'}[c['face']], depth=c['depth'])
+                if d['shape']=='round': h['dia']=d['d']
+                if d['shape']=='poly': h['path']=d['path']; h['tool']=exact2d.toolpaths(c['poly'], c['face'])
+                ex_holes.append(h)
+            holes=ex_holes
+            log(f"  layer {kind}: exact read · {sum(1 for h in holes if h['face']=='through')} through, {sum(1 for h in holes if h['face']!='through')} part-way")
+        except Exception as e:
+            log(f"  layer {kind}: exact read failed ({e}); using the grid")
     # panel seams along the pod length: the outer OSB sheets of this layer
     skin=[s for s in cands if s['b'][5]-s['b'][2]<0.7 and (s['b'][3]-s['b'][0])>40 and (s['b'][4]-s['b'][1])>40]
     along = 'y' if pod['long']=='y' else 'x'
@@ -387,13 +412,15 @@ def app_slots(pods):
 # ------------------------------------------------------------------ library
 def r16(v): return round(v*16)/16
 def wall_sig(w): return (w['len'],w['type'],tuple((o['kind'],o.get('shape',''),r16(o['x']),r16(o['y']),r16(o['w']),r16(o['h'])) for o in w['openings']),
-                          tuple((i.get('shape',''),r16(i['x']),r16(i['y']),r16(i.get('d',0))) for i in w.get('inside',[])+w.get('outside',[])))
+                          tuple((i.get('shape',''),r16(i['x']),r16(i['y']),r16(i.get('d',0)),r16(i.get('w',0)),r16(i.get('h',0)),r16(i.get('depth',0))) for i in w.get('inside',[])),
+                          tuple((i.get('shape',''),r16(i['x']),r16(i['y']),r16(i.get('d',0)),r16(i.get('w',0)),r16(i.get('h',0)),r16(i.get('depth',0))) for i in w.get('outside',[])))
 def same_wall(a,b):
     if a['len']!=b['len'] or a.get('type','ext')!=b.get('type','ext') or len(a['openings'])!=len(b['openings']): return False
-    return all(oa['kind']==ob['kind'] and all(abs(oa[k]-ob[k])<=0.125 for k in ('x','y','w','h')) for oa,ob in zip(a['openings'],b['openings']))
+    if wall_sig(a)[3:]!=wall_sig(b)[3:]: return False
+    return all(oa['kind']==ob['kind'] and oa.get('shape')==ob.get('shape') and all(abs(oa[k]-ob[k])<=0.125 for k in ('x','y','w','h')) for oa,ob in zip(a['openings'],b['openings']))
 def same_layer(a,b):
     if a['kind']!=b['kind'] or a['len']!=b['len'] or len(a['holes'])!=len(b['holes']): return False
-    return all(ha.get('shape')==hb.get('shape') and all(abs(ha[k]-hb[k])<=0.125 for k in ('x','z','w','d')) for ha,hb in zip(a['holes'],b['holes']))
+    return all(ha.get('shape')==hb.get('shape') and ha.get('face')==hb.get('face') and abs((ha.get('depth') or 0)-(hb.get('depth') or 0))<=0.06 and all(abs(ha[k]-hb[k])<=0.125 for k in ('x','z','w','d')) for ha,hb in zip(a['holes'],b['holes']))
 def describe_wall(w):
     c=collections.Counter(o['kind'] for o in w['openings'])
     names={'window':'window','door':'door','patio':'patio door','opening':'cased opening','vent':'vent'}
@@ -437,27 +464,38 @@ def main():
             for s in [s for s in slots if s['pod']==p['i'] and s['side']==app_side]:
                 sa=(s['a']-s['sa'])*12; sb=(s['b']-s['sa'])*12
                 p0_min = app_side in ('N','W')
-                ops=[]
+                ops=[]; WL=sb-sa
+                fx=lambda uu: ((uu if same else Lside-uu)-sa) if p0_min else (sb-(uu if same else Lside-uu))   # wall u → x from the outside-left
+                mp=lambda P, inside=False: [[round(WL-fx(x) if inside else fx(x),4), round(z,4)] for x,z in P]
                 for o in sc['openings']:
                     a0,a1 = (o['u0'],o['u1']) if same else (Lside-o['u1'],Lside-o['u0'])
-                    u0=max(a0,sa); u1=min(a1,sb)
-                    if u1-u0<1: continue
+                    shaped = o.get('shape') in ('round','slot','poly')
+                    u0=max(a0,sa) if not shaped else a0; u1=min(a1,sb) if not shaped else a1
+                    if shaped and not (sa<=(u0+u1)/2<=sb): continue
+                    if u1-u0<(0.05 if shaped else 1): continue
                     x=(u0-sa) if p0_min else (sb-u1)
                     extra={}
                     if o.get('shape')=='round': extra=dict(shape='round', d=round(o['d'],4))
-                    if o.get('shape')=='slot':
-                        fx=lambda uu: ((uu if same else Lside-uu)-sa) if p0_min else (sb-(uu if same else Lside-uu))
-                        extra=dict(shape='slot', sw=round(o['w'],4), ends=[[round(fx(e[0]),4), round(e[1],4)] for e in o['ends']])
+                    if o.get('shape')=='slot': extra=dict(shape='slot', sw=round(o['w'],4), ends=[[round(fx(e[0]),4), round(e[1],4)] for e in o['ends']])
+                    if o.get('shape')=='poly': extra=dict(shape='poly', path=mp(o['path']), tool=[mp(r) for r in o.get('tool',[])])
                     ops.append(dict(kind=o['kind'],x=round(x,4),y=round(o['z0'],4),w=round(u1-u0,4),h=round(o['z1']-o['z0'],4), **extra))
                 ops.sort(key=lambda o:o['x'])
-                ins=[]; outs=[]; WL=sb-sa
+                ins=[]; outs=[]
                 for bl in sc.get('blind',[]):
                     uu = bl['u'] if same else Lside-bl['u']
                     if not (sa<=uu<=sb): continue
                     xo=(uu-sa) if p0_min else (sb-uu)          # from the outside-left end
-                    item=dict(kind='hole' if bl['shape']=='round' else 'chase', shape=bl['shape'], depth=bl['depth'], y=round(bl['z'],4), **({'d':round(bl['d'],4)} if bl['shape']=='round' else {'sw':round(bl['w'],4), 'ends':bl['ends']}))
-                    if bl['face']=='outside': outs.append(dict(item, x=round(xo,4)))
-                    else: ins.append(dict(item, x=round(WL-xo,4)))   # inside items: from the inside-left end
+                    inside = bl['face']!='outside'
+                    sh=bl['shape']; item=dict(shape=sh, depth=bl['depth'], y=round(bl['z'],4))
+                    if sh=='round': item.update(kind='hole', d=round(bl['d'],4))
+                    elif sh=='rect': item.update(kind='box' if bl.get('box') else 'pocket', w=round(bl['w'],4), h=round(bl['h'],4))
+                    elif sh=='slot': item.update(kind='chase', sw=round(bl['w'],4), ends=mp(bl['ends'], inside))
+                    else:
+                        pth=mp(bl['path'], inside)
+                        item.update(kind='pocket', path=pth, tool=[mp(r, inside) for r in bl.get('tool',[])],
+                                    w=round(max(q[0] for q in pth)-min(q[0] for q in pth),4), h=round(max(q[1] for q in pth)-min(q[1] for q in pth),4))
+                    if inside: ins.append(dict(item, x=round(WL-xo,4)))   # inside items: from the inside-left end
+                    else: outs.append(dict(item, x=round(xo,4)))
                 w=dict(len=round((sb-sa)/12),type=s['type'],t=6.5 if s['type']=='ext' else 4.5,openings=ops,inside=ins,outside=outs)
                 new_walls.append((s['id'],w))
     # ---- layers
@@ -467,7 +505,20 @@ def main():
             sc=scan_layer(solids,rays,p,kind)
             if not sc: log(f"  Pod {p['i']+1} {label}: not found"); continue
             holes=[]
+            tr=(lambda X,Y: (Y-p['y0'], X-p['x0'])) if orient=='y' else (lambda X,Y: (X-p['x0'], p['y1']-Y))
             for h in sc['holes']:
+                if isinstance(h, dict):     # exact read
+                    L,B,R,T=h['L'],h['B'],h['R'],h['T']
+                    if orient=='y': hx,hz,hw,hd = B-p['y0'], L-p['x0'], T-B, R-L
+                    else:           hx,hz,hw,hd = L-p['x0'], p['y1']-T, R-L, T-B
+                    hole=dict(x=round(hx,4),z=round(hz,4),w=round(hw,4),d=round(hd,4))
+                    if h['shape']!='rect': hole['shape']=h['shape']
+                    if h['shape']=='round': hole['dia']=round(h['dia'],4)
+                    if h['shape']=='poly':
+                        hole['path']=[[round(v,4) for v in tr(*q)] for q in h['path']]
+                        hole['tool']=[[[round(v,4) for v in tr(*q)] for q in ring] for ring in h.get('tool',[])]
+                    if h['face']!='through': hole.update(depth=h['depth'], face=h['face'])
+                    holes.append(hole); continue
                 (L,B,R,T)=h[:4]
                 if orient=='y': hx,hz,hw,hd = B-p['y0'], L-p['x0'], T-B, R-L
                 else:           hx,hz,hw,hd = L-p['x0'], p['y1']-T, R-L, T-B
@@ -475,10 +526,12 @@ def main():
                 if len(h)>4:
                     blind_ = {} if h[7]=='through' else {'depth':h[6], 'face':h[7]}
                     if h[4]=='circle': hole.update(shape='round', dia=round(h[5],4), **blind_)
-                    else:
-                        tr=(lambda X,Y: (Y-p['y0'], X-p['x0'])) if orient=='y' else (lambda X,Y: (X-p['x0'], p['y1']-Y))
-                        hole.update(shape='slot', sw=round(h[5],4), ends=[[round(v,4) for v in tr(*e)] for e in h[8]], **blind_)
+                    else: hole.update(shape='slot', sw=round(h[5],4), ends=[[round(v,4) for v in tr(*e)] for e in h[8]], **blind_)
                 holes.append(hole)
+            # the 1¾″ steel-spine notches at the four corners are standard (the app always adds them): not stored
+            Lin=p['len']*12
+            corner=lambda h: 'shape' not in h and 'depth' not in h and abs(h['w']-1.75)<0.06 and abs(h['d']-1.75)<0.06 and (h['x']<0.1 or h['x']+h['w']>Lin-0.1) and (h['z']<0.1 or h['z']+h['d']>95.9)
+            holes=[h for h in holes if not corner(h)]
             holes.sort(key=lambda h:(h['x'],h['z']))
             seams=sc['seams'] if orient=='y' else [round(p['len']*12-s,2) for s in sc['seams']][::-1]
             lay=dict(kind=kind,len=p['len'],t=round(zt-zb,3),z=zb,holes=holes,seams=seams)
@@ -493,16 +546,18 @@ def main():
     for sid,w in new_walls:
         hit=next((x for x in walls if same_wall(x,w)),None)
         if not hit:
-            n=1+sum(1 for x in walls if x['len']==w['len'] and x.get('type','ext')==w['type'])
-            w=dict(id=f"{'I' if w['type']=='int' else 'W'}{w['len']:02d}-{n:02d}", name=describe_wall(w), **w, source=source)
+            pre=f"{'I' if w['type']=='int' else 'W'}{w['len']:02d}-"
+            n=1+max([int(x['id'][len(pre):]) for x in walls if x['id'].startswith(pre) and x['id'][len(pre):].isdigit()]+[0])
+            w=dict(id=f"{pre}{n:02d}", name=describe_wall(w), **w, source=source)
             walls.append(w); hit=w; added_w+=1
         picks[sid]=hit['id']
     KIND_CODE={'floor-ext':'FE','floor-int':'FI','ceiling-int':'CI','roof':'RF'}
     for lid,l in new_layers:
         hit=next((x for x in layers if same_layer(x,l)),None)
         if not hit:
-            n=1+sum(1 for x in layers if x['kind']==l['kind'] and x['len']==l['len'])
-            l=dict(id=f"{KIND_CODE[l['kind']]}{l['len']:02d}-{n:02d}", name=f"{l['len']}′ {LAYERS[l['kind']][2].lower()} · "+(f"{len(l['holes'])} hole{'s' if len(l['holes'])>1 else ''}" if l['holes'] else 'no holes'), **l, source=source)
+            pre=f"{KIND_CODE[l['kind']]}{l['len']:02d}-"
+            n=1+max([int(x['id'][len(pre):]) for x in layers if x['id'].startswith(pre) and x['id'][len(pre):].isdigit()]+[0])
+            l=dict(id=f"{pre}{n:02d}", name=f"{l['len']}′ {LAYERS[l['kind']][2].lower()} · "+(f"{len(l['holes'])} hole{'s' if len(l['holes'])>1 else ''}" if l['holes'] else 'no holes'), **l, source=source)
             layers.append(l); hit=l; added_l+=1
         layer_picks[lid]=hit['id']
     with open(os.path.join(R,'data/walls.json'),'w') as f: f.write('[\n'+',\n'.join('  '+json.dumps(x,ensure_ascii=False) for x in walls)+'\n]\n')

@@ -24,7 +24,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: '3.11' }
       - name: Install the STEP reader
-        run: pip install cadquery-ocp numpy
+        run: pip install cadquery-ocp numpy shapely
       # inputs are passed through env (never pasted into the script) and checked before use
       - name: Fetch the file
         env:

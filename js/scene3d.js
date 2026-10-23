@@ -2,7 +2,7 @@
 import { CEIL, FLOOR, FT, H, POD, PW, T, WALL_BASE, LAYER_KINDS, NOTCH } from './config.js';
 import { MODELS } from './data.js';
 import { podOffsets, screwsFor, slotsFor, layerSlotsFor, podList, deckList, layoutOffsets, padsFor } from './layout.js';
-import { panelCells, panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall, layerHoles, isShaped, shapeOf } from './panels.js';
+import { panelCells, panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall, layerHoles, isShaped, shapeOf, outlinePts, faceShape } from './panels.js';
 import { w3 } from './sheets.js';
 import { renderSide } from './sidebar.js';
 import { pickFor, pickLayer, state } from './state.js';
@@ -104,15 +104,6 @@ function numberSprite(txt, size, accent){
   sp.scale.set(size,size,1); sp.renderOrder=10; return sp;
 }
 
-/* outline points (inches) of a round hole or a slot, closed */
-function outlinePts(S, seg=40){
-  const P=[];
-  if(S.circle){ const [cx,cy,r]=S.circle; for(let i=0;i<=seg;i++){ const a=i/seg*Math.PI*2; P.push([cx+r*Math.cos(a), cy+r*Math.sin(a)]); } return P; }
-  const [[x1,y1],[x2,y2]]=S.slot, r=S.r, ang=Math.atan2(y2-y1,x2-x1), n=seg/2;
-  for(let i=0;i<=n;i++){ const a=ang+Math.PI/2+i/n*Math.PI; P.push([x1+r*Math.cos(a), y1+r*Math.sin(a)]); }
-  for(let i=0;i<=n;i++){ const a=ang-Math.PI/2+i/n*Math.PI; P.push([x2+r*Math.cos(a), y2+r*Math.sin(a)]); }
-  P.push(P[0]); return P;
-}
 /* a slab (inches a..b × y0..y1, depth d feet, from z=0 to z=d) with round holes / slots cut right through */
 function holedSlab(a,b,y0,y1,shapes,d){
   const sh=new THREE.Shape([[a,y0],[b,y0],[b,y1],[a,y1]].map(([x,y])=>new THREE.Vector2(x/FT,y/FT)));
@@ -162,16 +153,18 @@ function buildWallMesh(w, mat, opts={}){
     m.userData.unit=true; m.userData.k=panelAt(w, o.x+o.w/2);
     g.add(m);
   });
-  // round recesses / chases drawn as dark outlines on their face
-  const faceMark=(b,x,z)=>{ const P=outlinePts(shapeOf({...b, x:x-(b.d||0)/2, w:b.d||0, h:b.d||0, y:b.y-(b.d||0)/2, ends:b.ends&&b.ends.map(e=>[x+(e[0]-(b.ends[0][0]+b.ends[1][0])/2), e[1]])}));
-    const sh=new THREE.Shape(P.map(p=>new THREE.Vector2(p[0]/FT,p[1]/FT))); const m=new THREE.Mesh(new THREE.ShapeGeometry(sh,24), MAT.recess); m.position.z=z; return m; };
-  w.inside.filter(isShaped).forEach(b=>{ const m=faceMark(b, L-b.x, -t-0.006); m.rotation.y=0; g.add(m); });
-  w.outside.filter(isShaped).forEach(b=>{ g.add(faceMark(b, b.x, 0.006)); });
-  // boxes: inside on interior face, outside on exterior face
-  w.inside.filter(b=>!isShaped(b)).forEach(b=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(2.5/FT,4/FT,0.06), b.kind==='switch'?MAT.sw:MAT.outlet);
-    m.position.set((L-b.x)/FT,b.y/FT,-t-0.03); g.add(m); m.userData.k=panelAt(w, L-b.x); });
-  w.outside.filter(b=>!isShaped(b)).forEach(b=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(3/FT,(b.kind==='light'?5:4)/FT,0.08), b.kind==='light'?MAT.light:(w.type==='int'?(b.kind==='switch'?MAT.sw:MAT.outlet):MAT.extOutlet));
-    m.position.set(b.x/FT,b.y/FT,0.04); g.add(m); m.userData.k=panelAt(w, b.x); });
+  // face items exactly as drawn: boxes at their real size, pockets / recesses / chases as dark outlines on their face;
+  // old-style markers (no drawn size) as the plug / switch symbols
+  const flat=(P,z,mat)=>{ const m=new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(P.map(p=>new THREE.Vector2(p[0]/FT,p[1]/FT))),24), mat); m.position.z=z; return m; };
+  [[w.inside, x=>L-x, -t, -1], [w.outside, x=>x, 0, 1]].forEach(([items, toX, z0, dir])=>items.forEach(b=>{
+    const P=faceShape(b, toX), X=toX(b.x);
+    if(P && b.kind==='box' && !b.shape?.match(/round|slot|poly/)){
+      const m=new THREE.Mesh(new THREE.BoxGeometry(b.w/FT,b.h/FT,0.06), MAT.outlet); m.position.set(X/FT,b.y/FT,z0+dir*0.03); m.userData.k=panelAt(w,X); g.add(m); return; }
+    if(P){ const m=flat(P, z0+dir*0.006, MAT.recess); m.userData.k=panelAt(w,X); g.add(m); return; }
+    const inside=dir<0;
+    const m=inside ? new THREE.Mesh(new THREE.BoxGeometry(2.5/FT,4/FT,0.06), b.kind==='switch'?MAT.sw:MAT.outlet)
+                   : new THREE.Mesh(new THREE.BoxGeometry(3/FT,(b.kind==='light'?5:4)/FT,0.08), b.kind==='light'?MAT.light:(w.type==='int'?(b.kind==='switch'?MAT.sw:MAT.outlet):MAT.extOutlet));
+    m.position.set(X/FT,b.y/FT,z0+dir*(inside?0.03:0.04)); m.userData.k=panelAt(w,X); g.add(m); }));
   // panel numbers
   if(opts.nums){
     for(let k=0;k<n;k++){
@@ -188,8 +181,8 @@ const LAYER_COLOR = {'floor-ext':0x8d8f86, 'floor-int':0xb9b2a0, 'ceiling-int':0
 function buildLayerMesh(L, mat){
   const g=new THREE.Group(), len=L.len*FT, wid=96, t=(L.t||4.5)/FT;
   const all=layerHoles(L), thru=h=>!h.depth;
-  const shaped=all.filter(h=>isShaped(h) && thru(h)), blind=all.filter(h=>isShaped(h) && !thru(h));
-  const holes=all.filter(h=>!isShaped(h)).map(h=>({x0:h.x,x1:h.x+h.w,z0:h.z,z1:h.z+h.d}));
+  const shaped=all.filter(h=>isShaped(h) && thru(h)), blind=all.filter(h=>!thru(h));
+  const holes=all.filter(h=>!isShaped(h) && thru(h)).map(h=>({x0:h.x,x1:h.x+h.w,z0:h.z,z1:h.z+h.d}));
   const xs=[...new Set([0,len,...holes.flatMap(h=>[h.x0,h.x1])])].filter(v=>v>=0&&v<=len).sort((a,b)=>a-b);
   const zs=[...new Set([0,wid,...holes.flatMap(h=>[h.z0,h.z1])])].filter(v=>v>=0&&v<=wid).sort((a,b)=>a-b);
   const lsh = h => shapeOf({...h, y:h.z, h:h.d, d:h.dia, ends:h.ends});   // layer coords: x along, z across

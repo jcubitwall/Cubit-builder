@@ -22,22 +22,50 @@ function bodyWall(slot, w){
   if(!w || w.fitted) return w;
   const tl=slot?.trim?.[0]||0, tr=slot?.trim?.[1]||0, full=w.len*FT, L=full-tl-tr;
   const clip = o => {
-    if(o.shape==='round' || o.shape==='slot'){   // exact shapes move, they're never squared off
+    if(isShaped(o)){   // exact shapes move, they're never squared off
       const x0=o.x-tl; if(x0+o.w<=0 || x0>=L) return null;
-      return {...o, x:x0, ...(o.ends?{ends:o.ends.map(([x,y])=>[x-tl,y])}:{})}; }
+      return {...mapX(o, x=>x-tl), x:x0}; }
     const x0=Math.max(0,o.x-tl), x1=Math.min(L,o.x+o.w-tl); return x1-x0>0.5 ? {...o, x:x0, w:x1-x0} : null; };
   // the end walls run to the pod corners, where a 1¾″ × 1¾″ notch for the steel spine comes out of the outside face
   const notch = slot && slot.short && slot.corner ? [slot.corner[0]?NOTCH:0, slot.corner[1]?NOTCH:0] : [0,0];
   return { ...w, L, trim:[tl,tr], notch, fitted:true,
     openings: w.openings.map(o=>clip({...o, key:o.key ?? `${o.kind}@${Math.round(o.x)}`})).filter(Boolean),
-    inside: (w.inside||[]).map(b=>({...b, x:b.x-tr, ...(b.ends?{ends:b.ends.map(([x,y])=>[x-tr,y])}:{})})).filter(b=>b.x>0 && b.x<L),     // inside items are measured from the inside-left = outside-right end
-    outside: (w.outside||[]).map(b=>({...b, x:b.x-tl, ...(b.ends?{ends:b.ends.map(([x,y])=>[x-tl,y])}:{})})).filter(b=>b.x>0 && b.x<L) };
+    inside: (w.inside||[]).map(b=>({...mapX(b, x=>x-tr), x:b.x-tr})).filter(b=>b.x>0 && b.x<L),     // inside items are measured from the inside-left = outside-right end
+    outside: (w.outside||[]).map(b=>({...mapX(b, x=>x-tl), x:b.x-tl})).filter(b=>b.x>0 && b.x<L) };
 }
-/* round holes and chase slots exactly as drawn: their outline (inches, wall or layer coords) and a test for them */
-const isShaped = o => o.shape==='round' || o.shape==='slot';
-function shapeOf(o){   // {circle:[cx,cy,r]} or {slot:[[x,y],[x,y]], r}
+/* Cuts exactly as drawn in the STEP file — round holes, chase slots and any other outline ('poly': its `path`,
+   plus `tool`, the ¾″ bit's centre paths) — never squared off. Their outline in inches (wall or layer coords). */
+const isShaped = o => o.shape==='round' || o.shape==='slot' || o.shape==='poly';
+function shapeOf(o){   // {circle:[cx,cy,r]} · {slot:[[x,y],[x,y]], r} · {poly:[[x,y],…]}
   if(o.shape==='round'){ const d=o.d||o.dia||o.w; return { circle:[o.x+o.w/2, (o.y??o.z)+(o.h??o.d)/2, d/2] }; }
-  return { slot:o.ends, r:(o.sw||0.75)/2 };
+  if(o.shape==='slot') return { slot:o.ends, r:(o.sw||0.75)/2 };
+  if(o.shape==='poly') return { poly:o.path };
+  const y=o.y??o.z, h=o.h??o.d;   // a plain rectangle
+  return { poly:[[o.x,y],[o.x+o.w,y],[o.x+o.w,y+h],[o.x,y+h],[o.x,y]] };
+}
+/* closed outline points (inches) of a shape */
+function outlinePts(S, seg=40){
+  const P=[];
+  if(S.poly){ const Q=S.poly.map(p=>[p[0],p[1]]); const a=Q[0], b=Q[Q.length-1]; if(a[0]!==b[0]||a[1]!==b[1]) Q.push([a[0],a[1]]); return Q; }
+  if(S.circle){ const [cx,cy,r]=S.circle; for(let i=0;i<=seg;i++){ const a=i/seg*Math.PI*2; P.push([cx+r*Math.cos(a), cy+r*Math.sin(a)]); } return P; }
+  const [[x1,y1],[x2,y2]]=S.slot, r=S.r, ang=Math.atan2(y2-y1,x2-x1), n=seg/2;
+  for(let i=0;i<=n;i++){ const a=ang+Math.PI/2+i/n*Math.PI; P.push([x1+r*Math.cos(a), y1+r*Math.sin(a)]); }
+  for(let i=0;i<=n;i++){ const a=ang-Math.PI/2+i/n*Math.PI; P.push([x2+r*Math.cos(a), y2+r*Math.sin(a)]); }
+  P.push(P[0]); return P;
+}
+/* moves (or mirrors) the drawn points of an item along the wall: f maps x → x (its own x is set by the caller) */
+function mapX(o, f){
+  const m=P=>P.map(([x,y])=>[+f(x).toFixed(4),y]);
+  return {...o, ...(o.ends?{ends:m(o.ends)}:{}), ...(o.path?{path:m(o.path)}:{}), ...(o.tool?{tool:o.tool.map(m)}:{})};
+}
+/* a face item (box, pocket, round recess, chase…) as an outline in face coords; toX maps its x to the face's x.
+   Items are placed by their centre. null = an old-style marker with no drawn size (plug/switch symbol). */
+function faceShape(b, toX){
+  if(b.shape==='round') return outlinePts({circle:[toX(b.x), b.y, (b.d||b.dia)/2]});
+  if(b.shape==='slot') return outlinePts({slot:b.ends.map(([x,y])=>[toX(x),y]), r:(b.sw||0.75)/2});
+  if(b.shape==='poly') return outlinePts({poly:b.path.map(([x,y])=>[toX(x),y])});
+  if(b.w && b.h){ const x=toX(b.x), a=b.w/2, c=b.h/2; return [[x-a,b.y-c],[x+a,b.y-c],[x+a,b.y+c],[x-a,b.y+c],[x-a,b.y-c]]; }
+  return null;
 }
 function panelCells(w, k){
   const [X0,X1]=panelSpans(w)[k], xs=new Set([X0,X1]), ys=new Set([0,H]);
@@ -79,4 +107,4 @@ function layerHoles(L){
   });
   return holes;
 }
-export { isShaped, shapeOf, layerHoles, panelCells, panelCount, panelNum, thumbSVG, wallLen, panelSpans, panelAt, bodyWall };
+export { isShaped, shapeOf, outlinePts, mapX, faceShape, layerHoles, panelCells, panelCount, panelNum, thumbSVG, wallLen, panelSpans, panelAt, bodyWall };

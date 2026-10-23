@@ -25,6 +25,10 @@
      { kind:'circle', cx,cy, d, z?, passes?, bridge? }        round through-hole (tool inside); bridge = material
                                                               left at the bottom (open hole, plug stays put)
      { kind:'part',   x0,y0,x1,y1, passes? }                  cut a part out (tool outside, round corners)
+     { kind:'loop',   pts:[[x,y],…], z?, passes? }            any drawn outline: the tool centre follows pts (already
+                                                              offset inside the cut), closed, in passes
+     { kind:'rings',  rings:[[[x,y],…],…], z }                any drawn pocket: clearing rings (tool centres), inner first;
+                                                              lifts between rings that are far apart
 */
 const TOOLS = { 13: { name:'End mill ¾″ (SIP panel cutter)', d:0.75, rpm:10000, feed:180, plunge:150, step:0.3 } };
 const THRU = -0.05, SKIN = 0.125;
@@ -110,6 +114,19 @@ function gcode(job){
       zs.forEach((z,i)=>{ if(i) plunge(z); else down(op.cx, op.cy-rr, z, newSeg);
         arcTo(true, op.cx-rr, op.cy, 0, rr); arcTo(true, op.cx, op.cy+rr, rr, 0);
         arcTo(true, op.cx+rr, op.cy, 0, -rr); arcTo(true, op.cx, op.cy-rr, -rr, 0); });
+    }
+    else if(op.kind==='loop'){
+      const zs=op.passes||[SKIN, op.z??THRU], Q=op.pts;
+      zs.forEach((z,i)=>{ if(i) plunge(z); else down(Q[0][0], Q[0][1], z, newSeg);
+        Q.slice(1).forEach(([x,y])=>lineTo(x,y)); if(Math.hypot(Q[0][0]-Q[Q.length-1][0],Q[0][1]-Q[Q.length-1][1])>1e-6) lineTo(Q[0][0],Q[0][1]); });
+    }
+    else if(op.kind==='rings'){
+      let last=null;
+      op.rings.forEach((Q,i)=>{
+        if(i===0) down(Q[0][0], Q[0][1], op.z, newSeg);
+        else if(Math.hypot(Q[0][0]-last[0], Q[0][1]-last[1]) > T.step*2){ P.rapid(null,null,near); P.rapid(Q[0][0],Q[0][1],null); plunge(op.z); }
+        else lineTo(Q[0][0], Q[0][1]);
+        Q.slice(1).forEach(([x,y])=>lineTo(x,y)); last=Q[Q.length-1]; });
     }
     else if(op.kind==='part'){
       const {x0,y0,x1,y1}=op, zs=op.passes||[SKIN, THRU];

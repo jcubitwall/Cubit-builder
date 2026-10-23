@@ -13,7 +13,7 @@ import { takeoffHTML } from './takeoff.js';
 import { renderShop } from './shop.js';
 import { renderCncSheet } from './cncsheet.js';
 import { LAYER_KINDS } from './config.js';
-import { panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall, layerHoles, isShaped, shapeOf } from './panels.js';
+import { panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall, layerHoles, isShaped, shapeOf, outlinePts, mapX, faceShape } from './panels.js';
 import { buildWallMesh, resize } from './scene3d.js';
 import { unitFor, symbol, unitLabel, pairOf, doorOwner } from './units.js';
 const sheetSlotNow = () => slotsFor(state.model).find(x=>x.id===state.sheetSlot);
@@ -37,15 +37,7 @@ function closeSheets(){
   state.view='studio'; sheetsEl.hidden=true; studioEl.hidden=false; document.getElementById('studioTools').hidden=false;
   document.getElementById('bSheets').textContent='Assembly sheets'; resize();
 }
-/* outline of a round hole / slot in inches (closed) */
-function outlinePts2(S, seg=40){
-  const P=[];
-  if(S.circle){ const [cx,cy,r]=S.circle; for(let i=0;i<=seg;i++){ const a=i/seg*Math.PI*2; P.push([cx+r*Math.cos(a), cy+r*Math.sin(a)]); } return P; }
-  const [[x1,y1],[x2,y2]]=S.slot, r=S.r, ang=Math.atan2(y2-y1,x2-x1), n=seg/2;
-  for(let i=0;i<=n;i++){ const a=ang+Math.PI/2+i/n*Math.PI; P.push([x1+r*Math.cos(a), y1+r*Math.sin(a)]); }
-  for(let i=0;i<=n;i++){ const a=ang-Math.PI/2+i/n*Math.PI; P.push([x2+r*Math.cos(a), y2+r*Math.sin(a)]); }
-  return P;
-}
+const outlinePts2 = outlinePts;
 const esc = t => String(t).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function renderSheetList(){
   const el=document.getElementById('sheetList'); const slots=slotsFor(state.model);
@@ -120,12 +112,13 @@ function boxTable(w,face,slot){
   // positions in the current view, measured from the left end as seen in this view
   const ops=w.openings.map(o=>({...o, vx: face==='ext'? o.x : L-o.x-o.w}));
   const items = face==='int' ? w.inside.map(b=>({...b,vx:b.x})) : w.outside.map(b=>({...b,vx:b.x}));
-  const names={outlet:(face==='int'||w.type==='int')?'Plug box':'Outside plug (WP)',switch:'Switch box',light:'Outside light',data:'Data box'};
+  const names={outlet:(face==='int'||w.type==='int')?'Plug box':'Outside plug (WP)',switch:'Switch box',light:'Outside light',data:'Data box',box:'Box pocket',pocket:'Pocket',hole:'Round recess',chase:'Chase'};
+  const size = b => b.shape==='round' ? `⌀${fin(b.d||b.dia)}` : b.w&&b.h ? `${fin(b.w)} × ${fin(b.h)}` : '—';
   let h=`<table class="boxes"><thead><tr><th>Item</th><th>From left end</th><th>Height</th><th>Size</th><th>Panel</th><th>Unit</th></tr></thead><tbody>`;
   const n=panelCount(w);
   const pn = vx => panelNum(n, panelAt(w, face==='ext' ? vx : L-vx), false);
   ops.sort((a,b)=>a.vx-b.vx).forEach(o=>{ h+=`<tr><td>${o.kind==='window'?'Window opening':o.kind==='door'?'Door opening':o.kind==='opening'?'Cased opening':o.kind==='vent'?'Vent / duct hole':'Patio door opening'}</td><td>${fin(o.vx)}</td><td>sill ${fin(o.y)}</td><td>${fin(o.w)} × ${fin(o.h)}</td><td>${pn(o.vx+o.w/2)}</td><td>${(()=>{ const r=unitFor(slot,o); return r?`${r.unit.id} · ${unitLabel(r)}`:(o.kind==='window'||o.kind==='door'||o.kind==='patio'?'<i>not chosen</i>':'—'); })()}</td></tr>`; });
-  items.sort((a,b)=>a.vx-b.vx).forEach(b=>{ h+=`<tr><td>${names[b.kind]||b.kind}</td><td>${fin(b.vx)} (centre)</td><td>${fin(b.y)}</td><td>—</td><td>${pn(b.vx)}</td><td></td></tr>`; });
+  items.sort((a,b)=>a.vx-b.vx).forEach(b=>{ h+=`<tr><td>${names[b.kind]||b.kind}</td><td>${fin(b.vx)} (centre)</td><td>${fin(b.y)}</td><td>${size(b)}${b.depth?` · ${fin(b.depth)} deep`:''}</td><td>${pn(b.vx)}</td><td></td></tr>`; });
   return h+`</tbody></table>`;
 }
 function elevationSVG(w,face,rev,slot){
@@ -175,9 +168,9 @@ function elevationSVG(w,face,rev,slot){
   w.openings.forEach(o=>{
     const x=vx(o.x,o.w);
     if(isShaped(o)){   // round hole / slot exactly as drawn, with its size
-      const S=shapeOf({...o, x:x}), P=outlinePts2(S);
+      const S=shapeOf({...mapX(o, xx=>vx(xx)), x:x}), P=outlinePts2(S);
       g+=`<path d="${P.map((p,i)=>(i?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)).join(' ')}Z" fill="#ffffff" stroke="#111" stroke-width="1.2"/>`;
-      const cx=S.circle?S.circle[0]:(S.slot[0][0]+S.slot[1][0])/2, cy=S.circle?S.circle[1]:(S.slot[0][1]+S.slot[1][1])/2;
+      if(o.shape==='poly' && o.w>=4) g+=`<text x="${X(x+o.w/2)}" y="${Y(o.y+o.h/2)+3}" text-anchor="middle" font-size="8.5" fill="#555">${fin(o.w)} × ${fin(o.h)}</text>`;
       return;
     }
     if(o.kind==='vent'){   // small duct / vent hole: outline + a leader label, no dimension clutter
@@ -221,6 +214,14 @@ function elevationSVG(w,face,rev,slot){
   items.forEach(b=>{
     const x = b.x;  // inside items use interior-left coords, outside items exterior-left — both match the view
     const cx=X(x), cy=Y(b.y);
+    const P=faceShape(b, xx=>xx);
+    if(P){   // drawn exactly: boxes solid, pockets / recesses / chases dashed, with depth
+      const box=b.kind==='box';
+      g+=`<path d="${P.map((p,i)=>(i?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)).join(' ')}Z" fill="${box?'#fff':'#e8e2d6'}" stroke="#111" stroke-width="1.1" ${box?'':'stroke-dasharray="3 2"'}/>`;
+      const sz=b.shape==='round'?`⌀${fin(b.d||b.dia)}`:b.w&&b.h?`${fin(b.w)}×${fin(b.h)}`:'';
+      if(b.depth) g+=`<text x="${cx}" y="${Y(b.y)+ (b.h||b.d||4)*s/2 + 9}" text-anchor="middle" font-size="7.5" fill="#666">${fin(b.depth)}</text>`;   // positions and sizes: in the table below
+      return;
+    }
     if(b.kind==='switch'){ g+=`<rect x="${cx-7}" y="${cy-10}" width="14" height="20" fill="#2f6db5" stroke="#111"/><text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="10" fill="#fff" font-weight="700">S</text>`; }
     else if(b.kind==='light'){ g+=`<circle cx="${cx}" cy="${cy}" r="9" fill="#ffd34d" stroke="#111"/><text x="${cx}" y="${cy+3.5}" text-anchor="middle" font-size="9" font-weight="700">L</text>`; }
     else { const fill = (face==='int'||w.type==='int')?'#fff':'#2f8a57'; g+=`<rect x="${cx-7}" y="${cy-10}" width="14" height="20" rx="2" fill="${fill}" stroke="#111"/><line x1="${cx-3}" y1="${cy-5}" x2="${cx-3}" y2="${cy}" stroke="${(face==='int'||w.type==='int')?'#111':'#fff'}" stroke-width="1.6"/><line x1="${cx+3}" y1="${cy-5}" x2="${cx+3}" y2="${cy}" stroke="${(face==='int'||w.type==='int')?'#111':'#fff'}" stroke-width="1.6"/>`; }
@@ -348,7 +349,7 @@ function renderLayerSheet(el, ls){
   HOLES.forEach((h,i)=>{ if(!h.notch) return;
     g+=`<rect x="${Math.min(X(h.x),X(h.x+h.w))}" y="${Y(h.z)}" width="${h.w*s}" height="${h.d*s}" fill="#fff" stroke="#7a3fb0" stroke-width="1.4"/>`; });
   (L.holes||[]).forEach((h,i)=>{
-    if(isShaped(h)){ const S=shapeOf({...h, y:h.z, h:h.d, d:h.dia}), P=outlinePts2(S);
+    if(isShaped(h) || h.depth){ const S=shapeOf({...h, y:h.z, h:h.d, d:h.dia}), P=outlinePts2(S);
       g+=`<path d="${P.map((p,k)=>(k?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)).join(' ')}Z" fill="${h.depth?'#e8e2d6':'#fff'}" stroke="#c0392b" stroke-width="1.2" ${h.depth?'stroke-dasharray="3 2"':''}/>`;
     } else
     g+=`<rect x="${Math.min(X(h.x),X(h.x+h.w))}" y="${Y(h.z)}" width="${h.w*s}" height="${h.d*s}" fill="#fff" stroke="#c0392b" stroke-width="1.4"/>`;
@@ -359,7 +360,7 @@ function renderLayerSheet(el, ls){
   g+=dimV(Y(0),Y(wid),ml-26,fin(wid),X(0),11);
   g+=`<text x="${ml}" y="${VH-10}" font-size="10" fill="#555">${below?'Seen from BELOW (mirrored)':'Seen from above'} · x from the left end as you look at it, z from the top edge</text></svg>`;
   let t=`<table class="boxes"><thead><tr><th>Hole</th><th>From left end</th><th>From top edge</th><th>Size</th><th>Panel</th></tr></thead><tbody>`;
-  (L.holes||[]).forEach((h,i)=>{ const pi=panels.findIndex(([a,b])=>h.x+h.w/2>=a&&h.x+h.w/2<b)+1; t+=`<tr><td>H${i+1}</td><td>${fin(below?len-h.x-h.w:h.x)}</td><td>${fin(h.z)}</td><td>${h.shape==='round'?'⌀ '+fin(h.dia):h.shape==='slot'?'slot '+fin(h.sw)+' wide':fin(h.w)+' × '+fin(h.d)}${h.depth?` · ${fin(h.depth)} deep from the ${h.face}`:''}</td><td>${pi}</td></tr>`; });
+  (L.holes||[]).forEach((h,i)=>{ const pi=panels.findIndex(([a,b])=>h.x+h.w/2>=a&&h.x+h.w/2<b)+1; t+=`<tr><td>H${i+1}</td><td>${fin(below?len-h.x-h.w:h.x)}</td><td>${fin(h.z)}</td><td>${h.shape==='round'?'⌀ '+fin(h.dia):h.shape==='slot'?'slot '+fin(h.sw)+' wide':(h.shape==='poly'?'shaped, ':'')+fin(h.w)+' × '+fin(h.d)}${h.depth?` · ${fin(h.depth)} deep from the ${h.face}`:''}</td><td>${pi}</td></tr>`; });
   if(!(L.holes||[]).length) t+=`<tr><td colspan="5">No holes in this layer.</td></tr>`;
   if(HOLES.some(h=>h.notch)) t+=`<tr><td colspan="5" style="color:#7a3fb0">Steel spine notch ${fin(HOLES.find(h=>h.notch).w)} × ${fin(HOLES.find(h=>h.notch).w)} at ${HOLES.filter(h=>h.notch).length===4?'all four corners':'the corners shown'} (purple).</td></tr>`;
   t+=`</tbody></table>`;

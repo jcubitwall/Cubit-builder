@@ -124,3 +124,18 @@ Assembly always starts at the LEFT, where the squaring edge of the upright table
 - which face the label goes on: the one the assemblers see.
 
 The .tap manifest and the CNC sheet show "after cutting" and "label on" for every panel.
+
+## Reading cuts exactly from STEP files (Oct 2026)
+
+The uploader no longer samples panels on a grid. `tools/step-import/exact2d.py` cuts each panel's solids with
+planes at every depth where a flat face changes (pocket floors, rebates) and traces the real edges (lines, arcs,
+splines) to 0.002″. Removed in every band = through cut; removed only near one face = pocket from that face, as deep
+as those bands. Each cut is stored as:
+
+- rectangle (`w`, `h`), round (`d`/`dia`, measured on the true circle) or any other outline (`shape:'poly'`, `path`);
+- `tool`: the ¾″ bit's centre paths worked out from the outline — the profile ⅜″ inside a through cut, or clearing
+  rings 0.3″ apart for a pocket. A cut narrower than the bit gets no paths and is flagged on the CNC page.
+
+Walls: through cuts become openings / vents / shaped cuts; part-way cuts become face items (`box` when the size is a
+standard electrical box, else `pocket`, `hole`, `chase`) with their `depth`. Floors and ceilings: holes with `depth`
+and `face` (top/bottom). The 1¾″ spine notches at the corners are standard and not stored.

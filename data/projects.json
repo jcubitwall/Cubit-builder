@@ -133,7 +133,7 @@
   {
     "id": "preston-cudmore",
     "name": "Preston Cudmore",
-    "saved": "2026-10-23T20:40:59Z",
+    "saved": "2026-10-23T23:22:42Z",
     "model": {
       "name": "Preston Cudmore",
       "size": "24",
@@ -149,12 +149,12 @@
         "0W0": "W08-06",
         "0E0": "W08-07",
         "0N0": "W24-04",
-        "0S0": "W24-06"
+        "0S0": "W24-05"
       },
       "layerPicks": {
-        "0:floor-ext": "FE24-04",
-        "0:floor-int": "FI24-04",
-        "0:ceiling-int": "CI24-03",
+        "0:floor-ext": "FE24-02",
+        "0:floor-int": "FI24-02",
+        "0:ceiling-int": "CI24-02",
         "0:roof": "RF24-01"
       },
       "note": "Scanned from h1.step on 2026-10-23."
