@@ -12,8 +12,7 @@ import { renderShop } from './shop.js';
 const mq = matchMedia('(max-width: 700px)');
 const $ = id => document.getElementById(id);
 let on=false, tab='3d';
-const models=$('models'), modelsHome=models.parentNode, modelsNext=models.nextSibling;
-const tools=$('studioTools');
+const models=$('models');
 
 function setHeaderHeight(){ document.documentElement.style.setProperty('--hh', $('studio').parentNode.querySelector('header.bar').getBoundingClientRect().height+'px'); }
 function label(){ const m=MODELS[state.model]; $('bHomeName').textContent = m ? m.name : '…'; }
@@ -33,19 +32,33 @@ function show(t){
 }
 function enter(){
   if(on) return; on=true; document.documentElement.classList.add('phone');
-  $('homeBody').appendChild(models);                       // the model chips move into the home sheet
-  $('fsTools').appendChild(tools);                          // Exploded view sits on the 3D view's own bar
   if(!$('studio').classList.contains('side-closed')) $('bSide').click();   // panel starts closed
   setHeaderHeight(); label(); show(tab);
 }
 function leave(){
   if(!on) return; on=false; document.documentElement.classList.remove('phone');
-  modelsHome.insertBefore(models, modelsNext);
-  $('studioTools').hidden=false; modelsHome.insertBefore(tools, $('bPlan'));
+  $('studioTools').hidden=false;
   $('phoneView').hidden=true; if(tab==='take'||tab==='shop'){ tab='3d'; $('studio').hidden=false; state.view='studio'; }
   requestAnimationFrame(resize);
 }
+/* desktop: the 3D · Plan · Sheets switch in the header, and the ⋯ menu */
+function initViews(){
+  const go = v => {
+    if(v==='3d'){ closePlan(); closeSheets(); }
+    else if(v==='plan'){ if(state.view!=='plan') openPlan(); }
+    else if(state.view!=='sheets'){ state.sheetSlot = state.selected || state.sheetSlot || null; openSheets(); }
+  };
+  document.querySelectorAll('#views [data-v]').forEach(b=>b.onclick=()=>go(b.dataset.v));
+  const sync = () => { const v = !$('planner').hidden ? 'plan' : !$('sheets').hidden ? 'sheets' : '3d';
+    document.querySelectorAll('#views [data-v]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.v===v)); };
+  const mo=new MutationObserver(sync); ['planner','sheets','studio'].forEach(id=>mo.observe($(id),{attributes:true, attributeFilter:['hidden']})); sync();
+  const mb=$('bMore'), mp=$('morePop'), openM=on=>{ mp.hidden=!on; mb.setAttribute('aria-expanded',on); };
+  mb.onclick=e=>{ e.stopPropagation(); openM(mp.hidden); };
+  mp.addEventListener('click',()=>openM(false));
+  document.addEventListener('pointerdown',e=>{ if(!mp.hidden && !mp.contains(e.target) && e.target!==mb) openM(false); });
+}
 function initPhone(){
+  initViews(); label();
   const dlg=$('homeDlg');
   $('bHome').onclick=()=>dlg.showModal();
   $('homeClose').onclick=()=>dlg.close();

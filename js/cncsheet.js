@@ -65,7 +65,7 @@ function renderCncSheet(el){
     <div class="sheet-title"><div><div class="eyebrow" style="color:#555">Shop sheet · Cubit Home</div><h3>${esc(cp.home)} — CNC cut files</h3></div>
       <div class="meta">${runs.length} files · ${panels} panels · ${twoSided} two-sided · ${flips} flipped for stacking<br>${new Date().toISOString().slice(0,10)}</div></div>
     ${tapSection()}
-    <h4 style="margin:22px 0 6px">DXF files for VCarve (older route)</h4>
+    <details class="cnc-old" style="margin-top:22px"><summary>DXF files for VCarve (older route)</summary>
     <div class="cnc-warn"><b>Not for cutting yet.</b> These DXF files follow conventions that still have to be confirmed with the shop: which corner is zero, which way the panel lies, how a panel is flipped and lined up again, box sizes and depths. Check one panel against VCarve before using any of them.</div>
     <div class="sheet-tools"><button class="btn" id="cncZip">Download cut files (DXF zip)</button><button class="btn ghost" id="cncCsv">Manifest (CSV)</button>
       <span style="font-size:12.5px;color:#333">Files are numbered in cut order. Within each wall the last panel needed is cut first, so the pile comes off the machine in stacking order.</span></div>
@@ -91,7 +91,7 @@ function renderCncSheet(el){
         <label class="fld">Light box W × H (in)<input id="cLight" value="${S.boxes.light.w} x ${S.boxes.light.h}"></label>
       </div>
       <div class="row"><button class="btn ghost" id="cSave">Save settings</button></div>
-    </details>`;
+    </details></details>`;
   el.querySelectorAll('tr[data-i]').forEach(tr=>tr.onclick=()=>{ pick=+tr.dataset.i; renderCncSheet(el); });
   el.querySelectorAll('tr[data-t]').forEach(tr=>tr.onclick=()=>{ tpick=+tr.dataset.t; renderCncSheet(el); });
   el.querySelector('#tapZip').onclick=()=>downloadBlob(tapZip(TP), `${MODELS[state.model].name.replace(/[^\w .+-]+/g,'').trim()} - ShopSabre tap files.zip`);

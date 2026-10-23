@@ -21,6 +21,9 @@ bindTog('tExplode','exploded',()=>{ explodeLayers(state.exploded); setExplodeGoa
 document.getElementById('bSheets').onclick=()=>{ if(state.view==='sheets'){ closeSheets(); } else { state.sheetSlot = state.selected || null; openSheets(); } };
 document.getElementById('bPlan').onclick=()=>{ if(state.view==='plan'){ closePlan(); closeSheets(); } else openPlan(); };
 
+/* the how-to hints step aside once you've used the view */
+document.querySelectorAll('.hint').forEach(h=>{ const host=h.parentNode; const off=()=>{ h.classList.add('gone'); host.removeEventListener('pointerdown',off); }; host.addEventListener('pointerdown',off); });
+
 (async function boot(){
   try{ await loadRole(); await loadData(); await loadUnits(); await loadProjects(); await loadCatalog(); }
   catch(e){ document.getElementById('sideH').innerHTML='<h2>Could not load the wall library</h2><p>Open the app from its web address (GitHub Pages) or a local web server, not by double-clicking the file.</p>'; return; }

@@ -270,17 +270,18 @@ function bindViewControls(){
       <button class="fsbtn" id="zIn" title="Zoom in">+</button><button class="fsbtn" id="zOut" title="Zoom out">−</button><button class="fsbtn" id="zFit" title="Fit the home">Fit</button>
       <button class="fsbtn" id="northUp" aria-pressed="false" title="Turn the plan so north points up">North up</button>
     </div>
-    <div class="compass" id="compass" aria-label="Home orientation">
+    <div class="compass mini" id="compass" aria-label="Home orientation">
       <svg viewBox="0 0 100 100" class="dial" aria-hidden="true">
         <circle cx="50" cy="50" r="46" class="ring"/>
         <g class="needle"><path d="M50 10 L58 50 L50 44 L42 50 Z" class="n"/><path d="M50 90 L58 50 L50 56 L42 50 Z" class="s"/><text x="50" y="8" text-anchor="middle" class="nl">N</text></g>
       </svg>
       <div class="cb">
         <div class="eyebrow">Plan top faces</div>
-        <div class="cb-val">0° N</div>
+        <button class="cb-val" id="cbTog" title="Set which way the home faces">0° N</button>
         <label class="cb-in">Bearing <input id="brgIn" type="number" min="0" max="359.9" step="1" inputmode="decimal">°</label>
         <div class="cb-q">${['N','E','S','W'].map((k,i)=>`<button class="fsbtn" data-b="${i*90}">${k}</button>`).join('')}<button class="fsbtn" data-step="-15" title="Turn 15° anticlockwise">↺</button><button class="fsbtn" data-step="15" title="Turn 15° clockwise">↻</button></div>
         <p class="cb-note">Drag the dial to set any angle. Used on the foundation sheet so the screw installers can set the home out the right way round.</p>
+        <button class="linkbtn cb-close" id="cbClose">Done</button>
       </div>
     </div>`);
   const mid=()=>({x:VIEW.x+VIEW.w/2, z:VIEW.z+VIEW.h/2});
@@ -288,6 +289,8 @@ function bindViewControls(){
   el('zOut').onclick=()=>{ const c=mid(); zoomAt(1.25,c.x,c.z); renderPlan(); };
   el('zFit').onclick=()=>{ fitView(); renderPlan(); };
   el('northUp').onclick=()=>{ state.northUp=!state.northUp; save(); fitView(); renderPlan(); };
+  el('cbTog').onclick=()=>el('compass').classList.toggle('mini');
+  el('cbClose').onclick=()=>el('compass').classList.add('mini');
   el('brgIn').onchange=e=>{ const v=parseFloat(e.target.value); if(isFinite(v)) setHomeBearing(v); };
   document.querySelectorAll('#compass [data-b]').forEach(bn=>bn.onclick=()=>setHomeBearing(+bn.dataset.b));
   document.querySelectorAll('#compass [data-step]').forEach(bn=>bn.onclick=()=>setHomeBearing(getBearing()+ +bn.dataset.step));
@@ -377,14 +380,15 @@ function renderSide2(){
   if(sel==null){
     side.innerHTML=`<div class="side-h"><div class="eyebrow">Plan${m.custom?' · your layout':m.project?' · project':m.sub?' · sub-model':''}</div><h2>${esc(m.name)}</h2><p>${pods.length} pods${(m.decks||[]).length?` · ${m.decks.length} deck${m.decks.length>1?'s':''}`:''} · ${esc(m.size||'')}</p></div>
     <div class="side-b">
-      <p class="note">Drag a pod from the left onto the plan. It snaps to the nearest spot where it docks: flush end to end, or side by side in 8′ steps. Press <b>R</b> while dragging to turn it 90°. Drag a pod to move it, or click it to turn, replace or remove it.</p>
-      <p class="note">The 5/8″ space at every joint is added for you, and where two pods meet each keeps its own 4½″ wall. Changing a wall where two pods join changes the neighbour's wall to the same wall, mirrored.</p>
-      <p class="note"><b>Decks</b> come from the deck library. A deck docks with its ledger (the dark edge) against a pod (¾″ off it, room for siding) or straight up to another deck, in 8′ steps. Every deck is framed the same way: double 2×8 all round, 2×8 joists 24″ (or 16″) o.c. from the house, corners notched 1½″ for the angle-iron spine. Its ground screws follow the same rules as the pods'. Keep every deck on a home the same size where you can.</p>
+      <details class="help"><summary>How the plan works</summary><div>
+        <p>Drag a pod from the left onto the plan. It snaps to the nearest spot where it docks: flush end to end, or side by side in 8′ steps. Press <b>R</b> while dragging to turn it 90°. Drag a pod to move it, or click it to turn, replace or remove it.</p>
+        <p>The 5/8″ space at every joint is added for you, and where two pods meet each keeps its own 4½″ wall. Changing a wall where two pods join changes the neighbour's wall to the same wall, mirrored.</p>
+        <p><b>Decks</b> come from the deck library. A deck docks with its ledger (the dark edge) against a pod (¾″ off it, room for siding) or straight up to another deck, in 8′ steps. Every deck is framed the same way: double 2×8 all round, 2×8 joists 24″ (or 16″) o.c. from the house, corners notched 1½″ for the angle-iron spine. Its ground screws follow the same rules as the pods'. Keep every deck on a home the same size where you can.</p>
+        ${m.custom||m.project||m.sub?'':'<p>This is a standard model. Your first change makes your own copy, saved in this browser; add it to a model name to share it as a sub-model.</p>'}
+      </div></details>
       ${(m.decks||[]).length?ocSeg():''}
       ${(m.decks||[]).length?`<div class="fld">All decks stand on<div class="seg"><button class="fsbtn" id="allScrews" aria-pressed="${m.decks.every(d=>d.found!=='pads')}">Ground screws</button><button class="fsbtn" id="allPads" aria-pressed="${m.decks.every(d=>d.found==='pads')}">Concrete pads (floating)</button></div></div>`:''}
-      ${m.custom||m.project||m.sub?'':'<p class="note">This is a standard model. Your first change makes your own copy, saved in this browser; add it to a model name to share it as a sub-model.</p>'}
-      <div class="row edit-only"><button class="btn" id="saveAll">Save these pods to the library</button></div>
-      <p class="note edit-only">Saves every pod of this home that isn't in the pod library yet, plus any wall, floor or ceiling that's new (like a mirrored wall). Saving a project does this too.</p>
+      <div class="row edit-only"><button class="btn" id="saveAll" title="Saves every pod of this home that isn't in the pod library yet, plus any wall, floor or ceiling that's new (like a mirrored wall). Saving a project does this too.">Save these pods to the library</button></div>
     </div>`;
     bindOC(side, ()=>refresh());
     if(el('allScrews')){ el('allScrews').onclick=()=>done(setDeckFoundation('all','screws'),'All decks on ground screws'); el('allPads').onclick=()=>done(setDeckFoundation('all','pads'),'All decks float on concrete pads'); }

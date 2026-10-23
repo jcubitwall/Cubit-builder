@@ -145,7 +145,7 @@ dialog#projDlg::backdrop{background:rgba(20,24,22,.45)}
 .wl button.lay .n{font-weight:500}
 /* keep the 3D stage and the sidebar to the window height on desktop; the sidebar scrolls inside */
 @media (min-width: 901px){
-  .studio{flex:none;height:calc(100vh - 140px);min-height:560px}
+  .studio{flex:none;height:calc(100vh - 88px);min-height:560px}
   .studio > aside{max-height:100%}
 }
 @media (min-width: 901px){
@@ -155,7 +155,7 @@ dialog#projDlg::backdrop{background:rgba(20,24,22,.45)}
 .side-b > *{flex-shrink:0}
 
 /* plan editor */
-#planner{display:grid;grid-template-columns:280px minmax(0,1fr) 320px;gap:12px;flex:none;height:calc(100vh - 140px);min-height:560px}
+#planner{display:grid;grid-template-columns:280px minmax(0,1fr) 320px;gap:12px;flex:none;height:calc(100vh - 88px);min-height:560px}
 #palette,#planSide{background:var(--surface);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
 #planSide .side-b{overflow:auto}
 .pal{overflow:auto;padding:10px 12px 16px;display:flex;flex-direction:column;gap:8px}
@@ -222,7 +222,9 @@ body.dragging, body.dragging *{cursor:grabbing!important}
 .fsbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .fsbtn[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
 #bPanel{display:none}
-.fs-tools{display:none}
+.fs-tools{display:flex}
+.fs-tools .toggles{display:flex;gap:6px}
+.fs-tools .tog{background:color-mix(in srgb,var(--surface) 92%,transparent)}
 .studio.fs{position:fixed;inset:0;z-index:50;height:100vh!important;min-height:0;margin:0;gap:0;grid-template-columns:1fr!important;grid-template-rows:1fr!important;background:var(--stage)}
 .studio.fs #stage{border-radius:0;min-height:0;height:100%}
 .studio.fs .fs-tools{display:flex}
@@ -356,12 +358,32 @@ details.frwall[open] summary{margin-bottom:6px}
 .pview{padding:4px 0 16px}
 
 /* ---------------- phone layout ---------------- */
-.home-pick, .tabs{display:none}
+.tabs{display:none}
+/* header: brand · home picker · view switch · ⋯ */
+.bar{flex-wrap:nowrap}
+.home-pick{display:flex;align-items:center;gap:8px;min-width:0;max-width:360px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:7px 12px;font:inherit;cursor:pointer}
+.home-pick:hover{background:var(--surface-2)}
+.home-pick .hp-k{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.home-pick .hp-n{min-width:0;font-weight:700;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.views{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+.views button{border:0;background:none;color:var(--ink-2);font:inherit;font-size:13.5px;font-weight:600;padding:8px 16px;cursor:pointer;border-right:1px solid var(--line)}
+.views button:last-child{border-right:0}
+.views button:hover{color:var(--ink);background:var(--surface-2)}
+.views button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.role-viewer .views .edit-only{display:none}
+.more{position:relative}
+.more-b{font-size:18px;line-height:1;padding:6px 12px}
+.more-pop{position:absolute;right:0;top:calc(100% + 6px);z-index:50;min-width:190px;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.18);padding:4px;display:flex;flex-direction:column}
+.more-pop[hidden]{display:none}
+.more-pop button{border:0;background:none;color:var(--ink);font:inherit;font-size:13.5px;text-align:left;padding:9px 10px;border-radius:7px;cursor:pointer}
+.more-pop button:hover{background:var(--surface-2)}
+html:not(.phone) dialog.sheet-dlg{margin:72px auto auto;border-radius:14px;max-width:760px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
 html.phone .app{padding:0;gap:0}
 html.phone header.bar{position:sticky;top:0;z-index:30;flex-wrap:nowrap;gap:8px;padding:8px 12px;padding-top:max(8px, env(safe-area-inset-top));background:var(--bg);border-bottom:1px solid var(--line)}
 html.phone .brand span{display:none}
 html.phone .brand b{font-size:16px}
-html.phone header.bar > :is(.models,.spacer,#bPlan,#bProjects,#bSheets,#bUpload,.who){display:none!important}
+html.phone header.bar > :is(.spacer,.views,.more,.who){display:none!important}
+html.phone .home-pick{max-width:none;flex:1}
 html.phone .home-pick{display:flex;align-items:center;gap:6px;flex:1;min-width:0;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:7px 10px;font:inherit;cursor:pointer}
 html.phone .home-pick .hp-k{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
 html.phone .home-pick .hp-n{flex:1;min-width:0;font-weight:700;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
@@ -420,3 +442,34 @@ html.phone .sheet-nav{top:var(--hh,56px)}
 .pod-badge{position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:7;border:0;border-radius:999px;background:var(--accent);color:#fff;font:inherit;font-size:13px;font-weight:600;padding:7px 14px;box-shadow:0 6px 18px rgba(0,0,0,.2);cursor:pointer}
 .pod-badge span{margin-left:6px;opacity:.85}
 .studio.fs .pod-badge{top:max(14px, calc(env(safe-area-inset-top) + 6px))}
+/* lean side panel */
+.side-h{position:relative}
+.side-x{position:absolute;right:10px;top:10px;width:30px;height:30px;border:1px solid var(--line);border-radius:50%;background:var(--surface);color:var(--ink-2);font-size:13px;cursor:pointer;line-height:1}
+.side-x:hover{color:var(--ink);background:var(--surface-2)}
+.side-h:has(.side-x) h2, .side-h:has(.side-x) .eyebrow{padding-right:36px}
+.wl .o{display:none}
+details.podgrp{border:0;padding:0;font-size:inherit;color:inherit}
+details.podgrp > summary.podhead{list-style:none;cursor:pointer;margin:0;padding:8px 2px;border-bottom:1px solid var(--line)}
+details.podgrp > summary.podhead::-webkit-details-marker{display:none}
+details.podgrp > summary.podhead::before{content:"▸";display:inline-block;width:14px;color:var(--ink-2);transition:transform .15s}
+details.podgrp[open] > summary.podhead::before{transform:rotate(90deg)}
+details.podgrp[open] > .wl{margin:6px 0 10px}
+details.podgrp > summary.podhead{display:flex;justify-content:space-between;align-items:baseline}
+details.podgrp > summary.podhead > span{margin-left:auto}
+.more-grp{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+details.help{border:0;padding:0}
+details.help > summary{list-style:none;font-weight:500;color:var(--ink-2);font-size:12.5px}
+details.help > summary::-webkit-details-marker{display:none}
+details.help > summary::before{content:"ⓘ ";}
+details.help > p, details.help > div{margin:6px 0 0;font-size:12px;line-height:1.45}
+.hint.gone{opacity:0;transition:opacity .4s}
+.compass .cb-val{border:0;background:none;padding:0;color:var(--ink);cursor:pointer;text-align:left}
+.compass.mini{padding:6px 10px 6px 6px;align-items:center}
+.compass.mini .dial{width:48px;height:48px}
+.compass.mini :is(.eyebrow,.cb-in,.cb-q,.cb-note,.cb-close){display:none}
+.compass.mini .cb-val{font-size:15px}
+.compass .cb-close{margin-top:6px}
+.more-grp > details{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface-2);font-size:12.5px}
+.more-grp > details > summary{font-weight:600;font-size:13px;color:var(--ink)}
+.more-grp > details.help{border:0;background:none;padding:2px 0}
+.more-grp > details.help > summary{font-weight:500;color:var(--ink-2);font-size:12.5px}

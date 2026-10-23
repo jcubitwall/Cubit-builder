@@ -44,22 +44,23 @@ function wallListHTML(slots, current){
   let html='';
   podList(state.model).forEach(pod=>{
     const mine=slots.filter(s=>s.pod.i===pod.i); if(!mine.length) return;
-    html+=`<div class="podhead">${pod.long}<span>Wall A = ${sideWord(mine[0].pod.wallA||'')}</span></div><div class="wl">`;
+    const ids=mine.map(s=>s.id).concat(layers.filter(l=>l.pod.i===pod.i).map(l=>l.id)), open=podList(state.model).length===1 || ids.includes(current);
+    html+=`<details class="podgrp" ${open?'open':''}><summary class="podhead">${pod.long}<span>Wall A = ${sideWord(mine[0].pod.wallA||'')}</span></summary><div class="wl">`;
     mine.forEach(s=>{
       const w=pickFor(s);
-      html+=`<button class="${s.id===current?'on':''}" data-s="${s.id}"><span class="n">Wall ${s.letter} <em>${s.detail}</em></span><span class="l">${fmtLen(wallLen(bodyWall(s,w)))} · ${panelCount(bodyWall(s,w))} panels</span><span class="o">${esc(w.id+' — '+w.name)}${w.blank?' ⚠':''}</span></button>`;
+      html+=`<button class="${s.id===current?'on':''}" data-s="${s.id}" title="${esc(w.id+' — '+w.name)}"><span class="n">Wall ${s.letter} <em>${s.detail}</em></span><span class="l">${fmtLen(wallLen(bodyWall(s,w)))} · ${panelCount(bodyWall(s,w))} panels</span><span class="o">${esc(w.id+' — '+w.name)}${w.blank?' ⚠':''}</span></button>`;
     });
     layers.filter(l=>l.pod.i===pod.i).forEach(l=>{
       const L=pickLayer(l);
-      html+=`<button class="lay ${l.id===current?'on':''}" data-s="${l.id}"><span class="n">${LAYER_KINDS[l.kind].label}</span><span class="l">${l.len}′ · ${(L.t||0).toFixed(2).replace(/\.?0+$/,'')}″</span><span class="o">${esc(L.id+' — '+L.name)}</span></button>`;
+      html+=`<button class="lay ${l.id===current?'on':''}" data-s="${l.id}" title="${esc(L.id+' — '+L.name)}"><span class="n">${LAYER_KINDS[l.kind].label}</span><span class="l">${l.len}′ · ${(L.t||0).toFixed(2).replace(/\.?0+$/,'')}″</span><span class="o">${esc(L.id+' — '+L.name)}</span></button>`;
     });
-    html+='</div>';
+    html+='</div></details>';
   });
   const decks=deckList(state.model);
   if(decks.length){
-    html+=`<div class="podhead">Decks<span>${decks.length}</span></div><div class="wl">`;
-    decks.forEach(d=>{ html+=`<button class="lay ${('deck:'+d.k)===current||('__deck:'+d.k)===current?'on':''}" data-s="${state.view==='sheets'?'__deck:':'deck:'}${d.k}"><span class="n">Deck ${d.k+1}</span><span class="l">${d.L.w}′ × ${d.L.d}′</span><span class="o">${esc(d.L.id+' — '+(d.L.name||''))}</span></button>`; });
-    html+='</div>';
+    html+=`<details class="podgrp" ${/deck:/.test(current||'')?'open':''}><summary class="podhead">Decks<span>${decks.length}</span></summary><div class="wl">`;
+    decks.forEach(d=>{ html+=`<button class="lay ${('deck:'+d.k)===current||('__deck:'+d.k)===current?'on':''}" data-s="${state.view==='sheets'?'__deck:':'deck:'}${d.k}" title="${esc(d.L.id+' — '+(d.L.name||''))}"><span class="n">Deck ${d.k+1}</span><span class="l">${d.L.w}′ × ${d.L.d}′</span><span class="o">${esc(d.L.id+' — '+(d.L.name||''))}</span></button>`; });
+    html+='</div></details>';
   }
   return html;
 }
@@ -73,7 +74,14 @@ function layerThumb(L){
 const fmtLen = inch => { const ft=Math.floor((inch+0.01)/12), r=Math.round((inch-ft*12)*8)/8; return r? `${ft}′-${r}″` : `${ft}′`; };
 const sideWord = k => ({S:'top side', E:'right side', N:'bottom side', W:'left side'}[k]);
 
+/* a selected wall, floor, ceiling or deck closes with ✕ (or Esc) back to the whole home */
 function renderSide(){
+  renderSideInner();
+  if(state.selected && sideH){ sideH.insertAdjacentHTML('afterbegin','<button class="side-x" id="sideX" title="Back to the whole home (Esc)" aria-label="Back to the whole home">✕</button>');
+    sideH.querySelector('#sideX').onclick=()=>{ state.selected=null; highlight(); renderSide(); }; }
+}
+document.addEventListener('keydown', e=>{ if(e.key==='Escape' && state.view==='studio' && state.selected && !document.querySelector('dialog[open]') && !e.target.closest('input,textarea,select')){ state.selected=null; highlight(); renderSide(); } });
+function renderSideInner(){
   const slots=slotsFor(state.model); const m=MODELS[state.model];
   const ls=layerSlotsFor(state.model).find(x=>x.id===state.selected);
   if(ls){ renderLayerSide(ls); return; }
@@ -83,22 +91,26 @@ function renderSide(){
     const pods=m.pods.length, panels=slots.reduce((a,x)=>a+(pickFor(x)?panelCount(bodyWall(x,pickFor(x))):0),0);
     const area=m.pods.reduce((a,p)=>a+POD[p.t].len*8,0);
     const fam=familyById(familyOf(state.model));
-    sideH.innerHTML=`<div class="eyebrow">${fam?esc(fam.name):'Model'}${m.sub?' · sub-model':m.custom?' · your layout':m.project?' · project':fam&&fam.base===state.model?' · standard':''}</div><h2>${esc(m.name)}</h2><p>${pods} pods · ${area} sq ft${m.note?' · scanned from STEP':''}</p>`;
+    const nS=screwsFor(state.model,state.inset).length, conc=foundationOf(state.model)==='concrete' ? concretePlan(state.model) : null;
+    const facts=[`${pods} pod${pods>1?'s':''}`, `${area} sq ft`, `${slots.filter(x=>x.type!=='int').length} outside + ${slots.filter(x=>x.type==='int').length} inside walls`, `${panels} SIP panels`,
+      conc ? `${Math.round(conc.icfLen)}′ ICF${nS?` · ${nS} deck screws`:''}` : `${nS} ground screws`, (m.decks||[]).length ? `${m.decks.length} deck${m.decks.length>1?'s':''}` : '', m.note ? 'scanned from STEP' : ''].filter(Boolean);
+    sideH.innerHTML=`<div class="eyebrow">${fam?esc(fam.name):'Model'}${m.sub?' · sub-model':m.custom?' · your layout':m.project?' · project':fam&&fam.base===state.model?' · standard':''}</div><h2>${esc(m.name)}</h2><p>${facts.join(' · ')}</p>`;
     sideB.innerHTML=`
-      <div class="stats"><div class="stat"><b>${pods}</b><span>pods</span></div><div class="stat"><b>${slots.filter(x=>x.type!=='int').length} + ${slots.filter(x=>x.type==='int').length}</b><span>outside + inside walls</span></div><div class="stat"><b>${panels}</b><span>SIP panels</span></div>${foundationOf(state.model)==='concrete' ? (()=>{ const c=concretePlan(state.model); return `<div class="stat"><b>${Math.round(c.icfLen)}′</b><span>ICF wall</span></div>`+(screwsFor(state.model,state.inset).length?`<div class="stat"><b>${screwsFor(state.model,state.inset).length}</b><span>deck screws</span></div>`:''); })() : `<div class="stat"><b>${screwsFor(state.model,state.inset).length}</b><span>ground screws</span></div>`}${(m.decks||[]).length?`<div class="stat"><b>${m.decks.length}</b><span>decks</span></div>`:''}</div>
       ${foundationBlock()}
-      ${catalogBlock()}
-      <p class="note">Each pod's walls run A, B, C, D clockwise seen from above. A is the short end wall with the door, so A and C are the short end walls (they run straight through, corner to corner) and B and D are the long walls (they butt between the end walls). Click a wall to swap it or to change which wall is A.</p>
       ${wallListHTML(slots,null)}
+      <div class="more-grp">
+      ${catalogBlock()}
       ${layoutBlock(m)}
-      ${importBlock()}`;
+      ${importBlock()}
+      <details class="help"><summary>How walls are lettered</summary><p>Each pod's walls run A, B, C, D clockwise seen from above. A is the short end wall with the door, so A and C are the short end walls (they run straight through, corner to corner) and B and D are the long walls (they butt between the end walls). Click a wall to swap it or to change which wall is A.</p></details>
+      </div>`;
     bindLayout(); bindFoundation(); bindCatalog();
   } else {
     const w=pickFor(s); const opts=optionsFor(s.len, s.type||'ext', state.model);
     const isInt=s.type==='int';
     sideH.innerHTML=`<div class="eyebrow">${isInt?'Interior wall · 4½″':'Exterior wall · 6½″'} · ${s.len}′ · ${s.len/4} panels</div><h2>${s.label}</h2><p>${s.detail} · faces ${fmtBearing(facing(s))} · now <b>${w?esc(w.id):'—'}</b> ${w?esc(w.name):''}</p>`;
     sideB.innerHTML=`
-      <div class="row"><button class="btn" id="toSheet">Assembly sheet</button>${(s.short || s.pod.len<=8) ? `<button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button>` : ''}<button class="btn ghost" id="deselect">Back to model</button></div>
+      <div class="row"><button class="btn" id="toSheet">Assembly sheet</button>${(s.short || s.pod.len<=8) ? `<button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button>` : ''}</div>
       ${(state.wallA?.[state.model]?.[s.pod.i] || m.pods[s.pod.i]?.a) ? `<p class="note">Wall A for ${s.pod.label} was set by hand. <button class="linkbtn" id="autoA">Go back to automatic</button></p>`:''}
       ${isInt&&partnerOf(s,slots)?`<p class="note">Joins ${s.other.label} (${esc(partnerOf(s,slots).label)}). Picking a wall here gives that wall the same one, mirrored, so openings line up.</p>`:''}
       ${unitsBlock(s, bodyWall(s,w))}
@@ -112,7 +124,7 @@ function renderSide(){
       buildHome(); renderSide(); toast(`${s.label} → ${b.dataset.o}`+(pt?` · ${pt.label} → mirrored`:'')); });
     bindUnits(s, bodyWall(s,w));
     sideB.querySelector('#toSheet').onclick=()=>{ state.sheetSlot=s.id; openSheets(); };
-    sideB.querySelector('#deselect').onclick=()=>{ state.selected=null; highlight(); renderSide(); };
+    
     const mk=sideB.querySelector('#makeA'); if(mk) mk.onclick=()=>{ ((state.wallA[state.model] ||= {}))[s.pod.i]=s.side; save(); buildHome(); renderSide(); toast(`${s.pod.label}: this is now Wall A`); };
     const auto=sideB.querySelector('#autoA'); if(auto) auto.onclick=()=>{ if(state.wallA[state.model]) delete state.wallA[state.model][s.pod.i]; delete m.pods[s.pod.i].a; if(m.custom) saveCustomModels(); save(); buildHome(); renderSide(); };
   }
@@ -197,7 +209,7 @@ function renderDeckSide3d(k){
   const d=deckList(state.model)[k]; if(!d){ state.selected=null; renderSide(); return; }
   const L=d.L;
   sideH.innerHTML=`<div class="eyebrow">Deck ${k+1} · ${L.w}′ × ${L.d}′ frame</div><h2>${L.w}′ × ${L.d}′ deck</h2><p><code>${esc(L.id)}</code> · double 2×8 rims · 2×8 joists ${deckOCOf(state.model)}″ o.c. from the house · 4 corner notches 1½″ · ¾″ off the house</p>`;
-  sideB.innerHTML=`<div class="row"><button class="btn" id="toSheet">Framing sheet</button><button class="btn ghost" id="toPlan">Move in the plan</button><button class="btn ghost" id="deselect">Back to model</button></div>
+  sideB.innerHTML=`<div class="row"><button class="btn" id="toSheet">Framing sheet</button><button class="btn ghost" id="toPlan">Move in the plan</button></div>
     <div class="fld">Stands on<div class="seg"><button class="fsbtn" id="fScrews" aria-pressed="${d.found!=='pads'}">Ground screws</button><button class="fsbtn" id="fPads" aria-pressed="${d.found==='pads'}">Concrete pads (floating)</button></div></div>
     <div class="edit-only">${ocSeg()}</div>
     <p class="note">Decks dock with their ledger against a pod or another deck. Swap, turn or remove decks in the plan editor.</p>`;
@@ -206,21 +218,21 @@ function renderDeckSide3d(k){
   sideB.querySelector('#fScrews').onclick=()=>setF('screws'); sideB.querySelector('#fPads').onclick=()=>setF('pads');
   sideB.querySelector('#toSheet').onclick=()=>{ state.sheetSlot='__deck:'+k; openSheets(); };
   sideB.querySelector('#toPlan').onclick=()=>document.getElementById('bPlan').click();
-  sideB.querySelector('#deselect').onclick=()=>{ state.selected=null; highlight(); renderSide(); };
+  
 }
 /* ============================================================ layout editor: add / remove pods */
 function renderLayerSide(ls){
   const L=pickLayer(ls), K=LAYER_KINDS[ls.kind], opts=layerOptions(ls.kind, ls.len);
   sideH.innerHTML=`<div class="eyebrow">${K.label} · ${ls.len}′ × 8′ · ${(L.t||K.t)}″ thick</div><h2>${ls.label}</h2><p>now <b>${esc(L.id)}</b> ${esc(L.name)}</p>`;
   sideB.innerHTML=`
-    <div class="row"><button class="btn" id="toSheet">Layer sheet</button><button class="btn ghost" id="deselect">Back to model</button></div>
+    <div class="row"><button class="btn" id="toSheet">Layer sheet</button></div>
     ${ls.kind==='ceiling-int'||ls.kind==='roof' ? '<p class="note">Turn on Ceiling or Roof under Layers (or use Exploded view) to see them in 3D.</p>':''}
     <div class="eyebrow">${opts.length} ${K.label.toLowerCase()} option${opts.length===1?'':'s'} for a ${ls.len}′ pod · seen from above</div>
     ${opts.length?'':`<p class="note">Nothing in the library for this yet. It fills up as STEP files are imported.</p>`}
     <div class="opts">${opts.map(o=>`<button class="opt" data-o="${esc(o.id)}" aria-pressed="${o.id===L.id}">${layerThumb(o)}<b>${esc(o.name)}</b><code>${esc(o.id)}</code></button>`).join('')}</div>`;
   sideB.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{ chooseLayer(ls, b.dataset.o); buildHome(); renderSide(); toast(`${ls.label} → ${b.dataset.o}`); });
   sideB.querySelector('#toSheet').onclick=()=>{ state.sheetSlot=ls.id; openSheets(); };
-  sideB.querySelector('#deselect').onclick=()=>{ state.selected=null; highlight(); renderSide(); };
+  
 }
 function layoutBlock(m){
   return `<details id="layoutBox"><summary>Pods in this home</summary>

@@ -21,23 +21,19 @@
   <header class="bar">
     <div class="brand"><b>Cubit Builder</b><span>beta</span></div>
     <button class="home-pick" id="bHome" aria-haspopup="dialog" aria-controls="homeDlg"><span class="hp-k">Home</span><span class="hp-n" id="bHomeName">…</span><svg viewBox="0 0 12 8" width="12" height="8" aria-hidden="true"><path d="M1 1.5 6 6.5 11 1.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-    <div class="models" id="models" role="group" aria-label="Home model"></div>
+    <nav class="views" id="views" aria-label="View"><button data-v="3d" aria-pressed="true">3D</button><button data-v="plan" class="edit-only" aria-pressed="false">Plan</button><button data-v="sheets" aria-pressed="false">Sheets</button></nav>
     <div class="spacer"></div>
-    <div class="toggles" id="studioTools">
-      <button class="tog" id="tExplode" aria-pressed="false">Exploded view</button>
-    </div>
-    <button class="btn ghost" id="bPlan">Plan &amp; pods</button>
-    <span class="viewer-only who" title="You can explore everything; nothing you change is saved">View only · changes aren't saved</span>
-    <button class="btn ghost admin-only" id="bUpload">Upload STEP</button>
-    <button class="btn ghost" id="bProjects">Projects</button>
-    <button class="btn" id="bSheets">Assembly sheets</button>
+    <span class="viewer-only who" title="You can explore everything; nothing you change is saved">View only</span>
+    <div class="more edit-only"><button class="btn ghost more-b" id="bMore" aria-haspopup="menu" aria-expanded="false" title="More">⋯</button>
+      <div class="more-pop" id="morePop" role="menu" hidden><button role="menuitem" id="bProjects">Projects</button><button role="menuitem" class="admin-only" id="bUpload">Upload STEP</button></div></div>
+    <button id="bPlan" hidden></button><button id="bSheets" hidden></button>
   </header>
 
   <main class="studio" id="studio">
     <div id="stage">
       <div class="hint">Drag to orbit · scroll to zoom · click a wall to swap it</div>
       <div class="fs-bar">
-        <div id="fsTools" class="fs-tools"></div>
+        <div id="fsTools" class="fs-tools"><div class="toggles" id="studioTools"><button class="tog" id="tExplode" aria-pressed="false">Exploded view</button></div></div>
         <button class="fsbtn" id="bLayers" aria-expanded="false" aria-controls="layersPop" title="Show or hide parts of the home (L)"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 1.5 15 5 8 8.5 1 5Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="m1 8 7 3.5L15 8M1 11l7 3.5 7-3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg> Layers</button>
         <button class="fsbtn" id="bFull" aria-pressed="false" title="Full screen 3D (F)"><span aria-hidden="true">⛶</span> <span class="lbl">Full screen</span></button>
       </div>
@@ -72,8 +68,8 @@
 </div>
 <dialog id="homeDlg" class="sheet-dlg" aria-labelledby="homeTitle"><div class="dlg">
   <div class="dlg-h"><h2 id="homeTitle">Homes</h2><button class="btn ghost" id="homeClose">Done</button></div>
-  <div id="homeBody"></div>
-  <div class="row edit-only" style="margin-top:12px"><button class="btn ghost" id="hProjects">Projects</button><button class="btn ghost admin-only" id="hUpload">Upload STEP</button></div>
+  <div id="homeBody"><div class="models" id="models" role="group" aria-label="Home model"></div></div>
+  <div class="row edit-only" style="margin-top:12px"><button class="btn ghost" id="hProjects">Projects &amp; saved homes</button><button class="btn ghost admin-only" id="hUpload">Upload STEP</button></div>
 </div></dialog>
 <dialog id="projDlg" aria-labelledby="projTitle"><div class="dlg">
   <div class="dlg-h"><h2 id="projTitle">Projects</h2><button class="btn ghost" id="projClose">Close</button></div>
