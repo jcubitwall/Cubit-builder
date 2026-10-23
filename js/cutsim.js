@@ -136,7 +136,8 @@ function depthCanvas(canvas, src, t, opts={}){
 const mix=(a,b,f)=>[a[0]+(b[0]-a[0])*f, a[1]+(b[1]-a[1])*f, a[2]+(b[2]-a[2])*f];
 
 /* the cut panel in 3D: interior face up, ½″ OSB skins and the foam core coloured by depth */
-function panel3D(host, P){
+function panel3D(host, P, opts={}){
+  const LIFT=14, isLoose=k=>P.lab[k]>=0 && P.lab[k]!==P.main, hide=k=>!opts.loose && isLoose(k);
   const THREE=window.THREE; host.innerHTML='';
   const W=host.clientWidth||400, H=host.clientHeight||420;
   const renderer=new THREE.WebGLRenderer({antialias:true, alpha:true}); renderer.setPixelRatio(Math.min(2,devicePixelRatio)); renderer.setSize(W,H); host.appendChild(renderer.domElement);
@@ -148,14 +149,14 @@ function panel3D(host, P){
   const surf=(top)=>{
     const pos=new Float32Array((gw+1)*(gh+1)*3), col=new Float32Array((gw+1)*(gh+1)*3), idx=[];
     for(let j=0;j<=gh;j++) for(let i=0;i<=gw;i++){ const k=at(i,j), v=j*(gw+1)+i;
-      const lift = P.lab[k]>=0 && P.lab[k]!==P.main ? 10 : 0;          // loose pieces float above the panel, as if lifted out
+      const lift = isLoose(k) ? LIFT : 0;          // cut-outs float above the panel when shown
       const z = (top ? t-P.dI[k] : P.dE[k]) + lift, d = top ? P.dI[k] : P.dE[k];
       pos[v*3]=i*S*RES; pos[v*3+1]=j*S*RES; pos[v*3+2]=z;
       const c = d<0.01 ? (top?[0.80,0.66,0.45]:[0.72,0.58,0.40]) : d<OSB ? [0.66,0.48,0.28] : d<t-OSB ? [0.95,0.95,0.92] : [0.66,0.48,0.28];
       col.set(c, v*3); }
     for(let j=0;j<gh;j++) for(let i=0;i<gw;i++){ const a=j*(gw+1)+i, b=a+1, c=a+gw+1, d=c+1;
       const ks=[at(i,j),at(i+1,j),at(i,j+1),at(i+1,j+1)];
-      if(ks.some(k=>P.thru[k])) continue;                                   // a cut right through: no skin across it
+      if(ks.some(k=>P.thru[k]||hide(k))) continue;                          // a cut right through (or a hidden cut-out): no skin
       if(new Set(ks.map(k=>P.lab[k])).size>1) continue;
       if(top) idx.push(a,b,d, a,d,c); else idx.push(a,d,b, a,c,d); }
     const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(pos,3)); g.setAttribute('color',new THREE.BufferAttribute(col,3));
@@ -165,9 +166,9 @@ function panel3D(host, P){
   // side walls wherever the panel ends: the blank's edges and every cut right through, in OSB / foam / OSB bands
   const walls=()=>{
     const solid=(i,j)=>{ if(i<0||j<0||i>=gw||j>=gh) return -2; const ks=[at(i,j),at(i+1,j),at(i,j+1),at(i+1,j+1)];
-      if(ks.some(k=>P.thru[k])) return -2; const L=P.lab[ks[0]]; return ks.every(k=>P.lab[k]===L) ? L : -2; };
+      if(ks.some(k=>P.thru[k]||hide(k))) return -2; const L=P.lab[ks[0]]; return ks.every(k=>P.lab[k]===L) ? L : -2; };
     const pos=[], col=[], OS=[0.66,0.48,0.28], FO=[0.95,0.95,0.92];
-    const vtx=(i,j)=>{ const k=at(i,j), lift=P.lab[k]>=0&&P.lab[k]!==P.main?10:0; return [i*S*RES, j*S*RES, P.dE[k]+lift, t-P.dI[k]+lift, lift]; };
+    const vtx=(i,j)=>{ const k=at(i,j), lift=isLoose(k)?LIFT:0; return [i*S*RES, j*S*RES, P.dE[k]+lift, t-P.dI[k]+lift, lift]; };
     const quad=(a,b,za0,za1,zb0,zb1,c)=>{ if(za1-za0<1e-4 && zb1-zb0<1e-4) return;
       const A0=[a[0],a[1],za0],A1=[a[0],a[1],za1],B0=[b[0],b[1],zb0],B1=[b[0],b[1],zb1];
       [A0,B0,B1, A0,B1,A1].forEach(v=>{ pos.push(...v); col.push(...c); }); };

@@ -63,39 +63,59 @@ function tapSection(){
     </div>`;
 }
 /* the right-hand view: toolpath, animated cut, or the finished panel in 3D; then the checks */
-let anim=null, view3d=null;
+let anim=null, view3d=null, simWhole=true, show3dLoose=false;
+const BLANK_W_IN=48;
 function mountTapView(el){
   if(anim){ cancelAnimationFrame(anim.raf); anim=null; } if(view3d){ view3d.dispose(); view3d=null; }
   const host=el.querySelector('#tapv'); if(!host || !TP?.files.length) return;
   const f=TP.files[tpick], panelFiles=TP.files.filter(y=>y.panel===f.panel);
   if(tview==='path'){ host.innerHTML=tapSVG(f.text, f.thick)+`<p class="note"><span class="sw" style="background:#c0392b"></span> right through · <span class="sw" style="background:#7a3fb0"></span> Einspine slot · <span class="sw" style="background:#2f8a57"></span> 3″ pocket · dashed = rapids</p>`; }
   else if(tview==='sim'){
-    const pr=parse(f.text), T=pr.total;
-    host.innerHTML=`<div class="sim-wrap"><canvas class="sim-c"></canvas><canvas class="sim-o"></canvas></div>
+    // one file, or the whole panel: exterior pass then interior pass, seen from the interior face
+    const whole = simWhole && panelFiles.length>1;
+    const seq=(whole ? panelFiles.slice().sort((x,y)=>/E/.test(x.side)?-1:/E/.test(y.side)?1:0) : [f]).map(x=>({f:x, pr:parse(x.text), ext:/E/.test(x.side)}));
+    let off=0; seq.forEach(q=>{ q.off=off; off+=q.pr.total; }); const T=off;
+    host.innerHTML=`${panelFiles.length>1?`<div class="seg sim-mode"><button class="fsbtn" data-sm="file" aria-pressed="${!whole}">This file</button><button class="fsbtn" data-sm="whole" aria-pressed="${whole}">Whole panel (both sides)</button></div>`:''}
+      <div class="sim-wrap"><canvas class="sim-c"></canvas><canvas class="sim-o"></canvas></div>
       <div class="sim-ctl"><button class="btn" id="simPlay">▶ Play</button><input type="range" id="simT" min="0" max="${T.toFixed(1)}" step="0.1" value="0" aria-label="Time">
         <span id="simClock">0 s / ${fmtTime(T)}</span><select id="simSpd" aria-label="Speed">${[10,30,100,300].map(v=>`<option value="${v}" ${v===30?'selected':''}>${v}×</option>`).join('')}</select></div>
-      <p class="note">${/E/.test(f.side)?'Exterior':'Interior'} face up, as on the machine. <span class="sw" style="background:#2f8a57"></span> cut part-way, darker = deeper · <span class="sw" style="background:#222624"></span> right through.</p>`;
-    const cv=host.querySelector('.sim-c'), ov=host.querySelector('.sim-o'), clock=host.querySelector('#simClock'), sl=host.querySelector('#simT');
-    let hm=null, next=0, tNow=0, playing=false, lastDraw=0, lastTs=0;
-    ov.width=BW; ov.height=BH;
-    const draw=(tool)=>{ depthCanvas(cv, depthOf(hm, f.thick), f.thick, {ext:/E/.test(f.side)});
-      const c=ov.getContext('2d'); c.clearRect(0,0,BW,BH);
-      if(tool){ c.beginPath(); c.arc(tool[0]/RES, BH-tool[1]/RES, 0.375/RES, 0, 7); c.fillStyle='rgba(208,102,31,.85)'; c.fill(); c.lineWidth=2; c.strokeStyle='#fff'; c.stroke(); }
-      clock.textContent=`${fmtTime(tNow)} / ${fmtTime(T)}`; sl.value=tNow; };
-    const goTo=t=>{ if(t<tNow || !hm){ hm=null; next=0; } const r=simulate(pr, t, hm, next); hm=r.hm; next=r.next; tNow=t; draw(r.tool); };
+      <p class="note" id="simNote"></p>`;
+    host.querySelectorAll('[data-sm]').forEach(bn=>bn.onclick=()=>{ simWhole = bn.dataset.sm==='whole'; mountTapView(el); });
+    const cv=host.querySelector('.sim-c'), ov=host.querySelector('.sim-o'), clock=host.querySelector('#simClock'), sl=host.querySelector('#simT'), note=host.querySelector('#simNote');
+    let tNow=0, playing=false, lastDraw=0, lastTs=0, cur=0;
+    const reset=()=>seq.forEach(q=>{ q.hm=null; q.next=0; q.tool=null; });
+    const advance=t=>{ seq.forEach((q,i)=>{ const lt=Math.max(0, Math.min(q.pr.total, t-q.off)); if(lt<=0 && q.hm) return;
+      const r=simulate(q.pr, lt, q.hm, q.next||0); q.hm=r.hm; q.next=r.next; q.tool=r.tool; if(t>=q.off) cur=i; }); tNow=t; };
+    const sideTxt=q=>q.ext?'exterior face up':'interior face up';
+    const draw=()=>{
+      const q=seq[cur], t=f.thick;
+      if(whole){ const P={dI:new Float32Array(BW*BH), dE:new Float32Array(BW*BH)};
+        seq.forEach(x=>{ if(!x.hm) return; const d=depthOf(x.hm, t, x.ext), into=x.ext?P.dE:P.dI; for(let k=0;k<d.length;k++) into[k]=Math.max(into[k],d[k]); });
+        depthCanvas(cv, P, t); }
+      else depthCanvas(cv, depthOf(q.hm||simulate(q.pr,0).hm, t), t, {ext:q.ext});
+      const c=ov.getContext('2d'); ov.width=BW; ov.height=BH; c.clearRect(0,0,BW,BH);
+      const tool=q.tool; if(tool){ const x = whole && q.ext ? BLANK_W_IN - tool[0] : tool[0];
+        c.beginPath(); c.arc(x/RES, BH-tool[1]/RES, 0.375/RES, 0, 7); c.fillStyle='rgba(208,102,31,.85)'; c.fill(); c.lineWidth=2; c.strokeStyle='#fff'; c.stroke(); }
+      clock.textContent=`${fmtTime(tNow)} / ${fmtTime(T)}`; sl.value=tNow;
+      note.innerHTML = whole
+        ? `Whole panel seen from the interior face. Now: <b>${esc(q.f.name)}</b> (${sideTxt(q)}${q.ext?', shown mirrored as seen from inside':''}). <span class="sw" style="background:#2f8a57"></span> cut from the interior face · <span class="sw" style="background:#7a3fb0"></span> cut from the exterior face · <span class="sw" style="background:#222624"></span> right through.`
+        : `${q.ext?'Exterior':'Interior'} face up, as on the machine.${panelFiles.length>1?` This is one side only; <b>Whole panel</b> plays both.`:''} <span class="sw" style="background:${q.ext?'#7a3fb0':'#2f8a57'}"></span> cut part-way, darker = deeper · <span class="sw" style="background:#222624"></span> right through.`; };
+    const goTo=t=>{ if(t<tNow) reset(); advance(t); draw(); };
     const step=ts=>{ if(!playing) return; const dt=lastTs?(ts-lastTs)/1000:0; lastTs=ts;
-      const t=Math.min(T, tNow+dt*(+host.querySelector('#simSpd').value)); const r=simulate(pr, t, hm, next); hm=r.hm; next=r.next; tNow=t;
-      if(ts-lastDraw>70 || t>=T){ draw(r.tool); lastDraw=ts; }
-      if(t>=T){ playing=false; host.querySelector('#simPlay').textContent='↺ Again'; return; }
+      advance(Math.min(T, tNow+dt*(+host.querySelector('#simSpd').value)));
+      if(ts-lastDraw>70 || tNow>=T){ draw(); lastDraw=ts; }
+      if(tNow>=T){ playing=false; host.querySelector('#simPlay').textContent='↺ Again'; return; }
       anim.raf=requestAnimationFrame(step); };
     anim={raf:0};
-    host.querySelector('#simPlay').onclick=()=>{ if(tNow>=T) goTo(0); playing=!playing; host.querySelector('#simPlay').textContent=playing?'❚❚ Pause':'▶ Play'; lastTs=0; if(playing) anim.raf=requestAnimationFrame(step); };
+    host.querySelector('#simPlay').onclick=()=>{ if(tNow>=T){ reset(); tNow=0; } playing=!playing; host.querySelector('#simPlay').textContent=playing?'❚❚ Pause':'▶ Play'; lastTs=0; if(playing) anim.raf=requestAnimationFrame(step); };
     sl.oninput=()=>{ playing=false; host.querySelector('#simPlay').textContent='▶ Play'; goTo(+sl.value); };
-    goTo(0);
+    reset(); goTo(0);
   }
   // checks for the whole panel (both sides), and the 3D view
   const P=checkPanel(panelFiles);
-  if(tview==='3d'){ host.innerHTML='<div class="v3d"></div><p class="note">The panel after all its files, interior face up. Drag to turn, scroll or pinch to zoom. Brown = ½″ OSB, white = foam.</p>'; view3d=panel3D(host.querySelector('.v3d'), P); }
+  if(tview==='3d'){ host.innerHTML=`<div class="v3d"></div><div class="v3d-bar"><p class="note">The panel after all its files, interior face up (turn it over to see exterior-face cuts like the Einspine slot). Drag to turn, pinch or scroll to zoom. Brown = ½″ OSB, white = foam.</p>${P.pieces.length?`<label class="chk"><input type="checkbox" id="v3dLoose" ${show3dLoose?'checked':''}> Show cut-outs (lifted above)</label>`:''}</div>`;
+    view3d=panel3D(host.querySelector('.v3d'), P, {loose:show3dLoose});
+    const lc=host.querySelector('#v3dLoose'); if(lc) lc.onchange=()=>{ show3dLoose=lc.checked; mountTapView(el); }; }
   const nPieces=P.pieces.length;
   el.querySelector('#tapChecks').innerHTML=`<div class="checks">
     <div><b>${P.throughArea.toFixed(0)} sq in</b><span>right through</span></div><div><b>${P.pocketArea.toFixed(0)} sq in</b><span>part-way</span></div><div><b>${nPieces}</b><span>loose piece${nPieces===1?'':'s'}</span></div></div>
