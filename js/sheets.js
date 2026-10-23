@@ -1,14 +1,14 @@
 /* Cubit Builder — sheets.js */
-import { FT, H, PW, T } from './config.js';
+import { FT, H, PW, T, FRAME, FLOOR_BUILD } from './config.js';
 import { MODELS } from './data.js';
 import { fft, fin } from './format.js';
 import { renderFoundation } from './foundation.js';
 import { renderConcreteSheet } from './concretesheet.js';
 import { foundationOf } from './state.js';
-import { screwsFor, slotsFor, layerSlotsFor, deckList } from './layout.js';
+import { screwsFor, slotsFor, layerSlotsFor, deckList, podList } from './layout.js';
 import { renderDeckSheet, renderDecksTakeoff } from './decksheet.js';
 import { renderFramingSheet, wallFramingHTML } from './framesheet.js';
-import { wallFraming } from './framing.js';
+import { wallFraming, floorBuild } from './framing.js';
 import { takeoffHTML } from './takeoff.js';
 import { renderShop } from './shop.js';
 import { renderCncSheet } from './cncsheet.js';
@@ -292,6 +292,20 @@ function downloadBlob(blob, name){
   const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),4000); toast('Downloaded');
 }
 
+/* the floor cassette, step by step (from the shop's K24 floor model) */
+function floorBuildHTML(ls){
+  const p=podList(state.model)[ls.pod.i]; if(!p) return '';
+  const B=floorBuild(p), t=FRAME.lvl.t, L=p.len*FT, F=FLOOR_BUILD;
+  const longs=B.epsLens.slice(2), cnt={}; longs.forEach(l=>{ const k=fin(l); cnt[k]=(cnt[k]||0)+1; });
+  return `<div class="tblwrap" style="margin-top:14px"><div class="eyebrow" style="color:#555;margin-bottom:6px">Floor cassette · build sequence · ${esc(p.label)}</div>
+    <ol class="build-seq">
+      <li><b>Interior floor</b> panels on the assembly frame, <b>room side down</b> (against the frame). Start at the left, the squaring edge.</li>
+      <li><b>LVL rims 1⅞″ × ${fin(FRAME.lvl.floor)}</b> all round, sitting in the panels' edge rebate: 2 × ${fin(L-2*t)} along the sides and 2 × ${fin(96-2*t)} across the ends, leaving the 1⅞″ corner squares open for the Einspines.</li>
+      <li><b>EPS strips 8″ × 1½″</b> all round against the rims (this makes the 1½″ gap): 2 × ${fin(96-2*t)} across the ends (¼″ off the rim), then along each side ${Object.entries(cnt).map(([k,n])=>`${n/2} × ${k}`).join(' + ')}, the short piece first.</li>
+      <li><b>2×4 blocks 16″</b>, laid flat in the gap across every panel joint, two per joint at ${F.block.at.map(fin).join(' and ')} across the floor: ${B.blocks.length} blocks.</li>
+      <li><b>Exterior floor</b> panels on top, into the rims.</li>
+    </ol></div>`;
+}
 /* ---------- floor / ceiling layer sheet: plan from above, panels, holes ---------- */
 function renderLayerSheet(el, ls){
   const L=pickLayer(ls), K=LAYER_KINDS[ls.kind], len=L.len*FT, wid=96;
@@ -300,7 +314,8 @@ function renderLayerSheet(el, ls){
   // which face the assemblers see on the upright table: the room side or the outside. Floors show their room
   // side from above, ceilings and the roof from below; seen from below the drawing is mirrored. Assembly always
   // starts at the left (the squaring edge), so the order runs 1 → n or n → 1. Panel numbers stay with the panels.
-  const face = state.faces?.[state.model]?.[ls.id] || 'int', isFloor = ls.kind.startsWith('floor');
+  // the interior floor is built room side down on the assembly frame (its back face, toward the gap, faces the crew)
+  const face = state.faces?.[state.model]?.[ls.id] || (ls.kind==='floor-int' ? 'ext' : 'int'), isFloor = ls.kind.startsWith('floor');
   const below = isFloor ? face==='ext' : face==='int';
   const s=Math.min(3.2, 900/len), ml=70, mt=90, VW=len*s+ml+60, VH=wid*s+mt+90;
   const X=x=>ml+(below?len-x:x)*s, Y=z=>mt+z*s;
@@ -335,7 +350,8 @@ function renderLayerSheet(el, ls){
       <span class="seg" role="group" aria-label="Side facing the assemblers"><button data-lface="int" aria-pressed="${face==='int'}">Room side</button><button data-lface="ext" aria-pressed="${face==='ext'}">Outside</button></span></div>
     <div><span class="facebadge ${face}">${face==='int'?'ROOM SIDE':'OUTSIDE'} · ${below?'SEEN FROM BELOW':'SEEN FROM ABOVE'}</span><span style="font-size:12.5px;color:#333">Assemble left → right, starting at the squaring edge: <b>${order.join(' → ')}</b>. Stack with panel ${order[0]} on top, ${face==='int'?'room side':'outside'} face up, labels on that face.</span></div>
     <div class="elev">${g}</div>
-    <div class="tblwrap">${t}</div>`;
+    <div class="tblwrap">${t}</div>
+    ${isFloor ? floorBuildHTML(ls) : ''}`;
   el.querySelectorAll('[data-lface]').forEach(b=>b.onclick=()=>{ setFace(ls, b.dataset.lface); renderSheet(); });
 }
 /* phone: tapping outside the open sheet list closes it */

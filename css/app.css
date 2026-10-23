@@ -517,3 +517,5 @@ html.phone .plan-wrap .hint{display:none}
 .chk{display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer}
 .chk input{accent-color:var(--accent);width:16px;height:16px}
 .after-l{font-size:12.5px;margin:0 0 8px;color:#333}
+.build-seq{margin:4px 0 0;padding-left:20px;font-size:13px;line-height:1.5}
+.build-seq li{margin:3px 0}

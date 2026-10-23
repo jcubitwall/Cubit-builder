@@ -7,7 +7,7 @@ import { fin, fft } from './format.js';
 import { state, foundationOf } from './state.js';
 import { screwPlan, padsFor, deckList, slotsFor } from './layout.js';
 import { concretePlan } from './concrete.js';
-import { homeFraming, podRims, framingTakeoff } from './framing.js';
+import { homeFraming, podRims, framingTakeoff, floorBuilds } from './framing.js';
 import { deckTakeoff, deckName } from './deckframe.js';
 import { homePlans } from './labels.js';
 import { bodyWall } from './panels.js';
@@ -39,8 +39,10 @@ function homeTakeoff(){
   }
   // Floor: LVL rims and the bottom plates that go on the floor first
   add('floor','Floor',[
-    ...groupRims(rims,'Floor rim LVL','LVL 1⅞″ × 9¼″'),
-    ...byKind(p=>p.kind==='Bottom plate').map(x=>({...x, note:'bottom plate · on the floor · bevel 2 top corners ¾″'}))]);
+    ...groupRims(rims,'Floor rim LVL','LVL 1⅞″ × 9½″'),
+    ...byKind(p=>p.kind==='Bottom plate').map(x=>({...x, note:'bottom plate · on the floor · bevel 2 top corners ¾″'})),
+    ...(()=>{ const B=floorBuilds(), eps={}; let blocks=0; B.forEach(b=>{ blocks+=b.blocks.length; b.epsLens.forEach(l=>{ const k=l.toFixed(2); (eps[k] ||= {n:0, what:'EPS strip 8″ × 1½″', len:l, note:'floor gap, against the rims'}).n++; }); });
+      return [...Object.values(eps).sort((a,b)=>b.len-a.len), ...(blocks?[{n:blocks, what:'2×4', len:16, note:'floor joint block · flat across each panel joint, at 32″ and 64″'}]:[])]; })()]);
   // Walls: SIP panels, studs, jacks, splines
   { const plans=homePlans(), g={};
     plans.forEach(pl=>pl.panels.forEach(p=>{ const t=pl.slot.type==='int'?'4½″ interior':'6½″ exterior', k=t+'|'+(p.cut?p.width.toFixed(2):'full'); (g[k] ||= {n:0, what:`SIP panel ${t}`, len:p.cut?p.width:48, note:p.cut?'cut to width':'full 48″ × 96″'}).n++; }));

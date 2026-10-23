@@ -14,9 +14,9 @@
      opening's edge falls on the joint its jack takes the joint for the height of the opening; the splines
      still run below and above it. Each spline is stapled to the panel already standing (left, as the crew
      sees the wall) on the edge that meets the next panel; the last panel carries none.
-   Floors and roofs: 1⅞″ LVL rim, 9¼″ in the floor and 11⅞″ in the roof, four pieces per pod touching only at
+   Floors and roofs: 1⅞″ LVL rim, 9½″ in the floor and 11⅞″ in the roof, four pieces per pod touching only at
    the inside corners, leaving a 1⅞″ square at each outside corner for the Einspine. */
-import { FRAME, H, FT, SPINE_SCREWS } from './config.js';
+import { FRAME, H, FT, SPINE_SCREWS, FLOOR_BUILD } from './config.js';
 import { panelSpans, wallLen, bodyWall } from './panels.js';
 import { slotsFor, podList } from './layout.js';
 import { pickFor, state } from './state.js';
@@ -24,6 +24,8 @@ import { panelPlan } from './labels.js';
 import { packStock } from './deckframe.js';
 
 const SNAP = 0.25;
+const EPS_MAT = '1½″ EPS, 8″ strips';
+const LVL_H = {9.25:'9¼″', 9.5:'9½″', 11.875:'11⅞″'};
 const fmtIn = v => { const n=Math.round(v*16); const w=Math.floor(n/16), f=n%16, g=(a,b)=>b?g(b,a%b):a, d=g(f,16); return (w?w:'')+(f?`${w?' ':''}${f/d}/${16/d}`:'')+'″'; };
 const isFloorOpening = o => o.kind!=='vent' && o.kind!=='window' && o.y < 1.6;
 
@@ -120,7 +122,9 @@ function framingTakeoff(walls=homeFraming(), rims=podRims()){
   const groups={};   // material → {cuts: Map name|len → n, all: []}
   const put=(mat, name, len, n=1)=>{ const g=(groups[mat] ||= {cuts:{}, all:[]}); const k=name+'|'+len.toFixed(3); (g.cuts[k] ||= {name, len, n:0}).n+=n; for(let i=0;i<n;i++) g.all.push(len); };
   walls.forEach(W=>W.pieces.forEach(p=>put(p.kind==='Spline' ? '½″ OSB splines, 3½″ wide' : p.lumber, p.kind, p.len)));
-  rims.forEach(R=>R.pieces.forEach(([name,h,len,n])=>put(`LVL 1⅞″ × ${h===FRAME.lvl.floor?'9¼″':'11⅞″'}`, name, len, n)));
+  rims.forEach(R=>R.pieces.forEach(([name,h,len,n])=>put(`LVL 1⅞″ × ${LVL_H[h]||h+'″'}`, name, len, n)));
+  // floor cassette: 2×4 joint blocks and EPS strips in the gap between the two floor layers
+  floorBuilds().forEach(B=>{ put('2×4', 'Floor joint block (flat, across a panel joint)', FLOOR_BUILD.block.len, B.blocks.length); B.epsLens.forEach(l=>put(EPS_MAT, 'Floor perimeter strip', l)); });
   const out=Object.entries(groups).map(([mat,g])=>{
     const cuts=Object.values(g.cuts).sort((a,b)=>a.name.localeCompare(b.name)||b.len-a.len);
     let buy='', order=null;
@@ -128,6 +132,10 @@ function framingTakeoff(walls=homeFraming(), rims=podRims()){
       // lengths over 16′ (top plates on long walls) are bought as 16′ plus the rest; the splice can go anywhere
       const parts=g.all.flatMap(l=>{ const r=[]; let x=l; while(x>192+1e-6){ r.push(192); x-=192; } r.push(x); return r; });
       const st=packStock(parts, FRAME.stock); order=Object.entries(st.byLen).map(([ft,n])=>({n, what:`${mat} × ${ft}′`})); buy=Object.entries(st.byLen).sort((a,b)=>+a[0]-+b[0]).map(([ft,n])=>`${n} × ${ft}′`).join(' · ');
+    } else if(mat===EPS_MAT){
+      // cut from 4 × 8 sheets of 1½″ EPS: six 8″ strips per sheet along the 8′ length
+      const st=packStock(g.all, [8]), strips=st.boards.length, sheets=Math.ceil(strips/6); order=[{n:sheets, what:'4 × 8 × 1½″ EPS sheet (cut 8″ floor strips)'}];
+      buy=`${strips} strips of 8″ × 8′ → ${sheets} sheet${sheets===1?'':'s'} of 4 × 8 × 1½″ EPS`;
     } else if(/OSB/.test(mat)){
       // ripped from 4 × 8 sheets along the 8′ length: 13 strips of 3½″ per sheet (⅛″ kerf)
       const st=packStock(g.all, [8]), strips=st.boards.length, sheets=Math.ceil(strips/13); order=[{n:sheets, what:'4 × 8 × ½″ OSB sheet (rip 3½″ splines)'}];
@@ -141,9 +149,23 @@ function framingTakeoff(walls=homeFraming(), rims=podRims()){
   // Einspines: one at every pod corner; Dynobite screws through each spine into the corner wood
   const spines=rims.length*4, S=SPINE_SCREWS, wallN=S.wallSides*(Math.ceil(H/S.wallEvery)-1), per=S.perLVL*S.lvlEnds+wallN;
   out.push({ mat:`Einspine screws (${S.size})`, cuts:[{name:`per Einspine: ${S.perLVL} into each of the ${S.lvlEnds} LVL ends + ${wallN} up the wall (1 per side every 2′)`, len:0, n:per}], pieces:spines*per, buy:`${spines*per} screws · ${per} per Einspine × ${spines} Einspines (4 per pod)`, fastener:true, order:[{n:spines*per, what:`${S.size} screw (Einspine)`}] });
-  const order=m=>/^LVL/.test(m)?0:/2×6/.test(m)?1:/2×4/.test(m)?2:/OSB/.test(m)?3:4;
+  const order=m=>/^LVL/.test(m)?0:/2×6/.test(m)?1:/2×4/.test(m)?2:/OSB/.test(m)?3:/EPS/.test(m)?4:5;
   return out.sort((a,b)=>order(a.mat)-order(b.mat));
 }
+/* the floor cassette's build-up for one pod, in the pod's own inches: u along the pod (0..len), v across (0..96).
+   Built on the interior floor (room side down on the assembly frame): LVL rims all round, then 8″ EPS strips
+   against the rims (ends full width, the long sides between them in 8′ pieces, the short piece first), then 16″ 2×4
+   blocks flat across every panel joint at 32″ and 64″. The exterior floor goes on last. */
+function floorBuild(p){
+  const F=FLOOR_BUILD, t=FRAME.lvl.t, L=p.len*FT, W=96, e=F.eps, o=t+e.off;
+  const eps=[[o, o+e.w, t, W-t], [L-o-e.w, L-o, t, W-t]];   // ends: [u0,u1,v0,v1]
+  const run=L-2*(o+e.w); let left=run, u=o+e.w; const lens=[];
+  while(left>1e-6){ const pc=Math.min(e.stock, left - Math.floor((left-1e-6)/e.stock)*e.stock || e.stock); lens.push(pc); left-=pc; }
+  lens.forEach(len=>{ eps.push([u, u+len, t, t+e.w], [u, u+len, W-t-e.w, W-t]); u+=len; });
+  const blocks=[]; for(let j=48; j<L-1; j+=48) F.block.at.forEach(c=>blocks.push([j-F.block.len/2, j+F.block.len/2, c-F.block.w/2, c+F.block.w/2]));
+  return { eps, blocks, epsLens:[W-2*t, W-2*t, ...lens, ...lens] };
+}
+const floorBuilds = () => podList(state.model).map(p=>({ pod:p, ...floorBuild(p) }));
 /* where the plates go on each pod's floor (bottom plates) and ceiling (top plates), in plan feet: each plate's
    outer edge sits ½″ in from the wall's outer face (behind the ⁷⁄₁₆″ OSB, centred in the foam core) */
 function platesByPod(walls=homeFraming()){
@@ -157,4 +179,4 @@ function platesByPod(walls=homeFraming()){
     }); });
   return Object.values(by).sort((a,b)=>a.pod.i-b.pod.i);
 }
-export { platesByPod, wallFraming, homeFraming, podRims, framingTakeoff, isFloorOpening };
+export { floorBuild, floorBuilds, platesByPod, wallFraming, homeFraming, podRims, framingTakeoff, isFloorOpening };

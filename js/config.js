@@ -28,7 +28,7 @@ const DECK = { gap:0.75, ply:1.5, depth:7.25, plies:2, oc:24, notch:1.5, angle:'
    and roof cassettes */
 const FRAME = { plate:1.5, bevel:0.75,   // plates: two corners bevelled ¾″ so the wall / ceiling slips on
   ext:{name:'2×6', d:5.5}, int:{name:'2×4', d:3.5}, ply:1.5, osb:7/16,
-  spline:{t:0.5, w:3.5}, lvl:{t:1.875, floor:9.25, roof:11.875}, stock:[8,10,12,14,16] };
+  spline:{t:0.5, w:3.5}, lvl:{t:1.875, floor:9.5, roof:11.875}, stock:[8,10,12,14,16] };
 const SPINE = 1.5;
 const SPINE_SCREWS = { size:'3½″ Dynobite', perLVL:3, lvlEnds:4, wallSides:2, wallEvery:24 };   // 3 into each of the 4 LVL ends + 1 per side every 2′ up the wall = 18 per spine        // the Einspine itself: 1½″ × 1½″ steel, full height at every pod corner, ¾″ nut at the top for the lifting eyebolt
 const NOTCH = 1.75;       // steel spine notch at every pod corner, full height: 1¾″ × 1¾″ (measured from the STEP files)
@@ -39,10 +39,15 @@ const SIDE_NAME = { S:'Front', N:'Back', W:'Left end', E:'Right end' };
 
 /* Horizontal layers, heights in inches above the bottom of the floor (walls start at 10.56″) */
 const WALL_BASE = 10.56;
+/* floor cassette build-up, inches above the bottom of the floor (from the shop's K24 floor model, Oct 2026):
+   exterior SIP 0–4.5 · 1½″ gap 4.5–6 · interior SIP 6–10.5; 1⅞″ × 9½″ LVL rims 0.5–10 sitting in a rebate on each
+   layer's inner skin; 8″ × 1½″ EPS strips all round in the gap against the rims (in 8′ pieces); 16″ 2×4 blocks laid
+   flat in the gap across every panel joint, two per joint at 32″ and 64″ across the floor */
+const FLOOR_BUILD = { rimZ:0.5, gap:[4.5,6], eps:{w:8, t:1.5, off:0.25, stock:96}, block:{len:16, w:3.5, t:1.5, at:[32,64]} };
 const LAYER_KINDS = {
   'floor-ext':   { label:'Exterior floor',   short:'Ext. floor',  code:'FE', z:0,      t:4.6 },
   'floor-int':   { label:'Interior floor',   short:'Int. floor',  code:'FI', z:6.08,   t:4.48 },
   'ceiling-int': { label:'Interior ceiling', short:'Ceiling',     code:'CI', z:106.6,  t:6.47 },
   'roof':        { label:'Roof',             short:'Roof',        code:'RF', z:113.07, t:6.48 },
 };
-export { SPINE_SCREWS, SPINE, FRAME, DECK, ICF, PAD_MAX, SCREW_MAX, NOTCH, H, T, TI, FLOOR, GAP, CEIL, PW, FT, POD, SIDE_NAME, WALL_BASE, LAYER_KINDS };
+export { FLOOR_BUILD, SPINE_SCREWS, SPINE, FRAME, DECK, ICF, PAD_MAX, SCREW_MAX, NOTCH, H, T, TI, FLOOR, GAP, CEIL, PW, FT, POD, SIDE_NAME, WALL_BASE, LAYER_KINDS };

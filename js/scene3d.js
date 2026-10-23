@@ -10,8 +10,8 @@ import { getBearing } from './orient.js';
 import { symbol, unitFor, pairOf, doorOwner } from './units.js';
 import { concretePlan } from './concrete.js';
 import { deckMembers } from './deckframe.js';
-import { wallFraming } from './framing.js';
-import { FRAME } from './config.js';
+import { wallFraming, floorBuild } from './framing.js';
+import { FRAME, FLOOR_BUILD } from './config.js';
 import { DECK } from './config.js';
 import { foundationOf } from './state.js';
 
@@ -320,13 +320,24 @@ function buildHome(){
         } else { g.add(m); framingMeshes.push(m); } }); }
     homeGroup.add(g); wallGroups.push(g);
   });
-  // LVL rims of the floor and roof cassettes: four pieces per pod, open 1⅞″ squares at the outside corners
+  // LVL rims of the floor and roof cassettes: four pieces per pod, open 1⅞″ squares at the outside corners. The
+  // floor rims go on with the interior floor (it's built with them), the roof rims with the ceiling; in the
+  // exploded view they travel with those layers.
   rimGroup=new THREE.Group(); homeGroup.add(rimGroup);
   { const t=FRAME.lvl.t/FT;
-    pods.forEach((p,pi)=>{ p.i=pi; }); pods.forEach(p=>[[0, FRAME.lvl.floor], [CEIL_Z, FRAME.lvl.roof]].forEach(([z0,h])=>{
-      const y=(z0-WALL_BASE)/FT, hh=h/FT, box=(x0,z0_,x1,z1)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(x1-x0,hh,z1-z0_),FRAME_MAT.lvl); m.position.set((x0+x1)/2, y+hh/2, (z0_+z1)/2); m.userData.pod=p.i; rimGroup.add(m); };
+    pods.forEach((p,pi)=>{ p.i=pi; });
+    pods.forEach(p=>[[FLOOR_BUILD.rimZ, FRAME.lvl.floor, 'floor-int'], [CEIL_Z, FRAME.lvl.roof, 'ceiling-int']].forEach(([z0,h,lay])=>{
+      const y=(z0-WALL_BASE)/FT, hh=h/FT, box=(x0,z0_,x1,z1)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(x1-x0,hh,z1-z0_),FRAME_MAT.lvl); m.position.set((x0+x1)/2, y+hh/2, (z0_+z1)/2); m.userData={pod:p.i, lay, base:m.position.clone()}; rimGroup.add(m); };
       box(p.x+t, p.z, p.x+p.w-t, p.z+t); box(p.x+t, p.z+p.d-t, p.x+p.w-t, p.z+p.d);
-      box(p.x, p.z+t, p.x+t, p.z+p.d-t); box(p.x+p.w-t, p.z+t, p.x+p.w, p.z+p.d-t); })); }
+      box(p.x, p.z+t, p.x+t, p.z+p.d-t); box(p.x+p.w-t, p.z+t, p.x+p.w, p.z+p.d-t); }));
+    // floor cassette: 8″ EPS strips and 16″ 2×4 joint blocks in the 1½″ gap between the two floor layers
+    const [g0,g1]=FLOOR_BUILD.gap, gy=(g0-WALL_BASE)/FT, gh=(g1-g0)/FT;
+    pods.forEach(p=>{ const B=floorBuild(p), along = p.w>=p.d;
+      const put=([u0,u1,v0,v1],mat,kind)=>{ const [x0,x1,z0,z1] = along ? [u0,u1,v0,v1] : [v0,v1,u0,u1];
+        const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT, gh*0.98, (z1-z0)/FT), mat);
+        m.position.set(p.x+(x0+x1)/2/FT, gy+gh/2, p.z+(z0+z1)/2/FT); m.userData={pod:p.i, lay:'floor-int', base:m.position.clone(), build:kind}; rimGroup.add(m); };
+      B.eps.forEach(r=>put(r, FRAME_MAT.eps, 'eps')); B.blocks.forEach(r=>put(r, FRAME_MAT.wood, 'block')); });
+  }
   unitMeshes=[]; wallGroups.forEach(g=>g.traverse(o=>{ if(o.userData.unit) unitMeshes.push(o); }));
   applyLayers();
   highlight();
@@ -337,7 +348,7 @@ function buildHome(){
   }
   computeSpread(); explodeT = state.exploded?1:0; applyExplode();
 }
-const FRAME_MAT = { wood:new THREE.MeshStandardMaterial({color:0xe0b36a, roughness:0.8}), osb:new THREE.MeshStandardMaterial({color:0xb7864a, roughness:0.9}), lvl:new THREE.MeshStandardMaterial({color:0xc9783a, roughness:0.75}) };
+const FRAME_MAT = { eps:new THREE.MeshStandardMaterial({color:0xe9eef2, roughness:0.95}), wood:new THREE.MeshStandardMaterial({color:0xe0b36a, roughness:0.8}), osb:new THREE.MeshStandardMaterial({color:0xb7864a, roughness:0.9}), lvl:new THREE.MeshStandardMaterial({color:0xc9783a, roughness:0.75}) };
 const CEIL_Z = 106.6;   // bottom of the roof cassette (interior ceiling), inches above the bottom of the floor
 const CONC = { foam:new THREE.MeshStandardMaterial({color:0xe6ebef, roughness:0.95}), core:new THREE.MeshStandardMaterial({color:0xa9aba6, roughness:0.9}),
   foot:new THREE.MeshStandardMaterial({color:0x8f918c, roughness:0.95}), access:new THREE.MeshBasicMaterial({color:0xd0661f}) };
@@ -393,7 +404,7 @@ const ease = (a,b,t) => { const u=Math.min(1,Math.max(0,(t-a)/(b-a))); return u*
 function applyExplode(){
   const e=explodeT, eP=ease(0,0.55,e), eW=ease(0.4,1,e);   // stage 1: pods apart · stage 2: each pod comes apart
   const lift = e*2.5;   // the house rises off its ground screws
-  const OFFS = {'floor-ext':-1.4, 'floor-int':0, 'ceiling-int':5, 'roof':7.5};
+  const OFFS = {'floor-ext':-2.2, 'floor-int':0, 'ceiling-int':5, 'roof':7.5};
   const sp = k => state.focusPod!=null ? [0,0] : (spread.pods[k]||[0,0]);   // one pod on its own comes apart where it stands
   layerGroups.forEach(g=>{ const u=g.userData, v=sp(u.pod);
     g.position.set(u.bx+v[0]*eP, u.baseY + lift + eW*OFFS[u.layerSlot.kind], u.bz+v[1]*eP); });
@@ -406,7 +417,15 @@ function applyExplode(){
     g.position.y = lift + eW*0.6;
   });
   plateMeshes.forEach(m=>{ const u=m.userData.plate, v=sp(u.pod); m.position.set(u.base.x+v[0]*eP, u.base.y+lift+eW*(u.top?OFFS['ceiling-int']:OFFS['floor-int']), u.base.z+v[1]*eP); });
-  if(rimGroup) rimGroup.visible=!!state.show.framing && e<0.01;
+  if(rimGroup) rimGroup.children.forEach(m=>{ const u=m.userData, v=sp(u.pod); m.position.set(u.base.x+v[0]*eP, u.base.y+lift+eW*OFFS[u.lay], u.base.z+v[1]*eP); });
+  applyRimVis();
+}
+/* LVL rims and the floor build-up show with Lumber & LVL, and always in the exploded view (with their layer) */
+function applyRimVis(){
+  if(!rimGroup) return; const S=state.show, F=state.focusPod, ex=explodeT>0.01;
+  rimGroup.visible=true;
+  rimGroup.children.forEach(m=>{ const u=m.userData, layerOn = u.lay==='floor-int' ? S.floors : (S.ceiling||S.roof);
+    m.visible = (F==null || u.pod===F) && (S.framing || (ex && layerOn)); });
 }
 /* what shows: each layer on its own (Layers menu) */
 function applyLayers(){
@@ -423,7 +442,7 @@ function applyLayers(){
   unitMeshes.forEach(m=>m.visible=S.units);
   // framing: lumber & LVL and the OSB splines switch on their own; both show through see-through walls
   framingMeshes.forEach(m=>m.visible=(m.userData.spline ? S.splines : S.framing) && S.walls && inPod(m.userData.pod));
-  if(rimGroup){ rimGroup.visible=S.framing && explodeT<0.01; rimGroup.children.forEach(m=>m.visible=inPod(m.userData.pod)); }
+  applyRimVis();
   const see = S.framing || S.splines;
   wallGroups.forEach(g=>{ const m=g.userData.mat; m.transparent=see; m.opacity=see?0.22:1; m.depthWrite=!see; m.needsUpdate=true; });
   MAT.glass.opacity = state.glass ? 0.18 : 0.55;
