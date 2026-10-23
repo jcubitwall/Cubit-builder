@@ -43,7 +43,7 @@ const optionsFor = (len,type='ext',model=null) => LIB.filter(w=>w.len===len && (
    other end (openings and boxes keep their physical place along the wall). */
 const MIRROR = {};
 function mirrorWall(w){
-  const L=w.len*12, fx=o=>({...o, x:+(L-o.x-(o.w||0)).toFixed(4)});
+  const L=w.len*12, fx=o=>({...o, x:+(L-o.x-(o.w||0)).toFixed(4), ...(o.ends?{ends:o.ends.map(([x,y])=>[+(L-x).toFixed(4),y])}:{})});
   return {...w, id:w.id+'~m', name:w.name+' · mirrored', mirrorOf:w.id, src:'mirror',
     openings:(w.openings||[]).map(fx).sort((a,b)=>a.x-b.x), inside:(w.inside||[]).map(fx), outside:(w.outside||[]).map(fx)};
 }

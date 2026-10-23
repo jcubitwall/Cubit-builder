@@ -21,6 +21,7 @@
      { kind:'line',   pts:[[x,y],…], z? }                    tool centre on the line (already offset)
      { kind:'pocket', x0,y0,x1,y1, z }                        the finished pocket (tool kept inside)
      { kind:'hole',   x0,y0,x1,y1, z?, passes? }              rectangular through-hole (tool inside)
+     { kind:'circlePocket', cx,cy, d, z }                    round recess, cleared from the middle out
      { kind:'circle', cx,cy, d, z?, passes?, bridge? }        round through-hole (tool inside); bridge = material
                                                               left at the bottom (open hole, plug stays put)
      { kind:'part',   x0,y0,x1,y1, passes? }                  cut a part out (tool outside, round corners)
@@ -83,6 +84,14 @@ function gcode(job){
       const R=[op.x0+r, op.y0+r, op.x1-r, op.y1-r], zs=op.passes||[SKIN, op.z??THRU];
       zs.forEach((z,i)=>{ if(i) plunge(z); else down(R[0], R[1], z, newSeg);
         lineTo(R[0],R[3]); lineTo(R[2],R[3]); lineTo(R[2],R[1]); lineTo(R[0],R[1]); });
+    }
+    else if(op.kind==='circlePocket'){
+      // round recess: rings 0.3″ apart from the middle out, then the finished size
+      const R=op.d/2-r; const rings=[]; for(let k=R; k>1e-3; k-=T.step) rings.unshift(k);
+      if(!rings.length){ down(op.cx, op.cy, op.z, newSeg); }
+      rings.forEach((rr,i)=>{ const sx=op.cx, sy=op.cy-rr;
+        if(i===0){ down(op.cx, op.cy, op.z, newSeg); lineTo(sx, sy); } else lineTo(sx, sy);
+        arcTo(true, op.cx-rr, op.cy, 0, rr); arcTo(true, op.cx, op.cy+rr, rr, 0); arcTo(true, op.cx+rr, op.cy, 0, -rr); arcTo(true, op.cx, op.cy-rr, -rr, 0); });
     }
     else if(op.kind==='circle' && op.bridge){
       // round hole with a bridge of material left at the bottom so the plug can't fly: clockwise from the

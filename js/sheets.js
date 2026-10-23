@@ -13,7 +13,7 @@ import { takeoffHTML } from './takeoff.js';
 import { renderShop } from './shop.js';
 import { renderCncSheet } from './cncsheet.js';
 import { LAYER_KINDS } from './config.js';
-import { panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall, layerHoles } from './panels.js';
+import { panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall, layerHoles, isShaped, shapeOf } from './panels.js';
 import { buildWallMesh, resize } from './scene3d.js';
 import { unitFor, symbol, unitLabel, pairOf, doorOwner } from './units.js';
 const sheetSlotNow = () => slotsFor(state.model).find(x=>x.id===state.sheetSlot);
@@ -36,6 +36,15 @@ function openSheets(){
 function closeSheets(){
   state.view='studio'; sheetsEl.hidden=true; studioEl.hidden=false; document.getElementById('studioTools').hidden=false;
   document.getElementById('bSheets').textContent='Assembly sheets'; resize();
+}
+/* outline of a round hole / slot in inches (closed) */
+function outlinePts2(S, seg=40){
+  const P=[];
+  if(S.circle){ const [cx,cy,r]=S.circle; for(let i=0;i<=seg;i++){ const a=i/seg*Math.PI*2; P.push([cx+r*Math.cos(a), cy+r*Math.sin(a)]); } return P; }
+  const [[x1,y1],[x2,y2]]=S.slot, r=S.r, ang=Math.atan2(y2-y1,x2-x1), n=seg/2;
+  for(let i=0;i<=n;i++){ const a=ang+Math.PI/2+i/n*Math.PI; P.push([x1+r*Math.cos(a), y1+r*Math.sin(a)]); }
+  for(let i=0;i<=n;i++){ const a=ang-Math.PI/2+i/n*Math.PI; P.push([x2+r*Math.cos(a), y2+r*Math.sin(a)]); }
+  return P;
 }
 const esc = t => String(t).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function renderSheetList(){
@@ -165,6 +174,12 @@ function elevationSVG(w,face,rev,slot){
   // openings
   w.openings.forEach(o=>{
     const x=vx(o.x,o.w);
+    if(isShaped(o)){   // round hole / slot exactly as drawn, with its size
+      const S=shapeOf({...o, x:x}), P=outlinePts2(S);
+      g+=`<path d="${P.map((p,i)=>(i?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)).join(' ')}Z" fill="#ffffff" stroke="#111" stroke-width="1.2"/>`;
+      const cx=S.circle?S.circle[0]:(S.slot[0][0]+S.slot[1][0])/2, cy=S.circle?S.circle[1]:(S.slot[0][1]+S.slot[1][1])/2;
+      return;
+    }
     if(o.kind==='vent'){   // small duct / vent hole: outline + a leader label, no dimension clutter
       g+=`<rect x="${X(x)}" y="${Y(o.y+o.h)}" width="${o.w*s}" height="${o.h*s}" fill="#bbbbbb" stroke="#111" stroke-width="1.2"/>`;
       return;
@@ -192,7 +207,7 @@ function elevationSVG(w,face,rev,slot){
   vents.forEach((o,i)=>{
     g+=`<line x1="${X(o.vx+o.w/2)}" y1="${Y(o.y)}" x2="${X(o.vx+o.w/2)}" y2="${Y(o.y)+18+i*12}" stroke="#555" stroke-width=".6"/>`;
     const right = o.vx > L/2;
-    g+=`<text x="${X(o.vx+o.w/2)+(right?-3:3)}" y="${Y(o.y)+22+i*12}" text-anchor="${right?'end':'start'}" font-size="9" fill="#333">vent ${fin(o.w)}×${fin(o.h)} · ${fin(o.vx)} from left · ${fin(o.y)} up</text>`;
+    g+=`<text x="${X(o.vx+o.w/2)+(right?-3:3)}" y="${Y(o.y)+22+i*12}" text-anchor="${right?'end':'start'}" font-size="9" fill="#333">${o.shape==='round'?`⌀ ${fin(o.d)} hole · centre ${fin(o.vx+o.w/2)} from left · ${fin(o.y+o.h/2)} up`:o.shape==='slot'?`slot ${fin(o.sw)} wide · ${fin(o.vx)} from left · ${fin(o.y)} up`:`vent ${fin(o.w)}×${fin(o.h)} · ${fin(o.vx)} from left · ${fin(o.y)} up`}</text>`;
   });
   // ordinate positions of opening edges from the view-left end (bottom)
   const edges=[...new Set(w.openings.filter(o=>o.kind!=='vent').flatMap(o=>{const x=vx(o.x,o.w); return [x,x+o.w];}).map(v=>Math.round(v*16)/16))].sort((a,b)=>a-b);
@@ -333,14 +348,18 @@ function renderLayerSheet(el, ls){
   HOLES.forEach((h,i)=>{ if(!h.notch) return;
     g+=`<rect x="${Math.min(X(h.x),X(h.x+h.w))}" y="${Y(h.z)}" width="${h.w*s}" height="${h.d*s}" fill="#fff" stroke="#7a3fb0" stroke-width="1.4"/>`; });
   (L.holes||[]).forEach((h,i)=>{
+    if(isShaped(h)){ const S=shapeOf({...h, y:h.z, h:h.d, d:h.dia}), P=outlinePts2(S);
+      g+=`<path d="${P.map((p,k)=>(k?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)).join(' ')}Z" fill="${h.depth?'#e8e2d6':'#fff'}" stroke="#c0392b" stroke-width="1.2" ${h.depth?'stroke-dasharray="3 2"':''}/>`;
+    } else
     g+=`<rect x="${Math.min(X(h.x),X(h.x+h.w))}" y="${Y(h.z)}" width="${h.w*s}" height="${h.d*s}" fill="#fff" stroke="#c0392b" stroke-width="1.4"/>`;
-    g+=`<text x="${X(h.x+h.w/2)}" y="${Y(h.z+h.d/2)+4}" text-anchor="middle" font-size="10" fill="#c0392b" font-weight="700">H${i+1}</text>`;
+    g+= isShaped(h) && h.w<12 ? `<text x="${Math.max(X(h.x),X(h.x+h.w))+3}" y="${Y(h.z)-1}" font-size="8" fill="#c0392b" font-weight="700">H${i+1}</text>`
+      : `<text x="${X(h.x+h.w/2)}" y="${Y(h.z+h.d/2)+4}" text-anchor="middle" font-size="10" fill="#c0392b" font-weight="700">H${i+1}</text>`;
   });
   g+=dimH(X(0),X(len),Y(wid)+40,`${fin(len)} (${fft(len)})`,Y(wid),12);
   g+=dimV(Y(0),Y(wid),ml-26,fin(wid),X(0),11);
   g+=`<text x="${ml}" y="${VH-10}" font-size="10" fill="#555">${below?'Seen from BELOW (mirrored)':'Seen from above'} · x from the left end as you look at it, z from the top edge</text></svg>`;
   let t=`<table class="boxes"><thead><tr><th>Hole</th><th>From left end</th><th>From top edge</th><th>Size</th><th>Panel</th></tr></thead><tbody>`;
-  (L.holes||[]).forEach((h,i)=>{ const pi=panels.findIndex(([a,b])=>h.x+h.w/2>=a&&h.x+h.w/2<b)+1; t+=`<tr><td>H${i+1}</td><td>${fin(below?len-h.x-h.w:h.x)}</td><td>${fin(h.z)}</td><td>${fin(h.w)} × ${fin(h.d)}</td><td>${pi}</td></tr>`; });
+  (L.holes||[]).forEach((h,i)=>{ const pi=panels.findIndex(([a,b])=>h.x+h.w/2>=a&&h.x+h.w/2<b)+1; t+=`<tr><td>H${i+1}</td><td>${fin(below?len-h.x-h.w:h.x)}</td><td>${fin(h.z)}</td><td>${h.shape==='round'?'⌀ '+fin(h.dia):h.shape==='slot'?'slot '+fin(h.sw)+' wide':fin(h.w)+' × '+fin(h.d)}${h.depth?` · ${fin(h.depth)} deep from the ${h.face}`:''}</td><td>${pi}</td></tr>`; });
   if(!(L.holes||[]).length) t+=`<tr><td colspan="5">No holes in this layer.</td></tr>`;
   if(HOLES.some(h=>h.notch)) t+=`<tr><td colspan="5" style="color:#7a3fb0">Steel spine notch ${fin(HOLES.find(h=>h.notch).w)} × ${fin(HOLES.find(h=>h.notch).w)} at ${HOLES.filter(h=>h.notch).length===4?'all four corners':'the corners shown'} (purple).</td></tr>`;
   t+=`</tbody></table>`;

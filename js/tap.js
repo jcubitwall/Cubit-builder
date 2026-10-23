@@ -56,6 +56,25 @@ function extend(p, q, open, {L,Rr,B,T,W}){
   return p;
 }
 
+/* a round hole / slot exactly as drawn. `U` maps the wall's x (from the outside-left; for face items the item's
+   own x convention) to the face that is up. Through holes cut right through (a bridge is left in holes 4″ and up so the
+   plug stays put, as in the shop's D4 vent); recesses are cleared to their depth. */
+function shapedOp(ops, o, U, t, z, W, warn, item=false){
+  const tool=TOOLS[13].d, what = o.shape==='round' ? `${item?'recess':'hole'} ⌀ ${fin(o.d||o.dia)}` : `${item?'chase':'slot'} ${fin(o.sw)} wide`;
+  if(o.shape==='round'){
+    const d=o.d||o.dia, cx = item ? U(o.x) : U(o.x+o.w/2), cy = item ? o.y : o.y+o.h/2;
+    if(d < tool-0.01){ warn.push(`${what} is smaller than the ¾″ bit`); return; }
+    if(z<=THRU+1e-6){
+      if(d <= tool+0.06) ops.push({tp:'holes', kind:'line', pts:[[cx,cy],[cx,cy]], z, what, waste:null});
+      else ops.push({tp:'holes', kind:'circle', cx, cy, d, z, bridge: d>=4 ? 0.5 : 0, what, waste:[cx-d/2+0.4, cx+d/2-0.4, cy-d/2+0.4, cy+d/2-0.4]});
+    } else ops.push({tp:'recesses', kind:'circlePocket', cx, cy, d, z, what});
+    return;
+  }
+  // slot: the bit runs along its centre line (a ¾″ slot is one pass; wider ones are flagged for now)
+  const ends=(o.ends||[]).map(([x,y])=>[U(x), y]); if(ends.length<2) return;
+  if(Math.abs((o.sw||tool)-tool)>0.07) warn.push(`${what}: only ¾″ slots are cut as drawn so far; this one is cut ¾″`);
+  ops.push({tp: z<=THRU+1e-6?'holes':'chases', kind:'line', pts:ends, z, what});
+}
 function tapPlan(){
   const S=cncSettings(), plans=homePlans(), files=[], blank=[], m=MODELS[state.model];
   const boxSize = k => S.gBoxes?.[k] || BOX[k] || BOX.other;
@@ -71,10 +90,12 @@ function tapPlan(){
       const u = xo => x1-xo;                          // wall x (from outside-left) → interior face u
       const I=[], E=[];
       // boxes, interior face (b.x measured from the inside-left)
-      p.intCuts.forEach(b=>{ const s=boxSize(b.kind), c=u(L-b.x);
+      p.intCuts.filter(b=>b.shape).forEach(b=>shapedOp(I, b, xo=>u(L-xo), t, t-(b.depth||DEPTH), W, warn, true));
+      p.extCuts.filter(b=>b.shape).forEach(b=>shapedOp(E, b, xo=>BLANK-u(xo), t, t-(b.depth||DEPTH), W, warn, true));
+      p.intCuts.filter(b=>!b.shape).forEach(b=>{ const s=boxSize(b.kind), c=u(L-b.x);
         I.push({tp:'boxes', kind:'pocket', x0:c-s.w/2, x1:c+s.w/2, y0:b.y-s.h/2, y1:b.y+s.h/2, z:t-DEPTH, what:b.kind}); });
       // boxes, exterior face (mirror across the blank)
-      p.extCuts.forEach(b=>{ const s=boxSize(b.kind), c=BLANK-u(b.x);
+      p.extCuts.filter(b=>!b.shape).forEach(b=>{ const s=boxSize(b.kind), c=BLANK-u(b.x);
         E.push({tp:'boxes', kind:'pocket', x0:c-s.w/2, x1:c+s.w/2, y0:b.y-s.h/2, y1:b.y+s.h/2, z:t-DEPTH, what:b.kind}); });
       // Einspine corner slot(s), exterior face
       if(p.notch){
@@ -86,6 +107,7 @@ function tapPlan(){
       p.through.forEach(o=>{
         const a=u(o.x+o.w), b=u(o.x), u0=Math.min(a,b), u1=Math.max(a,b), v0=o.y, v1=o.y+o.h;
         if(u1<=0 || u0>=W) return;
+        if(o.shape==='round' || o.shape==='slot'){ shapedOp(I, o, u, t, THRU, W, warn); return; }
         if(o.kind==='vent' && u0>SNAP && u1<W-SNAP){ I.push({tp:'vents', kind:'hole', x0:u0, x1:u1, y0:v0, y1:v1, what:'vent', waste:[u0,u1,v0,v1]}); return; }
         const waste=[Math.max(u0,0), Math.min(u1,W), Math.max(v0,0), Math.min(v1,H)];   // the piece that should drop out
         openingCut(u0,u1,v0,v1,W).forEach((pts,i)=>I.push({tp:'openings', kind:'line', pts, what:`${o.kind} ${fin(o.w)} × ${fin(o.h)}`, waste: i===0 ? waste : null}));

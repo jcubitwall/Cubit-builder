@@ -21,17 +21,28 @@ function panelAt(w, x){
 function bodyWall(slot, w){
   if(!w || w.fitted) return w;
   const tl=slot?.trim?.[0]||0, tr=slot?.trim?.[1]||0, full=w.len*FT, L=full-tl-tr;
-  const clip = o => { const x0=Math.max(0,o.x-tl), x1=Math.min(L,o.x+o.w-tl); return x1-x0>0.5 ? {...o, x:x0, w:x1-x0} : null; };
+  const clip = o => {
+    if(o.shape==='round' || o.shape==='slot'){   // exact shapes move, they're never squared off
+      const x0=o.x-tl; if(x0+o.w<=0 || x0>=L) return null;
+      return {...o, x:x0, ...(o.ends?{ends:o.ends.map(([x,y])=>[x-tl,y])}:{})}; }
+    const x0=Math.max(0,o.x-tl), x1=Math.min(L,o.x+o.w-tl); return x1-x0>0.5 ? {...o, x:x0, w:x1-x0} : null; };
   // the end walls run to the pod corners, where a 1¾″ × 1¾″ notch for the steel spine comes out of the outside face
   const notch = slot && slot.short && slot.corner ? [slot.corner[0]?NOTCH:0, slot.corner[1]?NOTCH:0] : [0,0];
   return { ...w, L, trim:[tl,tr], notch, fitted:true,
     openings: w.openings.map(o=>clip({...o, key:o.key ?? `${o.kind}@${Math.round(o.x)}`})).filter(Boolean),
-    inside: (w.inside||[]).map(b=>({...b, x:b.x-tr})).filter(b=>b.x>0 && b.x<L),     // inside items are measured from the inside-left = outside-right end
-    outside: (w.outside||[]).map(b=>({...b, x:b.x-tl})).filter(b=>b.x>0 && b.x<L) };
+    inside: (w.inside||[]).map(b=>({...b, x:b.x-tr, ...(b.ends?{ends:b.ends.map(([x,y])=>[x-tr,y])}:{})})).filter(b=>b.x>0 && b.x<L),     // inside items are measured from the inside-left = outside-right end
+    outside: (w.outside||[]).map(b=>({...b, x:b.x-tl, ...(b.ends?{ends:b.ends.map(([x,y])=>[x-tl,y])}:{})})).filter(b=>b.x>0 && b.x<L) };
+}
+/* round holes and chase slots exactly as drawn: their outline (inches, wall or layer coords) and a test for them */
+const isShaped = o => o.shape==='round' || o.shape==='slot';
+function shapeOf(o){   // {circle:[cx,cy,r]} or {slot:[[x,y],[x,y]], r}
+  if(o.shape==='round'){ const d=o.d||o.dia||o.w; return { circle:[o.x+o.w/2, (o.y??o.z)+(o.h??o.d)/2, d/2] }; }
+  return { slot:o.ends, r:(o.sw||0.75)/2 };
 }
 function panelCells(w, k){
   const [X0,X1]=panelSpans(w)[k], xs=new Set([X0,X1]), ys=new Set([0,H]);
-  const ops = w.openings.filter(o=>o.x<X1 && o.x+o.w>X0);
+  // round holes and slots inside one panel are cut out of the cell exactly (scene3d); the rest split the cells
+  const ops = w.openings.filter(o=>o.x<X1 && o.x+o.w>X0 && !(isShaped(o) && o.x>=X0 && o.x+o.w<=X1));
   ops.forEach(o=>{ xs.add(Math.max(X0,o.x)); xs.add(Math.min(X1,o.x+o.w)); ys.add(o.y); ys.add(Math.min(H,o.y+o.h)); });
   const X=[...xs].sort((a,b)=>a-b), Y=[...ys].sort((a,b)=>a-b), out=[];
   for(let i=0;i<X.length-1;i++){
@@ -68,4 +79,4 @@ function layerHoles(L){
   });
   return holes;
 }
-export { layerHoles, panelCells, panelCount, panelNum, thumbSVG, wallLen, panelSpans, panelAt, bodyWall };
+export { isShaped, shapeOf, layerHoles, panelCells, panelCount, panelNum, thumbSVG, wallLen, panelSpans, panelAt, bodyWall };
