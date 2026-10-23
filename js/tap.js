@@ -86,23 +86,24 @@ function tapPlan(){
       p.through.forEach(o=>{
         const a=u(o.x+o.w), b=u(o.x), u0=Math.min(a,b), u1=Math.max(a,b), v0=o.y, v1=o.y+o.h;
         if(u1<=0 || u0>=W) return;
-        if(o.kind==='vent' && u0>SNAP && u1<W-SNAP){ I.push({tp:'vents', kind:'hole', x0:u0, x1:u1, y0:v0, y1:v1, what:'vent'}); return; }
-        openingCut(u0,u1,v0,v1,W).forEach(pts=>I.push({tp:'openings', kind:'line', pts, what:`${o.kind} ${fin(o.w)} × ${fin(o.h)}`}));
+        if(o.kind==='vent' && u0>SNAP && u1<W-SNAP){ I.push({tp:'vents', kind:'hole', x0:u0, x1:u1, y0:v0, y1:v1, what:'vent', waste:[u0,u1,v0,v1]}); return; }
+        const waste=[Math.max(u0,0), Math.min(u1,W), Math.max(v0,0), Math.min(v1,H)];   // the piece that should drop out
+        openingCut(u0,u1,v0,v1,W).forEach((pts,i)=>I.push({tp:'openings', kind:'line', pts, what:`${o.kind} ${fin(o.w)} × ${fin(o.h)}`, waste: i===0 ? waste : null}));
         const part=Math.min(u1,W)-Math.max(u0,0); if(part<TOOLS[13].d+0.0625) warn.push(`${o.kind} part on this panel is narrower than the bit`);
         if(u0>SNAP && u0<1) warn.push(`${o.kind} leaves only ${fin(u0)} to the left edge`);
         if(u1<W-SNAP && W-u1<1) warn.push(`${o.kind} leaves only ${fin(W-u1)} to the right edge`);
       });
       // trim to width last (factory edge on the joint side, at u = 0)
-      if(p.cut) I.push({tp:'trim', kind:'line', pts:[[W+R,-TRIM_OVER],[W+R,H+TRIM_OVER]], what:`trim to ${fin(W)}`});
+      if(p.cut) I.push({tp:'trim', kind:'line', pts:[[W+R,-TRIM_OVER],[W+R,H+TRIM_OVER]], what:`trim to ${fin(W)}`, waste: W+2*R<BLANK-0.1 ? [W+2*R, BLANK, 0, H] : null});
       const base=`${p.code}_Sip-${tName(t)}`;
       const sides = E.length && I.length ? [['aE',E],['bI',I]] : E.length ? [['E',E]] : [['I',I]];
       n++; const nn=String(n).padStart(2,'0');
       if(!E.length && !I.length){                                    // nothing for the CNC: a note keeps its place in the pile
-        blank.push({ panel:p.code, path:`${folder}/${nn}-NO CNC_${p.code}.txt`, stack:p.stack, of:plan.n,
+        blank.push({ pod:plan.slot.pod.i, letter:plan.slot.letter, panel:p.code, path:`${folder}/${nn}-NO CNC_${p.code}.txt`, stack:p.stack, of:plan.n,
           text:`Panel ${p.code} (${plan.slot.pod.label}, Wall ${plan.slot.letter}): no CNC work.\r\nPut a ${p.cut?fin(W)+' wide (trim on the saw)':'full 48"'} x 96" ${tName(t)}" SIP panel on the pile here, ${plan.assembly==='int'?'interior':'exterior'} face up.\r\nStack position ${p.stack} of ${plan.n} (1 = top).\r\n` });
         return; }
       sides.forEach(([side,ops])=>{
-        files.push({ n, side, name:`${nn}-${side}_${base}.tap`, path:`${folder}/${nn}-${side}_${base}.tap`, stack:p.stack, of:plan.n, panel:p.code, wall:`${plan.slot.pod.label} · Wall ${plan.slot.letter}`, thick:t, width:W,
+        files.push({ pod:plan.slot.pod.i, letter:plan.slot.letter, n, side, name:`${nn}-${side}_${base}.tap`, path:`${folder}/${nn}-${side}_${base}.tap`, stack:p.stack, of:plan.n, panel:p.code, wall:`${plan.slot.pod.label} · Wall ${plan.slot.letter}`, thick:t, width:W,
           ops, warn, text: gcode({thick:t, ops}) });
       });
     });
@@ -140,9 +141,11 @@ function manifestTap(tp){
   tp.files.forEach(f=>rows.push([f.path, f.panel, f.wall, f.side, `${f.stack} of ${f.of}`, f.thick, +f.width.toFixed(4), f.ops.map(o=>o.what).join(' | '), f.warn.join(' | ')]));
   return rows.map(r=>r.map(v=>/[",\n]/.test(String(v))?`"${String(v).replace(/"/g,'""')}"`:String(v)).join(',')).join('\r\n')+'\r\n';
 }
-function tapZip(tp=tapPlan()){
+/* pick: null = whole home, or {pod}, {pod, letter}, {panel} */
+const inScope = (f, pick) => !pick || (pick.panel ? f.panel===pick.panel : f.pod===pick.pod && (pick.letter==null || f.letter===pick.letter));
+function tapZip(tp=tapPlan(), pick=null){
   const safe = x => String(x).replace(/[^\w .+-]+/g,'').trim();
-  return zip([{name:'README.txt', text:readmeTap(tp)}, {name:'manifest.csv', text:manifestTap(tp)}, ...[...tp.files, ...tp.blank].map(f=>({name:safe(tp.home)+'/'+f.path, text:f.text})).sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}))]);
+  return zip([{name:'README.txt', text:readmeTap(tp)}, {name:'manifest.csv', text:manifestTap({...tp, files:tp.files.filter(f=>inScope(f,pick))})}, ...[...tp.files, ...tp.blank].filter(f=>inScope(f,pick)).map(f=>({name:safe(tp.home)+'/'+f.path, text:f.text})).sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}))]);
 }
 
 /* toolpath preview of one .tap: feed moves in colour by depth, rapids dashed */
@@ -164,4 +167,4 @@ function tapSVG(text, thick){
   g+=`<circle cx="${X(0)}" cy="${Y(0)}" r="4" fill="#fff" stroke="#d0661f" stroke-width="2"/><text x="${X(0)+6}" y="${Y(0)+16}" font-size="10" fill="#d0661f">X0 Y0</text>`;
   return g+'</svg>';
 }
-export { tapPlan, tapZip, tapSVG, openingCut, manifestTap };
+export { inScope, tapPlan, tapZip, tapSVG, openingCut, manifestTap };

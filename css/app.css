@@ -486,3 +486,28 @@ html.phone #sheetList.open > :not(.sl-pick){display:block}
 html.phone #sheetList.open .wl{display:flex}
 html.phone #sheetList.open .sl-pick{position:sticky;top:-10px;z-index:1;margin-bottom:6px}
 html.phone .plan-wrap .hint{display:none}
+/* CNC: downloads, views, simulator */
+.dl-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:10px 0 12px}
+.dl-row > span{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#555;margin-right:4px}
+.cnc-list tr.grp td{font-weight:600}
+.cnc-list tr.grp td span{font-family:var(--mono);font-weight:400;font-size:11px;color:#666;margin-left:8px}
+.cnc-list tr.grp.pod td{background:#e9ece6;font-size:13.5px}
+.cnc-list tr.grp .linkbtn{font-size:15px;text-decoration:none;padding:0 4px}
+.tv-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+.tv-head b{display:block;font-family:var(--mono);font-size:12.5px}
+.tv-head span{font-size:12px;color:#555}
+.tapv{display:flex;flex-direction:column;align-items:center;gap:6px}
+.tapv > svg{display:block;height:min(62vh,640px);width:auto;max-width:100%}
+.sim-wrap{position:relative;height:min(62vh,640px);aspect-ratio:1/2;max-width:100%}
+.sim-wrap canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:auto;border:1px solid #c9ccc5;border-radius:4px}
+.sim-o{border-color:transparent!important}
+.sim-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:8px;width:100%;justify-content:center}
+.sim-ctl input[type=range]{flex:1;min-width:140px;max-width:320px;accent-color:var(--accent)}
+.sim-ctl span{font-family:var(--mono);font-size:12px;color:#444;min-width:120px}
+.sim-ctl select{font:inherit;padding:5px 6px;border:1px solid var(--line);border-radius:6px;background:#fff}
+.v3d{width:100%;height:min(62vh,600px);border:1px solid #d4d8d1;border-radius:8px;background:linear-gradient(#f3f4f1,#e3e6e0);touch-action:none}
+.checks{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0 6px}
+.checks > div{border:1px solid #dde1da;border-radius:8px;padding:7px 9px;background:#fafbf9}
+.checks b{display:block;font-size:15px}
+.checks span{font-size:11.5px;color:#555}
+.ok-l{list-style:none;padding:0;margin:4px 0;font-size:12.5px;color:#2f6b45}

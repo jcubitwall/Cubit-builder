@@ -4,6 +4,7 @@ import { MODELS } from './data.js';
 import { fin } from './format.js';
 import { cutPlan, cutFilesZip, manifestCSV, cncSettings, saveCncSettings, LAYERS } from './cnc.js';
 import { tapPlan, tapZip, tapSVG } from './tap.js';
+import { parse, timeOf, fmtTime, simulate, depthOf, checkPanel, depthCanvas, panel3D, BW, BH, RES } from './cutsim.js';
 import { downloadBlob } from './sheets.js';
 import { state } from './state.js';
 
@@ -27,27 +28,80 @@ function previewSVG(r){
   return g+'</svg>';
 }
 
-let TP=null;
+let TP=null, tview='path';
+const TIMES=new Map();
+const tOf = f => { if(!TIMES.has(f.text)) TIMES.set(f.text, timeOf(f.text)); return TIMES.get(f.text); };
+const sum = (fs) => fs.reduce((a,f)=>a+tOf(f),0);
+const fname = x => MODELS[state.model].name.replace(/[^\w .+-]+/g,'').trim() + (x?` - ${x}`:'');
 function tapSection(){
   TP=tapPlan(); const F=TP.files; if(tpick>=F.length) tpick=0;
   if(!F.length) return '';
-  const f=F[tpick]; let last=null, rows='';
-  F.forEach((x,i)=>{ if(x.wall!==last){ rows+=`<tr class="grp"><td colspan="5">${esc(x.wall)} · cut in stacking order, bottom of the pile first</td></tr>`; last=x.wall; }
-    rows+=`<tr class="${i===tpick?'on':''}" data-t="${i}"><td>${esc(x.name)}</td><td>${x.side.includes('E')?'exterior up':'interior up'}</td><td>${x.stack}${x.stack===1?' (top)':x.stack===x.of?' (bottom)':''}</td><td>${x.ops.length}</td><td>${x.warn.length?`<span class="flipflag">⚠ ${x.warn.length}</span>`:''}</td></tr>`; });
-  return `<h4 style="margin:6px 0 6px">G-code for the ShopSabre (.tap)</h4>
-    <div class="cnc-warn"><b>Test first.</b> Written in the shop's own format (ShopSabre ATC post, tool 13, Z zero on the bed, flip side to side) and checked against 13 of the shop's real files. Run each new panel type as an air cut, then on scrap, before cutting a real panel. Boxes only appear once a wall has a box layout.</div>
-    <div class="sheet-tools"><button class="btn" id="tapZip">Download all .tap files (zip)</button><button class="btn ghost" id="tapOne">This file only</button>
-      <span style="font-size:12.5px;color:#333">Save the zip's tap folder to the shop's network folder; the CNC PC picks them up from there.</span></div>
+  const f=F[tpick], podN=f.pod+1;
+  let lastPod=null, lastWall=null, rows='';
+  F.forEach((x,i)=>{
+    if(x.pod!==lastPod){ const fs=F.filter(y=>y.pod===x.pod); rows+=`<tr class="grp pod"><td colspan="4">Pod ${x.pod+1}<span>${fs.length} files · ~${fmtTime(sum(fs))}</span></td><td><button class="linkbtn" data-dl="pod:${x.pod}" title="Download Pod ${x.pod+1}">↓</button></td></tr>`; lastPod=x.pod; lastWall=null; }
+    if(x.letter!==lastWall){ const fs=F.filter(y=>y.pod===x.pod && y.letter===x.letter); rows+=`<tr class="grp"><td colspan="4">Wall ${esc(x.letter)}<span>bottom of the pile first · ~${fmtTime(sum(fs))}</span></td><td><button class="linkbtn" data-dl="wall:${x.pod}:${esc(x.letter)}" title="Download this wall">↓</button></td></tr>`; lastWall=x.letter; }
+    rows+=`<tr class="${i===tpick?'on':''}" data-t="${i}"><td>${esc(x.name)}</td><td>${x.side.includes('E')?'ext':'int'} up</td><td>${x.stack}${x.stack===1?' top':x.stack===x.of?' btm':''}</td><td>${fmtTime(tOf(x))}</td><td>${x.warn.length?`<span class="flipflag">⚠</span>`:''}</td></tr>`; });
+  const panelFiles=F.filter(y=>y.panel===f.panel);
+  return `<h4 style="margin:6px 0 6px">G-code for the ShopSabre (.tap) · about ${fmtTime(sum(F))} of cutting</h4>
+    <details class="help"><summary>Test first · how these files work</summary><p>Written in the shop's own format (ShopSabre ATC post, tool 13, Z zero on the bed, flip side to side) and checked against 13 of the shop's real files. Run each new panel type as an air cut, then on scrap, before cutting a real panel. Boxes only appear once a wall has a box layout. Times are rough: feeds from the files, rapids at ~${800} in/min, plus a margin for acceleration. Save the tap folder to the shop's network folder; the CNC PC picks them up from there.${TP.blank.length?` No CNC work (a note keeps their place in the pile): ${esc(TP.blank.map(b=>b.panel).join(', '))}.`:''}</p></details>
+    <div class="dl-row"><span>Download .tap</span>
+      <button class="btn" data-dl="home">Whole home</button>
+      <button class="btn ghost" data-dl="pod:${f.pod}">Pod ${podN}</button>
+      <button class="btn ghost" data-dl="wall:${f.pod}:${esc(f.letter)}">Pod ${podN} · Wall ${esc(f.letter)}</button>
+      <button class="btn ghost" data-dl="panel:${esc(f.panel)}">Panel ${esc(f.panel)}${panelFiles.length>1?' (both sides)':''}</button></div>
     <div class="cnc-grid">
-      <div class="tblwrap cnc-list">${TP.blank.length?`<p class="note">No CNC work (a note keeps their place in the pile): ${esc(TP.blank.map(b=>b.panel).join(', '))}</p>`:''}<table class="boxes"><thead><tr><th>File</th><th>Face up</th><th>Stack</th><th>Cuts</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="tblwrap cnc-list"><table class="boxes"><thead><tr><th>File</th><th>Face</th><th>Stack</th><th>Time</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
       <div class="cnc-prev">
-        <div class="eyebrow" style="color:#555">${esc(f.name)} · ${fin(f.width)} wide · ${f.thick}″ SIP</div>
-        <div class="elev">${tapSVG(f.text, f.thick)}</div>
-        <p class="note"><span class="sw" style="background:#c0392b"></span> right through · <span class="sw" style="background:#7a3fb0"></span> Einspine slot (to Z 0.53) · <span class="sw" style="background:#2f8a57"></span> 3″ box pocket · dashed = rapid moves</p>
+        <div class="tv-head"><div><b>${esc(f.name)}</b><span>${fin(f.width)} wide · ${f.thick}″ SIP · ~${fmtTime(tOf(f))}${panelFiles.length>1?` · panel ~${fmtTime(sum(panelFiles))}`:''}</span></div>
+          <div class="seg tv-tabs" role="tablist">${[['path','Toolpath'],['sim','Simulate'],['3d','3D panel']].map(([k,l])=>`<button class="fsbtn" data-tv="${k}" aria-pressed="${tview===k}">${l}</button>`).join('')}</div></div>
+        <div class="tapv" id="tapv"></div>
+        <div id="tapChecks"></div>
         ${f.warn.length?`<ul class="cnc-w">${f.warn.map(w=>`<li>⚠ ${esc(w)}</li>`).join('')}</ul>`:''}
-        <ul class="note">${f.ops.map(o=>`<li>${esc(o.what||o.kind)}</li>`).join('')||'<li>No cuts on this face.</li>'}</ul>
+        <details class="help"><summary>Cuts in this file</summary><ul class="note">${f.ops.map(o=>`<li>${esc(o.what||o.kind)}</li>`).join('')||'<li>No cuts on this face.</li>'}</ul></details>
       </div>
     </div>`;
+}
+/* the right-hand view: toolpath, animated cut, or the finished panel in 3D; then the checks */
+let anim=null, view3d=null;
+function mountTapView(el){
+  if(anim){ cancelAnimationFrame(anim.raf); anim=null; } if(view3d){ view3d.dispose(); view3d=null; }
+  const host=el.querySelector('#tapv'); if(!host || !TP?.files.length) return;
+  const f=TP.files[tpick], panelFiles=TP.files.filter(y=>y.panel===f.panel);
+  if(tview==='path'){ host.innerHTML=tapSVG(f.text, f.thick)+`<p class="note"><span class="sw" style="background:#c0392b"></span> right through · <span class="sw" style="background:#7a3fb0"></span> Einspine slot · <span class="sw" style="background:#2f8a57"></span> 3″ pocket · dashed = rapids</p>`; }
+  else if(tview==='sim'){
+    const pr=parse(f.text), T=pr.total;
+    host.innerHTML=`<div class="sim-wrap"><canvas class="sim-c"></canvas><canvas class="sim-o"></canvas></div>
+      <div class="sim-ctl"><button class="btn" id="simPlay">▶ Play</button><input type="range" id="simT" min="0" max="${T.toFixed(1)}" step="0.1" value="0" aria-label="Time">
+        <span id="simClock">0 s / ${fmtTime(T)}</span><select id="simSpd" aria-label="Speed">${[10,30,100,300].map(v=>`<option value="${v}" ${v===30?'selected':''}>${v}×</option>`).join('')}</select></div>
+      <p class="note">${/E/.test(f.side)?'Exterior':'Interior'} face up, as on the machine. <span class="sw" style="background:#2f8a57"></span> cut part-way, darker = deeper · <span class="sw" style="background:#222624"></span> right through.</p>`;
+    const cv=host.querySelector('.sim-c'), ov=host.querySelector('.sim-o'), clock=host.querySelector('#simClock'), sl=host.querySelector('#simT');
+    let hm=null, next=0, tNow=0, playing=false, lastDraw=0, lastTs=0;
+    ov.width=BW; ov.height=BH;
+    const draw=(tool)=>{ depthCanvas(cv, depthOf(hm, f.thick), f.thick, {ext:/E/.test(f.side)});
+      const c=ov.getContext('2d'); c.clearRect(0,0,BW,BH);
+      if(tool){ c.beginPath(); c.arc(tool[0]/RES, BH-tool[1]/RES, 0.375/RES, 0, 7); c.fillStyle='rgba(208,102,31,.85)'; c.fill(); c.lineWidth=2; c.strokeStyle='#fff'; c.stroke(); }
+      clock.textContent=`${fmtTime(tNow)} / ${fmtTime(T)}`; sl.value=tNow; };
+    const goTo=t=>{ if(t<tNow || !hm){ hm=null; next=0; } const r=simulate(pr, t, hm, next); hm=r.hm; next=r.next; tNow=t; draw(r.tool); };
+    const step=ts=>{ if(!playing) return; const dt=lastTs?(ts-lastTs)/1000:0; lastTs=ts;
+      const t=Math.min(T, tNow+dt*(+host.querySelector('#simSpd').value)); const r=simulate(pr, t, hm, next); hm=r.hm; next=r.next; tNow=t;
+      if(ts-lastDraw>70 || t>=T){ draw(r.tool); lastDraw=ts; }
+      if(t>=T){ playing=false; host.querySelector('#simPlay').textContent='↺ Again'; return; }
+      anim.raf=requestAnimationFrame(step); };
+    anim={raf:0};
+    host.querySelector('#simPlay').onclick=()=>{ if(tNow>=T) goTo(0); playing=!playing; host.querySelector('#simPlay').textContent=playing?'❚❚ Pause':'▶ Play'; lastTs=0; if(playing) anim.raf=requestAnimationFrame(step); };
+    sl.oninput=()=>{ playing=false; host.querySelector('#simPlay').textContent='▶ Play'; goTo(+sl.value); };
+    goTo(0);
+  }
+  // checks for the whole panel (both sides), and the 3D view
+  const P=checkPanel(panelFiles);
+  if(tview==='3d'){ host.innerHTML='<div class="v3d"></div><p class="note">The panel after all its files, interior face up. Drag to turn, scroll or pinch to zoom. Brown = ½″ OSB, white = foam.</p>'; view3d=panel3D(host.querySelector('.v3d'), P); }
+  const nPieces=P.pieces.length;
+  el.querySelector('#tapChecks').innerHTML=`<div class="checks">
+    <div><b>${P.throughArea.toFixed(0)} sq in</b><span>right through</span></div><div><b>${P.pocketArea.toFixed(0)} sq in</b><span>part-way</span></div><div><b>${nPieces}</b><span>loose piece${nPieces===1?'':'s'}</span></div></div>
+    ${P.warn.length?`<ul class="cnc-w">${P.warn.map(w=>`<li>⚠ ${esc(w)}</li>`).join('')}</ul>`:''}
+    ${P.ok.length?`<ul class="ok-l">${P.ok.map(w=>`<li>✓ ${esc(w)}</li>`).join('')}</ul>`:''}
+    ${nPieces?`<details class="help"><summary>Loose pieces</summary><ul class="note">${P.pieces.map(p=>`<li>${p.area.toFixed(0)} sq in · ${fin(p.box[1]-p.box[0])} × ${fin(p.box[3]-p.box[2])} at ${fin(p.box[0])}, ${fin(p.box[2])}</li>`).join('')}</ul></details>`:''}`;
 }
 function renderCncSheet(el){
   const cp=cutPlan(), S=cp.S, runs=cp.runs, tapHTML=tapSection();
@@ -94,8 +148,12 @@ function renderCncSheet(el){
     </details></details>`;
   el.querySelectorAll('tr[data-i]').forEach(tr=>tr.onclick=()=>{ pick=+tr.dataset.i; renderCncSheet(el); });
   el.querySelectorAll('tr[data-t]').forEach(tr=>tr.onclick=()=>{ tpick=+tr.dataset.t; renderCncSheet(el); });
-  el.querySelector('#tapZip').onclick=()=>downloadBlob(tapZip(TP), `${MODELS[state.model].name.replace(/[^\w .+-]+/g,'').trim()} - ShopSabre tap files.zip`);
-  el.querySelector('#tapOne').onclick=()=>{ const f=TP.files[tpick]; downloadBlob(new Blob([f.text],{type:'text/plain'}), f.name); };
+  el.querySelectorAll('[data-dl]').forEach(b=>b.onclick=e=>{ e.stopPropagation(); const [k,a,c]=b.dataset.dl.split(':');
+    const pick = k==='home' ? null : k==='pod' ? {pod:+a} : k==='wall' ? {pod:+a, letter:c} : {panel:a};
+    const label = k==='home' ? 'ShopSabre tap files' : k==='pod' ? `Pod ${+a+1} tap files` : k==='wall' ? `Pod ${+a+1} Wall ${c} tap files` : `Panel ${a} tap files`;
+    downloadBlob(tapZip(TP, pick), `${fname(label)}.zip`); });
+  el.querySelectorAll('[data-tv]').forEach(b=>b.onclick=()=>{ tview=b.dataset.tv; el.querySelectorAll('[data-tv]').forEach(x=>x.setAttribute('aria-pressed', x===b)); mountTapView(el); });
+  mountTapView(el);
   const name=MODELS[state.model].name.replace(/[^\w .+-]+/g,'').trim();
   el.querySelector('#cncZip').onclick=()=>downloadBlob(cutFilesZip(cp), `${name} - CNC cut files.zip`);
   el.querySelector('#cncCsv').onclick=()=>downloadBlob(new Blob([manifestCSV(cp)],{type:'text/csv'}), `${name} - CNC manifest.csv`);

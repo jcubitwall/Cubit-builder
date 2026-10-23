@@ -106,3 +106,11 @@ The CNC sheet now offers a ".tap zip" download, with one file per panel side, na
   - roof and floor panels
 
 **Open question.** C1's cuts only line up with the schematic if C1 is 46¼″ wide, with the corner Einspine taking the first 1¾″. The door head stops at X46.25, and the jamb sits 21⅝″ from the edge against the schematic's 23⅜″. In A1-A2-A3, the second outside slot lands exactly on A3's cut edge.
+
+## Simulator and time estimates (js/cutsim.js)
+
+- **Time:** feeds come from each file. Rapids are assumed at 800 in/min (XY) and 400 in/min (Z). Add 10 s per tool change, the 4 s dwell, and +15% for acceleration. These are rough guesses until a panel is timed on the machine.
+- **Simulate:** replays the bit on a 1/16″ grid. The depth map plays at 10–300× speed with a time slider.
+- **Checks** cover both sides of a panel together (the exterior pass is mirrored side to side). They show what goes right through, what is cut part-way, and which pieces come loose. They also check that every opening, trim strip and vent actually drops out, and flag spots left less than 0.3″ thick.
+- **3D:** shows the panel after all its files, interior face up, with ½″ OSB skins and the foam core. Loose pieces float above the panel.
+- **Downloads:** the CNC sheet downloads the whole home, one pod, one wall or one panel (both sides). Each comes in the same home / pod / wall folders and stacking order.
