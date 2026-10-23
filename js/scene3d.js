@@ -337,7 +337,7 @@ function buildHome(){
         const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT, gh*0.98, (z1-z0)/FT), mat);
         m.position.set(p.x+(x0+x1)/2/FT, gy+gh/2, p.z+(z0+z1)/2/FT); m.userData={pod:p.i, lay:'floor-int', base:m.position.clone(), build:kind}; rimGroup.add(m); };
       B.eps.forEach(r=>put(r, FRAME_MAT.eps, 'eps')); B.blocks.forEach(r=>put(r, FRAME_MAT.wood, 'block'));
-      // under the floor: the steel frames (2″ × 3″ tube, 8′ × 8′ sections) and 2 mm ACP sheets on the very bottom
+      // under the floor: the steel frames (2″ × 3″ tube, 8′ × 8′ sections) and 2 mm ACM sheets on the very bottom
       const fr=FLOOR_BUILD.frame, ac=FLOOR_BUILD.acp, under=(r,y0,h,mat,kind)=>{ const [x0,x1,z0,z1] = along ? r : [r[2],r[3],r[0],r[1]];
         const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT, h/FT, (z1-z0)/FT), mat);
         m.position.set(p.x+(x0+x1)/2/FT, (y0-WALL_BASE)/FT+h/2/FT, p.z+(z0+z1)/2/FT); m.userData={pod:p.i, lay:'frame', base:m.position.clone(), build:kind, always:true}; rimGroup.add(m); };

@@ -43,7 +43,7 @@ const WALL_BASE = 10.56;
    exterior SIP 0–4.5 · 1½″ gap 4.5–6 · interior SIP 6–10.5; 1⅞″ × 9½″ LVL rims 0.5–10 sitting in a rebate on each
    layer's inner skin; 8″ × 1½″ EPS strips all round in the gap against the rims (in 8′ pieces); 16″ 2×4 blocks laid
    flat in the gap across every panel joint, two per joint at 32″ and 64″ across the floor.
-   Under the floor: a steel frame of 2″ × 3″ tube in 8′ × 8′ sections (one per 8′ of pod), and 2 mm ACP in 4 × 8
+   Under the floor: a steel frame of 2″ × 3″ tube in 8′ × 8′ sections (one per 8′ of pod), and 2 mm ACM in 4 × 8
    sheets on the very bottom. */
 const FLOOR_BUILD = { frame:{w:2, h:3, size:96, stick:24}, acp:{t:0.079, sheet:[48,96]}, rimZ:0.5, gap:[4.5,6], eps:{w:8, t:1.5, off:0.25, stock:96}, block:{len:16, w:3.5, t:1.5, at:[32,64]} };
 const LAYER_KINDS = {

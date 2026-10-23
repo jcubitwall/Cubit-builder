@@ -305,7 +305,7 @@ function floorBuildHTML(ls){
       <li><b>2×4 blocks 16″</b>, laid flat in the gap across every panel joint, two per joint at ${F.block.at.map(fin).join(' and ')} across the floor: ${B.blocks.length} blocks.</li>
       <li><b>Exterior floor</b> panels on top, into the rims.</li>
       <li><b>Steel floor frame${B.frames.length>1?'s':''}</b> under it: ${B.frames.length} × 8′ × 8′ of 2″ × 3″ tube (2 × 96″ sides + 2 × ${fin(96-2*FLOOR_BUILD.frame.w)} ends each).</li>
-      <li><b>ACP 2 mm</b> on the very bottom: ${B.acp.length} sheets of 4 × 8.</li>
+      <li><b>ACM 2 mm</b> on the very bottom: ${B.acp.length} sheets of 4 × 8.</li>
     </ol></div>`;
 }
 /* ---------- floor / ceiling layer sheet: plan from above, panels, holes ---------- */

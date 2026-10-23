@@ -24,7 +24,7 @@ import { panelPlan } from './labels.js';
 import { packStock } from './deckframe.js';
 
 const SNAP = 0.25;
-const EPS_MAT = '1½″ EPS, 8″ strips', TUBE_MAT = 'Steel tube 2″ × 3″', ACP_MAT = 'ACP 2 mm, 4 × 8 sheets';
+const EPS_MAT = '1½″ EPS, 8″ strips', TUBE_MAT = 'Steel tube 2″ × 3″', ACM_MAT = 'ACM 2 mm, 4 × 8 sheets';
 const LVL_H = {9.25:'9¼″', 9.5:'9½″', 11.875:'11⅞″'};
 const fmtIn = v => { const n=Math.round(v*16); const w=Math.floor(n/16), f=n%16, g=(a,b)=>b?g(b,a%b):a, d=g(f,16); return (w?w:'')+(f?`${w?' ':''}${f/d}/${16/d}`:'')+'″'; };
 const isFloorOpening = o => o.kind!=='vent' && o.kind!=='window' && o.y < 1.6;
@@ -125,7 +125,7 @@ function framingTakeoff(walls=homeFraming(), rims=podRims()){
   rims.forEach(R=>R.pieces.forEach(([name,h,len,n])=>put(`LVL 1⅞″ × ${LVL_H[h]||h+'″'}`, name, len, n)));
   // floor cassette: 2×4 joint blocks and EPS strips in the gap between the two floor layers
   floorBuilds().forEach(B=>{ put('2×4', 'Floor joint block (flat, across a panel joint)', FLOOR_BUILD.block.len, B.blocks.length); B.epsLens.forEach(l=>put(EPS_MAT, 'Floor perimeter strip', l));
-    B.tubeLens.forEach(l=>put(TUBE_MAT, 'Floor frame (8′ × 8′ section)', l)); put(ACP_MAT, 'Floor underside (4 × 8 sheet)', 96, B.acp.length); });
+    B.tubeLens.forEach(l=>put(TUBE_MAT, 'Floor frame (8′ × 8′ section)', l)); put(ACM_MAT, 'Floor underside (4 × 8 sheet)', 96, B.acp.length); });
   const out=Object.entries(groups).map(([mat,g])=>{
     const cuts=Object.values(g.cuts).sort((a,b)=>a.name.localeCompare(b.name)||b.len-a.len);
     let buy='', order=null;
@@ -136,8 +136,8 @@ function framingTakeoff(walls=homeFraming(), rims=podRims()){
     } else if(mat===TUBE_MAT){
       const st=packStock(g.all, [FLOOR_BUILD.frame.stick]), n=st.boards.length; order=[{n, what:`${mat} × ${FLOOR_BUILD.frame.stick}′`}];
       buy=`${g.all.length} pieces · ${(g.all.reduce((a,b)=>a+b,0)/12).toFixed(1)} linear ft → ${n} × ${FLOOR_BUILD.frame.stick}′ lengths`;
-    } else if(mat===ACP_MAT){
-      order=[{n:g.all.length, what:'ACP 2 mm sheet 4 × 8'}]; buy=`${g.all.length} sheets of 4 × 8`;
+    } else if(mat===ACM_MAT){
+      order=[{n:g.all.length, what:'ACM 2 mm sheet 4 × 8'}]; buy=`${g.all.length} sheets of 4 × 8`;
     } else if(mat===EPS_MAT){
       // cut from 4 × 8 sheets of 1½″ EPS: six 8″ strips per sheet along the 8′ length
       const st=packStock(g.all, [8]), strips=st.boards.length, sheets=Math.ceil(strips/6); order=[{n:sheets, what:'4 × 8 × 1½″ EPS sheet (cut 8″ floor strips)'}];
@@ -155,7 +155,7 @@ function framingTakeoff(walls=homeFraming(), rims=podRims()){
   // Einspines: one at every pod corner; Dynobite screws through each spine into the corner wood
   const spines=rims.length*4, S=SPINE_SCREWS, wallN=S.wallSides*(Math.ceil(H/S.wallEvery)-1), per=S.perLVL*S.lvlEnds+wallN;
   out.push({ mat:`Einspine screws (${S.size})`, cuts:[{name:`per Einspine: ${S.perLVL} into each of the ${S.lvlEnds} LVL ends + ${wallN} up the wall (1 per side every 2′)`, len:0, n:per}], pieces:spines*per, buy:`${spines*per} screws · ${per} per Einspine × ${spines} Einspines (4 per pod)`, fastener:true, order:[{n:spines*per, what:`${S.size} screw (Einspine)`}] });
-  const order=m=>/^LVL/.test(m)?0:/2×6/.test(m)?1:/2×4/.test(m)?2:/OSB/.test(m)?3:/EPS/.test(m)?4:/Steel/.test(m)?5:/ACP/.test(m)?6:7;
+  const order=m=>/^LVL/.test(m)?0:/2×6/.test(m)?1:/2×4/.test(m)?2:/OSB/.test(m)?3:/EPS/.test(m)?4:/Steel/.test(m)?5:/ACM/.test(m)?6:7;
   return out.sort((a,b)=>order(a.mat)-order(b.mat));
 }
 /* the floor cassette's build-up for one pod, in the pod's own inches: u along the pod (0..len), v across (0..96).
@@ -174,7 +174,7 @@ function floorBuild(p){
   for(let u0=0; u0<L-1; u0+=fr.size){ const u1=u0+fr.size;
     frames.push([u0,u1,0,W]);
     tubes.push([u0,u1,0,fr.w],[u0,u1,W-fr.w,W],[u0,u0+fr.w,fr.w,W-fr.w],[u1-fr.w,u1,fr.w,W-fr.w]); }
-  // ACP: 4 × 8 sheets, 8′ across the pod, 4′ along it
+  // ACM: 4 × 8 sheets, 8′ across the pod, 4′ along it
   const acp=[]; for(let u0=0; u0<L-1; u0+=F.acp.sheet[0]) acp.push([u0, u0+F.acp.sheet[0], 0, W]);
   return { eps, blocks, epsLens:[W-2*t, W-2*t, ...lens, ...lens], frames, tubes, tubeLens:frames.flatMap(()=>[fr.size, fr.size, W-2*fr.w, W-2*fr.w]), acp };
 }

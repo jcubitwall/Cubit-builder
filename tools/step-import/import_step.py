@@ -77,10 +77,25 @@ class Rays:
         it.Perform(gp_Lin(gp_Pnt(p[0]*IN+X0,p[1]*IN+Y0,p[2]*IN+Z0),gp_Dir(*d)),0,length*IN)
         return [it.WParameter(k)/IN for k in range(1,it.NbPnt()+1)]
 
+# ------------------------------------------------------------------ the floor's bottom
+def rebase_floor(solids, origin):
+    """Every Cubit floor stands on a steel frame (2″ × 3″ tube) with 2 mm ACM sheets under it. Whether or not the
+    model draws them, heights are measured from the bottom of the exterior SIP floor: if the frame / ACM are drawn,
+    the lowest 4½″ SIP slab sits higher than the bottom of the file, so move the zero up to it."""
+    big=lambda s:(s['b'][3]-s['b'][0])>40 and (s['b'][4]-s['b'][1])>40
+    slabs=[s for s in solids if big(s) and 3.5<s['b'][5]-s['b'][2]<6.0 and s['b'][2]<8]
+    if not slabs: return solids, origin
+    dz=min(s['b'][2] for s in slabs)
+    if dz<0.5: return solids, origin
+    log(f'  floor frame / ACM drawn under the floor: heights measured from {dz:.2f}″ up (bottom of the exterior SIP floor)')
+    X0,Y0,Z0=origin
+    for s in solids: s['b'][2]-=dz; s['b'][5]-=dz
+    return solids, (X0,Y0,Z0+dz*IN)
+
 # ------------------------------------------------------------------ pods
 def find_pods(solids):
     big=lambda s:(s['b'][3]-s['b'][0])>40 and (s['b'][4]-s['b'][1])>40
-    sheets=[s for s in solids if s['b'][2]<0.3 and s['b'][5]-s['b'][2]<1.0 and big(s)]
+    sheets=[s for s in solids if s['b'][2]<0.3 and s['b'][5]-s['b'][2]<1.0 and big(s)]   # FRP / ACM sheets under the floor
     if not sheets:
         # no FRP bottom sheet drawn: use the exterior floor itself (the lowest SIP slabs, about 4½″ thick), as in the
         # panel-by-panel models (whole floor as one body, or one body per 4 × 8 panel)
@@ -311,7 +326,7 @@ def main():
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         import wall_import
         return wall_import.run(a.step, a.name, a.repo)
-    solids,origin=read_step(a.step); rays=Rays(origin)
+    solids,origin=read_step(a.step); solids,origin=rebase_floor(solids,origin); rays=Rays(origin)
     pods,orient=find_pods(solids)
     if a.kind=='pod' and len(pods)!=1: sys.exit(f'Expected one pod in a pod file, found {len(pods)}. Upload it as a home instead.')
     log(f'{len(pods)} pods, long axis = STEP {orient}: '+', '.join(f"Pod {p['i']+1} {p['len']}′ @({p['nx']},{p['nz']})" for p in pods))
@@ -325,6 +340,8 @@ def main():
             Lside=(p['len'] if app_side in 'SN' else 8)*12
             same=u_same_dir(orient,step_side)
             log(f"  Pod {p['i']+1} {app_side}: {len(sc['openings'])} openings, depth {sc['depth']}")
+            if sc['depth'] is None:     # no wall drawn on this side (e.g. a floor-only file): don't invent one
+                log(f"  Pod {p['i']+1} {app_side}: no wall in the file, skipped"); continue
             for s in [s for s in slots if s['pod']==p['i'] and s['side']==app_side]:
                 sa=(s['a']-s['sa'])*12; sb=(s['b']-s['sa'])*12
                 p0_min = app_side in ('N','W')
@@ -409,7 +426,8 @@ def main():
     pp=os.path.join(R,'data/pods.json')
     try: plib=json.load(open(pp))
     except FileNotFoundError: plib=[]
-    added_p=pods_lib.merge_pods(plib, pods_lib.pods_from_model(proj['model'], source), a.name)
+    # a file with only floors (or ceilings) in it fills the layer library; it isn't a whole pod
+    added_p=pods_lib.merge_pods(plib, pods_lib.pods_from_model(proj['model'], source), a.name) if new_walls else 0
     pods_lib.write_pods(pp, plib)
     print(json.dumps(dict(kind=a.kind, project=pid if a.kind=='home' else None, pods=len(pods),walls=len(new_walls),new_walls=added_w,layers=len(new_layers),new_layers=added_l,new_pods=added_p,decks=len(deck_places),new_decks=added_d)))
 

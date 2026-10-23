@@ -43,7 +43,7 @@ function homeTakeoff(){
     ...byKind(p=>p.kind==='Bottom plate').map(x=>({...x, note:'bottom plate · on the floor · bevel 2 top corners ¾″'})),
     ...(()=>{ const B=floorBuilds(), eps={}; let blocks=0; B.forEach(b=>{ blocks+=b.blocks.length; b.epsLens.forEach(l=>{ const k=l.toFixed(2); (eps[k] ||= {n:0, what:'EPS strip 8″ × 1½″', len:l, note:'floor gap, against the rims'}).n++; }); });
       let frames=0, acp=0; const tube={}; B.forEach(b=>{ frames+=b.frames.length; acp+=b.acp.length; b.tubeLens.forEach(l=>{ const k=l.toFixed(2); (tube[k] ||= {n:0, what:'Steel tube 2″ × 3″', len:l, note:'floor frame'}).n++; }); });
-      return [...(frames?[{n:frames, what:'Steel floor frame 8′ × 8′', note:'2″ × 3″ tube · one per 8′ of pod'}, ...Object.values(tube).sort((a,b)=>b.len-a.len)]:[]), ...(acp?[{n:acp, what:'ACP 2 mm sheet 4 × 8', note:'underside of the floor'}]:[]),
+      return [...(frames?[{n:frames, what:'Steel floor frame 8′ × 8′', note:'2″ × 3″ tube · one per 8′ of pod'}, ...Object.values(tube).sort((a,b)=>b.len-a.len)]:[]), ...(acp?[{n:acp, what:'ACM 2 mm sheet 4 × 8', note:'underside of the floor'}]:[]),
         ...Object.values(eps).sort((a,b)=>b.len-a.len), ...(blocks?[{n:blocks, what:'2×4', len:16, note:'floor joint block · flat across each panel joint, at 32″ and 64″'}]:[])]; })()]);
   // Walls: SIP panels, studs, jacks, splines
   { const plans=homePlans(), g={};
@@ -84,7 +84,7 @@ function shoppingList(){
   }
   { const sc=screwPlan(state.model, state.inset).screws, h={}; sc.forEach(q=>{ h[q.head]=(h[q.head]||0)+1; }); Object.entries(h).forEach(([k,n])=>add('Foundation', n, `ground screw, ${k} head`)); }
   add('Foundation', padsFor(state.model, state.inset).length, 'concrete pad 16″ × 16″');
-  framingTakeoff().forEach(g=>(g.order||[]).forEach(o=>add(/screw/i.test(o.what)?'Fasteners':/steel|ACP/i.test(o.what)?'Steel frame & ACP':/EPS/.test(o.what)?'Insulation':'Lumber & LVL', o.n, o.what)));
+  framingTakeoff().forEach(g=>(g.order||[]).forEach(o=>add(/screw/i.test(o.what)?'Fasteners':/steel|ACM/i.test(o.what)?'Steel frame & ACM':/EPS/.test(o.what)?'Insulation':'Lumber & LVL', o.n, o.what)));
   const ds=deckList(state.model);
   if(ds.length){ const T=deckTakeoff(ds.map(d=>d.L));
     Object.entries(T.frame.byLen).forEach(([ft,n])=>add('Decks', n, `2×8 × ${ft}′`));
