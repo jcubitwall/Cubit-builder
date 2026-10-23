@@ -129,5 +129,40 @@
     "faces": {},
     "inset": 6,
     "from": "expanse"
+  },
+  {
+    "id": "preston-cudmore",
+    "name": "Preston Cudmore",
+    "saved": "2026-10-23T20:27:03Z",
+    "model": {
+      "name": "Preston Cudmore",
+      "size": "24",
+      "pods": [
+        {
+          "t": "L24",
+          "x": 0,
+          "z": 0
+        }
+      ],
+      "decks": [],
+      "picks": {
+        "0W0": "W08-06",
+        "0E0": "W08-07",
+        "0N0": "W24-04",
+        "0S0": "W24-05"
+      },
+      "layerPicks": {
+        "0:floor-ext": "FE24-03",
+        "0:floor-int": "FI24-03",
+        "0:ceiling-int": "CI24-02",
+        "0:roof": "RF24-01"
+      },
+      "note": "Scanned from h1.step on 2026-10-23."
+    },
+    "picks": {},
+    "wallA": {},
+    "faces": {},
+    "inset": 6,
+    "from": ""
   }
 ]

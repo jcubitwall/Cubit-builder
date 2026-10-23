@@ -1,5 +1,27 @@
 [
  {
+  "id": "20261023202600-rerun",
+  "kind": "home",
+  "name": "Preston Cudmore",
+  "file": "Cubit Builder SIP File.step (re-run)",
+  "by": "heinrich@cubithome.com",
+  "started": "2026-10-23T20:26:59+00:00",
+  "status": "done",
+  "summary": {
+   "kind": "home",
+   "project": "preston-cudmore",
+   "pods": 1,
+   "walls": 4,
+   "new_walls": 4,
+   "layers": 4,
+   "new_layers": 3,
+   "new_pods": 1,
+   "decks": 0,
+   "new_decks": 0
+  },
+  "finished": "2026-10-23T20:27:04+00:00"
+ },
+ {
   "id": "20261023162026-x3mp",
   "kind": "home",
   "name": "Preston Cudmore",
