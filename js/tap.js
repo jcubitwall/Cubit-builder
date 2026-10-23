@@ -59,11 +59,14 @@ function extend(p, q, open, {L,Rr,B,T,W}){
 function tapPlan(){
   const S=cncSettings(), plans=homePlans(), files=[], blank=[], m=MODELS[state.model];
   const boxSize = k => S.gBoxes?.[k] || BOX[k] || BOX.other;
-  let n=0;
+  const safe = x => String(x).replace(/[^\w .+-]+/g,'').trim();
   plans.forEach(plan=>{
     const w=plan.w, L=wallLen(w), t=thickOf(plan), spans=panelSpans(w);
-    plan.panels.slice().sort((a,b)=>a.num-b.num).forEach(p=>{
-      n++;
+    // cut in stacking order: the panel that goes on the BOTTOM of the pile is cut first, so the first panel
+    // the assemblers need (stack 1) comes off the machine last and sits on top
+    const folder = `${safe(plan.slot.pod.label)}/Wall ${plan.slot.letter}`;
+    let n=0;
+    plan.seq.slice().sort((a,b)=>b.stack-a.stack).forEach(p=>{
       const [x0,x1]=spans[p.k], W=p.width, warn=[];
       const u = xo => x1-xo;                          // wall x (from outside-left) → interior face u
       const I=[], E=[];
@@ -93,9 +96,13 @@ function tapPlan(){
       if(p.cut) I.push({tp:'trim', kind:'line', pts:[[W+R,-TRIM_OVER],[W+R,H+TRIM_OVER]], what:`trim to ${fin(W)}`});
       const base=`${p.code}_Sip-${tName(t)}`;
       const sides = E.length && I.length ? [['aE',E],['bI',I]] : E.length ? [['E',E]] : [['I',I]];
-      if(!E.length && !I.length){ blank.push(p.code); return; }      // nothing for the CNC on this panel
+      n++; const nn=String(n).padStart(2,'0');
+      if(!E.length && !I.length){                                    // nothing for the CNC: a note keeps its place in the pile
+        blank.push({ panel:p.code, path:`${folder}/${nn}-NO CNC_${p.code}.txt`, stack:p.stack, of:plan.n,
+          text:`Panel ${p.code} (${plan.slot.pod.label}, Wall ${plan.slot.letter}): no CNC work.\r\nPut a ${p.cut?fin(W)+' wide (trim on the saw)':'full 48"'} x 96" ${tName(t)}" SIP panel on the pile here, ${plan.assembly==='int'?'interior':'exterior'} face up.\r\nStack position ${p.stack} of ${plan.n} (1 = top).\r\n` });
+        return; }
       sides.forEach(([side,ops])=>{
-        files.push({ n, side, name:`${n}-${side}_${base}.tap`, panel:p.code, wall:plan.slot.label, thick:t, width:W,
+        files.push({ n, side, name:`${nn}-${side}_${base}.tap`, path:`${folder}/${nn}-${side}_${base}.tap`, stack:p.stack, of:plan.n, panel:p.code, wall:`${plan.slot.pod.label} · Wall ${plan.slot.letter}`, thick:t, width:W,
           ops, warn, text: gcode({thick:t, ops}) });
       });
     });
@@ -113,24 +120,29 @@ function readmeTap(tp){
 `Set up as the shop's VCarve jobs: double sided, 48 x 96, Z ZERO = MACHINE BED, XY datum lower-left,`,
 `flip side to side. X across the panel seen from the face that is up, Y up the wall (0 = bottom).`,
 ``,
+`FOLDERS: home / pod / wall. Within a wall, files are numbered in CUT ORDER = stacking order: 01 is cut first`,
+`and goes on the bottom of the pile; the last file is the first panel the assemblers need (stack 1, on top).`,
+`A panel with no CNC work has a NO CNC note at its place in the order instead of a .tap file.`,
+``,
 `<n>-aE_...  exterior face up, cut first      <n>-bI_...  flip side to side, interior face up`,
 `<n>-I_...   interior face up only           <n>-E_...   exterior face up only`,
 ``,
 `Openings are cut at the rough opening. A panel cut to width is trimmed last; its factory edge stays at X0.`,
 `Einspine corner slots follow the shop's A / C wall files (3/4" slot 1" to 1 3/4" from the corner, Z 0.53).`,
 ``,
-`No CNC work (not written): ${tp.blank.join(', ')||'none'}`,
+`No CNC work: ${tp.blank.map(b=>b.panel).join(', ')||'none'} (a NO CNC note keeps each one's place in the pile)`,
 ``,
 `TEST BEFORE CUTTING: air cut first (Z raised), then a scrap panel, then a real one.`,
   ].join('\r\n')+'\r\n';
 }
 function manifestTap(tp){
-  const rows=[['file','panel','wall','side','thickness','width','operations','warnings']];
-  tp.files.forEach(f=>rows.push([f.name, f.panel, f.wall, f.side, f.thick, +f.width.toFixed(4), f.ops.map(o=>o.what).join(' | '), f.warn.join(' | ')]));
+  const rows=[['file','panel','wall','side','stack_position_top_is_1','thickness','width','operations','warnings']];
+  tp.files.forEach(f=>rows.push([f.path, f.panel, f.wall, f.side, `${f.stack} of ${f.of}`, f.thick, +f.width.toFixed(4), f.ops.map(o=>o.what).join(' | '), f.warn.join(' | ')]));
   return rows.map(r=>r.map(v=>/[",\n]/.test(String(v))?`"${String(v).replace(/"/g,'""')}"`:String(v)).join(',')).join('\r\n')+'\r\n';
 }
 function tapZip(tp=tapPlan()){
-  return zip([{name:'README.txt', text:readmeTap(tp)}, {name:'manifest.csv', text:manifestTap(tp)}, ...tp.files.map(f=>({name:'tap/'+f.name, text:f.text}))]);
+  const safe = x => String(x).replace(/[^\w .+-]+/g,'').trim();
+  return zip([{name:'README.txt', text:readmeTap(tp)}, {name:'manifest.csv', text:manifestTap(tp)}, ...[...tp.files, ...tp.blank].map(f=>({name:safe(tp.home)+'/'+f.path, text:f.text})).sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}))]);
 }
 
 /* toolpath preview of one .tap: feed moves in colour by depth, rapids dashed */

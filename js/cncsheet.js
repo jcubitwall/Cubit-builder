@@ -32,14 +32,14 @@ function tapSection(){
   TP=tapPlan(); const F=TP.files; if(tpick>=F.length) tpick=0;
   if(!F.length) return '';
   const f=F[tpick]; let last=null, rows='';
-  F.forEach((x,i)=>{ if(x.wall!==last){ rows+=`<tr class="grp"><td colspan="4">${esc(x.wall)}</td></tr>`; last=x.wall; }
-    rows+=`<tr class="${i===tpick?'on':''}" data-t="${i}"><td>${esc(x.name)}</td><td>${x.side.includes('E')?'exterior up':'interior up'}</td><td>${x.ops.length}</td><td>${x.warn.length?`<span class="flipflag">⚠ ${x.warn.length}</span>`:''}</td></tr>`; });
+  F.forEach((x,i)=>{ if(x.wall!==last){ rows+=`<tr class="grp"><td colspan="5">${esc(x.wall)} · cut in stacking order, bottom of the pile first</td></tr>`; last=x.wall; }
+    rows+=`<tr class="${i===tpick?'on':''}" data-t="${i}"><td>${esc(x.name)}</td><td>${x.side.includes('E')?'exterior up':'interior up'}</td><td>${x.stack}${x.stack===1?' (top)':x.stack===x.of?' (bottom)':''}</td><td>${x.ops.length}</td><td>${x.warn.length?`<span class="flipflag">⚠ ${x.warn.length}</span>`:''}</td></tr>`; });
   return `<h4 style="margin:6px 0 6px">G-code for the ShopSabre (.tap)</h4>
     <div class="cnc-warn"><b>Test first.</b> Written in the shop's own format (ShopSabre ATC post, tool 13, Z zero on the bed, flip side to side) and checked against 13 of the shop's real files. Run each new panel type as an air cut, then on scrap, before cutting a real panel. Boxes only appear once a wall has a box layout.</div>
     <div class="sheet-tools"><button class="btn" id="tapZip">Download all .tap files (zip)</button><button class="btn ghost" id="tapOne">This file only</button>
       <span style="font-size:12.5px;color:#333">Save the zip's tap folder to the shop's network folder; the CNC PC picks them up from there.</span></div>
     <div class="cnc-grid">
-      <div class="tblwrap cnc-list">${TP.blank.length?`<p class="note">No CNC work, no file: ${esc(TP.blank.join(', '))}</p>`:''}<table class="boxes"><thead><tr><th>File</th><th>Face up</th><th>Cuts</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="tblwrap cnc-list">${TP.blank.length?`<p class="note">No CNC work (a note keeps their place in the pile): ${esc(TP.blank.map(b=>b.panel).join(', '))}</p>`:''}<table class="boxes"><thead><tr><th>File</th><th>Face up</th><th>Stack</th><th>Cuts</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
       <div class="cnc-prev">
         <div class="eyebrow" style="color:#555">${esc(f.name)} · ${fin(f.width)} wide · ${f.thick}″ SIP</div>
         <div class="elev">${tapSVG(f.text, f.thick)}</div>
