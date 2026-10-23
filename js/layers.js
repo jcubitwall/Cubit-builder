@@ -70,12 +70,19 @@ function showBadge(){
   badge.title='Show the whole home again';
 }
 badge.onclick=()=>setPod(null);
-/* double-click a wall, floor or ceiling: that pod on its own (double-click it again: the whole home) */
-stage.addEventListener('dblclick', e=>{
+/* double-tap (or double-click) a wall, floor, ceiling or roof: that pod on its own. Double-tap again anywhere: the
+   whole home. Works with a finger on the iPad / iPhone as well as a mouse (touch screens don't send dblclick). */
+let lastTap=null;
+stage.addEventListener('pointerup', e=>{
   if(e.target.tagName!=='CANVAS' || podList(state.model).length<2) return;
-  setTimeout(()=>{ const id=state.selected; if(!id) return;
+  const now=performance.now(), near = lastTap && now-lastTap.t<450 && Math.hypot(e.clientX-lastTap.x, e.clientY-lastTap.y)<30;
+  if(!near){ lastTap={t:now, x:e.clientX, y:e.clientY}; return; }
+  lastTap=null;
+  setTimeout(()=>{
+    if(state.focusPod!=null){ setPod(null); return; }
+    const id=state.selected; if(!id) return;
     const s=slotsFor(state.model).find(x=>x.id===id) || layerSlotsFor(state.model).find(x=>x.id===id); if(!s?.pod) return;
-    setPod(state.focusPod===s.pod.i ? null : s.pod.i); }, 30);
+    setPod(s.pod.i); }, 0);
 });
 pop.addEventListener('click', e=>{
   const r=e.target.closest('.lay-row'); if(r) return set(r.dataset.k, !val(r.dataset.k));
