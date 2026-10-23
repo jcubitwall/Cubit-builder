@@ -516,3 +516,4 @@ html.phone .plan-wrap .hint{display:none}
 .v3d-bar .note{margin:0;flex:1;min-width:200px}
 .chk{display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer}
 .chk input{accent-color:var(--accent);width:16px;height:16px}
+.after-l{font-size:12.5px;margin:0 0 8px;color:#333}

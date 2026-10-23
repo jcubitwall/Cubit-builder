@@ -114,3 +114,13 @@ The CNC sheet now offers a ".tap zip" download, with one file per panel side, na
 - **Checks** cover both sides of a panel together (the exterior pass is mirrored side to side). They show what goes right through, what is cut part-way, and which pieces come loose. They also check that every opening, trim strip and vent actually drops out, and flag spots left less than 0.3″ thick.
 - **3D:** shows the panel after all its files, interior face up, with ½″ OSB skins and the foam core. Loose pieces float above the panel.
 - **Downloads:** the CNC sheet downloads the whole home, one pod, one wall or one panel (both sides). Each comes in the same home / pod / wall folders and stacking order.
+
+## Orientation rule (shop, 23 Oct 2026)
+
+Assembly always starts at the LEFT, where the squaring edge of the upright table is. Before production, each wall, floor and ceiling gets a setting for which face the assemblers see. If it's the interior / room side, the order is 1 → n; if it's the other face, the order is n → 1, so the finished wall never has to be turned around. That setting drives:
+
+- the stacking order;
+- which face is up on the pile (the last CNC pass, or a flip before stacking);
+- which face the label goes on: the one the assemblers see.
+
+The .tap manifest and the CNC sheet show "after cutting" and "label on" for every panel.

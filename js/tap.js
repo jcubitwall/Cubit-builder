@@ -16,7 +16,7 @@
 */
 import { MODELS } from './data.js';
 import { H } from './config.js';
-import { homePlans } from './labels.js';
+import { homePlans, faceShort } from './labels.js';
 import { wallLen, panelSpans } from './panels.js';
 import { state } from './state.js';
 import { gcode, TOOLS, SKIN, THRU } from './gcode.js';
@@ -100,10 +100,13 @@ function tapPlan(){
       n++; const nn=String(n).padStart(2,'0');
       if(!E.length && !I.length){                                    // nothing for the CNC: a note keeps its place in the pile
         blank.push({ pod:plan.slot.pod.i, letter:plan.slot.letter, panel:p.code, path:`${folder}/${nn}-NO CNC_${p.code}.txt`, stack:p.stack, of:plan.n,
-          text:`Panel ${p.code} (${plan.slot.pod.label}, Wall ${plan.slot.letter}): no CNC work.\r\nPut a ${p.cut?fin(W)+' wide (trim on the saw)':'full 48"'} x 96" ${tName(t)}" SIP panel on the pile here, ${plan.assembly==='int'?'interior':'exterior'} face up.\r\nStack position ${p.stack} of ${plan.n} (1 = top).\r\n` });
+          text:`Panel ${p.code} (${plan.slot.pod.label}, Wall ${plan.slot.letter}): no CNC work.\r\nPut a ${p.cut?fin(W)+' wide (trim on the saw)':'full 48"'} x 96" ${tName(t)}" SIP panel on the pile here, ${faceShort(plan.slot,plan.assembly)} face up. Label it on that face.\r\nStack position ${p.stack} of ${plan.n} (1 = top).\r\n` });
         return; }
-      sides.forEach(([side,ops])=>{
-        files.push({ pod:plan.slot.pod.i, letter:plan.slot.letter, n, side, name:`${nn}-${side}_${base}.tap`, path:`${folder}/${nn}-${side}_${base}.tap`, stack:p.stack, of:plan.n, panel:p.code, wall:`${plan.slot.pod.label} · Wall ${plan.slot.letter}`, thick:t, width:W,
+      // after the last pass the panel goes on the pile with the face the assemblers see up (their label goes on it)
+      const asm=faceShort(plan.slot, plan.assembly), lastFace=/E/.test(sides[sides.length-1][0]) ? 'ext' : 'int';
+      const after = lastFace===plan.assembly ? `stack as cut, ${asm} face up` : `FLIP so the ${asm} face is up, then stack`;
+      sides.forEach(([side,ops],si)=>{
+        files.push({ after: si===sides.length-1 ? after : 'flip side to side, cut the next file', flip: si===sides.length-1 && lastFace!==plan.assembly, labelFace:asm, pod:plan.slot.pod.i, letter:plan.slot.letter, n, side, name:`${nn}-${side}_${base}.tap`, path:`${folder}/${nn}-${side}_${base}.tap`, stack:p.stack, of:plan.n, panel:p.code, wall:`${plan.slot.pod.label} · Wall ${plan.slot.letter}`, thick:t, width:W,
           ops, warn, text: gcode({thick:t, ops}) });
       });
     });
@@ -125,6 +128,10 @@ function readmeTap(tp){
 `and goes on the bottom of the pile; the last file is the first panel the assemblers need (stack 1, on top).`,
 `A panel with no CNC work has a NO CNC note at its place in the order instead of a .tap file.`,
 ``,
+`STACKING + LABELS: every panel goes on the pile with the face the assemblers see on the upright table UP,`,
+`and its label goes on that face. When the last file is cut with the other face up, FLIP the panel before`,
+`stacking (manifest.csv, after_cutting). Assembly always starts at the LEFT (squaring edge).`,
+``,
 `<n>-aE_...  exterior face up, cut first      <n>-bI_...  flip side to side, interior face up`,
 `<n>-I_...   interior face up only           <n>-E_...   exterior face up only`,
 ``,
@@ -137,8 +144,8 @@ function readmeTap(tp){
   ].join('\r\n')+'\r\n';
 }
 function manifestTap(tp){
-  const rows=[['file','panel','wall','side','stack_position_top_is_1','thickness','width','operations','warnings']];
-  tp.files.forEach(f=>rows.push([f.path, f.panel, f.wall, f.side, `${f.stack} of ${f.of}`, f.thick, +f.width.toFixed(4), f.ops.map(o=>o.what).join(' | '), f.warn.join(' | ')]));
+  const rows=[['file','panel','wall','side','stack_position_top_is_1','after_cutting','label_on_face','thickness','width','operations','warnings']];
+  tp.files.forEach(f=>rows.push([f.path, f.panel, f.wall, f.side, `${f.stack} of ${f.of}`, f.after, f.labelFace, f.thick, +f.width.toFixed(4), f.ops.map(o=>o.what).join(' | '), f.warn.join(' | ')]));
   return rows.map(r=>r.map(v=>/[",\n]/.test(String(v))?`"${String(v).replace(/"/g,'""')}"`:String(v)).join(',')).join('\r\n')+'\r\n';
 }
 /* pick: null = whole home, or {pod}, {pod, letter}, {panel} */

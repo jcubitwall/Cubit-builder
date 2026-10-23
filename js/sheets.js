@@ -295,27 +295,33 @@ function renderLayerSheet(el, ls){
   const L=pickLayer(ls), K=LAYER_KINDS[ls.kind], len=L.len*FT, wid=96;
   const cuts=[0,...(L.seams&&L.seams.length?L.seams:[...Array(Math.ceil(len/PW)-1)].map((_,i)=>(i+1)*PW)),len];
   const panels=cuts.slice(0,-1).map((a,i)=>[a,cuts[i+1]]);
+  // which face the assemblers see on the upright table: the room side or the outside. Floors show their room
+  // side from above, ceilings and the roof from below; seen from below the drawing is mirrored. Assembly always
+  // starts at the left (the squaring edge), so the order runs 1 → n or n → 1. Panel numbers stay with the panels.
+  const face = state.faces?.[state.model]?.[ls.id] || 'int', isFloor = ls.kind.startsWith('floor');
+  const below = isFloor ? face==='ext' : face==='int';
   const s=Math.min(3.2, 900/len), ml=70, mt=90, VW=len*s+ml+60, VH=wid*s+mt+90;
-  const X=x=>ml+x*s, Y=z=>mt+z*s;
+  const X=x=>ml+(below?len-x:x)*s, Y=z=>mt+z*s;
+  const order = below ? panels.map((_,i)=>i+1).reverse() : panels.map((_,i)=>i+1);
   let g=`<svg viewBox="0 0 ${VW} ${VH}" font-family="IBM Plex Mono, monospace" role="img" aria-label="Layer plan"><defs><marker id="ar" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#2f6db5"/></marker></defs>`;
   panels.forEach(([a,b],i)=>{
-    g+=`<rect x="${X(a)}" y="${Y(0)}" width="${(b-a)*s}" height="${wid*s}" fill="#efe9da" stroke="#111" stroke-width="1.3"/>`;
+    g+=`<rect x="${Math.min(X(a),X(b))}" y="${Y(0)}" width="${(b-a)*s}" height="${wid*s}" fill="#efe9da" stroke="#111" stroke-width="1.3"/>`;
     g+=`<circle cx="${X((a+b)/2)}" cy="${mt-44}" r="16" fill="#fff" stroke="#d0661f" stroke-width="3"/><text x="${X((a+b)/2)}" y="${mt-38}" text-anchor="middle" font-family="Archivo, Arial, sans-serif" font-weight="800" font-size="17">${i+1}</text>`;
-    g+=dimH(X(a),X(b),mt-14,fin(b-a),Y(0),10);
+    g+=dimH(Math.min(X(a),X(b)),Math.max(X(a),X(b)),mt-14,fin(b-a),Y(0),10);
     if(b-a<PW-0.01) g+=`<text x="${X((a+b)/2)}" y="${Y(wid/2)}" text-anchor="middle" font-size="11" fill="#b4520f" font-weight="600">CUT ${fin(b-a)}</text>`;
   });
   const HOLES=layerHoles(L);
   HOLES.forEach((h,i)=>{ if(!h.notch) return;
-    g+=`<rect x="${X(h.x)}" y="${Y(h.z)}" width="${h.w*s}" height="${h.d*s}" fill="#fff" stroke="#7a3fb0" stroke-width="1.4"/>`; });
+    g+=`<rect x="${Math.min(X(h.x),X(h.x+h.w))}" y="${Y(h.z)}" width="${h.w*s}" height="${h.d*s}" fill="#fff" stroke="#7a3fb0" stroke-width="1.4"/>`; });
   (L.holes||[]).forEach((h,i)=>{
-    g+=`<rect x="${X(h.x)}" y="${Y(h.z)}" width="${h.w*s}" height="${h.d*s}" fill="#fff" stroke="#c0392b" stroke-width="1.4"/>`;
+    g+=`<rect x="${Math.min(X(h.x),X(h.x+h.w))}" y="${Y(h.z)}" width="${h.w*s}" height="${h.d*s}" fill="#fff" stroke="#c0392b" stroke-width="1.4"/>`;
     g+=`<text x="${X(h.x+h.w/2)}" y="${Y(h.z+h.d/2)+4}" text-anchor="middle" font-size="10" fill="#c0392b" font-weight="700">H${i+1}</text>`;
   });
   g+=dimH(X(0),X(len),Y(wid)+40,`${fin(len)} (${fft(len)})`,Y(wid),12);
   g+=dimV(Y(0),Y(wid),ml-26,fin(wid),X(0),11);
-  g+=`<text x="${X(0)}" y="${VH-10}" font-size="10" fill="#555">Seen from above · x from the left end, z from the top edge · same orientation as the foundation plan</text></svg>`;
+  g+=`<text x="${ml}" y="${VH-10}" font-size="10" fill="#555">${below?'Seen from BELOW (mirrored)':'Seen from above'} · x from the left end as you look at it, z from the top edge</text></svg>`;
   let t=`<table class="boxes"><thead><tr><th>Hole</th><th>From left end</th><th>From top edge</th><th>Size</th><th>Panel</th></tr></thead><tbody>`;
-  (L.holes||[]).forEach((h,i)=>{ const pi=panels.findIndex(([a,b])=>h.x+h.w/2>=a&&h.x+h.w/2<b)+1; t+=`<tr><td>H${i+1}</td><td>${fin(h.x)}</td><td>${fin(h.z)}</td><td>${fin(h.w)} × ${fin(h.d)}</td><td>${pi}</td></tr>`; });
+  (L.holes||[]).forEach((h,i)=>{ const pi=panels.findIndex(([a,b])=>h.x+h.w/2>=a&&h.x+h.w/2<b)+1; t+=`<tr><td>H${i+1}</td><td>${fin(below?len-h.x-h.w:h.x)}</td><td>${fin(h.z)}</td><td>${fin(h.w)} × ${fin(h.d)}</td><td>${pi}</td></tr>`; });
   if(!(L.holes||[]).length) t+=`<tr><td colspan="5">No holes in this layer.</td></tr>`;
   if(HOLES.some(h=>h.notch)) t+=`<tr><td colspan="5" style="color:#7a3fb0">Steel spine notch ${fin(HOLES.find(h=>h.notch).w)} × ${fin(HOLES.find(h=>h.notch).w)} at ${HOLES.filter(h=>h.notch).length===4?'all four corners':'the corners shown'} (purple).</td></tr>`;
   t+=`</tbody></table>`;
@@ -323,8 +329,12 @@ function renderLayerSheet(el, ls){
     <div class="sheet-title"><div><div class="eyebrow" style="color:#555">Layer sheet · Cubit Home</div><h3>${ls.label} — ${L.id}</h3></div>
       <div class="meta">${MODELS[state.model].name} · ${fft(len)} × 8′ · ${panels.length} panels · ${L.t||K.t}″ thick · ${fin(L.z??K.z)} up from the floor bottom<br>${new Date().toISOString().slice(0,10)}</div></div>
     <p class="note" style="color:#333">${L.name}${L.source?` · from ${L.source}`:''}${L.blank?' · placeholder: nothing scanned yet':''}</p>
+    <div class="sheet-tools"><span style="font-size:13px;color:#333">Facing the assemblers:</span>
+      <span class="seg" role="group" aria-label="Side facing the assemblers"><button data-lface="int" aria-pressed="${face==='int'}">Room side</button><button data-lface="ext" aria-pressed="${face==='ext'}">Outside</button></span></div>
+    <div><span class="facebadge ${face}">${face==='int'?'ROOM SIDE':'OUTSIDE'} · ${below?'SEEN FROM BELOW':'SEEN FROM ABOVE'}</span><span style="font-size:12.5px;color:#333">Assemble left → right, starting at the squaring edge: <b>${order.join(' → ')}</b>. Stack with panel ${order[0]} on top, ${face==='int'?'room side':'outside'} face up, labels on that face.</span></div>
     <div class="elev">${g}</div>
     <div class="tblwrap">${t}</div>`;
+  el.querySelectorAll('[data-lface]').forEach(b=>b.onclick=()=>{ setFace(ls, b.dataset.lface); renderSheet(); });
 }
 /* phone: tapping outside the open sheet list closes it */
 document.addEventListener('pointerdown', e=>{ const el=document.getElementById('sheetList'); if(el?.classList.contains('open') && !el.contains(e.target)){ el.classList.remove('open'); el.querySelector('.sl-pick')?.setAttribute('aria-expanded','false'); } });

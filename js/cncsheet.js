@@ -41,7 +41,7 @@ function tapSection(){
   F.forEach((x,i)=>{
     if(x.pod!==lastPod){ const fs=F.filter(y=>y.pod===x.pod); rows+=`<tr class="grp pod"><td colspan="4">Pod ${x.pod+1}<span>${fs.length} files · ~${fmtTime(sum(fs))}</span></td><td><button class="linkbtn" data-dl="pod:${x.pod}" title="Download Pod ${x.pod+1}">↓</button></td></tr>`; lastPod=x.pod; lastWall=null; }
     if(x.letter!==lastWall){ const fs=F.filter(y=>y.pod===x.pod && y.letter===x.letter); rows+=`<tr class="grp"><td colspan="4">Wall ${esc(x.letter)}<span>bottom of the pile first · ~${fmtTime(sum(fs))}</span></td><td><button class="linkbtn" data-dl="wall:${x.pod}:${esc(x.letter)}" title="Download this wall">↓</button></td></tr>`; lastWall=x.letter; }
-    rows+=`<tr class="${i===tpick?'on':''}" data-t="${i}"><td>${esc(x.name)}</td><td>${x.side.includes('E')?'ext':'int'} up</td><td>${x.stack}${x.stack===1?' top':x.stack===x.of?' btm':''}</td><td>${fmtTime(tOf(x))}</td><td>${x.warn.length?`<span class="flipflag">⚠</span>`:''}</td></tr>`; });
+    rows+=`<tr class="${i===tpick?'on':''}" data-t="${i}"><td>${esc(x.name)}</td><td>${x.side.includes('E')?'ext':'int'} up</td><td>${x.stack}${x.stack===1?' top':x.stack===x.of?' btm':''}${x.flip?' <b class="flipflag">flip</b>':''}</td><td>${fmtTime(tOf(x))}</td><td>${x.warn.length?`<span class="flipflag">⚠</span>`:''}</td></tr>`; });
   const panelFiles=F.filter(y=>y.panel===f.panel);
   return `<h4 style="margin:6px 0 6px">G-code for the ShopSabre (.tap) · about ${fmtTime(sum(F))} of cutting</h4>
     <details class="help"><summary>Test first · how these files work</summary><p>Written in the shop's own format (ShopSabre ATC post, tool 13, Z zero on the bed, flip side to side) and checked against 13 of the shop's real files. Run each new panel type as an air cut, then on scrap, before cutting a real panel. Boxes only appear once a wall has a box layout. Times are rough: feeds from the files, rapids at ~${800} in/min, plus a margin for acceleration. Save the tap folder to the shop's network folder; the CNC PC picks them up from there.${TP.blank.length?` No CNC work (a note keeps their place in the pile): ${esc(TP.blank.map(b=>b.panel).join(', '))}.`:''}</p></details>
@@ -55,6 +55,7 @@ function tapSection(){
       <div class="cnc-prev">
         <div class="tv-head"><div><b>${esc(f.name)}</b><span>${fin(f.width)} wide · ${f.thick}″ SIP · ~${fmtTime(tOf(f))}${panelFiles.length>1?` · panel ~${fmtTime(sum(panelFiles))}`:''}</span></div>
           <div class="seg tv-tabs" role="tablist">${[['path','Toolpath'],['sim','Simulate'],['3d','3D panel']].map(([k,l])=>`<button class="fsbtn" data-tv="${k}" aria-pressed="${tview===k}">${l}</button>`).join('')}</div></div>
+        <p class="after-l">${/E/.test(f.side)&&panelFiles.length>1?'After this file: <b>flip side to side</b> and cut the next file.':`After cutting: <b class="${f.flip?'flipflag':''}">${esc(f.after)}</b> · label on the <b>${esc(f.labelFace)}</b> face (it faces the assemblers).`}</p>
         <div class="tapv" id="tapv"></div>
         <div id="tapChecks"></div>
         ${f.warn.length?`<ul class="cnc-w">${f.warn.map(w=>`<li>⚠ ${esc(w)}</li>`).join('')}</ul>`:''}

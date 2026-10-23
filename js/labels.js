@@ -69,7 +69,7 @@ function labelsPDF(plans, title){
   // page 1+: stack list
   let y=50;
   const head=()=>{ doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.setTextColor(...ink); doc.text(`${title} - cut & stack list`, 40, 40); doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(80,80,80);
-    doc.text(doc.splitTextToSize(`Assemble LEFT to RIGHT as the assemblers see the wall. Stack position 1 is the top of the pile. Panel 1 = left end seen from the interior (side A). ${date}`, 530), 40, 54); y=80; };
+    doc.text(doc.splitTextToSize(`Assembly always starts at the LEFT (the squaring edge of the upright table) and runs left to right as the assemblers see the wall. Each panel is stacked with that face up and labelled on that face. Stack position 1 is the top of the pile. Panel 1 = left end seen from the interior (side A). ${date}`, 530), 40, 54); y=80; };
   head();
   plans.forEach(pl=>{
     const rows=pl.seq.length;
@@ -106,7 +106,7 @@ function labelsPDF(plans, title){
     doc.setTextColor(...ink); doc.setFontSize(10);
     doc.text(`${pl.slot.label} - panel ${p.num} of ${pl.n}  |  ${p.cut?'CUT to '+fin(p.width)+' wide':'full 48" panel'}`, x+16, yy+76);
     doc.text(`Stack ${p.stack} of ${pl.n}${p.stack===1?' (TOP)':p.stack===pl.n?' (bottom)':''}  |  assemble #${p.order} from left`, x+16, yy+90);
-    doc.setFont('helvetica','bold'); doc.text(`${faceShort(pl.slot,pl.assembly)} FACE UP for assembly`, x+16, yy+104);
+    doc.setFont('helvetica','bold'); doc.text(`STICK ON THE ${faceShort(pl.slot,pl.assembly)} FACE (faces the assemblers)`, x+16, yy+104);
     doc.setFont('helvetica','normal'); doc.setFontSize(9);
     doc.text(p.cnc==='both'?`CNC: cut ${faceShort(pl.slot,'int')} up, flip, cut ${faceShort(pl.slot,'ext')} up`:`CNC: cut with ${faceShort(pl.slot,p.cnc)} up`, x+16, yy+117);
     if(p.flip!=='none'){
