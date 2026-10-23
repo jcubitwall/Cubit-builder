@@ -15,7 +15,7 @@ import { renderCncSheet } from './cncsheet.js';
 import { LAYER_KINDS } from './config.js';
 import { panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall, layerHoles } from './panels.js';
 import { buildWallMesh, resize } from './scene3d.js';
-import { unitFor, symbol, unitLabel } from './units.js';
+import { unitFor, symbol, unitLabel, pairOf, doorOwner } from './units.js';
 const sheetSlotNow = () => slotsFor(state.model).find(x=>x.id===state.sheetSlot);
 import { wallListHTML } from './sidebar.js';
 import { pickFor, pickLayer, state, setFace } from './state.js';
@@ -169,10 +169,12 @@ function elevationSVG(w,face,rev,slot){
       g+=`<rect x="${X(x)}" y="${Y(o.y+o.h)}" width="${o.w*s}" height="${o.h*s}" fill="#bbbbbb" stroke="#111" stroke-width="1.2"/>`;
       return;
     }
-    const col = o.kind==='window' ? '#cfe6f7' : o.kind==='door' ? '#d9c3ac' : o.kind==='opening' ? '#ffffff' : o.kind==='vent' ? '#bbbbbb' : '#cfe6f7';
+    const pr = slot && (o.kind==='door'||o.kind==='patio') ? pairOf(slot,o) : null, openOnly = !!pr && doorOwner(slot,o).id!==slot.id;
+    const col = openOnly ? '#ffffff' : o.kind==='window' ? '#cfe6f7' : o.kind==='door' ? (w.type==='int' ? '#ececea' : '#d9c3ac') : o.kind==='opening' ? '#ffffff' : o.kind==='vent' ? '#bbbbbb' : '#cfe6f7';
     g+=`<rect x="${X(x)}" y="${Y(o.y+o.h)}" width="${o.w*s}" height="${o.h*s}" fill="${col}" stroke="#111" stroke-width="1.6"/>`;
-    const ur=unitFor(slot,o);
-    if(ur){   // the unit's symbol (casement / door triangle points to the hinge, arrows on sliding panels), mirrored when seen from inside
+    const ur=openOnly ? null : unitFor(slot,o);
+    if(openOnly){ /* just the rough opening: no door leaf, no cross */ }
+    else if(ur){   // the unit's symbol (casement / door triangle points to the hinge, arrows on sliding panels), mirrored when seen from inside
       const sym=symbol(ur.unit.type, ur.hand, o.w, o.h), fx=v=> face==='ext' ? x+v : x+o.w-v;
       sym.segs.forEach(([a,b,c,d])=>{ g+=`<line x1="${X(fx(a))}" y1="${Y(o.y+b)}" x2="${X(fx(c))}" y2="${Y(o.y+d)}" stroke="#1c3d5a" stroke-width="1" stroke-dasharray="6 4"/>`; });
       sym.arrows.forEach(([a,b,c,d])=>{ g+=`<line x1="${X(fx(a))}" y1="${Y(o.y+b)}" x2="${X(fx(c))}" y2="${Y(o.y+d)}" stroke="#1c3d5a" stroke-width="1.4" marker-end="url(#ar)"/>`; });
@@ -181,7 +183,7 @@ function elevationSVG(w,face,rev,slot){
     g+=`<rect x="${X(x+o.w/2)-58}" y="${Y(o.y+o.h/2)-17}" width="116" height="${ur?42:30}" fill="#fff" stroke="#111" stroke-width=".6"/>`;
     if(ur) g+=`<text x="${X(x+o.w/2)}" y="${Y(o.y+o.h/2)+21}" text-anchor="middle" font-size="8.5" fill="#1c3d5a" font-weight="600">${ur.unit.id}${ur.unit.type==='casement'||ur.unit.type==='entry'?' · '+(ur.hand==='R'?'RH':'LH'):''}</text>`;
     g+=`<text x="${X(x+o.w/2)}" y="${Y(o.y+o.h/2)-3}" text-anchor="middle" font-size="11.5" font-weight="600">${lbl}</text>`;
-    g+=`<text x="${X(x+o.w/2)}" y="${Y(o.y+o.h/2)+9}" text-anchor="middle" font-size="9.5" fill="#333">${o.kind==='window'?'sill '+fin(o.y):o.kind==='door'?'door R.O.':o.kind==='opening'?'cased opening':o.kind==='vent'?'vent @ '+fin(o.y):'patio R.O.'}</text>`;
+    g+=`<text x="${X(x+o.w/2)}" y="${Y(o.y+o.h/2)+9}" text-anchor="middle" font-size="9.5" fill="#333">${o.kind==='window'?'sill '+fin(o.y):openOnly?`opening · door in ${pr.slot.pod.label}`:o.kind==='door'?'door R.O.':o.kind==='opening'?'cased opening':o.kind==='vent'?'vent @ '+fin(o.y):'patio R.O.'}</text>`;
     // vertical: sill + head on the right of opening
     if(o.y>0) g+=dimV(Y(0),Y(o.y),X(x+o.w)+14,fin(o.y),X(x+o.w));
     g+=dimV(Y(o.y),Y(o.y+o.h),X(x+o.w)+(o.y>0?34:14),fin(o.h),X(x+o.w));
@@ -240,7 +242,7 @@ function buildWall3D(w){
   if(w3.obj) w3.scene.remove(w3.obj);
   const mat=new THREE.MeshStandardMaterial({color:0xc9a46a,roughness:0.85});
   const zNum = state.face==='int' ? -((w.t||T)/FT)-0.4 : 0.4;
-  const built=buildWallMesh(w,mat,{nums:true,reverse:state.reverse,numSize:1.3,numZ:zNum,unitOf:o=>unitFor(sheetSlotNow(),o)});
+  const built=buildWallMesh(w,mat,{nums:true,reverse:state.reverse,numSize:1.3,numZ:zNum,unitOf:o=>unitFor(sheetSlotNow(),o),openOnly:o=>{ const sl=sheetSlotNow(), pr=sl&&pairOf(sl,o); return !!pr && doorOwner(sl,o).id!==sl.id; }});
   const L=wallLen(w)/FT, gap=0.6;
   // pull panels apart; move loose items with their panel
   built.group.children.forEach(c=>{ const k=c.userData.k; if(k!==undefined) c.position.x += k*gap; });

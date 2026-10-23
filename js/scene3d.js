@@ -7,7 +7,7 @@ import { w3 } from './sheets.js';
 import { renderSide } from './sidebar.js';
 import { pickFor, pickLayer, state } from './state.js';
 import { getBearing } from './orient.js';
-import { symbol, unitFor } from './units.js';
+import { symbol, unitFor, pairOf, doorOwner } from './units.js';
 import { concretePlan } from './concrete.js';
 import { deckMembers } from './deckframe.js';
 import { wallFraming } from './framing.js';
@@ -40,6 +40,7 @@ applyTheme(); matchMedia('(prefers-color-scheme: dark)').addEventListener('chang
 const MAT = {
   glass: new THREE.MeshStandardMaterial({color:0x8fc3ea,transparent:true,opacity:0.55,roughness:0.1}),
   door: new THREE.MeshStandardMaterial({color:0x6b4a2f,roughness:0.7,transparent:true,opacity:1}),
+  doorInt: new THREE.MeshStandardMaterial({color:0xe6e6e2,roughness:0.6,transparent:true,opacity:1}),   // interior doors: light grey / white
   outlet: new THREE.MeshStandardMaterial({color:0xf2f2f2}),
   sw: new THREE.MeshStandardMaterial({color:0x2f6db5}),
   extOutlet: new THREE.MeshStandardMaterial({color:0x2f8a57}),
@@ -53,7 +54,7 @@ const lineMat = new THREE.LineBasicMaterial({color:0x3b3122});
 MAT.frame = new THREE.MeshStandardMaterial({color:0xf3f2ee, roughness:0.6});
 const symMat = new THREE.LineBasicMaterial({color:0x1c3d5a});
 /* one window or door from the library, centred in its rough opening; wall-local feet (x along, y up, z out) */
-function buildUnit(o, r, t){
+function buildUnit(o, r, t, interior=false){
   const u=r.unit, g=new THREE.Group(), W=Math.min(u.w,o.w), Hh=Math.min(u.h,o.h);
   const x0=o.x+(o.w-W)/2, y0=o.y+(o.h-Hh)/2, d=Math.min(u.d||4.5, t*FT-0.5)/FT, zc=-t/2, fw=1.75;
   const box=(x,y,w,h,dd,mat)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(w/FT,h/FT,dd),mat); m.position.set((x+w/2)/FT,(y+h/2)/FT,zc); g.add(m); return m; };
@@ -62,7 +63,7 @@ function buildUnit(o, r, t){
   box(x0+fw,y0+Hh-fw,W-2*fw,fw,d,MAT.frame); box(x0+fw,y0,W-2*fw,fw,d,MAT.frame);
   // glass, or the door leaf with its knob on the handle side
   if(u.type==='entry'){
-    box(x0+fw,y0+fw,W-2*fw,Hh-2*fw,0.14,MAT.door);
+    box(x0+fw,y0+fw,W-2*fw,Hh-2*fw,0.14,interior?MAT.doorInt:MAT.door);
     const kx = r.hand==='R' ? x0+fw+3 : x0+W-fw-3, knob=new THREE.SphereGeometry(0.12,12,8);
     [zc+0.12, zc-0.12].forEach(z=>{ const k=new THREE.Mesh(knob,MAT.steel); k.position.set(kx/FT, (y0+36)/FT, z); g.add(k); });
   } else box(x0+fw,y0+fw,W-2*fw,Hh-2*fw,0.05,MAT.glass);
@@ -128,9 +129,10 @@ function buildWallMesh(w, mat, opts={}){
   // openings: the unit chosen for it (frame, glass or door leaf, and its symbol), else plain glass / door leaf
   w.openings.forEach(o=>{
     if(o.kind==='opening'||o.kind==='vent') return;   // cased opening / vent: just a hole
-    const r=opts.unitOf ? opts.unitOf(o) : null;
-    const m = r ? buildUnit(o, r, t) : (()=>{ const thick = o.kind==='window'? 0.05 : 0.12;
-      const b=new THREE.Mesh(new THREE.BoxGeometry(o.w/FT,o.h/FT,thick), o.kind==='door'?MAT.door:MAT.glass);
+    if(opts.openOnly && opts.openOnly(o)) return;      // the door between two pods is in the neighbour's wall: here it's just the opening
+    const r=opts.unitOf ? opts.unitOf(o) : null, interior = w.type==='int';
+    const m = r ? buildUnit(o, r, t, interior) : (()=>{ const thick = o.kind==='window'? 0.05 : 0.12;
+      const b=new THREE.Mesh(new THREE.BoxGeometry(o.w/FT,o.h/FT,thick), o.kind==='door'?(interior?MAT.doorInt:MAT.door):MAT.glass);
       b.position.set((o.x+o.w/2)/FT,(o.y+o.h/2)/FT,-t/2); return b; })();
     m.userData.unit=true; m.userData.k=panelAt(w, o.x+o.w/2);
     g.add(m);
@@ -292,7 +294,7 @@ function buildHome(){
   slots.forEach(s=>{
     const w=bodyWall(s, pickFor(s)); if(!w) return;
     const mat=new THREE.MeshStandardMaterial({color:s.type==='int'?0xece0c6:0xc9a46a,roughness:0.85});
-    const built=buildWallMesh(w,mat,{nums:state.nums,numSize:1.0,unitOf:o=>unitFor(s,o)});
+    const built=buildWallMesh(w,mat,{nums:state.nums,numSize:1.0,unitOf:o=>unitFor(s,o),openOnly:o=>{ const pr=pairOf(s,o); return !!pr && doorOwner(s,o).id!==s.id; }});
     const g=built.group;
     const r=[s.n[1],-s.n[0]];
     g.rotation.y=Math.atan2(-r[1],r[0]);
@@ -425,8 +427,8 @@ function applyLayers(){
   const see = S.framing || S.splines;
   wallGroups.forEach(g=>{ const m=g.userData.mat; m.transparent=see; m.opacity=see?0.22:1; m.depthWrite=!see; m.needsUpdate=true; });
   MAT.glass.opacity = state.glass ? 0.18 : 0.55;
-  MAT.door.opacity = state.glass ? 0.25 : 1; MAT.door.depthWrite = !state.glass;
-  MAT.glass.needsUpdate = MAT.door.needsUpdate = true;
+  MAT.door.opacity = MAT.doorInt.opacity = state.glass ? 0.25 : 1; MAT.door.depthWrite = MAT.doorInt.depthWrite = !state.glass;
+  MAT.glass.needsUpdate = MAT.door.needsUpdate = MAT.doorInt.needsUpdate = true;
   controls.maxPolarAngle = S.screws ? Math.PI*0.62 : Math.PI*0.495;
 }
 /* point the camera at one pod (or back at the whole home), keeping the angle you're looking from */

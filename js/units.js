@@ -119,9 +119,9 @@ function symbol(type, hand, w, h){
   return { segs, arrows };
 }
 /* a small picture of the unit for lists */
-function unitSVG(type, hand, w=30, h=50, px=44){
+function unitSVG(type, hand, w=30, h=50, px=44, interior=false){
   const s=px/Math.max(w,h), W=w*s, Hh=h*s, sym=symbol(type, hand, w, h), glass=type!=='entry';
-  let g=`<svg viewBox="-2 -2 ${W+4} ${Hh+4}" width="${(W+4).toFixed(1)}" height="${(Hh+4).toFixed(1)}" aria-hidden="true"><rect x="0" y="0" width="${W}" height="${Hh}" fill="${type==='none'?'#e4e6e1':glass?'#cfe6f7':'#c8a27e'}" stroke="currentColor" stroke-width="1.2"/>`;
+  let g=`<svg viewBox="-2 -2 ${W+4} ${Hh+4}" width="${(W+4).toFixed(1)}" height="${(Hh+4).toFixed(1)}" aria-hidden="true"><rect x="0" y="0" width="${W}" height="${Hh}" fill="${type==='none'?'#e4e6e1':glass?'#cfe6f7':interior?'#ececea':'#c8a27e'}" stroke="currentColor" stroke-width="1.2"/>`;
   sym.segs.forEach(([a,b,c,d])=>{ g+=`<line x1="${a*s}" y1="${Hh-b*s}" x2="${c*s}" y2="${Hh-d*s}" stroke="currentColor" stroke-width=".9" stroke-dasharray="3 2"/>`; });
   sym.arrows.forEach(([a,b,c,d])=>{ const ang=Math.atan2(-(d-b),c-a), X=c*s, Y=Hh-d*s, k=4;
     g+=`<line x1="${a*s}" y1="${Hh-b*s}" x2="${X}" y2="${Y}" stroke="currentColor" stroke-width="1"/><path d="M${X} ${Y} L${X-k*Math.cos(ang-0.5)} ${Y-k*Math.sin(ang-0.5)} M${X} ${Y} L${X-k*Math.cos(ang+0.5)} ${Y-k*Math.sin(ang+0.5)}" stroke="currentColor" stroke-width="1" fill="none"/>`; });
