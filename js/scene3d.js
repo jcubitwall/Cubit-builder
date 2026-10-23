@@ -26,7 +26,7 @@ const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.maxPolarAngle = Math.PI*0.495;
 scene.add(new THREE.HemisphereLight(0xffffff,0x8a8a80,0.85));
 const sun = new THREE.DirectionalLight(0xffffff,0.75); sun.position.set(30,50,20); scene.add(sun);
-const grid = new THREE.GridHelper(96,24,0x9aa39b,0xc3c9c1); grid.position.y=-FLOOR; scene.add(grid);
+const grid = new THREE.GridHelper(96,24,0x9aa39b,0xc3c9c1); grid.position.y=-FLOOR-0.02; scene.add(grid);
 let homeGroup = new THREE.Group(); scene.add(homeGroup);
 let framingMeshes = [], plateMeshes = [], rimGroup = null, wallGroups = [], layerGroups = [], deckGroups = [], roofGroup=null, ceilGroup=null, floorGroup=null, screwGroup=null, fpGroup=null, unitMeshes=[], floorMats=[], pickables=[];
 
@@ -55,7 +55,7 @@ MAT.frame = new THREE.MeshStandardMaterial({color:0xf3f2ee, roughness:0.6});
 const symMat = new THREE.LineBasicMaterial({color:0x1c3d5a});
 /* one window or door from the library, centred in its rough opening; wall-local feet (x along, y up, z out) */
 function buildUnit(o, r, t, interior=false){
-  const u=r.unit, g=new THREE.Group(), W=Math.min(u.w,o.w), Hh=Math.min(u.h,o.h);
+  const u=r.unit, g=new THREE.Group(), W=Math.min(u.w,o.w-0.1), Hh=Math.min(u.h,o.h-0.1);   // never flush with the opening's sides
   const x0=o.x+(o.w-W)/2, y0=o.y+(o.h-Hh)/2, d=Math.min(u.d||4.5, t*FT-0.5)/FT, zc=-t/2, fw=1.75;
   const box=(x,y,w,h,dd,mat)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(w/FT,h/FT,dd),mat); m.position.set((x+w/2)/FT,(y+h/2)/FT,zc); g.add(m); return m; };
   // frame
@@ -241,7 +241,7 @@ function buildHome(){
   { // footprints on the ground so the screws can be read against the home when walls and floors are off
     fpGroup=new THREE.Group(); homeGroup.add(fpGroup);
     const fpMat=new THREE.LineBasicMaterial({color:0x3b3122}), dkMat=new THREE.LineDashedMaterial({color:0x8a7a5c, dashSize:0.6, gapSize:0.4});
-    const loop=(x0,z0,x1,z1,mat)=>{ const g=new THREE.BufferGeometry().setFromPoints([[x0,z0],[x1,z0],[x1,z1],[x0,z1],[x0,z0]].map(([x,z])=>new THREE.Vector3(x,-FLOOR+0.01,z))); const l=new THREE.Line(g,mat); l.computeLineDistances(); fpGroup.add(l); };
+    const loop=(x0,z0,x1,z1,mat)=>{ const g=new THREE.BufferGeometry().setFromPoints([[x0,z0],[x1,z0],[x1,z1],[x0,z1],[x0,z0]].map(([x,z])=>new THREE.Vector3(x,-FLOOR-0.01,z))); const l=new THREE.Line(g,mat); l.computeLineDistances(); fpGroup.add(l); };
     pods.forEach(p=>loop(p.x,p.z,p.x+p.w,p.z+p.d,fpMat));
     const LOd2=layoutOffsets(state.model).decks;
     deckList(state.model).forEach((d,k)=>loop(d.x+LOd2[k].ox,d.z+LOd2[k].oz,d.x1+LOd2[k].ox,d.z1+LOd2[k].oz,dkMat));
@@ -290,7 +290,7 @@ function buildHome(){
     arrow.rotation.x=-Math.PI/2;
     const ng=new THREE.Group(); ng.add(arrow);
     const lab=letterSprite('N',1.1); lab.position.set(0,0.8,-3.2); ng.add(lab);
-    ng.scale.setScalar(1.6); ng.rotation.y=B; ng.position.set(minx-9, -FLOOR+0.03, maxz+12); homeGroup.add(ng); northGroup=ng; }
+    ng.scale.setScalar(1.6); ng.rotation.y=B; ng.position.set(minx-9, -FLOOR-0.01, maxz+12); homeGroup.add(ng); northGroup=ng; }
   slots.forEach(s=>{
     const w=bodyWall(s, pickFor(s)); if(!w) return;
     const mat=new THREE.MeshStandardMaterial({color:s.type==='int'?0xece0c6:0xc9a46a,roughness:0.85});
@@ -324,12 +324,12 @@ function buildHome(){
   // floor rims go on with the interior floor (it's built with them), the roof rims with the ceiling; in the
   // exploded view they travel with those layers.
   rimGroup=new THREE.Group(); homeGroup.add(rimGroup);
-  { const t=FRAME.lvl.t/FT;
+  { const t=FRAME.lvl.t/FT, e=0.004;   // ~1/20″ proud so the rim's outside face isn't drawn on top of the slab's
     pods.forEach((p,pi)=>{ p.i=pi; });
     pods.forEach(p=>[[FLOOR_BUILD.rimZ, FRAME.lvl.floor, 'floor-int'], [CEIL_Z, FRAME.lvl.roof, 'ceiling-int']].forEach(([z0,h,lay])=>{
       const y=(z0-WALL_BASE)/FT, hh=h/FT, box=(x0,z0_,x1,z1)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(x1-x0,hh,z1-z0_),FRAME_MAT.lvl); m.position.set((x0+x1)/2, y+hh/2, (z0_+z1)/2); m.userData={pod:p.i, lay, base:m.position.clone()}; rimGroup.add(m); };
-      box(p.x+t, p.z, p.x+p.w-t, p.z+t); box(p.x+t, p.z+p.d-t, p.x+p.w-t, p.z+p.d);
-      box(p.x, p.z+t, p.x+t, p.z+p.d-t); box(p.x+p.w-t, p.z+t, p.x+p.w, p.z+p.d-t); }));
+      box(p.x+t, p.z-e, p.x+p.w-t, p.z+t); box(p.x+t, p.z+p.d-t, p.x+p.w-t, p.z+p.d+e);
+      box(p.x-e, p.z+t, p.x+t, p.z+p.d-t); box(p.x+p.w-t, p.z+t, p.x+p.w+e, p.z+p.d-t); }));
     // floor cassette: 8″ EPS strips and 16″ 2×4 joint blocks in the 1½″ gap between the two floor layers
     const [g0,g1]=FLOOR_BUILD.gap, gy=(g0-WALL_BASE)/FT, gh=(g1-g0)/FT;
     pods.forEach(p=>{ const B=floorBuild(p), along = p.w>=p.d;
@@ -345,6 +345,8 @@ function buildHome(){
       B.acp.forEach(r=>under([r[0]+0.05,r[1]-0.05,r[2],r[3]], -fr.h-ac.t, ac.t, FRAME_MAT.acp, 'acp')); });
   }
   unitMeshes=[]; wallGroups.forEach(g=>g.traverse(o=>{ if(o.userData.unit) unitMeshes.push(o); }));
+  // faces sit a hair behind their own edge lines, so panel seams and outlines draw cleanly instead of flickering
+  homeGroup.traverse(o=>{ const m=o.isMesh && o.material; if(m && !m.polygonOffset){ m.polygonOffset=true; m.polygonOffsetFactor=1; m.polygonOffsetUnits=1; } });
   applyLayers();
   highlight();
   // frame camera

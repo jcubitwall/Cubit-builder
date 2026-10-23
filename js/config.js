@@ -5,7 +5,7 @@
 const H = 96;            // wall height, inches (8')
 const T = 6.5;           // exterior SIP thickness, inches
 const TI = 4.5;          // interior wall thickness, inches (always)
-const FLOOR = 10.25/12;  // double SIP floor inside a 9 1/4" LVL rim = 10 1/4" total (feet)
+const FLOOR = (10.56 + 3 + 0.079)/12;  // underside of the home, feet below the walls: floor cassette 10.56″ + steel frame 3″ + 2 mm ACM
 const GAP = 0.625/12;     // every joint between pods has exactly a 5/8" space
 const CEIL = 12.875/12;  // double SIP ceiling, OSB top + bottom, 11 7/8" LVL rim = 12 7/8" total (feet)
 const PW = 48;           // panel width, inches (4')
