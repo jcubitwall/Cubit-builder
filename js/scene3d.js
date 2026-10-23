@@ -192,6 +192,8 @@ function buildHome(){
   const minz=Math.min(...boxes.map(b=>b[1])), maxz=Math.max(...boxes.map(b=>b[3]));
   const cx=(minx+maxx)/2, cz=(minz+maxz)/2;
   homeGroup.position.set(-cx,0,-cz);
+  podCentres = pods.map(p=>({x:p.x+p.w/2-cx, z:p.z+p.d/2-cz, span:Math.max(p.w,p.d)}));
+  if(state.focusPod!=null && state.focusPod>=pods.length) state.focusPod=null;
   // floor and ceiling layers (exterior floor, interior floor, interior ceiling, roof) + ground screws
   roofGroup=new THREE.Group(); ceilGroup=new THREE.Group(); floorGroup=new THREE.Group(); homeGroup.add(floorGroup);
   layerSlotsFor(state.model).forEach(ls=>{
@@ -286,7 +288,7 @@ function buildHome(){
     arrow.rotation.x=-Math.PI/2;
     const ng=new THREE.Group(); ng.add(arrow);
     const lab=letterSprite('N',1.1); lab.position.set(0,0.8,-3.2); ng.add(lab);
-    ng.scale.setScalar(1.6); ng.rotation.y=B; ng.position.set(minx-9, -FLOOR+0.03, maxz+12); homeGroup.add(ng); }
+    ng.scale.setScalar(1.6); ng.rotation.y=B; ng.position.set(minx-9, -FLOOR+0.03, maxz+12); homeGroup.add(ng); northGroup=ng; }
   slots.forEach(s=>{
     const w=bodyWall(s, pickFor(s)); if(!w) return;
     const mat=new THREE.MeshStandardMaterial({color:s.type==='int'?0xece0c6:0xc9a46a,roughness:0.85});
@@ -308,7 +310,7 @@ function buildHome(){
       fr.pieces.forEach(pc=>{
         const isS=pc.kind==='Spline', dz = isS ? sp : pc.zf ? (pc.zf[1]-pc.zf[0])/FT : d, zc = isS ? (pc.face==='outside face' ? -osb-sp/2 : -tt+osb+sp/2) : pc.zf ? -(pc.zf[0]+pc.zf[1])/2/FT : -tt/2;
         const m=new THREE.Mesh(new THREE.BoxGeometry((pc.x1-pc.x0)/FT, (pc.y1-pc.y0)/FT, dz), isS?FRAME_MAT.osb:FRAME_MAT.wood);
-        m.position.set((pc.x0+pc.x1)/2/FT, (pc.y0+pc.y1)/2/FT, zc); m.userData.framing=true; m.renderOrder=2;
+        m.position.set((pc.x0+pc.x1)/2/FT, (pc.y0+pc.y1)/2/FT, zc); m.userData.framing=true; m.userData.spline=isS; m.userData.pod=s.pod.i; m.renderOrder=2;
         if(/plate/.test(pc.kind)){
           // plates belong to the floor (bottom) and the ceiling (top): they stay with those when the home explodes
           g.updateMatrix(); m.applyMatrix4(g.matrix); m.userData.plate={pod:s.pod.i, top:pc.kind==='Top plate', base:m.position.clone()};
@@ -319,15 +321,15 @@ function buildHome(){
   // LVL rims of the floor and roof cassettes: four pieces per pod, open 1⅞″ squares at the outside corners
   rimGroup=new THREE.Group(); homeGroup.add(rimGroup);
   { const t=FRAME.lvl.t/FT;
-    pods.forEach(p=>[[0, FRAME.lvl.floor], [CEIL_Z, FRAME.lvl.roof]].forEach(([z0,h])=>{
-      const y=(z0-WALL_BASE)/FT, hh=h/FT, box=(x0,z0_,x1,z1)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(x1-x0,hh,z1-z0_),FRAME_MAT.lvl); m.position.set((x0+x1)/2, y+hh/2, (z0_+z1)/2); rimGroup.add(m); };
+    pods.forEach((p,pi)=>{ p.i=pi; }); pods.forEach(p=>[[0, FRAME.lvl.floor], [CEIL_Z, FRAME.lvl.roof]].forEach(([z0,h])=>{
+      const y=(z0-WALL_BASE)/FT, hh=h/FT, box=(x0,z0_,x1,z1)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(x1-x0,hh,z1-z0_),FRAME_MAT.lvl); m.position.set((x0+x1)/2, y+hh/2, (z0_+z1)/2); m.userData.pod=p.i; rimGroup.add(m); };
       box(p.x+t, p.z, p.x+p.w-t, p.z+t); box(p.x+t, p.z+p.d-t, p.x+p.w-t, p.z+p.d);
       box(p.x, p.z+t, p.x+t, p.z+p.d-t); box(p.x+p.w-t, p.z+t, p.x+p.w, p.z+p.d-t); })); }
   unitMeshes=[]; wallGroups.forEach(g=>g.traverse(o=>{ if(o.userData.unit) unitMeshes.push(o); }));
   applyLayers();
   highlight();
   // frame camera
-  const span=Math.max(maxx-minx,maxz-minz);
+  const span=Math.max(maxx-minx,maxz-minz); homeSpan=span;
   if(!buildHome.framed || buildHome.framed!==state.model){
     camera.position.set(span*1.0+14, span*0.95+12, span*1.35+18); controls.target.set(0,3.5,0); buildHome.framed=state.model;
   }
@@ -363,7 +365,7 @@ function buildConcrete(){
   }
   return g;
 }
-let explodeT=0, explodeGoal=0;
+let explodeT=0, explodeGoal=0, podCentres=[], homeSpan=30, northGroup=null;
 /* Exploded view, done the way assembly illustrations are (Li, Agrawala et al., "Automated generation of
    interactive 3D exploded view diagrams", SIGGRAPH 2008): parts move apart in an order that respects what
    blocks what, and sub-assemblies explode on their own.
@@ -390,7 +392,7 @@ function applyExplode(){
   const e=explodeT, eP=ease(0,0.55,e), eW=ease(0.4,1,e);   // stage 1: pods apart · stage 2: each pod comes apart
   const lift = e*2.5;   // the house rises off its ground screws
   const OFFS = {'floor-ext':-1.4, 'floor-int':0, 'ceiling-int':5, 'roof':7.5};
-  const sp = k => spread.pods[k]||[0,0];
+  const sp = k => state.focusPod!=null ? [0,0] : (spread.pods[k]||[0,0]);   // one pod on its own comes apart where it stands
   layerGroups.forEach(g=>{ const u=g.userData, v=sp(u.pod);
     g.position.set(u.bx+v[0]*eP, u.baseY + lift + eW*OFFS[u.layerSlot.kind], u.bz+v[1]*eP); });
   deckGroups.forEach(g=>{ const u=g.userData, v=spread.decks[u.k]||[0,0];
@@ -407,22 +409,32 @@ function applyExplode(){
 /* what shows: each layer on its own (Layers menu) */
 function applyLayers(){
   if(!floorGroup) return;
-  const S=state.show;
-  wallGroups.forEach(g=>g.visible=S.walls);
+  const S=state.show, F=state.focusPod, inPod = i => F==null || i===F;
+  wallGroups.forEach(g=>g.visible=S.walls && inPod(g.userData.slot.pod.i));
   floorGroup.visible=S.floors; ceilGroup.visible=S.ceiling; roofGroup.visible=S.roof;
-  deckGroups.forEach(g=>g.visible=S.decks);
-  screwGroup.visible=S.screws;
-  fpGroup.visible=S.screws && !S.walls && !S.floors;
+  layerGroups.forEach(g=>g.visible=inPod(g.userData.pod));
+  deckGroups.forEach(g=>g.visible=S.decks && F==null);
+  screwGroup.visible=S.screws && F==null;
+  fpGroup.visible=S.screws && !S.walls && !S.floors && F==null;
+  if(northGroup) northGroup.visible = F==null;
   floorMats.forEach(m=>{ m.transparent=S.screws; m.opacity=S.screws?0.35:1; m.depthWrite=!S.screws; m.needsUpdate=true; });
   unitMeshes.forEach(m=>m.visible=S.units);
-  // framing: the lumber shows through see-through walls
-  framingMeshes.forEach(m=>m.visible=S.framing && S.walls);
-  if(rimGroup) rimGroup.visible=S.framing && explodeT<0.01;
-  wallGroups.forEach(g=>{ const m=g.userData.mat; m.transparent=!!S.framing; m.opacity=S.framing?0.22:1; m.depthWrite=!S.framing; m.needsUpdate=true; });
+  // framing: lumber & LVL and the OSB splines switch on their own; both show through see-through walls
+  framingMeshes.forEach(m=>m.visible=(m.userData.spline ? S.splines : S.framing) && S.walls && inPod(m.userData.pod));
+  if(rimGroup){ rimGroup.visible=S.framing && explodeT<0.01; rimGroup.children.forEach(m=>m.visible=inPod(m.userData.pod)); }
+  const see = S.framing || S.splines;
+  wallGroups.forEach(g=>{ const m=g.userData.mat; m.transparent=see; m.opacity=see?0.22:1; m.depthWrite=!see; m.needsUpdate=true; });
   MAT.glass.opacity = state.glass ? 0.18 : 0.55;
   MAT.door.opacity = state.glass ? 0.25 : 1; MAT.door.depthWrite = !state.glass;
   MAT.glass.needsUpdate = MAT.door.needsUpdate = true;
   controls.maxPolarAngle = S.screws ? Math.PI*0.62 : Math.PI*0.495;
+}
+/* point the camera at one pod (or back at the whole home), keeping the angle you're looking from */
+function focusCamera(i){
+  const c = i==null ? {x:0, z:0, span:null} : podCentres[i]; if(!c) return;
+  const to=new THREE.Vector3(c.x, 3.5, c.z), dir=camera.position.clone().sub(controls.target).normalize();
+  const dist = i==null ? Math.hypot(homeSpan+14, homeSpan*0.95+12, homeSpan*1.35+18) : c.span*1.55+14;
+  controls.target.copy(to); camera.position.copy(to).addScaledVector(dir, dist); controls.update();
 }
 function highlight(){
   deckGroups.forEach(g=>{ const sel=g.userData.id===state.selected; g.userData.mat.color.set(sel?0xe0864a:0xa88f5d); g.userData.mat.emissive.set(sel?0x3a1a05:0x000000); });
@@ -463,4 +475,4 @@ function loop(){
 function setExplodeGoal(v){ explodeGoal=v; }
 
 
-export { stage, renderer, scene, camera, controls, sun, grid, homeGroup, wallGroups, themeColors, applyTheme, MAT, lineMat, numberSprite, buildWallMesh, buildHome, explodeT, applyExplode, highlight, resize, ray, loop, setExplodeGoal, applyLayers, roofGroup, floorGroup, screwGroup, pickables, explodeGoal, mouse };
+export { stage, renderer, scene, camera, controls, sun, grid, homeGroup, wallGroups, themeColors, applyTheme, MAT, lineMat, numberSprite, buildWallMesh, buildHome, explodeT, applyExplode, highlight, resize, ray, loop, setExplodeGoal, applyLayers, focusCamera, podCentres, roofGroup, floorGroup, screwGroup, pickables, explodeGoal, mouse };

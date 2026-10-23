@@ -412,3 +412,11 @@ html.phone .sheet-nav{top:var(--hh,56px)}
 .sheet-nav .btn{flex:none;padding:8px 12px}
 .sheet-nav .btn.ghost{color:#111;border-color:#cfd4cc}
 .sheet-nav .btn:disabled{opacity:.35}
+.lay-chips{display:flex;flex-wrap:wrap;gap:5px;padding:2px 6px 6px}
+.lay-chips .chip{border:1px solid var(--line);background:var(--surface);color:var(--ink);font:inherit;font-size:12.5px;padding:5px 9px;border-radius:999px;cursor:pointer;min-height:30px}
+.lay-chips .chip:hover:not(:disabled){background:var(--surface-2)}
+.lay-chips .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.lay-chips .chip:disabled{opacity:.45;cursor:default}
+.pod-badge{position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:7;border:0;border-radius:999px;background:var(--accent);color:#fff;font:inherit;font-size:13px;font-weight:600;padding:7px 14px;box-shadow:0 6px 18px rgba(0,0,0,.2);cursor:pointer}
+.pod-badge span{margin-left:6px;opacity:.85}
+.studio.fs .pod-badge{top:max(14px, calc(env(safe-area-inset-top) + 6px))}
