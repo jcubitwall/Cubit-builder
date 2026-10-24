@@ -320,6 +320,7 @@ tray.addEventListener('pointerdown', e=>{
   const up=ev=>{ if(ev.pointerId!==id) return; window.removeEventListener('pointermove',mv); window.removeEventListener('pointerup',up); window.removeEventListener('pointercancel',up);
     const d=D; D=null; hideGhost(); hideFurnGhost(); document.body.classList.remove('dragging'); controls.enabled=true;
     if(!d){ return; }
+    trayDragAt=performance.now();   // the tap the iPad may still send after a drag must not add a second one
     if(d.mode==='fnew'){ if(!d.at){ toast('Drop it inside a pod. It backs onto the nearest wall.'); return; }
       const f=addItem(d.it.k, {...d.at}); state.selFurn=f.id; state.selected=null; refreshItem(f); highlight(); renderSide(); if(!panelOpen()) setPanel(true); toast(`${itemDef(f.k).name} added`); return; }
     if(!d.ok){ toast('Drop it next to the home, where it docks flush in 8′ steps.'); return; }
@@ -328,7 +329,9 @@ tray.addEventListener('pointerdown', e=>{
 });
 tray.addEventListener('change', e=>{ if(e.target.id==='trayCat'){ trayCat=e.target.value; renderTray(); tray.scrollLeft=0; } });
 /* a tap on a tray item: add it at the first spot it fits (cabinets: against the wall nearest the middle of the first pod) */
+let trayDragAt=0;
 tray.addEventListener('click', e=>{
+  if(performance.now()-trayDragAt < 800) return;
   const tb=e.target.closest('[data-tab]'); if(tb){ trayTab=tb.dataset.tab; renderTray(); return; }
     const b=e.target.closest('.tray-it'); if(!b) return;
   if(b.dataset.open){ openCaseLib({cat:trayCat}); return; }
