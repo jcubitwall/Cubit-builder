@@ -16,7 +16,7 @@ import { wallFraming, floorBuild } from './framing.js';
 import { FRAME, FLOOR_BUILD } from './config.js';
 import { DECK } from './config.js';
 import { foundationOf } from './state.js';
-import { buildFurniture, applyFurniture, furnMeshes, explodeFurniture, furnHolder } from './furniture.js';
+import { buildFurniture, applyFurniture, furnMeshes, explodeFurniture, furnHolder, onFurnApplied } from './furniture.js';
 
 /* ============================================================ 3D studio */
 const stage = document.getElementById('stage');
@@ -576,6 +576,7 @@ function applyLayers(){
   controls.maxPolarAngle = Math.PI*0.999;   // turn the home right over to reach the underside of the floor
   applyIsolate();
   applyFurniture();
+  applyGhost();
 }
 /* Isolate: one wall, floor / ceiling / roof layer or deck on its own, to look at from every side (underneath too).
    Everything else in the home is hidden; the part keeps its own switches (windows, lumber, splines). */
@@ -603,11 +604,28 @@ function focusCamera(i){
   const dist = i==null ? Math.hypot(homeSpan+14, homeSpan*0.95+12, homeSpan*1.35+18) : c.span*1.55+14;
   controls.target.copy(to); camera.position.copy(to).addScaledVector(dir, dist); controls.update();
 }
+/* tap a part: it stays solid and everything else goes see-through (like the cabinet viewer). Tap empty space to
+   have the whole home solid again. Not while a part is isolated (it's on its own already). */
+const GHOST=new WeakMap();
+onFurnApplied(()=>applyGhost());
+function ghostOf(m){ let g=GHOST.get(m); if(!g){ g=m.clone(); g.transparent=true; g.opacity=(m.opacity??1)*0.14; g.depthWrite=false; GHOST.set(m,g); } return g; }
+function applyGhost(){
+  if(!homeGroup) return;
+  const tgt = !state.isolate ? (state.selFurn ? furnHolder(state.selFurn) : state.selected ? isoTarget(state.selected) : null) : null;
+  const keep=new Set(); tgt?.traverse(o=>keep.add(o));
+  homeGroup.traverse(o=>{
+    if(!(o.isMesh||o.isLineSegments||o.isLine||o.isSprite) || Array.isArray(o.material) || o.userData.pickPane) return;
+    const u=o.userData, ghosted = u._mat && o.material===GHOST.get(u._mat);
+    if(tgt && !keep.has(o)){ const base = ghosted ? u._mat : o.material; if((base.opacity??1)<0.05) return; u._mat=base; o.material=ghostOf(base); }
+    else if(ghosted){ o.material=u._mat; delete u._mat; }
+  });
+}
 function highlight(){
   deckGroups.forEach(g=>{ const sel=g.userData.id===state.selected && !state.isolate; g.userData.mat.color.set(sel?0xe0864a:0xa88f5d); g.userData.mat.emissive.set(sel?0x3a1a05:0x000000); });
   layerGroups.forEach(g=>{ const sel=g.userData.layerSlot.id===state.selected && !state.isolate; g.userData.mat.color.set(sel?0xe0864a:LAYER_COLOR[g.userData.layerSlot.kind]); g.userData.mat.emissive.set(sel?0x3a1a05:0x000000); });
   wallGroups.forEach(g=>{ const sel=g.userData.slot.id===state.selected && !state.isolate; g.userData.mat.color.set(sel?0xe0864a:(g.userData.slot.type==='int'?0xf0e6d0:0xc9a46a)); g.userData.mat.emissive.set(sel?0x3a1a05:0x000000);
     g.children.forEach(o=>{ if(o.userData.pickPane) o.material.opacity = sel ? 0.28 : 0; }); });
+  applyGhost();
 }
 function resize(){
   const r=stage.getBoundingClientRect(); renderer.setSize(r.width,r.height,false); camera.aspect=r.width/Math.max(1,r.height); camera.updateProjectionMatrix();
@@ -625,7 +643,7 @@ renderer.domElement.addEventListener('pointerup',e=>{
   const hit=ray.intersectObjects(pickables,false).find(shown);
   // a cabinet or piece of furniture in front of the wall / floor: pick it
   const fh=ray.intersectObjects(furnMeshes(),false)[0];
-  if(fh && (!hit || /:(ceiling-int|roof)$/.test(hit.object.userData.slotId||'') || fh.distance<=hit.distance+0.05)){ state.selFurn=fh.object.userData.furn; state.selected=null; state.selUnit=null; highlight(); applyFurniture(); renderSide(); return; }
+  if(fh && (!hit || /:(ceiling-int|roof)$/.test(hit.object.userData.slotId||'') || fh.distance<=hit.distance+0.05)){ state.selFurn=fh.object.userData.furn; state.selected=null; state.selUnit=null; applyFurniture(); highlight(); renderSide(); return; }
   if(state.selFurn){ state.selFurn=null; applyFurniture(); }
   state.selected = hit ? hit.object.userData.slotId : null;
   state.selUnit = null; for(let o=hit?.object; o; o=o.parent){ if(o.userData?.okey){ state.selUnit=o.userData.okey; break; } }
@@ -648,4 +666,4 @@ function loop(){
 function setExplodeGoal(v){ explodeGoal=v; }
 
 
-export { focusIsolated, isoTarget, stage, renderer, scene, camera, controls, sun, grid, homeGroup, wallGroups, themeColors, applyTheme, MAT, lineMat, numberSprite, buildWallMesh, buildHome, explodeT, applyExplode, highlight, resize, ray, loop, setExplodeGoal, applyLayers, focusCamera, podCentres, roofGroup, floorGroup, screwGroup, pickables, explodeGoal, mouse };
+export { applyGhost, focusIsolated, isoTarget, stage, renderer, scene, camera, controls, sun, grid, homeGroup, wallGroups, themeColors, applyTheme, MAT, lineMat, numberSprite, buildWallMesh, buildHome, explodeT, applyExplode, highlight, resize, ray, loop, setExplodeGoal, applyLayers, focusCamera, podCentres, roofGroup, floorGroup, screwGroup, pickables, explodeGoal, mouse };
