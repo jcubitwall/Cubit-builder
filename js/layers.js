@@ -85,7 +85,7 @@ function setIsolate(id, label){
   if(id && !isoTarget(id)) return;
   if(id && !state.isolate) isoView={pos:camera.position.clone(), tgt:controls.target.clone()};
   state.isolate=id||null; state.isoLabel=id ? (label||'') : '';
-  applyLayers(); highlight();
+  applyLayers(); applyExplode(); highlight();
   if(id) focusIsolated();
   else if(isoView){ camera.position.copy(isoView.pos); controls.target.copy(isoView.tgt); controls.update(); isoView=null; }
   showBadge(); renderSide();

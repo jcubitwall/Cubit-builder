@@ -38,7 +38,7 @@ function itemModel(it, { edges=true, tenons=true }={}){
     group.add(sub);
   });
   const span=Math.max(it.w,it.h,it.d);
-  function explode(e){ group.children.forEach(s=>{ const [a,b,c]=s.userData.ex||[0,0,0]; s.position.set(a*e*span*0.22, b*e*span*0.22, c*e*span*0.22); }); }
+  function explode(e){ group.children.forEach(s=>{ const [a,b,c]=s.userData.ex||[0,0,0]; s.position.set(a*e*span*0.34, b*e*span*0.34, c*e*span*0.34); }); }
   function select(i){ meshes.forEach(m=>{ const p=parts[m.userData.part]; m.material = i==null ? matFor(p.role) : m.userData.part===i ? SEL : matFor(p.role, true); }); }
   return { group, parts, meshes, explode, select };
 }

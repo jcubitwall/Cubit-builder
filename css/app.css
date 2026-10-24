@@ -712,3 +712,4 @@ html.phone .studio.build .vcube-wrap{top:8px;right:8px;transform:scale(.85);tran
 .btn.danger{background:#b3261e;border-color:#b3261e;color:#fff}
 .btn.danger.ghost{background:transparent;color:#b3261e}
 .nh-pod{margin-top:4px}
+.cw-side>*{flex-shrink:0}

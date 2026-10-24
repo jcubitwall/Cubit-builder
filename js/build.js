@@ -6,7 +6,7 @@
      · one finger on empty space: orbit, as in Shapr3D (you turn the home itself). A drag UP brings the near side up
        into view and keeps going round underneath; a drag DOWN goes back toward the plan. Sideways turns it around.
        Two fingers pan, pinch zooms.
-     · double-tap: back down to the flat plan
+     · double-tap a part: isolate it (again, or on empty space: the whole home back)
      · tap a wall, a floor, a ceiling, a window or a door: its options come up. Turn the home right over to reach
        the underside of the floor.
    The tray along the bottom holds the pods and decks to drag in (blank 8′, 16′, 24′ pods, the pod library, decks);
@@ -14,7 +14,8 @@
 import { MODELS, PODLIB, DECKLIB, podById } from './data.js';
 import { state, save } from './state.js';
 import { canSave } from './role.js';
-import { podList } from './layout.js';
+import { podList, slotsFor, layerSlotsFor } from './layout.js';
+import { setIsolate } from './layers.js';
 import { camera, controls, renderer, homeGroup, pickables, buildHome, highlight } from './scene3d.js';
 import { addPod, movePod, rotatePod, addDeck, moveDeck, dockSpots, deckSpots, foot, deckFoot } from './pods.js';
 import { renderModels, renderSide, toast } from './sidebar.js';
@@ -49,7 +50,7 @@ function flatten(fit=false){
   step();
 }
 const flatBadge=document.createElement('div'); flatBadge.className='flat-badge'; stage.appendChild(flatBadge);
-function badge(){ const f=isFlat(); flatBadge.textContent = f ? 'PLAN · drag a pod or cabinet to move it · drag up on empty space to tilt into 3D' : '3D · double-tap a part to zoom to it · double-tap empty space for the plan'; flatBadge.classList.toggle('three', !f); }
+function badge(){ const f=isFlat(); flatBadge.textContent = f ? 'PLAN · drag a pod or cabinet to move it · drag up on empty space to tilt into 3D' : '3D · double-tap a part to isolate it · drag down for the plan'; flatBadge.classList.toggle('three', !f); }
 setInterval(()=>{ if(state.view==='studio') badge(); }, 300);
 
 /* ---------------------------------------------------------------- picking */
@@ -212,7 +213,12 @@ function release(e){
 }
 window.addEventListener('pointerup', release); window.addEventListener('pointercancel', release);
 
-/* ---------------------------------------------------------------- double-tap: back to the flat plan */
+/* ---------------------------------------------------------------- double-tap: isolate */
+function isoLabel(id){
+  if(id.startsWith('furn:')){ const it=furnById(id.slice(5)); return it ? itemDef(it.k).name : 'Cabinet'; }
+  if(id.startsWith('deck:')) return `Deck ${+id.slice(5)+1}`;
+  return slotsFor(state.model).find(s=>s.id===id)?.label || layerSlotsFor(state.model).find(s=>s.id===id)?.label || '';
+}
 let lastTap=null, downXY=null;
 stage.addEventListener('pointerdown', e=>{ if(e.target===cv) downXY=[e.clientX,e.clientY,performance.now()]; }, true);
 stage.addEventListener('pointerup', e=>{
@@ -223,11 +229,12 @@ stage.addEventListener('pointerup', e=>{
   lastTap = near ? null : {t:now, x:e.clientX, y:e.clientY};
   if(!near) return;
   e.cubitFlat=true;                                                    // layers.js leaves Build's double-tap alone
-  // Shapr3D: double-tap a part to zoom to that face; double-tap empty space: back to the whole home, flat
-  const fh=furnAt(e.clientX,e.clientY), ph=hitAt(e.clientX,e.clientY), hit = fh && (!ph || fh.distance<=ph.distance) ? fh : ph;
-  if(hit && zoomToFace(hit)) return;
-  if(state.focusPod!=null) document.querySelector('.pod-badge')?.click();
-  flatten(true);
+  // double-tap a part: isolate it (a wall, a floor / ceiling / roof, a deck, a cabinet). Double-tap it again, or
+  // empty space, to have the whole home back. (The flat plan is the view cube's Top, or a drag down.)
+  const fh=furnAt(e.clientX,e.clientY), ph=hitAt(e.clientX,e.clientY);
+  const id = fh && (!ph || fh.distance<=ph.distance) ? 'furn:'+fh.object.userData.furn : ph?.object?.userData?.slotId;
+  if(!id || id===state.isolate){ if(state.isolate) setIsolate(null); else if(state.focusPod!=null) document.querySelector('.pod-badge')?.click(); return; }
+  setIsolate(id, isoLabel(id));
 }, true);
 
 /* ---------------------------------------------------------------- the tray: pods and decks to drag in */

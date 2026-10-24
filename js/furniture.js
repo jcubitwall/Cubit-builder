@@ -27,7 +27,7 @@ function podFrame(p){
 /* draw every placed item; called from buildHome with the pods where they sit on screen */
 function buildFurniture(homeGroup, pods){
   lastPods=pods; group=new THREE.Group(); group.name='furniture'; homeGroup.add(group); models=new Map();
-  frames=pods.map(p=>{ const f=podFrame(p); group.add(f); return f; });
+  frames=pods.map(p=>{ const f=podFrame(p); f.userData.base=f.position.clone(); group.add(f); return f; });
   const L=list();
   for(let i=L.length-1;i>=0;i--) if(!frames[L[i].pod] || !itemDef(L[i].k)) L.splice(i,1);
   L.forEach(it=>place(it));
@@ -36,7 +36,7 @@ function buildFurniture(homeGroup, pods){
 }
 function place(it){
   const f=frames[it.pod]; if(!f) return null;
-  const m=itemModel(it, { edges:true, tenons:false });
+  const m=itemModel(it, { edges:true, tenons:true });   // tenons show when it's exploded
   const holder=new THREE.Group(); holder.userData={ furn:it.id, cat:itemDef(it.k).cat };
   m.group.position.set(-it.w/2, it.y||0, 0); m.group.scale.setScalar(1);
   const sc=new THREE.Group(); sc.scale.setScalar(1/FT); sc.add(m.group); holder.add(sc);
@@ -49,10 +49,17 @@ function refreshItem(it){ if(!it) return; const old=models.get(it.id); if(old){ 
 function applyFurniture(){
   if(!group) return;
   const F=state.focusPod;
-  models.forEach(({holder, m},id)=>{ const it=byId(id); holder.visible = !!it && shownCat(holder.userData.cat) && (F==null || it.pod===F) && !state.isolate;
+  models.forEach(({holder, m},id)=>{ const it=byId(id); holder.visible = !!it && (state.isolate ? state.isolate==='furn:'+id : shownCat(holder.userData.cat) && (F==null || it.pod===F));
     m.select(null);
-    if(state.selFurn===id) m.meshes.forEach(x=>{ x.material = x.material.clone(); x.material.emissive?.set(0x6a2a08); }); });
+    if(state.selFurn===id && !state.isolate) m.meshes.forEach(x=>{ x.material = x.material.clone(); x.material.emissive?.set(0x6a2a08); }); });
 }
+/* the exploded view: cabinets ride with their pod's floor; each one comes apart too (fully when it's isolated) */
+function explodeFurniture(e, spreadOf, eP, eW, lift){
+  const iso=String(state.isolate||'').startsWith('furn:');   // an isolated cabinet comes apart where it stands
+  frames.forEach(f=>{ const v=iso?[0,0]:(spreadOf(f.userData.pod)||[0,0]), b=f.userData.base; if(b) f.position.set(b.x+v[0]*eP, b.y+(iso?0:lift), b.z+v[1]*eP); });
+  models.forEach(({m},id)=>m.explode(state.isolate==='furn:'+id ? e : eW*0.6));
+}
+const furnHolder = id => models.get(id)?.holder;
 const furnMeshes = () => { const out=[]; models.forEach(({holder})=>{ if(holder.visible) holder.traverse(o=>{ if(o.isMesh) out.push(o); }); }); return out; };
 
 /* ---------------------------------------------------------------- where an item lands */
@@ -125,4 +132,4 @@ const DEPTH_CATS=new Set(['base','upper','tall','linen','wardrobe','vanity','app
 function wallDepths(k=state.model){ const out={}; list(k).forEach(it=>{ if(it.wall && DEPTH_CATS.has(itemDef(it.k)?.cat)) out[it.wall]=Math.max(out[it.wall]||0, it.d); }); return out; }
 
 const podsShown = () => lastPods;
-export { podsShown, showFurnGhost, hideFurnGhost, setHolderVisible, list as furnitureOf, byId as furnById, buildFurniture, refreshItem, applyFurniture, furnMeshes, snap, podAt, addItem, updateItem, removeItem, duplicateItem, turnItem, podRemoved, wallDepths, shownCat, CATS as FURN_CATS };
+export { explodeFurniture, furnHolder, podsShown, showFurnGhost, hideFurnGhost, setHolderVisible, list as furnitureOf, byId as furnById, buildFurniture, refreshItem, applyFurniture, furnMeshes, snap, podAt, addItem, updateItem, removeItem, duplicateItem, turnItem, podRemoved, wallDepths, shownCat, CATS as FURN_CATS };

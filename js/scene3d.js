@@ -16,7 +16,7 @@ import { wallFraming, floorBuild } from './framing.js';
 import { FRAME, FLOOR_BUILD } from './config.js';
 import { DECK } from './config.js';
 import { foundationOf } from './state.js';
-import { buildFurniture, applyFurniture, furnMeshes } from './furniture.js';
+import { buildFurniture, applyFurniture, furnMeshes, explodeFurniture, furnHolder } from './furniture.js';
 
 /* ============================================================ 3D studio */
 const stage = document.getElementById('stage');
@@ -539,6 +539,7 @@ function applyExplode(){
   });
   plateMeshes.forEach(m=>{ const u=m.userData.plate, v=sp(u.pod); m.position.set(u.base.x+v[0]*eP, u.base.y+lift+eW*(u.top?OFFS['ceiling-int']:OFFS['floor-int']), u.base.z+v[1]*eP); });
   if(rimGroup) rimGroup.children.forEach(m=>{ const u=m.userData, v=sp(u.pod); m.position.set(u.base.x+v[0]*eP, u.base.y+lift+eW*OFFS[u.lay], u.base.z+v[1]*eP); });
+  explodeFurniture(e, sp, eP, eW, lift);
   applyRimVis();
 }
 /* LVL rims and the floor build-up show with Lumber & LVL, and always in the exploded view (with their layer) */
@@ -579,7 +580,7 @@ function applyLayers(){
 /* Isolate: one wall, floor / ceiling / roof layer or deck on its own, to look at from every side (underneath too).
    Everything else in the home is hidden; the part keeps its own switches (windows, lumber, splines). */
 let isoHidden=[];
-const isoTarget = id => id && (wallGroups.find(g=>g.userData.slot.id===id) || layerGroups.find(g=>g.userData.layerSlot.id===id) || deckGroups.find(g=>g.userData.id===id));
+const isoTarget = id => id && (String(id).startsWith('furn:') ? furnHolder(id.slice(5)) : null || wallGroups.find(g=>g.userData.slot.id===id) || layerGroups.find(g=>g.userData.layerSlot.id===id) || deckGroups.find(g=>g.userData.id===id));
 function applyIsolate(){
   const t=isoTarget(state.isolate); if(!t) return;
   // walk up from the part to the home: on each level only the branch holding the part stays visible
@@ -593,7 +594,7 @@ function focusIsolated(){
   const t=isoTarget(state.isolate); if(!t) return;
   const B=new THREE.Box3().setFromObject(t), c=B.getCenter(new THREE.Vector3()), size=B.getSize(new THREE.Vector3()).length();
   const dir=camera.position.clone().sub(controls.target).normalize();
-  controls.target.copy(c); camera.position.copy(c).addScaledVector(dir, Math.max(6, size*1.25)); controls.update();
+  controls.target.copy(c); camera.position.copy(c).addScaledVector(dir, Math.max(6, size*(String(state.isolate).startsWith('furn:')?2.4:1.25))); controls.update();
 }
 /* point the camera at one pod (or back at the whole home), keeping the angle you're looking from */
 function focusCamera(i){

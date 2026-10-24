@@ -9,6 +9,7 @@ import { canSave } from './role.js';
 import { homeGroup, wallGroups, highlight } from './scene3d.js';
 import { renderSide, toast } from './sidebar.js';
 import { setPanel, panelOpen } from './fullscreen.js';
+import { setIsolate } from './layers.js';
 
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const U = () => settings().units;
@@ -225,7 +226,9 @@ function furnSide(sideH, sideB){
   sideH.innerHTML=`<button class="side-x" id="sideXf" title="Back to the whole home" aria-label="Back to the whole home">✕</button><div class="eyebrow">${esc(cat.name)}</div><h2>${esc(d.name)}</h2><p>${sizeTxt(it)}${it.y?` · ${show(it.y)}${unitSign()} off the floor`:''}${n?` · ${n} parts · ${Object.entries(tot.area).map(([k,a])=>`${k}″ ${a.toFixed(1)} sq ft`).join(' · ')}`:''}</p>`;
   sideH.querySelector('#sideXf').onclick=()=>{ state.selFurn=null; applyFurniture(); renderSide(); };
   const ed=canSave();
-  sideB.innerHTML=`<div class="row"><button class="btn" id="fOpen">3D, exploded &amp; parts</button></div>
+  const iso=state.isolate==='furn:'+it.id;
+  sideB.innerHTML=`<div class="row"><button class="btn" id="fOpen">3D, exploded &amp; parts</button><button class="btn ghost" id="fIso" aria-pressed="${iso}">${iso?'Exit isolate':'Isolate'}</button></div>
+    ${iso?'<p class="note">Use <b>Exploded view</b> (top left) to take it apart right here.</p>':''}
     ${ed?`<div class="row"><button class="btn ghost sm" id="fTurn">Turn 90°</button><button class="btn ghost sm" id="fMir" aria-pressed="${!!it.mirror}">Mirror</button><button class="btn ghost sm" id="fDup">Duplicate</button><button class="btn ghost sm" id="fRm">Remove</button></div>`:''}
     <div class="cw-sizes compact">
       ${['w','h','d','y'].map(k=>`<label class="cw-f"><span>${{w:'Width',h:'Height',d:'Depth',y:'Off the floor'}[k]}</span><input data-fl="${k}" value="${esc(show(it[k]||0))}" inputmode="decimal" ${!ed||(d.fixed&&k!=='y')?'disabled':''}><i>${unitSign()}</i></label>`).join('')}
@@ -234,6 +237,7 @@ function furnSide(sideH, sideB){
     <p class="note">Drag it in the plan (Build) to move it along the walls; it backs onto the nearest wall and butts up to the cabinets beside it.${it.wall?' Its depth counts for the pot lights along this wall.':''}</p>`;
   const ch=patch=>{ updateItem(it.id, patch); if(d.sized && patch.opt) Object.assign(it, d.sized(it)); refreshItem(it); renderSide(); };
   sideB.querySelector('#fOpen').onclick=()=>openCaseLib({edit:it.id});
+  sideB.querySelector('#fIso').onclick=()=>{ setIsolate(iso?null:'furn:'+it.id, d.name); renderSide(); };
   sideB.querySelector('#fTurn')?.addEventListener('click',()=>{ turnItem(it.id); refreshItem(it); renderSide(); });
   sideB.querySelector('#fMir')?.addEventListener('click',()=>{ ch({mirror:!it.mirror}); toast(it.mirror?'Mirrored':'Back as drawn'); });
   sideB.querySelector('#fDup')?.addEventListener('click',()=>{ const c=duplicateItem(it.id); state.selFurn=c.id; refreshItem(c); applyFurniture(); renderSide(); toast('Duplicated · drag it where it goes'); });
