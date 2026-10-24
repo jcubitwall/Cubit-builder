@@ -133,7 +133,7 @@ def cylinders(solid, origin):
 
 # ------------------------------------------------------------------ the floor's bottom
 def rebase_floor(solids, origin):
-    """Every Cubit floor stands on a steel frame (2″ × 3″ tube) with 2 mm ACM sheets under it. Whether or not the
+    """Every Cubit floor sits on 2 mm ACM sheets, on a steel frame (2″ × 3″ tube) at the very bottom. Whether or not the
     model draws them, heights are measured from the bottom of the exterior SIP floor: if the frame / ACM are drawn,
     the lowest 4½″ SIP slab sits higher than the bottom of the file, so move the zero up to it."""
     big=lambda s:(s['b'][3]-s['b'][0])>40 and (s['b'][4]-s['b'][1])>40

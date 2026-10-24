@@ -426,12 +426,13 @@ function buildHome(){
         const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT, gh*0.98, (z1-z0)/FT), mat);
         m.position.set(p.x+(x0+x1)/2/FT, gy+gh/2, p.z+(z0+z1)/2/FT); m.userData={pod:p.i, lay:'floor-int', base:m.position.clone(), build:kind}; rimGroup.add(m); };
       B.eps.forEach(r=>put(r, FRAME_MAT.eps, 'eps')); B.blocks.forEach(r=>put(r, FRAME_MAT.wood, 'block'));
-      // under the floor: the steel frames (2″ × 3″ tube, 8′ × 8′ sections) and 2 mm ACM sheets on the very bottom
+      // under the floor: 2 mm ACM sheets right under the exterior floor, then the steel frames (2″ × 3″ tube, 8′ × 8′
+      // sections) at the very bottom, on the foundation
       const fr=FLOOR_BUILD.frame, ac=FLOOR_BUILD.acp, under=(r,y0,h,mat,kind)=>{ const [x0,x1,z0,z1] = along ? r : [r[2],r[3],r[0],r[1]];
         const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT, h/FT, (z1-z0)/FT), mat);
         m.position.set(p.x+(x0+x1)/2/FT, (y0-WALL_BASE)/FT+h/2/FT, p.z+(z0+z1)/2/FT); m.userData={pod:p.i, lay:'frame', base:m.position.clone(), build:kind, always:true}; rimGroup.add(m); };
-      B.tubes.forEach(r=>under(r, -fr.h, fr.h, FRAME_MAT.steel, 'tube'));
-      B.acp.forEach(r=>under([r[0]+0.05,r[1]-0.05,r[2],r[3]], -fr.h-ac.t, ac.t, FRAME_MAT.acp, 'acp')); });
+      B.acp.forEach(r=>under([r[0]+0.05,r[1]-0.05,r[2],r[3]], -ac.t, ac.t, FRAME_MAT.acp, 'acp'));
+      B.tubes.forEach(r=>under(r, -ac.t-fr.h, fr.h, FRAME_MAT.steel, 'tube')); });
   }
   unitMeshes=[]; wallGroups.forEach(g=>g.traverse(o=>{ if(o.userData.unit) unitMeshes.push(o); }));
   // faces sit a hair behind their own edge lines, so panel seams and outlines draw cleanly instead of flickering
