@@ -135,4 +135,4 @@ function explodeLayers(on){
   // only what's switched on comes apart; anything switched off stays hidden (no layer is turned on for you)
   applyLayers(); if(!pop.hidden) render();
 }
-export { explodeLayers, render as renderLayers, setIsolate, setPod };
+export { open as openLayers, explodeLayers, render as renderLayers, setIsolate, setPod };

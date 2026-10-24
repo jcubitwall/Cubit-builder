@@ -15,7 +15,7 @@ import { MODELS, PODLIB, DECKLIB, podById } from './data.js';
 import { state, save } from './state.js';
 import { canSave } from './role.js';
 import { podList, slotsFor, layerSlotsFor } from './layout.js';
-import { setIsolate, setPod } from './layers.js';
+import { setIsolate, setPod, openLayers } from './layers.js';
 import { camera, controls, renderer, homeGroup, pickables, buildHome, highlight } from './scene3d.js';
 import { addPod, movePod, rotatePod, addDeck, moveDeck, dockSpots, deckSpots, foot, deckFoot } from './pods.js';
 import { renderModels, renderSide, toast } from './sidebar.js';
@@ -135,9 +135,12 @@ stage.addEventListener('pointerdown', e=>{
     // in the flat plan a pod, deck or cabinet moves straight away; anywhere else the finger turns the view
     if(isFlat() && editable()){ const d=grabAt(e.clientX,e.clientY); if(d){ controls.enabled=false; D=d; return; } }
     orbit={x:e.clientX, y:e.clientY};
-    // in 3D: a long touch (held still) on a pod, deck or cabinet picks it up to move it
-    if(editable()){ const x=e.clientX, y=e.clientY;
-      press={x, y, timer:setTimeout(()=>{ if(!press || pointers.size!==1) return; const d=grabAt(x,y); press=null; if(!d) return;
+    // a long touch (held still): on a pod, deck or cabinet it picks it up to move it (in 3D too);
+    // on empty space it opens the Layers list
+    { const x=e.clientX, y=e.clientY;
+      press={x, y, timer:setTimeout(()=>{ if(!press || pointers.size!==1) return; press=null;
+        if(!hitAt(x,y) && !furnAt(x,y)){ orbit=null; try{ navigator.vibrate?.(10); }catch(err){} openLayers(true); return; }
+        const d=editable() ? grabAt(x,y) : null; if(!d) return;
         orbit=null; controls.enabled=false; D=d; D.started=true; D.lastXY=[x,y]; document.body.classList.add('dragging');
         try{ navigator.vibrate?.(15); }catch(err){}
         if(D.mode==='fmove'){ setHolderVisible(D.id,false); trackFurn(D, x, y); } else track(D, x, y);
