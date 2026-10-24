@@ -110,10 +110,39 @@ function holedSlab(a,b,y0,y1,shapes,d){
   shapes.forEach(S=>{ const P=outlinePts(S).slice(0,-1).map(([x,y])=>new THREE.Vector2(x/FT,y/FT)); sh.holes.push(new THREE.Path(P)); });
   return new THREE.ExtrudeGeometry(sh, {depth:d, bevelEnabled:false, curveSegments:24});
 }
+const BOX_FLOOR = new THREE.MeshBasicMaterial({color:0xf4f1ea, side:THREE.DoubleSide});   // the back of a carved electrical box
+/* A slab piece (inches a..b × y0..y1, d feet thick along its extrusion axis, 0..d) with every cut exactly as drawn:
+   cuts = [{P:[[x,y],…] closed outline in inches, lo, hi}] — removed between lo and hi (feet along the thickness).
+   Through cuts run 0..d; a pocket runs from its face to its depth. Built as one extrusion per depth band. */
+function cutSlab(a,b,y0,y1,d,cuts){
+  const zs=[...new Set([0,d,...cuts.flatMap(c=>[c.lo,c.hi]).filter(z=>z>1e-4 && z<d-1e-4)])].sort((p,q)=>p-q), out=[];
+  for(let i=0;i<zs.length-1;i++){
+    const z0=zs[i], z1=zs[i+1]; if(z1-z0<1e-4) continue; const mid=(z0+z1)/2;
+    const sh=new THREE.Shape([[a,y0],[b,y0],[b,y1],[a,y1]].map(([x,y])=>new THREE.Vector2(x/FT,y/FT)));
+    cuts.filter(c=>c.lo<=mid && c.hi>=mid).forEach(c=>sh.holes.push(new THREE.Path(c.P.slice(0,-1).map(([x,y])=>new THREE.Vector2(x/FT,y/FT)))));
+    const g=new THREE.ExtrudeGeometry(sh,{depth:z1-z0, bevelEnabled:false, curveSegments:24}); g.translate(0,0,z0); out.push(g);
+  }
+  return out;
+}
+/* which cuts can be carved in a piece: wholly inside it, and not touching another cut at the same depth (those stay
+   painted on the face, so the mesh never breaks) */
+function carvable(cands, a,b,y0,y1){
+  const ok=[], bb=P=>{ const xs=P.map(p=>p[0]), ys=P.map(p=>p[1]); return [Math.min(...xs),Math.max(...xs),Math.min(...ys),Math.max(...ys)]; };
+  cands.forEach(c=>{ const B=c.B||(c.B=bb(c.P)); const m=0.06;
+    if(B[0]<a+m || B[1]>b-m || B[2]<y0+m || B[3]>y1-m) return;
+    if(ok.some(o=>o.lo<c.hi && c.lo<o.hi && !(B[1]+m<o.B[0] || o.B[1]+m<B[0] || B[3]+m<o.B[2] || o.B[3]+m<B[2]))) return;
+    ok.push(c); });
+  return ok;
+}
 /* builds one wall as panel groups in local feet coords: x along (exterior-left = 0), y up, z outward (outer face at 0) */
 function buildWallMesh(w, mat, opts={}){
   const g = new THREE.Group(); const n=panelCount(w); const panels=[]; const spans=panelSpans(w), L=wallLen(w);
   const t=(w.t||T)/FT;
+  // part-way cuts on either face that have a drawn size: carved into the panels below
+  const faceCuts=[];
+  [[w.inside||[], x=>L-x, true], [w.outside||[], x=>x, false]].forEach(([items,toX,ins])=>items.forEach(b=>{
+    if(!b.depth) return; const P=faceShape(b,toX); if(!P) return; b.carved=false;
+    faceCuts.push({P, dep:Math.min(b.depth,(w.t||T))/FT, inside:ins, src:b}); }));
   for(let k=0;k<n;k++){
     const pg=new THREE.Group(); pg.userData.k=k;
     const [nl,nr]=w.notch||[0,0], nd=Math.min(NOTCH, (w.t||T)-0.5)/FT;
@@ -124,8 +153,12 @@ function buildWallMesh(w, mat, opts={}){
         const a=cuts[c], b=cuts[c+1], mid=(a+b)/2, notched=(nl&&mid<nl)||(nr&&mid>L-nr), d=notched?t-nd:t;
         // round holes / slots inside this piece: cut exactly (extruded outline with holes), else a plain box
         const inside=w.openings.filter(o=>isShaped(o) && o.x>=a-1e-6 && o.x+o.w<=b+1e-6 && o.y>=y0-1e-6 && o.y+o.h<=y1+1e-6);
-        if(inside.length){
-          const m=new THREE.Mesh(holedSlab(a,b,y0,y1,inside.map(shapeOf),d), mat); m.position.z=-t; pg.add(m);
+        // pockets from either face, carved to their depth (z here: 0 = inside face, d = this piece's outer face)
+        const pk=carvable(faceCuts.map(c=>({...c, lo:c.inside?0:Math.max(0,d-c.dep), hi:c.inside?Math.min(d,c.dep):d})), a,b,y0,y1);
+        pk.forEach(c=>{ c.src.carved=true; });
+        if(inside.length || pk.length){
+          const thr=inside.map(o=>({P:outlinePts(shapeOf(o)), lo:0, hi:d}));
+          cutSlab(a,b,y0,y1,d,thr.concat(pk)).forEach(g=>{ const m=new THREE.Mesh(g, mat); m.position.z=-t; pg.add(m); });
         } else {
           const m=new THREE.Mesh(new THREE.BoxGeometry((b-a)/FT,(y1-y0)/FT,d),mat);
           m.position.set(mid/FT,(y0+y1)/2/FT,-t+d/2); pg.add(m);
@@ -158,6 +191,8 @@ function buildWallMesh(w, mat, opts={}){
   const flat=(P,z,mat)=>{ const m=new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(P.map(p=>new THREE.Vector2(p[0]/FT,p[1]/FT))),24), mat); m.position.z=z; return m; };
   [[w.inside, x=>L-x, -t, -1], [w.outside, x=>x, 0, 1]].forEach(([items, toX, z0, dir])=>items.forEach(b=>{
     const P=faceShape(b, toX), X=toX(b.x);
+    if(P && b.carved){   // carved to its depth: mark the bottom of the pocket (white for an electrical box)
+      const m=flat(P, z0-dir*Math.min(b.depth,(w.t||T))/FT + dir*0.004, b.kind==='box'?BOX_FLOOR:MAT.recess); m.userData.k=panelAt(w,X); g.add(m); return; }
     if(P && b.kind==='box' && !b.shape?.match(/round|slot|poly/)){
       const m=new THREE.Mesh(new THREE.BoxGeometry(b.w/FT,b.h/FT,0.06), MAT.outlet); m.position.set(X/FT,b.y/FT,z0+dir*0.03); m.userData.k=panelAt(w,X); g.add(m); return; }
     if(P){ const m=flat(P, z0+dir*0.006, MAT.recess); m.userData.k=panelAt(w,X); g.add(m); return; }
@@ -186,9 +221,16 @@ function buildLayerMesh(L, mat){
   const xs=[...new Set([0,len,...holes.flatMap(h=>[h.x0,h.x1])])].filter(v=>v>=0&&v<=len).sort((a,b)=>a-b);
   const zs=[...new Set([0,wid,...holes.flatMap(h=>[h.z0,h.z1])])].filter(v=>v>=0&&v<=wid).sort((a,b)=>a-b);
   const lsh = h => shapeOf({...h, y:h.z, h:h.d, d:h.dia, ends:h.ends});   // layer coords: x along, z across
+  // pockets from the top or the bottom: carved to their depth (extrusion z: 0 = top face, t = bottom face)
+  const bcuts=blind.map(h=>{ const dp=Math.min(h.depth,(L.t||4.5))/FT; return {P:outlinePts(lsh(h)), lo:h.face==='bottom'?t-dp:0, hi:h.face==='bottom'?t:dp, src:h}; });
+  const carvedSet=new Set();
   const piece=(x0,x1,z0,z1)=>{
     const inside=shaped.filter(h=>h.x>=x0-1e-6 && h.x+h.w<=x1+1e-6 && h.z>=z0-1e-6 && h.z+h.d<=z1+1e-6);
-    if(inside.length){ const m=new THREE.Mesh(holedSlab(x0,x1,z0,z1,inside.map(lsh),t), mat); m.rotation.x=Math.PI/2; m.position.y=t; g.add(m); return; }
+    const pk=carvable(bcuts.map(c=>({...c})), x0,x1,z0,z1); pk.forEach(c=>carvedSet.add(c.src));
+    if(inside.length || pk.length){
+      cutSlab(x0,x1,z0,z1,t, inside.map(h=>({P:outlinePts(lsh(h)), lo:0, hi:t})).concat(pk)).forEach(geo=>{
+        const m=new THREE.Mesh(geo, mat); m.rotation.x=Math.PI/2; m.position.y=t; g.add(m); });
+      return; }
     const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT,t,(z1-z0)/FT),mat); m.position.set((x0+x1)/2/FT,t/2,(z0+z1)/2/FT); g.add(m); };
   for(let i=0;i<xs.length-1;i++){
     let run=null;
@@ -201,7 +243,8 @@ function buildLayerMesh(L, mat){
   }
   // recesses that don't go through: a dark outline on their face
   blind.forEach(h=>{ const P=outlinePts(lsh(h)); const m=new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(P.map(p=>new THREE.Vector2(p[0]/FT,p[1]/FT))),24), MAT.recess);
-    m.rotation.x=Math.PI/2; m.position.y = h.face==='bottom' ? -0.006 : t+0.006; g.add(m); });
+    const dp=Math.min(h.depth,(L.t||4.5))/FT, carved=carvedSet.has(h);   // carved: mark the bottom of the pocket, else its outline on the face
+    m.rotation.x=Math.PI/2; m.position.y = h.face==='bottom' ? (carved ? dp-0.004 : -0.006) : (carved ? t-dp+0.004 : t+0.006); g.add(m); });
   // panel joints and round-hole outlines on the top face
   const pts=[]; (L.seams||[]).forEach(sx=>{ pts.push(sx/FT,t+0.004,0, sx/FT,t+0.004,8); });
   shaped.forEach(h=>{ const P=outlinePts(lsh(h)); for(let i=0;i<P.length-1;i++) pts.push(P[i][0]/FT,t+0.004,P[i][1]/FT, P[i+1][0]/FT,t+0.004,P[i+1][1]/FT); });
