@@ -132,4 +132,4 @@ function explodeLayers(on){
   else if(before){ Object.assign(state.show, before); before=null; }
   applyLayers(); if(!pop.hidden) render();
 }
-export { explodeLayers, render as renderLayers, setIsolate };
+export { explodeLayers, render as renderLayers, setIsolate, setPod };

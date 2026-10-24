@@ -6,7 +6,7 @@
      · one finger on empty space: orbit, as in Shapr3D (you turn the home itself). A drag UP brings the near side up
        into view and keeps going round underneath; a drag DOWN goes back toward the plan. Sideways turns it around.
        Two fingers pan, pinch zooms.
-     · double-tap a part: isolate it (again, or on empty space: the whole home back)
+     · double-tap: isolate one level down (the pod, then the part in it); again or on empty space: back up a level
      · tap a wall, a floor, a ceiling, a window or a door: its options come up. Turn the home right over to reach
        the underside of the floor.
    The tray along the bottom holds the pods and decks to drag in (blank 8′, 16′, 24′ pods, the pod library, decks);
@@ -15,7 +15,7 @@ import { MODELS, PODLIB, DECKLIB, podById } from './data.js';
 import { state, save } from './state.js';
 import { canSave } from './role.js';
 import { podList, slotsFor, layerSlotsFor } from './layout.js';
-import { setIsolate } from './layers.js';
+import { setIsolate, setPod } from './layers.js';
 import { camera, controls, renderer, homeGroup, pickables, buildHome, highlight } from './scene3d.js';
 import { addPod, movePod, rotatePod, addDeck, moveDeck, dockSpots, deckSpots, foot, deckFoot } from './pods.js';
 import { renderModels, renderSide, toast } from './sidebar.js';
@@ -229,12 +229,17 @@ stage.addEventListener('pointerup', e=>{
   lastTap = near ? null : {t:now, x:e.clientX, y:e.clientY};
   if(!near) return;
   e.cubitFlat=true;                                                    // layers.js leaves Build's double-tap alone
-  // double-tap a part: isolate it (a wall, a floor / ceiling / roof, a deck, a cabinet). Double-tap it again, or
-  // empty space, to have the whole home back. (The flat plan is the view cube's Top, or a drag down.)
+  // double-tap isolates one level down at a time: in a home of several pods, the pod you tapped; in a single pod
+  // (or a pod on its own), the part you tapped (a wall, a floor / ceiling / roof, a cabinet). Decks are isolated
+  // straight away. Double-tap the isolated part again, or empty space, to go back up one level.
   const fh=furnAt(e.clientX,e.clientY), ph=hitAt(e.clientX,e.clientY);
   const id = fh && (!ph || fh.distance<=ph.distance) ? 'furn:'+fh.object.userData.furn : ph?.object?.userData?.slotId;
-  if(!id || id===state.isolate){ if(state.isolate) setIsolate(null); else if(state.focusPod!=null) document.querySelector('.pod-badge')?.click(); return; }
-  setIsolate(id, isoLabel(id));
+  const up=()=>{ if(state.isolate) setIsolate(null); else if(state.focusPod!=null) setPod(null); renderSide(); };
+  if(!id || id===state.isolate){ up(); return; }
+  const deck=String(id).startsWith('deck:');
+  const pod = deck ? null : String(id).startsWith('furn:') ? furnById(id.slice(5))?.pod : parseInt(id,10);
+  if(!deck && !state.isolate && state.focusPod==null && MODELS[state.model].pods.length>1 && Number.isFinite(pod)){ setPod(pod); renderSide(); return; }
+  setIsolate(id, isoLabel(id)); renderSide();
 }, true);
 
 /* ---------------------------------------------------------------- the tray: pods and decks to drag in */
