@@ -237,5 +237,53 @@
     "faces": {},
     "inset": 6,
     "from": ""
+  },
+  {
+    "id": "cubit-kya-nest",
+    "name": "Cubit Kya Nest",
+    "saved": "2026-10-24T19:19:38Z",
+    "model": {
+      "name": "Cubit Kya Nest",
+      "size": "24 + 16",
+      "pods": [
+        {
+          "t": "L24",
+          "x": 0,
+          "z": 0
+        },
+        {
+          "t": "P16",
+          "x": 88,
+          "z": 0
+        }
+      ],
+      "decks": [],
+      "picks": {
+        "0W0": "W08-15",
+        "0E0": "W08-09",
+        "0S0": "W24-10",
+        "0N0": "W24-11",
+        "1W0": "W08-16",
+        "1E0": "W08-09",
+        "1S88": "W16-06",
+        "1N88": "W16-07"
+      },
+      "layerPicks": {
+        "0:floor-ext": "FE24-04",
+        "0:floor-int": "FI24-04",
+        "0:ceiling-int": "CI24-05",
+        "0:roof": "RF24-01",
+        "1:floor-ext": "FE16-STD",
+        "1:floor-int": "FI16-STD",
+        "1:ceiling-int": "CI16-03",
+        "1:roof": "RF16-01"
+      },
+      "note": "Scanned from 20261024191907-cl40.step on 2026-10-24."
+    },
+    "picks": {},
+    "wallA": {},
+    "faces": {},
+    "inset": 6,
+    "from": ""
   }
 ]

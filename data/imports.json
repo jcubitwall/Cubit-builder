@@ -1,5 +1,27 @@
 [
  {
+  "id": "20261024191907-cl40",
+  "kind": "home",
+  "name": "Cubit Kya Nest",
+  "file": "Cubit Kya : Nest.step",
+  "by": "heinrich@cubithome.com",
+  "started": "2026-10-24T19:19:30+00:00",
+  "status": "done",
+  "summary": {
+   "kind": "home",
+   "project": "cubit-kya-nest",
+   "pods": 2,
+   "walls": 8,
+   "new_walls": 6,
+   "layers": 8,
+   "new_layers": 4,
+   "new_pods": 2,
+   "decks": 0,
+   "new_decks": 0
+  },
+  "finished": "2026-10-24T19:19:38+00:00"
+ },
+ {
   "id": "20261024191746-7290",
   "kind": "pod",
   "name": "Cubit Kya Expanse PC",
