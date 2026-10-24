@@ -304,7 +304,7 @@ function buildHome(){
     (isFloor?floorGroup:ls.kind==='roof'?roofGroup:ceilGroup).add(grp); layerGroups.push(grp);
   });
   homeGroup.add(ceilGroup); homeGroup.add(roofGroup);
-  // decks (porch frames), docked with the same 5/8″ space as pods
+  // decks (porch frames), docked with the same ¾″ space as pods
   deckGroups=[];
   const DOFF=layoutOffsets(state.model).decks;
   deckList(state.model).forEach((d,k)=>{

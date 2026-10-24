@@ -107,7 +107,7 @@ function renderFoundation(el){
   for(let k=0;k<pts.length-1;k++){ const a=pts[k],b=pts[k+1]; if(b-a<1e-3) continue; g+=dimV(Y(a),Y(b),xl,fin(b-a),X(0),9.5); }
   g+=dimH(X(0),X(Wf),Y(0)-76,`${fft(Wf)} overall`,Y(0),12);
   g+=dimV(Y(0),Y(Df),X(0)-74,`${fft(Df)}`,X(0),12);
-  g+=`<text x="${X(0)}" y="${mt-100}" font-size="10.5" fill="#333">DATUM 0,0 = top-left outside corner of this plan · screws ${fin(state.inset)} in from the outside edge · orange = shared, centred in the 5/8″ joint · grey = swivel head</text>`;
+  g+=`<text x="${X(0)}" y="${mt-100}" font-size="10.5" fill="#333">DATUM 0,0 = top-left outside corner of this plan · screws ${fin(state.inset)} in from the outside edge · orange = shared, centred in the ¾″ joint · grey = swivel head</text>`;
   g+=`<circle cx="${X(0)}" cy="${Y(0)}" r="5" fill="#fff" stroke="#d0661f" stroke-width="2"/>`;
   // north arrow + which way each side of the plan faces
   { const n=northVec(), a=Math.atan2(n[0],-n[1])*180/Math.PI, ax=VW-30, ay=mt+34;
@@ -127,10 +127,10 @@ function renderFoundation(el){
     <div class="sheet-tools"><label for="insetIn" style="font-size:13px">Screw inset from outside edge (inches)</label>
       <input id="insetIn" type="number" min="2" max="18" step="0.5" value="${state.inset}" style="width:80px;padding:6px 8px;border:1px solid #cfd4cc;border-radius:6px;font:inherit">
       <button class="btn" id="pdfBtn" hidden>Download PDF</button>
-      <span style="font-size:12.5px;color:#333">No gap over 12′ along any outside edge or joint; every corner has a screw. Where pods meet they share one screw centred in the 5/8″ joint; around the outside each screw has a swivel head.</span></div>
+      <span style="font-size:12.5px;color:#333">No gap over 12′ along any outside edge or joint; every corner has a screw. Where pods meet they share one screw centred in the ¾″ joint; around the outside each screw has a swivel head.</span></div>
     ${F.warnings.length?`<p class="note" style="color:#b4520f;font-weight:600">Check this layout: ${F.warnings.map(w=>`S${sc.findIndex(q=>q.src===w.a)+1} – S${sc.findIndex(q=>q.src===w.b)+1} ${w.kind==='close'?'only':''} ${fin(w.d*FT)} apart`).join(' · ')}</p>`:''}
     <div class="elev">${g}</div>
-    <div class="sheet-grid"><div class="tblwrap"><div class="eyebrow" style="color:#555;margin-bottom:4px">Squaring checks</div>${ct}<p class="note" style="color:#444;margin-top:6px">Measure centre to centre of the shafts; each reading should match within 1/8″. The two diagonals of each pod are equal. Whole-layout diagonals can differ slightly where a pod is offset by the 5/8″ joint space.</p></div>
+    <div class="sheet-grid"><div class="tblwrap"><div class="eyebrow" style="color:#555;margin-bottom:4px">Squaring checks</div>${ct}<p class="note" style="color:#444;margin-top:6px">Measure centre to centre of the shafts; each reading should match within 1/8″. The two diagonals of each pod are equal. Whole-layout diagonals can differ slightly where a pod is offset by the ¾″ joint space.</p></div>
       <div class="tblwrap" style="max-height:340px;overflow:auto"><div class="eyebrow" style="color:#555;margin-bottom:4px">Screw schedule</div>${t}</div></div>`;
   el.querySelector('#insetIn').addEventListener('change',e=>{ const v=parseFloat(e.target.value); if(v>=2&&v<=18){ state.inset=v; buildHome(); renderSheetList(); renderFoundation(el); renderSide(); } });
   const btn=el.querySelector('#pdfBtn');
@@ -166,7 +166,7 @@ function foundationPDF(){
     doc.text(`${F.m.name} - ground screw layout`, M+8, PH_-M-9);
     const c2=M+(PW_-2*M)*0.30+8; doc.setFontSize(8);
     doc.text(`${sc.length} screws (${sc.filter(q=>q.shared).length} shared)  |  inset ${fin(state.inset)} from outside edge`, c2, PH_-M-24);
-    doc.text(`Footprint ${asciiFt(Wf)} x ${asciiFt(Df)}  |  5/8" space at pod joints`, c2, PH_-M-10);
+    doc.text(`Footprint ${asciiFt(Wf)} x ${asciiFt(Df)}  |  3/4" space at pod joints`, c2, PH_-M-10);
     const c3=M+(PW_-2*M)*0.72+8; doc.text('UNITS: inches', c3, PH_-M-24); doc.text('DATE '+new Date().toISOString().slice(0,10), c3, PH_-M-10);
     const c4=M+(PW_-2*M)*0.86+8; doc.text('SHEET', c4, PH_-M-24); doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.text(`${page} of ${pages}`, c4, PH_-M-9);
   };
@@ -228,7 +228,7 @@ function foundationPDF(){
   doc.setDrawColor(...org); doc.setFillColor(255,255,255); doc.setLineWidth(1.2); doc.circle(X(0),Y(0),3,'FD');
   // legend
   const lgY=PH_-M-40-14; doc.setFontSize(7.5); doc.setFont('helvetica','normal'); doc.setTextColor(60,60,60);
-  doc.setFillColor(243,201,168); doc.setDrawColor(...org); doc.rect(M,lgY-6,14,7,'FD'); doc.text('Shared - head centred in the 5/8" joint (centre, tee or cross head)', M+18, lgY);
+  doc.setFillColor(243,201,168); doc.setDrawColor(...org); doc.rect(M,lgY-6,14,7,'FD'); doc.text('Shared - head centred in the 3/4" joint (centre, tee or cross head)', M+18, lgY);
   doc.setFillColor(227,230,224); doc.setDrawColor(86,96,107); doc.rect(M+260,lgY-6,14,7,'FD'); doc.text('Perimeter - swivel head, bracket turned in under the pod', M+278, lgY);
   doc.text('PLAN SEEN FROM ABOVE', PW_-M, lgY, {align:'right'});
   titleBlock(1,2);
@@ -245,7 +245,7 @@ function foundationPDF(){
   let y2=table(M, M+18, ['Check','Between','Measure (in)','Feet-inches'], [170,80,80,80],
     checks.map(c=>[`${c.group} - ${c.kind}`, `S${c.a.id} to S${c.b.id}`, fin(c.len), asciiFt(c.len)]));
   doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(60,60,60);
-  doc.text(doc.splitTextToSize('Measure centre to centre of the screw shafts. Each reading should match this sheet within 1/8". The two diagonals of each pod are equal. Whole-layout diagonals differ slightly when pods are offset by the 5/8" joint space - use the numbers above, not each other.', 400), M, y2+14);
+  doc.text(doc.splitTextToSize('Measure centre to centre of the screw shafts. Each reading should match this sheet within 1/8". The two diagonals of each pod are equal. Whole-layout diagonals differ slightly when pods are offset by the 3/4" joint space - use the numbers above, not each other.', 400), M, y2+14);
   doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(...ink); doc.text('Screw schedule', M+430, M+8);
   const rows=sc.map(q=>[`S${q.id}`, labels[q.pod], fin(q.X), fin(q.Y), headText(q,labels,false)]).concat(F.pads.map(q=>[`P${q.id}`, labels[pods.length+q.deck], fin(q.X), fin(q.Y), 'Concrete pad, floating deck']));
   const perCol=Math.floor((PH_-2*M-40-40)/13)-1;

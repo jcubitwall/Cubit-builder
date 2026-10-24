@@ -19,7 +19,7 @@ const ROT_SIDE = {0:{S:'S',E:'E',N:'N',W:'W'}, 90:{S:'E',E:'N',N:'W',W:'S'}, 180
 const worldSide = (rot, local) => ROT_SIDE[rot][local];
 const localSide = (rot, world) => Object.keys(ROT_SIDE[rot]).find(k=>ROT_SIDE[rot][k]===world);
 
-/* The layout in models.json is the nominal grid. Every joint between pods adds exactly 5/8″:
+/* The layout in models.json is the nominal grid. Every joint between pods adds exactly ¾″:
    a pod moves over by one gap for each joint line between it and the datum. A joint line is a
    coordinate where one pod ends and a neighbouring pod starts beside it. */
 /* Decks on the plan: { lib, x, z, rot } with x/z the top-left of the footprint (feet). The ledger is the
@@ -32,7 +32,7 @@ const deckList = modelKey => (MODELS[modelKey].decks||[]).map((d,k)=>{
 });
 function layoutOffsets(modelKey){
   const P = podList(modelKey), Dk = deckList(modelKey);
-  // pods: every joint line between pods adds 5/8″ to everything beyond it
+  // pods: every joint line between pods adds ¾″ to everything beyond it
   const joints = axis => {
     const lines = new Set();
     P.forEach(p=>P.forEach(q=>{
@@ -212,7 +212,7 @@ function assignLetters(modelKey, slots, pods){
 }
 
 /* ============================================================ ground screws
-   Screws are never doubled up: where pods meet they share one screw that sits in the CENTRE of the 5/8″
+   Screws are never doubled up: where pods meet they share one screw that sits in the CENTRE of the ¾″
    joint, carrying both pods. Around the outside the screw sits just inside the floor edge (the inset) with a
    swivel head, so a deck or another pod can be added later.
 
@@ -236,7 +236,7 @@ const NEAR_HOME = 1;   // feet: a deck screw this close to a home on concrete is
 function screwPlan(modelKey, insetIn, opts={}){
   const withPods = opts.pods===undefined || opts.pods==='auto' ? foundationOf(modelKey)!=='concrete' : !!opts.pods;
   const withDecks = opts.decks!==false;
-  const i=insetIn/FT, E=1e-4, G=GAP, MAX=SCREW_MAX, MERGE=3, SLACK=0.25;   // screws closer than 3′ become one; a gap may run 3″ over 12′ (the 5/8″ joints add up) rather than add a screw
+  const i=insetIn/FT, E=1e-4, G=GAP, MAX=SCREW_MAX, MERGE=3, SLACK=0.25;   // screws closer than 3′ become one; a gap may run 3″ over 12′ (the ¾″ joints add up) rather than add a screw
   const LO = layoutOffsets(modelKey), OFF=LO.pods, pl=podList(modelKey);
   // decks follow the same rules; their index follows the pods' (pods 0..n-1, then decks)
   const PODS = pl.map(p=>{ const x=p.x+OFF[p.i].ox, z=p.z+OFF[p.i].oz; return {i:p.i, len:p.len, x, z, x1:x+p.w, z1:z+p.d}; });
@@ -261,7 +261,7 @@ function screwPlan(modelKey, insetIn, opts={}){
       const cov=[];
       P.forEach(q=>{ if(q===p) return;
         const qe = sd.ax==='x' ? (sg>0?q.z:q.z1) : (sg>0?q.x:q.x1);
-        // pods always sit 5/8″ apart; a deck sits ¾″ off a pod and butts straight up to another deck
+        // pods always sit ¾″ apart; a deck sits ¾″ off a pod and butts straight up to another deck
         const jg = (!!p.deck!==!!q.deck) ? (Math.abs(qe-(sd.e+sg*DG))<=E ? DG : null)
                  : (p.deck && q.deck) ? (Math.abs(qe-sd.e)<=E ? 0 : null)
                  : (Math.abs(qe-(sd.e+sg*G))<=E ? G : null);

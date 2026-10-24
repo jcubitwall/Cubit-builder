@@ -13,7 +13,7 @@
    by slot (state.picks / models.json picks) are then cleared for that home.
 
    Pods sit on the 8′ grid: they dock flush end to end, or side by side in 8′ steps. Two pods must share
-   at least 8′ of wall, may not overlap, and the 5/8″ space at every joint is added by layout.js. */
+   at least 8′ of wall, may not overlap, and the ¾″ space at every joint is added by layout.js. */
 import { POD, LAYER_KINDS } from './config.js';
 import { MODELS, LIB, LAYERLIB, PODLIB, byId, podById, deckById, DECKLIB, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib } from './data.js';
 import { slotsFor, layerSlotsFor, podList, localSide } from './layout.js';

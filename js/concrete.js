@@ -2,7 +2,7 @@
 
    How a concrete person would lay it out, with Cubit's rules:
    · PERIMETER: one continuous 18″ × 6″ footing with one course of ICF on it (Nudura 18″ blocks, or Fox Blocks
-     16″), following the outline of the whole home (the 5/8″ pod joints are bridged). The home bears on the
+     16″), following the outline of the whole home (the ¾″ pod joints are bridged). The home bears on the
      concrete core: the core's outer face is flush with the home's outer face, so the outside foam (2⅝″) is
      entirely outside the home and the inside foam is inside it. The footing is centred under the ICF.
    · INSIDE SUPPORTS: wherever the ground-screw rules would put a screw that is not on the perimeter (down the
@@ -21,7 +21,7 @@ import { state } from './state.js';
 
 const E = 1e-6;
 
-/* the outline of the whole home: the union of the pods with the 5/8″ joints filled in, as closed loops of
+/* the outline of the whole home: the union of the pods with the ¾″ joints filled in, as closed loops of
    rectilinear edges, each with its outward normal (away from the home) */
 function outline(rects){
   const xs=[...new Set(rects.flatMap(r=>[r[0],r[2]]).map(v=>+v.toFixed(5)))].sort((a,b)=>a-b);
@@ -36,7 +36,7 @@ function outline(rects){
       if(thin(xs,a) && a>0 && a<NX-1 && fill[a-1][b] && fill[a+1][b]) fill[a][b]=true;
       else if(thin(zs,b) && b>0 && b<NZ-1 && fill[a][b-1] && fill[a][b+1]) fill[a][b]=true; }
   }
-  // square off small steps (a pod that sits up to 3″ proud of its neighbour, from the 5/8″ joints adding up):
+  // square off small steps (a pod that sits up to 3″ proud of its neighbour, from the ¾″ joints adding up):
   // the concrete runs straight at the outermost face and the recessed pod still bears fully on the core
   const JOG=0.25, f=(a,b)=>a>=0&&b>=0&&a<NX&&b<NZ&&fill[a][b];
   for(let changed=true, n=0; changed && n<6; n++){ changed=false;

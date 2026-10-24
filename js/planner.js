@@ -383,7 +383,7 @@ function renderSide2(){
     <div class="side-b">
       <details class="help"><summary>How the plan works</summary><div>
         <p>Drag a pod from the left onto the plan. It snaps to the nearest spot where it docks: flush end to end, or side by side in 8′ steps. Press <b>R</b> while dragging to turn it 90°. Drag a pod to move it, or click it to turn, replace or remove it.</p>
-        <p>The 5/8″ space at every joint is added for you, and where two pods meet each keeps its own 4½″ wall. Changing a wall where two pods join changes the neighbour's wall to the same wall, mirrored.</p>
+        <p>The ¾″ space at every joint is added for you, and where two pods meet each keeps its own 4½″ wall. Changing a wall where two pods join changes the neighbour's wall to the same wall, mirrored.</p>
         <p><b>Decks</b> come from the deck library. A deck docks with its ledger (the dark edge) against a pod (¾″ off it, room for siding) or straight up to another deck, in 8′ steps. Every deck is framed the same way: double 2×8 all round, 2×8 joists 24″ (or 16″) o.c. from the house, corners notched 1½″ for the angle-iron spine. Its ground screws follow the same rules as the pods'. Keep every deck on a home the same size where you can.</p>
         ${m.custom||m.project||m.sub?'':'<p>This is a standard model. Your first change makes your own copy, saved in this browser; add it to a model name to share it as a sub-model.</p>'}
       </div></details>

@@ -6,7 +6,7 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
 
 ## What it does
 
-- **Pick a home model:** Life, Nest, Cove, Panorama, and **Expanse** (two 24′ pods with two 16′ pods on the end), built from 8×8, 8×16 and 8×24 pods with a 5/8″ space at every joint. The Tanja Leet *Expanse + 1* (5 pods) is a shared project, scanned straight from the Shapr3D STEP file with every opening measured.
+- **Pick a home model:** Life, Nest, Cove, Panorama, and **Expanse** (two 24′ pods with two 16′ pods on the end), built from 8×8, 8×16 and 8×24 pods with a ¾″ space at every joint. The Tanja Leet *Expanse + 1* (5 pods) is a shared project, scanned straight from the Shapr3D STEP file with every opening measured.
 - **Models and sub-models:** the header has one chip per model name: LifePod, Nest, Haven, Cove, Panorama and Expanse (`data/families.json`). Under the one you're on are its standard layout, its sub-models, and your own layouts. Admins can file any arrangement on screen (a standard home, your own layout or a project) under any model name with **Add this layout to a model**, in the home panel.
   - Sub-models are shared with everyone: they're kept on the server (`api/catalog`, in R2) along with any library items they use.
   - On a sub-model, admins can **Save changes for everyone**, rename it, move it to another model, or remove it.
@@ -24,7 +24,7 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
   - **Moving around:** drag empty space to pan, use the scroll wheel or pinch to zoom, or press **+ / − / Fit**. On a phone or tablet, swipe a pod sideways out of the list to drag it, and swipe up or down to scroll the list.
   - **Turning:** press **R** while dragging to turn a pod 90°, or select a pod and press **Turn 90°**.
   - **Changing pods:** drag a pod to move it, or select it to **replace** it with another pod or **remove** it.
-  - **Joints:** the 5/8″ space at every joint is always added.
+  - **Joints:** the ¾″ space at every joint is always added.
   - **Pods keep their parts:** a pod keeps its own walls, floors and ceilings when it is moved or turned.
   - **Your own copy:** editing a built-in home makes your own copy. Editing a project changes the project; save it to keep the change.
 - **3D view:** **Layers** switches each part on or off: roof, ceiling, walls, floors, decks, ground screws and pads, windows and doors. It also has see-through glass and doors, wall letters and panel numbers. The small arrow on the right edge opens and hides the panel, in full screen and in the normal view; tapping a wall opens it too.
@@ -51,7 +51,7 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
   - The plan editor lists the deck size a home already uses first, and warns when a home mixes sizes.
   - On a concrete foundation a deck gets no screws or pads against the house (its house side bears on the foundation), only out at its outer edges.
 - **Concrete foundation (ICF) instead of ground screws:** choose **Home stands on → Concrete (ICF)** in the home panel.
-  - **Perimeter:** an 18″ × 6″ footing under one course of ICF (Nudura 18″ or Fox Blocks 16″, 6″ or 8″ core, 2⅝″ foam each side) follows the whole home. The core's outer face is flush with the home's outermost face, so the outside foam is always fully outside the home and the home bears on concrete. Small steps from the 5/8″ joints (up to 3″) are squared off.
+  - **Perimeter:** an 18″ × 6″ footing under one course of ICF (Nudura 18″ or Fox Blocks 16″, 6″ or 8″ core, 2⅝″ foam each side) follows the whole home. The core's outer face is flush with the home's outermost face, so the outside foam is always fully outside the home and the home bears on concrete. Small steps from the ¾″ joints (up to 3″) are squared off.
   - **Inside supports:** short ICF sections with an 8″ core (two pods share them) run along the pod joints wherever the ground-screw rules would put an inside screw (never more than 12′ apart, crossings included). Sections within 4′ of each other become one wall, and a section within 2′ of the perimeter ties into it, unless that would close off part of the crawl space. Every part must stay reachable through gaps of at least 24″.
   - **Crawl access:** a 28″ opening goes on the longest perimeter run not behind a deck. The 18″ ICF is under the 500 mm the National Building Code asks for, so the sheet says to step the footing down or add a floor hatch.
   - **Decks:** they keep their own screws or pads, held 6″ past the footing.
@@ -71,7 +71,7 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
   Items match to ⅛″. Exported project files carry these new items with them.
 - **Decks (porch frames):** the plan editor has a **deck library** next to the pod library. Every STEP import scans the deck frames outside the pods and adds any new ones to `data/decks.json`: size, lumber, rims, joist layout and corner notches.
   - **Docking:** drag a deck onto the plan. Its **ledger** (the dark edge) docks flush against a pod or another deck, in 8′ steps. Press **R** while dragging to turn it.
-  - **Spacing:** decks keep the 5/8″ space at a pod. Deck frames butt against each other.
+  - **Spacing:** decks keep the ¾″ space at a pod. Deck frames butt against each other.
   - **Corners:** deck corners are notched for the steel corner posts.
   - **Screws or concrete pads:** each deck stands on either **ground screws** or **concrete pads** (floating). Set it on the deck's panel, or for all decks at once in the plan editor.
     - **Screws:** deck screws follow the same rules as pods, with swivel heads on the outside and shared centre screws in the joints.
@@ -82,7 +82,7 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
 - **The library only holds real scanned parts.** Every imported STEP file adds its unique walls and layers. Where a home needs a size that hasn't been scanned yet, the app shows a plain placeholder (marked ⚠ on walls). Exterior walls are 6½″. Where pods join, **each pod keeps its own 4½″ interior wall**.
 - **Long and short walls:** the short end walls (A and C) always run straight through, the full 8′ from corner to corner. The long walls (B and D) butt up against them, so a 24′ long wall is 288″ minus the two end walls' thickness: 275″ between two 6½″ end walls. Only ends at a pod corner are trimmed. The corner spine notches are cut from the end walls.
 - **Panels:** 4′ × 8′ SIPs always start with a full panel at panel 1 (the left end seen from the interior). The last panel is cut to fit, and the sheets and labels show its width.
-- **Pot lights (placed by rule):** click the interior ceiling. Lights are Heinrich's: ⌀ 4″ pocket 5.388″ deep from the room side with a ¾″ wire hole through the middle. Rows run the long way, evenly spaced with half a spacing to the walls; along the rows they're spaced about 42″ (adjustable per home), picking the count that keeps every light off a panel joint. Pods joined by an opening 48″ or wider space as one room. Set **Cabinets on this wall** (deepest unit: upper 13″, base 24″, wardrobe 24″, fridge 30″ or any depth) on a wall and the row along it moves 6″ in front of it. Uploaded ceilings keep their hatches and heat-pump openings as drawn; lights stay 3″ clear of them. "As drawn" switches back to the lights in the STEP file.
+- **Pot lights (placed by rule):** click the interior ceiling. Lights are Heinrich's: ⌀ 4″ pocket 5.388″ deep from the room side with a ¾″ wire hole through the middle. Rows run the long way, evenly spaced across the whole room (the gap between rows stays the same across a joint between pods), half a spacing to the outside walls; along the rows they're spaced about 42″ (adjustable per home), picking the count that keeps every light off a panel joint. Pods joined by an opening 48″ or wider space as one room. Set **Cabinets on this wall** (deepest unit: upper 13″, base 24″, wardrobe 24″, fridge 30″ or any depth) on a wall and the row along it moves 6″ in front of it. Uploaded ceilings keep their hatches and heat-pump openings as drawn; lights stay 3″ clear of them. "As drawn" switches back to the lights in the STEP file.
 - **Made by hand:** any hole, chase or feature can be ticked **By hand** in the sheet tables (shared with the team). Anything too small for the ¾″ bit is marked automatically. Hand-made features show purple with a HAND tag in 3D and on the sheets, are left out of the G-code, and are listed as BY HAND on each panel's CNC checks.
 - **Library (⋯ → Library, or Homes → Library on a phone):** rename or delete any model name, home, pod, wall, floor / ceiling / roof layer or deck. Rename links also sit next to the current home, wall and layer in the side panel, and on every pod and deck in Plan. Edits are shared with the team (server file `catalog/library-edits.json` in R2, admins only); deleting hides an item from every list while homes already using it keep it, and **Show deleted → Restore** brings it back.
 - **Wall letters:** every pod's walls are **A, B, C, D, going clockwise seen from above. Only a through wall (one of the two end walls that run corner to corner) can be Wall A, and in a home of several pods every Wall A points the same way.** Each pod first picks its through wall with the largest single opening; the home's direction is the one most pods picked on an outside wall (else the one most pods picked; ties go to the bigger opening). Every pod that can face that way does. A pod set by hand (**Make this Wall A**) keeps its own A. With no openings at either end: exterior door, then patio door, then interior door. A side that is part exterior and part interior keeps one letter, numbered clockwise (B1, B2). Panel numbers in 3D sit over the room side of each wall.
@@ -109,21 +109,21 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
   - **Not for cutting yet:** the zero corner, panel orientation, flip method, box sizes and depths still need to be confirmed with the shop.
 - **Wall assembly sheets:** one per wall. Flip between the front (interior) and back (exterior) face, and number the 4×8 SIP panels 1→6 or reversed. Each sheet has opening sizes, plug and switch locations, and a 3D view of the panels pulled apart.
 - **Foundation sheet:** a true plan seen from above, with every ground screw located, chain dimensions, diagonals for squaring, and a **Download PDF** button to email to the site crew.
-  - **No doubled-up screws.** Where pods meet, one screw sits in the centre of the 5/8″ joint and carries both pods. Where three pods meet it gets a **tee** head; where four meet, a **cross** head. Screws closer than 3′ are merged into one; if the one removed was a corner, the remaining head gets a **corner arm** that reaches it.
+  - **No doubled-up screws.** Where pods meet, one screw sits in the centre of the ¾″ joint and carries both pods. Where three pods meet it gets a **tee** head; where four meet, a **cross** head. Screws closer than 3′ are merged into one; if the one removed was a corner, the remaining head gets a **corner arm** that reaches it.
   - **Perimeter:** around the outside, screws sit just inside the floor edge with a **swivel head**, so a deck or another pod can be added later.
-  - **Spacing:** each outside edge and each joint gets a screw at both ends and wherever another joint crosses or tees in, then even spacing so no gap is over 12′ (a gap may run up to 3″ over where the 5/8″ joints add up, rather than adding a screw). That puts one on every corner, one in the middle of a 16′ or 24′ side, and none between the corners of an 8′ side. Where an edge ends against a joint, its end screw is the one in the joint. The sheet warns if two screws ever end up closer than 3′ or further than 12′ apart.
+  - **Spacing:** each outside edge and each joint gets a screw at both ends and wherever another joint crosses or tees in, then even spacing so no gap is over 12′ (a gap may run up to 3″ over where the ¾″ joints add up, rather than adding a screw). That puts one on every corner, one in the middle of a 16′ or 24′ side, and none between the corners of an 8′ side. Where an edge ends against a joint, its end screw is the one in the joint. The sheet warns if two screws ever end up closer than 3′ or further than 12′ apart.
 
 ## Pod facts the app uses
 
 | | |
 |---|---|
 | Pod outside sizes | exactly 8×8, 8×16, 8×24 ft |
-| Space between pods | 5/8″ |
+| Space between pods | ¾″ |
 | Floor | 10¼″ total: two SIP layers + air gap inside a 9¼″ LVL rim |
 | Walls | 96″ clear inside height; exterior 6½″, interior 4½″ |
 | Ceiling | 12⅞″ total: two SIP layers, OSB top and bottom, 11⅞″ LVL rim |
 | Panels | 4′ × 8′ SIP |
-| Ground screws | perimeter: just inside the floor edge (inset set on the foundation sheet, default 6″), swivel head · joints: centred in the 5/8″ gap, shared · never more than 12′ apart, a screw on every corner |
+| Ground screws | perimeter: just inside the floor edge (inset set on the foundation sheet, default 6″), swivel head · joints: centred in the ¾″ gap, shared · never more than 12′ apart, a screw on every corner |
 | Corner spine notch | 1¾″ × 1¾″, full height, at every pod corner |
 | Pod placement | 8′ grid, turned in 90° steps |
 
@@ -176,7 +176,7 @@ data/decks.json     deck library: porch / deck frames scanned from STEP files
 js/main.js          start-up and toolbar
 js/config.js        pod dimensions and constants
 js/data.js          loads the JSON data
-js/layout.js        wall slots per home, wall letters, 5/8″ gaps, ground-screw layout
+js/layout.js        wall slots per home, wall letters, ¾″ gaps, ground-screw layout
 js/state.js         current selections (saved in the browser)
 js/panels.js        4×8 panel split, numbering, thumbnails
 js/scene3d.js       3D view (three.js)

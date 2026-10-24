@@ -5,8 +5,9 @@
 
    The rules (standard pot-light layout):
      1. Rooms: pods joined through an opening 48″ or wider are one room. A door or a plain wall keeps them apart.
-     2. Rows run the long way of each pod, evenly spaced across it, with half a spacing to each wall. Side-by-side
-        pods in one room therefore space evenly right across the room (48″ apart, mirrored about the opening).
+     2. Rows run the long way of the pods, evenly spaced across the whole room with half a spacing to its outside walls.
+        In side-by-side pods the gap between rows is the same everywhere, also between the two rows either side of a
+        joint (both walls and the ¾″ space are measured in), and no row lands in the walls.
      3. Along the rows the lights are evenly spaced over the whole room (so the rows of pods side by side line up),
         no more than the target spacing apart (42″, Heinrich's), with half a spacing at each end.
      4. Cabinets / wardrobes / a fridge on a wall: the row nearest that wall moves out to 6″ in front of the deepest
@@ -22,7 +23,7 @@ import { slotsFor, podList, layerSlotsFor } from './layout.js';
 import { FT, PW } from './config.js';
 
 const LIGHT = { d:4, depth:5.388, wire:0.78 };
-const BUMP = 6, OPEN_MIN = 48, SEAM_CLEAR = 4, END_MIN = 10, HOLE_CLEAR = 3;   // clear of hatches, heat-pump heads, chases
+const BUMP = 6, OPEN_MIN = 48, SEAM_CLEAR = 4, END_MIN = 10, ROW_MIN = 8, HOLE_CLEAR = 3;   // clear of hatches, heat-pump heads, chases
 const cfgOf = k => ({ auto:true, spacing:42, ...(state.lights?.[k]||{}) });
 function setLights(k, ch){ ((state.lights ||= {})[k] = {...cfgOf(k), ...ch}); save(); }
 const cabinetsOf = k => state.cabinets?.[k] || {};
@@ -74,7 +75,9 @@ function lightPlan(k=state.model){
     const {toW}=frame(ls), L=p.len*FT;
     // the interior along the pod, in plan inches on the pod's long axis
     const ax = p.alongX ? 0 : 1, w0=toW(si.x0.t,48)[ax]*FT, w1=toW(L-si.x1.t,48)[ax]*FT;
-    return { p, ls, si, L, ax, lo:Math.min(w0,w1), hi:Math.max(w0,w1), flip:w0>w1 }; });
+    // and across it, on the other plan axis
+    const c0=toW(L/2,si.z0.t)[1-ax]*FT, c1=toW(L/2,96-si.z1.t)[1-ax]*FT;
+    return { p, ls, si, L, ax, lo:Math.min(w0,w1), hi:Math.max(w0,w1), flip:w0>w1, clo:Math.min(c0,c1), chi:Math.max(c0,c1), cflip:c0>c1 }; });
   // rooms: pods joined through large openings
   const room=pods.map((_,i)=>i), root=i=>room[i]===i?i:(room[i]=root(room[i]));
   info.forEach(I=>Object.values(I.si).forEach(s=>s.joins.forEach(o=>{ if(info[o.i] && info[o.i].ax===I.ax) room[root(I.p.i)]=root(o.i); })));
@@ -86,17 +89,22 @@ function lightPlan(k=state.model){
     const endCab=(at, isLo)=>Math.max(0, ...G.filter(I=>Math.abs((isLo?I.lo:I.hi)-at)<1).map(I=>{ const e = (isLo !== I.flip) ? I.si.x0 : I.si.x1; return e.joins.length ? 0 : e.depth; }));
     const c0=endCab(lo,true), c1=endCab(hi,false);
     // a light on a panel joint of any pod in the room counts against that spacing
+    // (and one that would land in the walls between two pods joined end to end)
     const hits = P => G.reduce((n,I)=>{ const sm=[...Array(Math.ceil(I.L/PW)-1)].map((_,i)=>(i+1)*PW);
-      return n + P.map(a=>I.flip ? (I.L-I.si.x1.t)-(a-I.lo) : I.si.x0.t+(a-I.lo)).filter(x=>x>0 && x<I.L && sm.some(q=>Math.abs(q-x)<SEAM_CLEAR)).length; }, 0);
+      return n + P.map(a=>I.flip ? (I.L-I.si.x1.t)-(a-I.lo) : I.si.x0.t+(a-I.lo)).filter(x=>x>0 && x<I.L && sm.some(q=>Math.abs(q-x)<SEAM_CLEAR)).length; }, 0)
+      + P.filter(a=>!G.some(I=>a>=I.lo+END_MIN-0.01 && a<=I.hi-END_MIN+0.01)).length*3;
     const along=spread(c0?lo+c0+BUMP:lo, c1?hi-c1-BUMP:hi, S, !!c0, !!c1, hits);
+    // across: rows evenly over the whole room, measured wall to wall across every pod in it, so the gap between rows
+    // is the same everywhere, also between the two rows either side of a joint (walls and the ¾″ space included)
+    const clo=Math.min(...G.map(I=>I.clo)), chi=Math.max(...G.map(I=>I.chi));
+    const sideCab=(at, isLo)=>Math.max(0, ...G.filter(I=>Math.abs((isLo?I.clo:I.chi)-at)<1).map(I=>{ const e = (isLo !== I.cflip) ? I.si.z0 : I.si.z1; return e.joins.length ? 0 : e.depth; }));
+    const d0=sideCab(clo,true), d1=sideCab(chi,false);
+    const inWall = P => P.filter(c=>!G.some(I=>c>=I.clo+ROW_MIN-0.01 && c<=I.chi-ROW_MIN+0.01)).length;
+    const across=spread(d0?clo+d0+BUMP:clo, d1?chi-d1-BUMP:chi, S, !!d0, !!d1, inWall);
     G.forEach(I=>{
       const {si, L}=I;
-      // across: rows evenly over the pod's interior, the outer ones moved out by cabinets
-      const z0=si.z0.t, z1=96-si.z1.t, W=z1-z0, n=Math.max(1, Math.round(W/S));
-      const rows=[...Array(n)].map((_,r)=>z0+W*(r+0.5)/n);
-      if(si.z0.depth && !si.z0.joins.length) rows[0]=Math.max(rows[0], z0+si.z0.depth+BUMP);
-      if(si.z1.depth && !si.z1.joins.length) rows[n-1]=Math.min(rows[n-1], z1-si.z1.depth-BUMP);
-      if(n>2) for(let r=1;r<n-1;r++) rows[r]=rows[0]+(rows[n-1]-rows[0])*r/(n-1);
+      const toZ = c => I.cflip ? (96-si.z1.t) - (c-I.clo) : si.z0.t + (c-I.clo);
+      const rows=across.filter(c=>c>=I.clo+ROW_MIN-0.01 && c<=I.chi-ROW_MIN+0.01).map(toZ).sort((a,b)=>a-b);
       // along positions that fall in this pod, clear of its own end walls (and their cabinets)
       const m0=Math.max(END_MIN, si.x0.joins.length?0:si.x0.depth+BUMP), m1=Math.max(END_MIN, si.x1.joins.length?0:si.x1.depth+BUMP);
       const toLocal = a => I.flip ? (L-si.x1.t) - (a-I.lo) : si.x0.t + (a-I.lo);
