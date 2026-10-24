@@ -53,6 +53,7 @@ function applyFurniture(){
   models.forEach(({holder, m},id)=>{ const it=byId(id); holder.visible = !!it && (state.isolate ? isoMine(id) : shownCat(holder.userData.cat) && (F==null || it.pod===F));
     m.select(null);
     if(state.selFurn===id && !state.isolate) m.meshes.forEach(x=>{ x.material = x.material.clone(); x.material.emissive?.set(0x6a2a08); }); });
+  updateHandles();
   afterApply?.();
 }
 /* the exploded view: cabinets ride with their pod's floor, in one piece; an isolated cabinet comes apart where it stands */
@@ -119,6 +120,85 @@ function snap(it, pt, wallGroups, homeGroup, keepA=null){
   return { pod:p.i, u: ax[0]? ux : u0, v: ax[1]? vz : v0, a, wall: best.slot||null };
 }
 
+/* ---------------------------------------------------------------- stretch handles
+   A tapped item gets a green double arrow on each side that's free (not against a wall, a pod side or another
+   item): drag one to make it longer / deeper or shorter, the other side stays put. It stops at, and snaps up
+   against (within 3″), the next wall or item — a countertop runs right up to the fridge panel. */
+const SIDES={ L:[-1,0], R:[1,0], F:[0,1], B:[0,-1] };   // outward, in the item's own frame (x along its width, z toward its front)
+let handleGroup=null, wallsRef=()=>[];
+const setWalls = fn => { wallsRef=fn; };
+let arrowTex=null;
+function arrowTexture(){
+  if(arrowTex) return arrowTex;
+  const c=document.createElement('canvas'); c.width=c.height=128; const g=c.getContext('2d');
+  g.fillStyle='#2e9e5b'; g.beginPath(); g.arc(64,64,60,0,Math.PI*2); g.fill(); g.lineWidth=6; g.strokeStyle='#fff'; g.stroke();
+  g.fillStyle='#fff'; g.beginPath(); g.moveTo(14,64); g.lineTo(44,36); g.lineTo(44,54); g.lineTo(84,54); g.lineTo(84,36); g.lineTo(114,64); g.lineTo(84,92); g.lineTo(84,74); g.lineTo(44,74); g.lineTo(44,92); g.closePath(); g.fill();
+  arrowTex=new THREE.CanvasTexture(c); return arrowTex;
+}
+/* the item in its pod frame: local (x across its width from its middle, z from its back) ⇄ pod (u, v), feet */
+const toPod = (it, lx, lz) => { const a=(it.a||0)*Math.PI/180; return { u: it.u + lx*Math.cos(a) + lz*Math.sin(a), v: it.v - lx*Math.sin(a) + lz*Math.cos(a) }; };
+const toItem = (it, u, v) => { const a=(it.a||0)*Math.PI/180, dx=u-it.u, dz=v-it.v; return { x: dx*Math.cos(a) - dz*Math.sin(a), z: dx*Math.sin(a) + dz*Math.cos(a) }; };
+/* free room (feet) beyond one side of an item before the next wall or item (that overlaps it in height) */
+function roomBeyond(it, side){
+  const f=frames[it.pod]; if(!f) return 0;
+  f.updateMatrixWorld(true);
+  const [ox,oz]=SIDES[side], hw=it.w/2/FT, d=it.d/FT;
+  const edge = ox ? ox*hw : (oz>0 ? d : 0);
+  let room=40;
+  // walls: rays from a few points along that side, at the item's height
+  const W=wallMeshes(wallsRef()), ray=new THREE.Raycaster();
+  const along = ox ? [0.15*d, 0.5*d, 0.85*d] : [-0.85*hw, 0, 0.85*hw];
+  const hs=[(it.y||0)+Math.min(it.h,24)/2, (it.y||0)+it.h-1].map(h=>Math.max(0.3, h/FT));
+  along.forEach(t=>hs.forEach(h=>{
+    const lx = ox ? edge-ox*0.01 : t, lz = ox ? t : edge-oz*0.01;
+    const p0=toPod(it,lx,lz), p1=toPod(it,lx+ox,lz+oz);
+    const wo=f.localToWorld(new THREE.Vector3(p0.u,h,p0.v)), wd=f.localToWorld(new THREE.Vector3(p1.u,h,p1.v)).sub(wo).normalize();
+    ray.set(wo,wd); ray.far=40; const hit=ray.intersectObjects(W,false)[0]; if(hit) room=Math.min(room, Math.max(0, hit.distance-0.01)); }));
+  // other items in the same pod whose height range overlaps
+  const y0=it.y||0, y1=y0+it.h;
+  list().forEach(o=>{ if(o.id===it.id || o.pod!==it.pod) return; const oy0=o.y||0, oy1=oy0+o.h; if(oy1<=y0+0.25 || oy0>=y1-0.25) return;
+    const ohw=o.w/2/FT, od=o.d/FT, pts=[[-ohw,0],[ohw,0],[ohw,od],[-ohw,od]].map(([x,z])=>{ const p=toPod(o,x,z); return toItem(it,p.u,p.v); });
+    const xs=pts.map(p=>p.x), zs=pts.map(p=>p.z), mnx=Math.min(...xs), mxx=Math.max(...xs), mnz=Math.min(...zs), mxz=Math.max(...zs), e=0.02;
+    if(ox){ if(mnz>=d-e || mxz<=e) return; const gap = ox>0 ? mnx-hw : -hw-mxx; if(gap>-e) room=Math.min(room, Math.max(0,gap)); }
+    else { if(mnx>=hw-e || mxx<=-hw+e) return; const gap = oz>0 ? mnz-d : -mxz; if(gap>-e) room=Math.min(room, Math.max(0,gap)); } });
+  return room;
+}
+function updateHandles(){
+  if(handleGroup){ handleGroup.parent?.remove(handleGroup); handleGroup=null; }
+  const it=state.selFurn && byId(state.selFurn), d=it && itemDef(it.k);
+  if(!it || !d || d.fixed || state.isolate || !frames[it.pod] || !models.get(it.id)?.holder.visible) return;
+  handleGroup=new THREE.Group(); handleGroup.userData.noGhost=true;
+  const mat=new THREE.MeshBasicMaterial({ map:arrowTexture(), transparent:true, depthTest:false, side:THREE.DoubleSide });
+  const top=((it.y||0)+it.h)/FT+0.05, hw=it.w/2/FT, dd=it.d/FT, s=Math.max(0.5, Math.min(0.9, Math.min(it.w,it.d)/FT*0.55));
+  Object.keys(SIDES).forEach(side=>{
+    if(side==='B' && it.wall) return;                         // backed onto a wall
+    if(roomBeyond(it, side) < 0.3/FT) return;                  // already up against something: no arrow that way
+    const [ox,oz]=SIDES[side], lx = ox ? ox*(hw+s*0.55) : 0, lz = ox ? dd/2 : (oz>0 ? dd+s*0.55 : -s*0.55);
+    const p=toPod(it,lx,lz), m=new THREE.Mesh(new THREE.PlaneGeometry(s,s), mat);
+    m.rotation.order='YXZ'; m.rotation.y=(it.a||0)*Math.PI/180 + (oz ? Math.PI/2 : 0); m.rotation.x=-Math.PI/2;
+    m.position.set(p.u, top, p.v); m.renderOrder=30; m.userData={ handle:side, furn:it.id, noGhost:true };
+    handleGroup.add(m); });
+  frames[it.pod].add(handleGroup);
+}
+const handleMeshes = () => handleGroup ? handleGroup.children.filter(m=>m.visible) : [];
+/* stretch an item by dragging one side to a home-frame point (feet); returns the change to make, or null */
+function stretchTo(it, side, pt, homeGroup, room){
+  const f=frames[it.pod]; if(!f) return null; f.updateMatrixWorld(true);
+  const l=f.worldToLocal(homeGroup.localToWorld(pt.clone())), q=toItem(it, l.x, l.z), d=itemDef(it.k);
+  const [ox,oz]=SIDES[side], hw=it.w/2/FT, dd=it.d/FT, snapTo=3/FT, r8=v=>Math.round(v*FT*8)/8;   // inches, to ⅛″
+  if(ox){
+    const fixed=-ox*hw, cur=ox*hw, max=cur+ox*room;
+    let edge = ox>0 ? Math.min(q.x, max) : Math.max(q.x, max);
+    if(Math.abs(edge-max)<snapTo) edge=max;                   // up against the wall / the next item
+    let w=r8(Math.abs(edge-fixed)); w=Math.min(d.wR[1], Math.max(d.wR[0], w));
+    const mid=fixed+ox*w/FT/2, p=toPod(it, mid, 0);
+    return { w, u:p.u, v:p.v, snapped: edge===max && room<39 };
+  }
+  if(oz>0){ const max=dd+room; let z=Math.min(q.z, max); if(Math.abs(z-max)<snapTo) z=max; let dpt=r8(z); dpt=Math.min(d.dR[1], Math.max(d.dR[0], dpt)); return { d:dpt, snapped: z===max && room<39 }; }
+  // the back (free-standing items): the front stays, the back moves
+  const min=-room; let z=Math.max(q.z, min); if(Math.abs(z-min)<snapTo) z=min; let dpt=r8(dd-z); dpt=Math.min(d.dR[1], Math.max(d.dR[0], dpt));
+  const p=toPod(it, 0, dd-dpt/FT); return { d:dpt, u:p.u, v:p.v, snapped: z===min && room<39 };
+}
 /* ---------------------------------------------------------------- the ghost while dragging */
 let fg=null;
 function showFurnGhost(it, at){
@@ -147,4 +227,4 @@ const DEPTH_CATS=new Set(['base','upper','tall','linen','wardrobe','vanity','app
 function wallDepths(k=state.model){ const out={}; list(k).forEach(it=>{ if(it.wall && DEPTH_CATS.has(itemDef(it.k)?.cat)) out[it.wall]=Math.max(out[it.wall]||0, it.d); }); return out; }
 
 const podsShown = () => lastPods;
-export { onFurnApplied, setCabExplode, resetCabExplode, cabExploded, explodeFurniture, furnHolder, podsShown, showFurnGhost, hideFurnGhost, setHolderVisible, list as furnitureOf, byId as furnById, buildFurniture, refreshItem, applyFurniture, furnMeshes, snap, podAt, addItem, updateItem, removeItem, duplicateItem, turnItem, podRemoved, wallDepths, shownCat, CATS as FURN_CATS };
+export { setWalls, handleMeshes, roomBeyond, stretchTo, updateHandles, onFurnApplied, setCabExplode, resetCabExplode, cabExploded, explodeFurniture, furnHolder, podsShown, showFurnGhost, hideFurnGhost, setHolderVisible, list as furnitureOf, byId as furnById, buildFurniture, refreshItem, applyFurniture, furnMeshes, snap, podAt, addItem, updateItem, removeItem, duplicateItem, turnItem, podRemoved, wallDepths, shownCat, CATS as FURN_CATS };

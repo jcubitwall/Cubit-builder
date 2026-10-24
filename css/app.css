@@ -713,3 +713,4 @@ html.phone .studio.build .vcube-wrap{top:8px;right:8px;transform:scale(.85);tran
 .btn.danger.ghost{background:transparent;color:#b3261e}
 .nh-pod{margin-top:4px}
 .cw-side>*{flex-shrink:0}
+.stretch-tip{position:absolute;z-index:6;transform:translateX(-50%);background:#2e9e5b;color:#fff;font:700 13px var(--mono);padding:6px 10px;border-radius:8px;pointer-events:none;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.2)}

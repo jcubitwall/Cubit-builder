@@ -193,7 +193,9 @@ function replacePod(i, item){
 function deletePod(i){
   const pods=MODELS[state.model].pods; if(pods.length<2) return 'A home needs at least one pod.';
   const trial=pods.filter((_,j)=>j!==i); const why=problem(trial); if(why) return why.startsWith('A deck') ? 'A deck is docked to this pod. Move or remove the deck first.' : 'Removing this pod would leave the others apart.';
-  const key=editKey(); MODELS[key].pods.splice(i,1); podRemoved(key, i); finish(key); return '';
+  const key=editKey(); MODELS[key].pods.splice(i,1); podRemoved(key, i);   // its cabinets and furniture go with it
+  state.focusPod=null; state.isolate=null; state.selFurn=null;                 // nothing left pointing at the old pod numbers
+  finish(key); return '';
 }
 /* every grid spot where a footprint w×d could dock (used to snap a drag to the nearest good spot) */
 function dockSpots(item, rot, skip=-1){

@@ -24,8 +24,8 @@ import './publish-ui.js';
 import { toast } from './sidebar.js';
 import { MODELS } from './data.js';
 /* the first change to a Cubit model went into your own draft copy */
-window.addEventListener('cubit:draft', e=>{ setTimeout(()=>{ renderModels(); buildHome(); renderSide();
-  toast(`Editing your draft of ${MODELS[e.detail.from]?.name||'this home'} · the Cubit model is unchanged`); }, 0); });
+window.addEventListener('cubit:draft', e=>{ setTimeout(()=>{ renderModels(); buildHome(); renderSide(); }, 0);
+  setTimeout(()=>toast(`Editing your draft of ${MODELS[e.detail.from]?.name||'this home'} · the Cubit model is unchanged`), 1800); });   // after the change's own message
 import { initPhone } from './phone.js';
 import { initZoomView } from './zoomview.js';
 

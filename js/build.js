@@ -20,7 +20,9 @@ import { camera, controls, renderer, homeGroup, pickables, buildHome, highlight 
 import { addPod, movePod, rotatePod, addDeck, moveDeck, dockSpots, deckSpots, foot, deckFoot } from './pods.js';
 import { renderModels, renderSide, toast } from './sidebar.js';
 import { deckName } from './deckframe.js';
-import { furnMeshes, furnById, snap, addItem, updateItem, refreshItem, applyFurniture, showFurnGhost, hideFurnGhost, turnItem, setHolderVisible } from './furniture.js';
+import { furnMeshes, furnById, snap, addItem, updateItem, refreshItem, applyFurniture, showFurnGhost, hideFurnGhost, turnItem, setHolderVisible, handleMeshes, roomBeyond, stretchTo } from './furniture.js';
+import { fmt as fmtCw, settings as cwSettings } from './casework.js';
+const fmtIn = v => fmtCw(v)+(cwSettings().units==='mm'?' mm':'″');
 import { CATS, ITEMS, newItem, itemDef, partsOf } from './casework.js';
 import { frontSVG } from './casework-svg.js';
 import { openCaseLib } from './casework-ui.js';
@@ -85,6 +87,15 @@ function showGhost(f, ok){
 const hideGhost=()=>{ if(ghost) ghost.visible=false; };
 /* cabinets and furniture under the finger, and where one being dragged lands (backed onto the nearest wall) */
 function furnAt(x,y){ const r=cv.getBoundingClientRect(); ndc.set(((x-r.left)/r.width)*2-1, -((y-r.top)/r.height)*2+1); ray.setFromCamera(ndc,camera); return ray.intersectObjects(furnMeshes(),false)[0]; }
+function handleAt(x,y){ const r=cv.getBoundingClientRect(); ndc.set(((x-r.left)/r.width)*2-1, -((y-r.top)/r.height)*2+1); ray.setFromCamera(ndc,camera); return ray.intersectObjects(handleMeshes(),false)[0]; }
+const tip=document.createElement('div'); tip.className='stretch-tip'; tip.hidden=true; stage.appendChild(tip);
+function trackStretch(d, x, y){
+  const it=furnById(d.id), at=planAt(x,y); if(!it || !at) return;
+  const ch=stretchTo(it, d.side, at, homeGroup, d.room); if(!ch) return; d.change=ch;
+  const tmp={...it, ...ch}; showFurnGhost(tmp, {pod:it.pod, u:tmp.u, v:tmp.v, a:it.a});
+  const r=stage.getBoundingClientRect(); tip.hidden=false; tip.style.left=(x-r.left)+'px'; tip.style.top=(y-r.top-46)+'px';
+  tip.textContent = (ch.w!=null ? `${fmtIn(ch.w)} wide` : `${fmtIn(ch.d)} deep`) + (ch.snapped ? ' · up against it' : '');
+}
 function trackFurn(d, x, y){
   const at=planAt(x,y); if(!at){ hideFurnGhost(); d.at=null; return; }
   const it={...(d.it||furnById(d.id))};
@@ -132,6 +143,9 @@ stage.addEventListener('pointerdown', e=>{
   if(pointers.size===1){
     orbit=null; if(D && D.mode==='move') D=null;                        // nothing left over from a gesture that ended oddly
     clearTimeout(press?.timer); press=null;
+    // a green stretch arrow on the tapped item: drag it to make the item longer / deeper or shorter
+    if(editable()){ const hh=handleAt(e.clientX,e.clientY); if(hh){ const it=furnById(hh.object.userData.furn);
+      if(it){ controls.enabled=false; D={mode:'stretch', id:it.id, side:hh.object.userData.handle, room:roomBeyond(it, hh.object.userData.handle), started:true}; document.body.classList.add('dragging'); return; } } }
     // in the flat plan a pod, deck or cabinet moves straight away; anywhere else the finger turns the view
     if(isFlat() && editable()){ const d=grabAt(e.clientX,e.clientY); if(d){ controls.enabled=false; D=d; return; } }
     orbit={x:e.clientX, y:e.clientY};
@@ -139,7 +153,7 @@ stage.addEventListener('pointerdown', e=>{
     // on empty space it opens the Layers list
     { const x=e.clientX, y=e.clientY;
       press={x, y, timer:setTimeout(()=>{ if(!press || pointers.size!==1) return; press=null;
-        if(!hitAt(x,y) && !furnAt(x,y)){ orbit=null; try{ navigator.vibrate?.(10); }catch(err){} openLayers(true); return; }
+        if(!hitAt(x,y) && !furnAt(x,y)){ orbit=null; try{ navigator.vibrate?.(10); }catch(err){} openLayers(true, {x, y}); return; }
         const d=editable() ? grabAt(x,y) : null; if(!d) return;
         orbit=null; controls.enabled=false; D=d; D.started=true; D.lastXY=[x,y]; document.body.classList.add('dragging');
         try{ navigator.vibrate?.(15); }catch(err){}
@@ -200,6 +214,7 @@ window.addEventListener('pointermove', e=>{
     if(Math.abs(d)>=Math.PI/4){ const sg=d>0?1:-1; turn(D, sg); D.twist.a0+=sg*Math.PI/2; }
     return;
   }
+  if(D.mode==='stretch'){ D.lastXY=[e.clientX,e.clientY]; trackStretch(D, e.clientX, e.clientY); return; }
   if(D.mode==='fmove'){
     if(!D.started){ if(Math.hypot(e.clientX-D.sx, e.clientY-D.sy)<8) return; D.started=true; document.body.classList.add('dragging'); setHolderVisible(D.id,false); }
     D.lastXY=[e.clientX,e.clientY]; trackFurn(D, e.clientX, e.clientY); return;
@@ -214,6 +229,10 @@ function release(e){
   if(press){ clearTimeout(press.timer); press=null; }
   if(!pointers.size){ orbit=null; viewTwist=null; if(three){ three=null; controls.enabled=true; } }
   if(pointers.size<2) viewTwist=null;
+  if(D && D.mode==='stretch'){ if(pointers.size) return;
+    const d=D; D=null; hideFurnGhost(); tip.hidden=true; document.body.classList.remove('dragging'); controls.enabled=true;
+    if(!d.change) return; const {snapped, ...ch}=d.change;
+    updateItem(d.id, ch); refreshItem(furnById(d.id)); state.selFurn=d.id; applyFurniture(); renderSide(); return; }
   if(D && D.mode==='fmove'){ if(pointers.size) return;
     const d=D; D=null; hideFurnGhost(); setHolderVisible(d.id,true); document.body.classList.remove('dragging'); controls.enabled=true;
     if(d.twist || !d.started || !d.at) return;

@@ -16,7 +16,7 @@ import { FAMILIES, familyOf, familyById, variantsOf, saveSub, removeSub, editSub
 import { isAdmin, canSave } from './role.js';
 import { TYPES, unitsFor, unitFor, setUnit, unitSVG, unitLabel, catOf, okey, pairOf, doorOwner, setDoorOwner } from './units.js';
 import { fin } from './format.js';
-import { setIsolate } from './layers.js';
+import { setIsolate, setPod } from './layers.js';
 import { applyEdits } from './libedit.js';
 import { withLights, cfgOf, setLights, cabinetsOf, setCabinet, cabDepth, CAB_PRESETS } from './lights.js';
 import { askRename } from './library-ui.js';
@@ -96,7 +96,7 @@ function renderSide(){
     sideB.querySelector('#podTurn').onclick=()=>go(rotatePod(pi),'Pod turned 90°');
     sideB.querySelector('#podMir').onclick=()=>go(mirrorPod(pi,'x'),'Pod mirrored end for end');
     sideB.querySelector('#podFlip').onclick=()=>go(mirrorPod(pi,'z'),'Pod flipped front to back');
-    sideB.querySelector('#podRm').onclick=e=>{ const b=e.target; if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to remove'; return; } go(deletePod(pi),'Pod removed'); };
+    sideB.querySelector('#podRm').onclick=e=>{ const b=e.target; if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to remove'; return; } const why=deletePod(pi); go(why, 'Pod removed, with the cabinets and furniture in it'); if(!why) setPod(null); };
   }
   // a window or door tapped in 3D: straight to its options
   if(state.selUnit && sideB){ const el=[...sideB.querySelectorAll('[data-k]')].find(x=>x.dataset.k===state.selUnit);

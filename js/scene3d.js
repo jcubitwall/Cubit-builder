@@ -16,7 +16,7 @@ import { wallFraming, floorBuild } from './framing.js';
 import { FRAME, FLOOR_BUILD } from './config.js';
 import { DECK } from './config.js';
 import { foundationOf } from './state.js';
-import { buildFurniture, applyFurniture, furnMeshes, explodeFurniture, furnHolder, onFurnApplied } from './furniture.js';
+import { buildFurniture, applyFurniture, furnMeshes, explodeFurniture, furnHolder, onFurnApplied, setWalls, handleMeshes } from './furniture.js';
 
 /* ============================================================ 3D studio */
 const stage = document.getElementById('stage');
@@ -607,6 +607,7 @@ function focusCamera(i){
 /* tap a part: it stays solid and everything else goes see-through (like the cabinet viewer). Tap empty space to
    have the whole home solid again. Not while a part is isolated (it's on its own already). */
 const GHOST=new WeakMap();
+setWalls(()=>wallGroups);
 onFurnApplied(()=>applyGhost());
 function ghostOf(m){ let g=GHOST.get(m); if(!g){ g=m.clone(); g.transparent=true; g.opacity=(m.opacity??1)*0.14; g.depthWrite=false; GHOST.set(m,g); } return g; }
 function applyGhost(){
@@ -614,7 +615,7 @@ function applyGhost(){
   const tgt = !state.isolate ? (state.selFurn ? furnHolder(state.selFurn) : state.selected ? isoTarget(state.selected) : null) : null;
   const keep=new Set(); tgt?.traverse(o=>keep.add(o));
   homeGroup.traverse(o=>{
-    if(!(o.isMesh||o.isLineSegments||o.isLine||o.isSprite) || Array.isArray(o.material) || o.userData.pickPane) return;
+    if(!(o.isMesh||o.isLineSegments||o.isLine||o.isSprite) || Array.isArray(o.material) || o.userData.pickPane || o.userData.noGhost) return;
     const u=o.userData, ghosted = u._mat && o.material===GHOST.get(u._mat);
     if(tgt && !keep.has(o)){ const base = ghosted ? u._mat : o.material; if((base.opacity??1)<0.05) return; u._mat=base; o.material=ghostOf(base); }
     else if(ghosted){ o.material=u._mat; delete u._mat; }
@@ -640,6 +641,7 @@ renderer.domElement.addEventListener('pointerup',e=>{
   const r=renderer.domElement.getBoundingClientRect();
   mouse.set(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1);
   ray.setFromCamera(mouse,camera);
+  if(ray.intersectObjects(handleMeshes(),false).length) return;   // a stretch handle (build.js drags it)
   const hit=ray.intersectObjects(pickables,false).find(shown);
   // a cabinet or piece of furniture in front of the wall / floor: pick it
   const fh=ray.intersectObjects(furnMeshes(),false)[0];

@@ -113,7 +113,17 @@ pop.addEventListener('click', e=>{
   const f=e.target.closest('[data-focus]'); if(f && !f.disabled) return setFocus(f.dataset.focus);
   const p=e.target.closest('[data-pod]'); if(p) return setPod(p.dataset.pod==='' ? null : +p.dataset.pod);
 });
-function open(on){ pop.hidden=!on; btn.setAttribute('aria-expanded', on); btn.setAttribute('aria-pressed', on); if(on) render(); }
+/* open / close the Layers list: under its button (left), or at a point on screen (a long touch on empty space, like a right click) */
+function open(on, at=null){
+  pop.hidden=!on; btn.setAttribute('aria-expanded', on); btn.setAttribute('aria-pressed', on);
+  pop.style.left=pop.style.top=pop.style.maxHeight='';
+  if(!on) return;
+  render();
+  if(at){ const P=(pop.offsetParent||document.body).getBoundingClientRect(), w=pop.offsetWidth, h=Math.min(pop.scrollHeight, P.height-16);
+    pop.style.maxHeight=h+'px';
+    pop.style.left=Math.max(8, Math.min(P.width-w-8, at.x-P.left))+'px';
+    pop.style.top=Math.max(8, Math.min(P.height-h-8, at.y-P.top))+'px'; }
+}
 btn.onclick=e=>{ e.stopPropagation(); open(pop.hidden); };
 document.addEventListener('pointerdown', e=>{ if(!pop.hidden && !pop.contains(e.target) && !btn.contains(e.target)) open(false); });
 document.addEventListener('keydown', e=>{
