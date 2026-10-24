@@ -13,6 +13,10 @@ import { homePlans } from './labels.js';
 import { bodyWall } from './panels.js';
 import { pickFor } from './state.js';
 import { unitFor, catOf, TYPES } from './units.js';
+import { sealRole, sealsFor, SEAL } from './seals.js';
+import { H } from './config.js';
+/* compression seal around every opening between pods (both pods): [{n, len} …] and total inches */
+function sealRun(){ const sl=slotsFor(state.model); let tot=0, n=0, hi=0; sl.forEach(s=>{ const r=sealRole(s, sl); sealsFor(bodyWall(s,pickFor(s)), r, H).forEach(x=>{ tot+=x.len; n++; if(r==='high') hi++; }); }); return {tot, n, hi}; }
 
 const yd3 = ft3 => ft3/27;
 /* item: { n, what, len?, note? } — n pieces of `what`, each `len` inches long when it's a cut piece */
@@ -66,6 +70,8 @@ function homeTakeoff(){
       else if(!(s.type==='int' && catOf(o)==='door')) open++; }); });
     const items=Object.values(g); if(open) items.push({n:open, what:'opening with no unit chosen', note:'choose in the wall panel'});
     add('units','Windows & doors',items); }
+  // Compression seal between pods
+  { const S=sealRun(); if(S.n) add('seal','Seals between pods',[{n:+(S.tot/12*1.1).toFixed(0), what:`ft · ${SEAL.name}`, note:`${S.n} runs around openings (${S.hi} high, ${S.n-S.hi} low) · ${fft(S.tot)} net + 10%`}]); }
   // Fasteners
   add('fast','Fasteners',[{n:rims.length*4*18, what:'3½″ Dynobite screw', note:`Einspines: 18 each × ${rims.length*4}`}]);
   return stages;
@@ -92,6 +98,7 @@ function shoppingList(){
     add('Decks', T.angles, `${DECK.angle} × ${fin(T.angleLen)}`); }
   const u={}; slotsFor(state.model).forEach(s=>{ const w=bodyWall(s, pickFor(s)); (w?.openings||[]).filter(catOf).forEach(o=>{ const r=unitFor(s,o); if(r) u[r.unit.name+' ('+r.unit.id+')']=(u[r.unit.name+' ('+r.unit.id+')']||0)+1; }); });
   Object.entries(u).forEach(([k,n])=>add('Windows & doors', n, k));
+  { const S=sealRun(); if(S.n) add('Seals', +(S.tot/12*1.1).toFixed(0), `ft · ${SEAL.name}`); }
   return lines;
 }
 const lenTxt = l => l ? ` @ ${fin(l)}${l>=24?` (${fft(l)})`:''}` : '';

@@ -21,6 +21,8 @@ const sheetSlotNow = () => slotsFor(state.model).find(x=>x.id===state.sheetSlot)
 import { wallListHTML } from './sidebar.js';
 import { pickFor, pickLayer, state, setFace } from './state.js';
 import { withLights } from './lights.js';
+import { sealRole, sealsFor, SEAL } from './seals.js';
+import { partnerOf } from './layout.js';
 import { panelPlan, homePlans, stackTableHTML, labelsPDF, faceFor, faceShort } from './labels.js';
 import { toast } from './sidebar.js';
 
@@ -98,6 +100,7 @@ function renderSheet(){
       <button class="btn ghost" id="wallLabels" style="color:#111;border-color:#cfd4cc">Labels for this wall (PDF)</button>
     </div>
     <div><span class="facebadge ${face}">${(face==='int'?faceA:faceB).toUpperCase()}</span><span style="font-size:12.5px;color:#333">${isInt?'Plug and switch boxes on this side shown.':face==='int'?'Boxes for plugs and switches shown. Openings shown as seen from inside.':'Openings and outside plugs and lights only.'} Assemble left → right: <b>${plan.seq.map(p=>p.num).join(' → ')}</b>. Stack with ${plan.seq[0].code} on top.</span></div>
+    ${sealCallout(s, w, face)}
     <div class="elev">${elevationSVG(w,face,false,s)}</div>
     <div id="wall3d" class="w3full"><span class="w3cap">3D · panels pulled apart · drag to turn</span></div>
     <div class="tblwrap"><div class="eyebrow" style="color:#555;margin-bottom:4px">Cut &amp; stack · ShopSabre</div>${stackTableHTML(plan)}</div>
@@ -125,6 +128,15 @@ function boxTable(w,face,slot){
   ops.sort((a,b)=>a.vx-b.vx).forEach(o=>{ h+=`<tr><td>${o.kind==='window'?'Window opening':o.kind==='door'?'Door opening':o.kind==='opening'?'Cased opening':o.kind==='vent'?'Vent / duct hole':'Patio door opening'}</td><td>${fin(o.vx)}</td><td>sill ${fin(o.y)}</td><td>${fin(o.w)} × ${fin(o.h)}</td><td>${pn(o.vx+o.w/2)}</td><td>${(()=>{ const r=unitFor(slot,o); return r?`${r.unit.id} · ${unitLabel(r)}`:(o.kind==='window'||o.kind==='door'||o.kind==='patio'?'<i>not chosen</i>':'—'); })()}</td><td>${made(o)}</td></tr>`; });
   items.sort((a,b)=>a.vx-b.vx).forEach(b=>{ h+=`<tr><td>${names[b.kind]||b.kind}</td><td>${fin(b.vx)} (centre)</td><td>${fin(b.y)}</td><td>${size(b)}${b.depth?` · ${fin(b.depth)} deep`:''}</td><td>${pn(b.vx)}</td><td></td><td>${made(b)}</td></tr>`; });
   return h+`</tbody></table>`;
+}
+/* the seal note on a wall between pods: which seal, why, and how it runs */
+function sealCallout(s, w, face){
+  const slots=slotsFor(state.model), role=sealRole(s, slots); if(!role) return '';
+  const pt=partnerOf(slots.find(x=>x.id===s.id)||s, slots), n=sealsFor(w, role, H).length; if(!n || !pt) return '';
+  const hi=role==='high';
+  return `<div class="seal-call ${role}"><b>${hi?'HIGH':'LOW'} compression seal</b> on the face toward ${esc(s.other.label)} (Side B), around ${n} opening${n>1?'s':''}.
+    This is Wall <b>${esc(s.letter)}</b>; it meets ${esc(pt.label)} (Wall <b>${esc(pt.letter)}</b>), so it gets the <b>${hi?'higher':'lower'}</b> seal${hi?`: <b>2″ above and outside</b> the ${esc(pt.letter[0])} wall's`:`; the ${esc(pt.letter[0])} wall's seal runs 2″ above and outside this one`}.
+    Seal ${fin(SEAL.low+(hi?SEAL.rise:0))} out from the rough opening, crowned ${fin(SEAL.crown)} over the head, then down both sides to the bottom of the wall. Adhesive strip to the wall; the ¾″ rubber fills the space between the pods.</div>`;
 }
 function elevationSVG(w,face,rev,slot){
   const L=wallLen(w), n=panelCount(w), spans=panelSpans(w);
@@ -216,6 +228,18 @@ function elevationSVG(w,face,rev,slot){
     g+=`<line x1="${X(e)}" y1="${Y(0)+4}" x2="${X(e)}" y2="${Y(0)+18}" stroke="#2f6db5" stroke-width=".8"/><line x1="${X(e)}" y1="${Y(0)+18}" x2="${lx}" y2="${Y(0)+26}" stroke="#2f6db5" stroke-width=".8"/>`;
     g+=`<text transform="translate(${lx+4},${Y(0)+30}) rotate(90)" font-size="10.5" fill="#2f6db5">${fin(e)}</text>`; });
   if(edges.length) g+=`<text x="${X(0)-8}" y="${Y(0)+30}" text-anchor="end" font-size="9.5" fill="#2f6db5">from left ⟶</text>`;
+  // compression seals: on the face toward the other pod, solid; seen from the room side, dashed (it's on the far face)
+  const role = slot ? sealRole(slot, slotsFor(state.model)) : null;
+  sealsFor(w, role, H).forEach(sl=>{
+    const P=sl.pts.map(([x,y])=>[X(vx(x)),Y(y)]), d=P.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+    const hi=role==='high', col=hi?'#b4520f':'#1d1f22';
+    if(face==='ext'){
+      g+=`<path d="${d}" fill="none" stroke="${col}" stroke-width="${Math.max(4, SEAL.w*s)}" stroke-linejoin="round" stroke-linecap="round" opacity=".9"/>`;
+      g+=`<path d="${d}" fill="none" stroke="#e74c3c" stroke-width="1" stroke-dasharray="1 0"/>`;
+    } else g+=`<path d="${d}" fill="none" stroke="${col}" stroke-width="2" stroke-dasharray="6 4" opacity=".75"/>`;
+    const cx=X(vx(sl.o.x+sl.o.w/2)), cy=Y(sl.head+SEAL.crown)-8;
+    g+=`<text x="${cx}" y="${cy}" text-anchor="middle" font-size="10.5" font-weight="800" fill="${col}">${hi?'HIGH SEAL':'LOW SEAL'} · ${fin(sl.out)} out · head ${fin(sl.head)}${face==='ext'?'':' (other face)'}</text>`;
+  });
   // boxes on this face
   const items = face==='int'? w.inside : w.outside;
   items.forEach(b=>{

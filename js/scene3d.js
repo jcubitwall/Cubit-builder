@@ -7,6 +7,7 @@ import { w3 } from './sheets.js';
 import { renderSide } from './sidebar.js';
 import { pickFor, pickLayer, state } from './state.js';
 import { withLights } from './lights.js';
+import { sealRole, sealsFor, SEAL } from './seals.js';
 import { getBearing } from './orient.js';
 import { symbol, unitFor, pairOf, doorOwner } from './units.js';
 import { concretePlan } from './concrete.js';
@@ -113,6 +114,7 @@ function holedSlab(a,b,y0,y1,shapes,d){
   return new THREE.ExtrudeGeometry(sh, {depth:d, bevelEnabled:false, curveSegments:24});
 }
 const HAND_LINE = new THREE.LineBasicMaterial({color:0x8e44ad});
+const SEAL_LOW = new THREE.MeshStandardMaterial({color:0x1d1f22, roughness:0.7}), SEAL_HIGH = new THREE.MeshStandardMaterial({color:0x3b2a1e, roughness:0.7, emissive:0x2a1200});
 /* purple outline of a hand-made feature, drawn on a face (points in inches, plane z in feet) */
 function handLoop(P, z, flat){ const pts=P.map(p=>flat ? new THREE.Vector3(p[0]/FT, z, p[1]/FT) : new THREE.Vector3(p[0]/FT, p[1]/FT, z)); return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), HAND_LINE); }
 const BOX_FLOOR = new THREE.MeshBasicMaterial({color:0xf4f1ea, side:THREE.DoubleSide});   // the back of a carved electrical box
@@ -396,6 +398,12 @@ function buildHome(){
       w.openings.filter(o=>o.kind!=='vent' && o.w>=12 && (s.type==='int' || (o.kind==='opening' && o.w>=48))).forEach(o=>{
         const m=new THREE.Mesh(new THREE.PlaneGeometry(o.w/FT, o.h/FT), new THREE.MeshBasicMaterial({color:0xe0864a, transparent:true, opacity:0, depthWrite:false, side:THREE.DoubleSide}));
         m.position.set((o.x+o.w/2)/FT, (o.y+o.h/2)/FT, -t/2); m.userData.pickPane=true; m.renderOrder=2; g.add(m); }); }
+    // the rubber compression seal on the outside face (toward the other pod): high seal amber-edged, low seal plain
+    const role=sealRole(s, slots);
+    sealsFor(w, role, H).forEach(sl=>{
+      const curve=new THREE.CatmullRomCurve3(sl.pts.map(([x,y])=>new THREE.Vector3(x/FT, y/FT, SEAL.t/2/FT)), false, 'catmullrom', 0);
+      const m=new THREE.Mesh(new THREE.TubeGeometry(curve, Math.max(40, sl.pts.length*3), SEAL.t/2/FT, 8, false), role==='high'?SEAL_HIGH:SEAL_LOW);
+      m.userData.seal=role; g.add(m); });
     g.traverse(o=>{ if(o.isMesh) { o.userData.slotId=s.id; pickables.push(o);} });
     if(state.letters){
       const t=(w.t||6.5)/12, mid=wallLen(w)/2/FT;
@@ -546,6 +554,7 @@ function applyLayers(){
   if(northGroup) northGroup.visible = F==null;
   floorMats.forEach(m=>{ m.transparent=S.screws; m.opacity=S.screws?0.35:1; m.depthWrite=!S.screws; m.needsUpdate=true; });
   unitMeshes.forEach(m=>m.visible=S.units);
+  wallGroups.forEach(g=>g.children.forEach(o=>{ if(o.userData.seal) o.visible = S.seals!==false; }));
   // framing: lumber & LVL and the OSB splines switch on their own; both show through see-through walls
   framingMeshes.forEach(m=>m.visible=(m.userData.spline ? S.splines : S.framing) && S.walls && inPod(m.userData.pod));
   applyRimVis();
