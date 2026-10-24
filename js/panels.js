@@ -107,4 +107,15 @@ function layerHoles(L){
   });
   return holes;
 }
-export { isShaped, shapeOf, outlinePts, mapX, faceShape, layerHoles, panelCells, panelCount, panelNum, thumbSVG, wallLen, panelSpans, panelAt, bodyWall };
+/* made by hand, not by the CNC: marked so (hand), or too small for the ¾″ bit ('auto') */
+function handOf(f){
+  if(f.hand) return 'mark';
+  if(f.light) return null;
+  const bit=0.749;
+  if(f.shape==='poly' && Array.isArray(f.tool) && !f.tool.length) return 'auto';
+  if(f.shape==='round' && (f.d||f.dia||f.w) < bit) return 'auto';
+  if(f.shape==='slot' && (f.sw||0.75) < bit) return 'auto';
+  if((!f.shape || f.shape==='rect') && f.w && (f.h??f.d) && Math.min(f.w, f.h??f.d) < bit) return 'auto';
+  return null;
+}
+export { handOf, isShaped, shapeOf, outlinePts, mapX, faceShape, layerHoles, panelCells, panelCount, panelNum, thumbSVG, wallLen, panelSpans, panelAt, bodyWall };

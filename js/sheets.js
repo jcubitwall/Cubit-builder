@@ -13,12 +13,14 @@ import { takeoffHTML } from './takeoff.js';
 import { renderShop } from './shop.js';
 import { renderCncSheet } from './cncsheet.js';
 import { LAYER_KINDS } from './config.js';
-import { panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall, layerHoles, isShaped, shapeOf, outlinePts, mapX, faceShape } from './panels.js';
-import { buildWallMesh, resize } from './scene3d.js';
+import { panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall, layerHoles, isShaped, shapeOf, outlinePts, mapX, faceShape, handOf } from './panels.js';
+import { buildWallMesh, resize, buildHome } from './scene3d.js';
+import { setHand } from './libedit.js';
 import { unitFor, symbol, unitLabel, pairOf, doorOwner } from './units.js';
 const sheetSlotNow = () => slotsFor(state.model).find(x=>x.id===state.sheetSlot);
 import { wallListHTML } from './sidebar.js';
 import { pickFor, pickLayer, state, setFace } from './state.js';
+import { withLights } from './lights.js';
 import { panelPlan, homePlans, stackTableHTML, labelsPDF, faceFor, faceShort } from './labels.js';
 import { toast } from './sidebar.js';
 
@@ -114,11 +116,14 @@ function boxTable(w,face,slot){
   const items = face==='int' ? w.inside.map(b=>({...b,vx:b.x})) : w.outside.map(b=>({...b,vx:b.x}));
   const names={outlet:(face==='int'||w.type==='int')?'Plug box':'Outside plug (WP)',switch:'Switch box',light:'Outside light',data:'Data box',box:'Box pocket',pocket:'Pocket',hole:'Round recess',chase:'Chase'};
   const size = b => b.shape==='round' ? `⌀${fin(b.d||b.dia)}` : b.w&&b.h ? `${fin(b.w)} × ${fin(b.h)}` : '—';
-  let h=`<table class="boxes"><thead><tr><th>Item</th><th>From left end</th><th>Height</th><th>Size</th><th>Panel</th><th>Unit</th></tr></thead><tbody>`;
+  const wid=w.mirrorOf||w.id, canMark=!w.blank && !String(w.id).startsWith('BLANK');
+  const made = f => { const hm=handOf(f); return hm==='auto' ? '<b class="hand-t">By hand</b> <small>(smaller than the bit)</small>'
+    : canMark && f._f ? `<label class="hand-ck"><input type="checkbox" data-hand="walls|${esc(wid)}|${f._f}" ${hm?'checked':''}> By hand</label>` : hm ? '<b class="hand-t">By hand</b>' : 'CNC'; };
+  let h=`<table class="boxes"><thead><tr><th>Item</th><th>From left end</th><th>Height</th><th>Size</th><th>Panel</th><th>Unit</th><th>Made</th></tr></thead><tbody>`;
   const n=panelCount(w);
   const pn = vx => panelNum(n, panelAt(w, face==='ext' ? vx : L-vx), false);
-  ops.sort((a,b)=>a.vx-b.vx).forEach(o=>{ h+=`<tr><td>${o.kind==='window'?'Window opening':o.kind==='door'?'Door opening':o.kind==='opening'?'Cased opening':o.kind==='vent'?'Vent / duct hole':'Patio door opening'}</td><td>${fin(o.vx)}</td><td>sill ${fin(o.y)}</td><td>${fin(o.w)} × ${fin(o.h)}</td><td>${pn(o.vx+o.w/2)}</td><td>${(()=>{ const r=unitFor(slot,o); return r?`${r.unit.id} · ${unitLabel(r)}`:(o.kind==='window'||o.kind==='door'||o.kind==='patio'?'<i>not chosen</i>':'—'); })()}</td></tr>`; });
-  items.sort((a,b)=>a.vx-b.vx).forEach(b=>{ h+=`<tr><td>${names[b.kind]||b.kind}</td><td>${fin(b.vx)} (centre)</td><td>${fin(b.y)}</td><td>${size(b)}${b.depth?` · ${fin(b.depth)} deep`:''}</td><td>${pn(b.vx)}</td><td></td></tr>`; });
+  ops.sort((a,b)=>a.vx-b.vx).forEach(o=>{ h+=`<tr><td>${o.kind==='window'?'Window opening':o.kind==='door'?'Door opening':o.kind==='opening'?'Cased opening':o.kind==='vent'?'Vent / duct hole':'Patio door opening'}</td><td>${fin(o.vx)}</td><td>sill ${fin(o.y)}</td><td>${fin(o.w)} × ${fin(o.h)}</td><td>${pn(o.vx+o.w/2)}</td><td>${(()=>{ const r=unitFor(slot,o); return r?`${r.unit.id} · ${unitLabel(r)}`:(o.kind==='window'||o.kind==='door'||o.kind==='patio'?'<i>not chosen</i>':'—'); })()}</td><td>${made(o)}</td></tr>`; });
+  items.sort((a,b)=>a.vx-b.vx).forEach(b=>{ h+=`<tr><td>${names[b.kind]||b.kind}</td><td>${fin(b.vx)} (centre)</td><td>${fin(b.y)}</td><td>${size(b)}${b.depth?` · ${fin(b.depth)} deep`:''}</td><td>${pn(b.vx)}</td><td></td><td>${made(b)}</td></tr>`; });
   return h+`</tbody></table>`;
 }
 function elevationSVG(w,face,rev,slot){
@@ -169,7 +174,9 @@ function elevationSVG(w,face,rev,slot){
     const x=vx(o.x,o.w);
     if(isShaped(o)){   // round hole / slot exactly as drawn, with its size
       const S=shapeOf({...mapX(o, xx=>vx(xx)), x:x}), P=outlinePts2(S);
-      g+=`<path d="${P.map((p,i)=>(i?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)).join(' ')}Z" fill="#ffffff" stroke="#111" stroke-width="1.2"/>`;
+      const hmo=handOf(o);
+      g+=`<path d="${P.map((p,i)=>(i?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)).join(' ')}Z" fill="${hmo?'#f1e6f7':'#ffffff'}" stroke="${hmo?'#7d3c98':'#111'}" stroke-width="1.2" ${hmo?'stroke-dasharray="3 2"':''}/>`;
+      if(hmo) g+=`<text x="${X(x+o.w/2)}" y="${Y(o.y+o.h)-3}" text-anchor="middle" font-size="8.5" fill="#7d3c98" font-weight="700">HAND</text>`;
       if(o.shape==='poly' && o.w>=4) g+=`<text x="${X(x+o.w/2)}" y="${Y(o.y+o.h/2)+3}" text-anchor="middle" font-size="8.5" fill="#555">${fin(o.w)} × ${fin(o.h)}</text>`;
       return;
     }
@@ -216,8 +223,9 @@ function elevationSVG(w,face,rev,slot){
     const cx=X(x), cy=Y(b.y);
     const P=faceShape(b, xx=>xx);
     if(P){   // drawn exactly: boxes solid, pockets / recesses / chases dashed, with depth
-      const box=b.kind==='box';
-      g+=`<path d="${P.map((p,i)=>(i?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)).join(' ')}Z" fill="${box?'#fff':'#e8e2d6'}" stroke="#111" stroke-width="1.1" ${box?'':'stroke-dasharray="3 2"'}/>`;
+      const box=b.kind==='box', hm=handOf(b);
+      g+=`<path d="${P.map((p,i)=>(i?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)).join(' ')}Z" fill="${hm?'#f1e6f7':box?'#fff':'#e8e2d6'}" stroke="${hm?'#7d3c98':'#111'}" stroke-width="${hm?1.5:1.1}" ${box&&!hm?'':'stroke-dasharray="3 2"'}/>`;
+      if(hm) g+=`<text x="${cx}" y="${Y(b.y)-(b.h||b.d||4)*s/2-3}" text-anchor="middle" font-size="8.5" fill="#7d3c98" font-weight="700">HAND</text>`;
       const sz=b.shape==='round'?`⌀${fin(b.d||b.dia)}`:b.w&&b.h?`${fin(b.w)}×${fin(b.h)}`:'';
       if(b.depth) g+=`<text x="${cx}" y="${Y(b.y)+ (b.h||b.d||4)*s/2 + 9}" text-anchor="middle" font-size="7.5" fill="#666">${fin(b.depth)}</text>`;   // positions and sizes: in the table below
       return;
@@ -326,7 +334,7 @@ function floorBuildHTML(ls){
 }
 /* ---------- floor / ceiling layer sheet: plan from above, panels, holes ---------- */
 function renderLayerSheet(el, ls){
-  const L=pickLayer(ls), K=LAYER_KINDS[ls.kind], len=L.len*FT, wid=96;
+  const L=withLights(pickLayer(ls), ls), K=LAYER_KINDS[ls.kind], len=L.len*FT, wid=96;
   const cuts=[0,...(L.seams&&L.seams.length?L.seams:[...Array(Math.ceil(len/PW)-1)].map((_,i)=>(i+1)*PW)),len];
   const panels=cuts.slice(0,-1).map((a,i)=>[a,cuts[i+1]]);
   // which face the assemblers see on the upright table: the room side or the outside. Floors show their room
@@ -348,21 +356,31 @@ function renderLayerSheet(el, ls){
   const HOLES=layerHoles(L);
   HOLES.forEach((h,i)=>{ if(!h.notch) return;
     g+=`<rect x="${Math.min(X(h.x),X(h.x+h.w))}" y="${Y(h.z)}" width="${h.w*s}" height="${h.d*s}" fill="#fff" stroke="#7a3fb0" stroke-width="1.4"/>`; });
-  (L.holes||[]).forEach((h,i)=>{
+  // pot lights: yellow, numbered L1…; hand-made features: purple, dashed, HAND; the rest H1…
+  const HO=(L.holes||[]).filter(h=>!(h.light && (h.dia||h.w)<1)), lights=HO.filter(h=>h.light), other=HO.filter(h=>!h.light);
+  other.forEach((h,i)=>{ const hm=handOf(h), col=hm?'#7d3c98':'#c0392b';
     if(isShaped(h) || h.depth){ const S=shapeOf({...h, y:h.z, h:h.d, d:h.dia}), P=outlinePts2(S);
-      g+=`<path d="${P.map((p,k)=>(k?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)).join(' ')}Z" fill="${h.depth?'#e8e2d6':'#fff'}" stroke="#c0392b" stroke-width="1.2" ${h.depth?'stroke-dasharray="3 2"':''}/>`;
-    } else
-    g+=`<rect x="${Math.min(X(h.x),X(h.x+h.w))}" y="${Y(h.z)}" width="${h.w*s}" height="${h.d*s}" fill="#fff" stroke="#c0392b" stroke-width="1.4"/>`;
-    g+= isShaped(h) && h.w<12 ? `<text x="${Math.max(X(h.x),X(h.x+h.w))+3}" y="${Y(h.z)-1}" font-size="8" fill="#c0392b" font-weight="700">H${i+1}</text>`
-      : `<text x="${X(h.x+h.w/2)}" y="${Y(h.z+h.d/2)+4}" text-anchor="middle" font-size="10" fill="#c0392b" font-weight="700">H${i+1}</text>`;
+      g+=`<path d="${P.map((p,k)=>(k?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)).join(' ')}Z" fill="${hm?'#f1e6f7':h.depth?'#e8e2d6':'#fff'}" stroke="${col}" stroke-width="1.3" ${h.depth||hm?'stroke-dasharray="3 2"':''}/>`;
+    } else g+=`<rect x="${Math.min(X(h.x),X(h.x+h.w))}" y="${Y(h.z)}" width="${h.w*s}" height="${h.d*s}" fill="${hm?'#f1e6f7':'#fff'}" stroke="${col}" stroke-width="1.4" ${hm?'stroke-dasharray="3 2"':''}/>`;
+    const tag=`H${i+1}${hm?' · HAND':''}`;
+    g+= isShaped(h) && h.w<12 ? `<text x="${Math.max(X(h.x),X(h.x+h.w))+3}" y="${Y(h.z)-1}" font-size="8" fill="${col}" font-weight="700">${tag}</text>`
+      : `<text x="${X(h.x+h.w/2)}" y="${Y(h.z+h.d/2)+4}" text-anchor="middle" font-size="10" fill="${col}" font-weight="700">${tag}</text>`;
   });
+  lights.forEach((h,i)=>{ const cx=X(h.x+h.w/2), cy=Y(h.z+h.d/2), r=Math.max(4, h.w/2*s);
+    g+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="#ffd34d" stroke="#8a6d00" stroke-width="1"/><circle cx="${cx}" cy="${cy}" r="${Math.max(1.2,0.39*s)}" fill="#8a6d00"/><text x="${cx+r+2}" y="${cy-r}" font-size="8" fill="#8a6d00" font-weight="700">L${i+1}</text>`; });
   g+=dimH(X(0),X(len),Y(wid)+40,`${fin(len)} (${fft(len)})`,Y(wid),12);
   g+=dimV(Y(0),Y(wid),ml-26,fin(wid),X(0),11);
   g+=`<text x="${ml}" y="${VH-10}" font-size="10" fill="#555">${below?'Seen from BELOW (mirrored)':'Seen from above'} · x from the left end as you look at it, z from the top edge</text></svg>`;
-  let t=`<table class="boxes"><thead><tr><th>Hole</th><th>From left end</th><th>From top edge</th><th>Size</th><th>Panel</th></tr></thead><tbody>`;
-  (L.holes||[]).forEach((h,i)=>{ const pi=panels.findIndex(([a,b])=>h.x+h.w/2>=a&&h.x+h.w/2<b)+1; t+=`<tr><td>H${i+1}</td><td>${fin(below?len-h.x-h.w:h.x)}</td><td>${fin(h.z)}</td><td>${h.shape==='round'?'⌀ '+fin(h.dia):h.shape==='slot'?'slot '+fin(h.sw)+' wide':(h.shape==='poly'?'shaped, ':'')+fin(h.w)+' × '+fin(h.d)}${h.depth?` · ${fin(h.depth)} deep from the ${h.face}`:''}</td><td>${pi}</td></tr>`; });
-  if(!(L.holes||[]).length) t+=`<tr><td colspan="5">No holes in this layer.</td></tr>`;
-  if(HOLES.some(h=>h.notch)) t+=`<tr><td colspan="5" style="color:#7a3fb0">Steel spine notch ${fin(HOLES.find(h=>h.notch).w)} × ${fin(HOLES.find(h=>h.notch).w)} at ${HOLES.filter(h=>h.notch).length===4?'all four corners':'the corners shown'} (purple).</td></tr>`;
+  const lid=L.id, canMark=!L.blank && !L.id.startsWith('BLANK');
+  let t=`<table class="boxes"><thead><tr><th>Hole</th><th>From left end</th><th>From top edge</th><th>Size</th><th>Panel</th><th>Made</th></tr></thead><tbody>`;
+  const pn=h=>panels.findIndex(([a,b])=>h.x+h.w/2>=a&&h.x+h.w/2<b)+1;
+  other.forEach((h,i)=>{ const hm=handOf(h);
+    t+=`<tr class="${hm?'hand-row':''}"><td>H${i+1}</td><td>${fin(below?len-h.x-h.w:h.x)}</td><td>${fin(h.z)}</td><td>${h.shape==='round'?'⌀ '+fin(h.dia):h.shape==='slot'?'slot '+fin(h.sw)+' wide':(h.shape==='poly'?'shaped, ':'')+fin(h.w)+' × '+fin(h.d)}${h.depth?` · ${fin(h.depth)} deep from the ${h.face}`:''}</td><td>${pn(h)}</td>
+      <td>${hm==='auto'?'<b class="hand-t">By hand</b> <small>(smaller than the bit)</small>':canMark&&h._f?`<label class="hand-ck"><input type="checkbox" data-hand="layers|${esc(lid)}|${h._f}" ${hm?'checked':''}> By hand</label>`:hm?'<b class="hand-t">By hand</b>':'CNC'}</td></tr>`; });
+  if(lights.length) t+=`<tr><td colspan="6" style="color:#8a6d00"><b>Pot lights L1–L${lights.length}</b> (yellow): ⌀ 4″ pocket ${fin(lights[0].depth)} deep from the room side, with a ¾″ wire hole through the middle. ${L.auto?'Placed by the lighting rules.':''}</td></tr>`;
+  lights.forEach((h,i)=>{ t+=`<tr><td>L${i+1}</td><td>${fin(below?len-h.x-h.w/2:h.x+h.w/2)} (centre)</td><td>${fin(h.z+h.d/2)} (centre)</td><td>pot light ⌀ 4″</td><td>${pn(h)}</td><td>CNC</td></tr>`; });
+  if(!HO.length) t+=`<tr><td colspan="6">No holes in this layer.</td></tr>`;
+  if(HOLES.some(h=>h.notch)) t+=`<tr><td colspan="6" style="color:#7a3fb0">Steel spine notch ${fin(HOLES.find(h=>h.notch).w)} × ${fin(HOLES.find(h=>h.notch).w)} at ${HOLES.filter(h=>h.notch).length===4?'all four corners':'the corners shown'} (purple).</td></tr>`;
   t+=`</tbody></table>`;
   el.innerHTML=`
     <div class="sheet-title"><div><div class="eyebrow" style="color:#555">Layer sheet · Cubit Home</div><h3>${ls.label} — ${L.id}</h3></div>
@@ -376,5 +394,12 @@ function renderLayerSheet(el, ls){
     ${isFloor ? floorBuildHTML(ls) : ''}`;
   el.querySelectorAll('[data-lface]').forEach(b=>b.onclick=()=>{ setFace(ls, b.dataset.lface); renderSheet(); });
 }
+/* mark a hole / chase / feature as made by hand (shared with the team, left out of the G-code) */
+document.addEventListener('change', async e=>{
+  const c=e.target.closest?.('[data-hand]'); if(!c) return;
+  const [kind,id,feat]=c.dataset.hand.split('|');
+  try{ await setHand(kind,id,feat,c.checked); buildHome(); renderSheet(); toast(c.checked?'Marked: made by hand':'Back to the CNC'); }
+  catch(err){ c.checked=!c.checked; toast(`Couldn't save: ${err.message||err}`); }
+});
 /* phone: tapping outside the open sheet list closes it */
 document.addEventListener('pointerdown', e=>{ const el=document.getElementById('sheetList'); if(el?.classList.contains('open') && !el.contains(e.target)){ el.classList.remove('open'); el.querySelector('.sl-pick')?.setAttribute('aria-expanded','false'); } });

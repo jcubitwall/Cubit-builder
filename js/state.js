@@ -3,7 +3,7 @@ import { MODELS, byId, optionsFor, layerOptions, layerById, podById } from './da
 import { LAYER_KINDS, T, TI } from './config.js';
 import { canSave } from './role.js';
 
-const state = { model:'cove', picks:{}, units:{}, found:{}, deckOC:{}, icf:{ brand:'nudura', core:6 }, layerPicks:{}, wallA:{}, faces:{}, bearing:{}, northUp:false, selected:null, exploded:false, nums:true, letters:true,
+const state = { model:'cove', picks:{}, units:{}, found:{}, deckOC:{}, icf:{ brand:'nudura', core:6 }, layerPicks:{}, cabinets:{}, lights:{}, wallA:{}, faces:{}, bearing:{}, northUp:false, selected:null, exploded:false, nums:true, letters:true,
   show:{ roof:false, ceiling:false, walls:true, floors:true, decks:true, screws:false, frames:true, units:true, framing:false, splines:false }, focusPod:null, glass:false, inset:6, view:'studio', face:'int', reverse:false, sheetSlot:null };
 const KEY='cubit-wall-studio';
 function initState(){
@@ -17,6 +17,8 @@ function initState(){
     if(s.icf) Object.assign(state.icf, s.icf);
     if(s.faces) state.faces=s.faces;
     if(s.layerPicks) state.layerPicks=s.layerPicks;
+    if(s.cabinets) state.cabinets=s.cabinets;
+    if(s.lights) state.lights=s.lights;
     if(s.bearing) state.bearing=s.bearing;
     if(s.northUp) state.northUp=true;
     if(s.inset) state.inset=s.inset;
@@ -27,7 +29,7 @@ function initState(){
     if(s.model&&MODELS[s.model]) state.model=s.model;
   }catch(e){}
 }
-function save(){ if(!canSave()) return; try{ localStorage.setItem(KEY, JSON.stringify({picks:state.picks, units:state.units, found:state.found, deckOC:state.deckOC, icf:state.icf, layerPicks:state.layerPicks, wallA:state.wallA, faces:state.faces, bearing:state.bearing, northUp:state.northUp, inset:state.inset, model:state.model, show:state.show, glass:state.glass, nums:state.nums, letters:state.letters})); }catch(e){} }
+function save(){ if(!canSave()) return; try{ localStorage.setItem(KEY, JSON.stringify({picks:state.picks, units:state.units, found:state.found, deckOC:state.deckOC, icf:state.icf, layerPicks:state.layerPicks, cabinets:state.cabinets, lights:state.lights, wallA:state.wallA, faces:state.faces, bearing:state.bearing, northUp:state.northUp, inset:state.inset, model:state.model, show:state.show, glass:state.glass, nums:state.nums, letters:state.letters})); }catch(e){} }
 const fits = (w,slot) => w && w.len===slot.len && (w.type||'ext')===(slot.type||'ext');
 /* Which wall sits in a slot: the person's own choice, else the model's own wall (models.json "picks"),
    else a sensible sample wall of the right length and type. */

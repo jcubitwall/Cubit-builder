@@ -47,6 +47,8 @@ function register(it){
     units:it.units||{}, found:it.found, deckOC:it.deckOC, bearing:it.bearing };
   const k=keyOf(it);
   if(it.faces && !state.faces[k]) state.faces[k]=clone(it.faces);
+  if(it.cabinets && !state.cabinets?.[k]) (state.cabinets ||= {})[k]=clone(it.cabinets);
+  if(it.lights && !state.lights?.[k]) (state.lights ||= {})[k]=clone(it.lights);
 }
 const familyById = id => FAMILIES.find(f=>f.id===id);
 function familyOf(key){
@@ -77,14 +79,14 @@ async function saveSub({family, name, note, id}){
   const nid = id || `${slug(name)}-${Date.now().toString(36).slice(-4)}`;
   const it = { id:nid, family, name, note:note||'', saved:new Date().toISOString(), by:email()||'',
     model:{...snap.model, name, base:familyById(family)?.base||snap.model.base}, picks:snap.picks, layerPicks:snap.layerPicks, wallA:snap.wallA,
-    faces:snap.faces, found:snap.found, deckOC:snap.deckOC, units:snap.units, bearing:snap.bearing };
+    faces:snap.faces, cabinets:snap.cabinets, lights:snap.lights, found:snap.found, deckOC:snap.deckOC, units:snap.units, bearing:snap.bearing };
   if(!it.model.base) delete it.model.base;
   it.library=libraryFor(it);
   const prev=SUBS[nid]; SUBS[nid]=it;
   try{ await store('upsert', {item:it}); }catch(e){ if(prev) SUBS[nid]=prev; else delete SUBS[nid]; throw e; }
   register(it);
   // the catalog now holds these choices: clear this browser's overrides for it
-  const k=keyOf(it); ['picks','layerPicks','wallA','units','found','deckOC','bearing'].forEach(f=>{ if(state[f]) delete state[f][k]; });
+  const k=keyOf(it); ['picks','layerPicks','wallA','units','found','deckOC','bearing','cabinets','lights'].forEach(f=>{ if(state[f]) delete state[f][k]; });
   state.faces[k]=clone(it.faces||{});
   if(from!==k && MODELS[from]?.custom){ /* your own layout stays as it was */ }
   state.model=k; state.selected=null; save();

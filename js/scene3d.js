@@ -2,10 +2,11 @@
 import { CEIL, FLOOR, FT, H, POD, PW, T, WALL_BASE, LAYER_KINDS, NOTCH } from './config.js';
 import { MODELS } from './data.js';
 import { podOffsets, screwsFor, slotsFor, layerSlotsFor, podList, deckList, layoutOffsets, padsFor } from './layout.js';
-import { panelCells, panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall, layerHoles, isShaped, shapeOf, outlinePts, faceShape } from './panels.js';
+import { panelCells, panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall, layerHoles, isShaped, shapeOf, outlinePts, faceShape, handOf } from './panels.js';
 import { w3 } from './sheets.js';
 import { renderSide } from './sidebar.js';
 import { pickFor, pickLayer, state } from './state.js';
+import { withLights } from './lights.js';
 import { getBearing } from './orient.js';
 import { symbol, unitFor, pairOf, doorOwner } from './units.js';
 import { concretePlan } from './concrete.js';
@@ -41,6 +42,7 @@ const MAT = {
   glass: new THREE.MeshStandardMaterial({color:0x8fc3ea,transparent:true,opacity:0.55,roughness:0.1}),
   door: new THREE.MeshStandardMaterial({color:0x6b4a2f,roughness:0.7,transparent:true,opacity:1}),
   recess: new THREE.MeshBasicMaterial({color:0x3a3530, side:THREE.DoubleSide}),
+  hand: new THREE.MeshBasicMaterial({color:0x8e44ad, side:THREE.DoubleSide}),   // made by hand, not by the CNC
   doorInt: new THREE.MeshStandardMaterial({color:0xe6e6e2,roughness:0.6,transparent:true,opacity:1}),   // interior doors: light grey / white
   outlet: new THREE.MeshStandardMaterial({color:0xf2f2f2}),
   sw: new THREE.MeshStandardMaterial({color:0x2f6db5}),
@@ -110,6 +112,9 @@ function holedSlab(a,b,y0,y1,shapes,d){
   shapes.forEach(S=>{ const P=outlinePts(S).slice(0,-1).map(([x,y])=>new THREE.Vector2(x/FT,y/FT)); sh.holes.push(new THREE.Path(P)); });
   return new THREE.ExtrudeGeometry(sh, {depth:d, bevelEnabled:false, curveSegments:24});
 }
+const HAND_LINE = new THREE.LineBasicMaterial({color:0x8e44ad});
+/* purple outline of a hand-made feature, drawn on a face (points in inches, plane z in feet) */
+function handLoop(P, z, flat){ const pts=P.map(p=>flat ? new THREE.Vector3(p[0]/FT, z, p[1]/FT) : new THREE.Vector3(p[0]/FT, p[1]/FT, z)); return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), HAND_LINE); }
 const BOX_FLOOR = new THREE.MeshBasicMaterial({color:0xf4f1ea, side:THREE.DoubleSide});   // the back of a carved electrical box
 /* A slab piece (inches a..b × y0..y1, d feet thick along its extrusion axis, 0..d) with every cut exactly as drawn:
    cuts = [{P:[[x,y],…] closed outline in inches, lo, hi}] — removed between lo and hi (feet along the thickness).
@@ -175,6 +180,8 @@ function buildWallMesh(w, mat, opts={}){
     pg.add(new THREE.LineSegments(lg,lineMat));
     g.add(pg); panels.push(pg);
   }
+  // openings made by hand: a purple outline on both faces
+  w.openings.filter(o=>handOf(o)).forEach(o=>{ const P=outlinePts(shapeOf(o)); [0.012, -t-0.012].forEach(z=>g.add(handLoop(P, z))); });
   // openings: the unit chosen for it (frame, glass or door leaf, and its symbol), else plain glass / door leaf
   w.openings.forEach(o=>{
     if(o.kind==='opening'||o.kind==='vent') return;   // cased opening / vent: just a hole
@@ -192,10 +199,12 @@ function buildWallMesh(w, mat, opts={}){
   [[w.inside, x=>L-x, -t, -1], [w.outside, x=>x, 0, 1]].forEach(([items, toX, z0, dir])=>items.forEach(b=>{
     const P=faceShape(b, toX), X=toX(b.x);
     if(P && b.carved){   // carved to its depth: mark the bottom of the pocket (white for an electrical box)
-      const m=flat(P, z0-dir*Math.min(b.depth,(w.t||T))/FT + dir*0.004, b.kind==='box'?BOX_FLOOR:MAT.recess); m.userData.k=panelAt(w,X); g.add(m); return; }
+      const m=flat(P, z0-dir*Math.min(b.depth,(w.t||T))/FT + dir*0.004, handOf(b)?MAT.hand:b.kind==='box'?BOX_FLOOR:MAT.recess); m.userData.k=panelAt(w,X); g.add(m);
+      if(handOf(b)) g.add(handLoop(P, z0+dir*0.008));
+      return; }
     if(P && b.kind==='box' && !b.shape?.match(/round|slot|poly/)){
       const m=new THREE.Mesh(new THREE.BoxGeometry(b.w/FT,b.h/FT,0.06), MAT.outlet); m.position.set(X/FT,b.y/FT,z0+dir*0.03); m.userData.k=panelAt(w,X); g.add(m); return; }
-    if(P){ const m=flat(P, z0+dir*0.006, MAT.recess); m.userData.k=panelAt(w,X); g.add(m); return; }
+    if(P){ const m=flat(P, z0+dir*0.006, handOf(b)?MAT.hand:MAT.recess); m.userData.k=panelAt(w,X); g.add(m); return; }
     const inside=dir<0;
     const m=inside ? new THREE.Mesh(new THREE.BoxGeometry(2.5/FT,4/FT,0.06), b.kind==='switch'?MAT.sw:MAT.outlet)
                    : new THREE.Mesh(new THREE.BoxGeometry(3/FT,(b.kind==='light'?5:4)/FT,0.08), b.kind==='light'?MAT.light:(w.type==='int'?(b.kind==='switch'?MAT.sw:MAT.outlet):MAT.extOutlet));
@@ -242,7 +251,8 @@ function buildLayerMesh(L, mat){
     }
   }
   // recesses that don't go through: a dark outline on their face
-  blind.forEach(h=>{ const P=outlinePts(lsh(h)); const m=new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(P.map(p=>new THREE.Vector2(p[0]/FT,p[1]/FT))),24), MAT.recess);
+  all.filter(h=>handOf(h)).forEach(h=>{ const P=outlinePts(lsh(h)); [-0.01, t+0.01].forEach(y=>g.add(handLoop(P, y, true))); });
+  blind.forEach(h=>{ const P=outlinePts(lsh(h)); const m=new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(P.map(p=>new THREE.Vector2(p[0]/FT,p[1]/FT))),24), handOf(h)?MAT.hand:MAT.recess);
     const dp=Math.min(h.depth,(L.t||4.5))/FT, carved=carvedSet.has(h);   // carved: mark the bottom of the pocket, else its outline on the face
     m.rotation.x=Math.PI/2; m.position.y = h.face==='bottom' ? (carved ? dp-0.004 : -0.006) : (carved ? t-dp+0.004 : t+0.006); g.add(m); });
   // panel joints and round-hole outlines on the top face
@@ -276,7 +286,7 @@ function buildHome(){
   // floor and ceiling layers (exterior floor, interior floor, interior ceiling, roof) + ground screws
   roofGroup=new THREE.Group(); ceilGroup=new THREE.Group(); floorGroup=new THREE.Group(); homeGroup.add(floorGroup);
   layerSlotsFor(state.model).forEach(ls=>{
-    const L=pickLayer(ls); const isFloor=ls.kind.startsWith('floor');
+    const L=withLights(pickLayer(ls), ls); const isFloor=ls.kind.startsWith('floor');
     // ceiling + roof stay see-through so they never hide the walls; floors go see-through when the ground screws show
     const mat=new THREE.MeshStandardMaterial({color:LAYER_COLOR[ls.kind], roughness:0.85, transparent:!isFloor, opacity: isFloor ? 1 : 0.42, depthWrite: isFloor});
     if(isFloor) floorMats.push(mat);

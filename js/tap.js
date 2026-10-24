@@ -17,7 +17,7 @@
 import { MODELS } from './data.js';
 import { H } from './config.js';
 import { homePlans, faceShort } from './labels.js';
-import { wallLen, panelSpans } from './panels.js';
+import { wallLen, panelSpans, handOf } from './panels.js';
 import { state } from './state.js';
 import { gcode, TOOLS, SKIN, THRU } from './gcode.js';
 import { cncSettings, zip } from './cnc.js';
@@ -106,6 +106,12 @@ function tapPlan(){
       const [x0,x1]=spans[p.k], W=p.width, warn=[];
       const u = xo => x1-xo;                          // wall x (from outside-left) → interior face u
       const I=[], E=[];
+      // features made by hand (marked, or too small for the bit) stay off the CNC: listed for the crew instead
+      const byHand=[], cnc = (f, face) => { const hm=handOf(f); if(!hm) return true;
+        const sz = f.shape==='round' ? `⌀ ${fin(f.d||f.dia)}` : f.w&&(f.h??f.d) ? `${fin(f.w)} × ${fin(f.h??f.d)}` : f.shape||f.kind;
+        byHand.push(`${f.kind||'cut'} ${sz}${f.depth?`, ${fin(f.depth)} deep`:''} on the ${face} face${hm==='auto'?' (smaller than the bit)':''}`); return false; };
+      p={...p, intCuts:p.intCuts.filter(f=>cnc(f,'room')), extCuts:p.extCuts.filter(f=>cnc(f,'outside')), through:p.through.filter(f=>cnc(f,'room'))};
+      byHand.forEach(b=>warn.push(`BY HAND: ${b}`));
       // boxes, interior face (b.x measured from the inside-left)
       p.intCuts.filter(b=>b.shape).forEach(b=>shapedOp(I, b, xo=>u(L-xo), t, t-(b.depth||DEPTH), W, warn, true));
       p.extCuts.filter(b=>b.shape).forEach(b=>shapedOp(E, b, xo=>BLANK-u(xo), t, t-(b.depth||DEPTH), W, warn, true));

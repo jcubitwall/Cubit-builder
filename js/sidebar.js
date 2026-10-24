@@ -17,6 +17,7 @@ import { TYPES, unitsFor, unitFor, setUnit, unitSVG, unitLabel, catOf, okey, pai
 import { fin } from './format.js';
 import { setIsolate } from './layers.js';
 import { applyEdits } from './libedit.js';
+import { withLights, cfgOf, setLights, cabinetsOf, setCabinet, cabDepth, CAB_PRESETS } from './lights.js';
 import { askRename } from './library-ui.js';
 
 const sideH=document.getElementById('sideH'), sideB=document.getElementById('sideB');
@@ -120,6 +121,11 @@ function renderSideInner(){
       ${(state.wallA?.[state.model]?.[s.pod.i] || m.pods[s.pod.i]?.a) ? `<p class="note">Wall A for ${s.pod.label} was set by hand. <button class="linkbtn" id="autoA">Go back to automatic</button></p>`:''}
       ${isInt&&partnerOf(s,slots)?`<p class="note">Joins ${s.other.label} (${esc(partnerOf(s,slots).label)}). Picking a wall here gives that wall the same one, mirrored, so openings line up.</p>`:''}
       ${unitsBlock(s, bodyWall(s,w))}
+      ${(()=>{ const cv=cabinetsOf(state.model)[s.id], d=cabDepth(cv), kind=d ? (typeof cv==='object' ? cv.kind : 'Custom') : 'None';
+        return `<div class="cab-box"><div class="eyebrow">Cabinets on this wall · deepest unit</div>
+          <div class="seg wrap" role="group" aria-label="Deepest cabinet on this wall">${CAB_PRESETS.map(([n,v])=>`<button data-cab="${v}" data-cabn="${n}" aria-pressed="${kind===n}">${n}${v?` ${v}″`:''}</button>`).join('')}</div>
+          <label class="lt-sp">Deepest unit <input type="number" id="cabD" min="0" max="48" step="0.5" value="${d}"> ″ out from the wall</label>
+          ${d?`<p class="note">The ceiling lights along this wall sit ${fin(d+6)} out from it (6″ in front of the ${kind.toLowerCase()==='custom'?'units':kind.toLowerCase()}).</p>`:''}</div>`; })()}
       <div class="eyebrow">${opts.length} options for a ${s.len}′ ${isInt?'interior':'exterior'} wall · seen from ${isInt?s.other.label:'outside'}</div>
       ${opts.length?'':`<p class="note">Nothing in the library for a ${s.len}′ ${isInt?'interior':'exterior'} wall yet. Upload a STEP file of a home that has one and it will be added.</p>`}
       <div class="opts">${opts.map(o=>`<button class="opt" data-o="${esc(o.id)}" aria-pressed="${w&&o.id===w.id}">${thumbSVG(o)}<b>${esc(o.name)}</b><code>${esc(o.id)}${o.src==='imported'?' · uploaded':''}${o.src==='saved'?' · saved here':''}${o.model?' · this home':''}</code></button>`).join('')}</div>`;
@@ -129,6 +135,8 @@ function renderSideInner(){
       const pt=partnerOf(s, slots); if(pt) choose(pt, mirrorId(b.dataset.o));
       buildHome(); renderSide(); toast(`${s.label} → ${b.dataset.o}`+(pt?` · ${pt.label} → mirrored`:'')); });
     bindUnits(s, bodyWall(s,w));
+    sideB.querySelectorAll('[data-cab]').forEach(b=>b.onclick=()=>{ setCabinet(state.model, s.id, +b.dataset.cab, b.dataset.cabn); buildHome(); renderSide(); });
+    const cd=sideB.querySelector('#cabD'); if(cd) cd.onchange=()=>{ setCabinet(state.model, s.id, Math.max(0,+cd.value||0), 'Custom'); buildHome(); renderSide(); };
     sideB.querySelector('#toSheet').onclick=()=>{ state.sheetSlot=s.id; openSheets(); };
     sideB.querySelector('#isoBtn').onclick=()=>setIsolate(state.isolate===s.id ? null : s.id, s.label);
     
@@ -236,12 +244,19 @@ function renderLayerSide(ls){
   sideB.innerHTML=`
     <div class="row"><button class="btn" id="toSheet">Layer sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===ls.id}">${state.isolate===ls.id?'Exit isolate':'Isolate'}</button></div>
     ${(ls.kind==='ceiling-int'||ls.kind==='roof') && state.isolate!==ls.id ? '<p class="note">Turn on Ceiling or Roof under Layers (or use Exploded view) to see them in 3D, or press Isolate.</p>':''}
+    ${ls.kind==='ceiling-int' ? (()=>{ const c=cfgOf(state.model), LL=withLights(L, ls);
+      return `<div class="lights-box"><div class="eyebrow">Pot lights · 4″, ${LL.lights??0} in this pod</div>
+        <div class="seg" role="group" aria-label="Pot lights"><button data-lauto="1" aria-pressed="${c.auto}">Placed by rule</button><button data-lauto="0" aria-pressed="${!c.auto}">As drawn</button></div>
+        ${c.auto?`<label class="lt-sp">Spacing about <input type="number" id="ltSp" min="24" max="72" step="1" value="${c.spacing}"> ″ <small>(whole home)</small></label>
+        <p class="note">Rows run the long way, evenly spaced with half a spacing to the walls; pods joined by a large opening space as one room. Lights move 6″ in front of cabinets set on a wall, and never land on a panel joint.</p>`:''}</div>`; })() : ''}
     <div class="eyebrow">${opts.length} ${K.label.toLowerCase()} option${opts.length===1?'':'s'} for a ${ls.len}′ pod · seen from above</div>
     ${opts.length?'':`<p class="note">Nothing in the library for this yet. It fills up as STEP files are imported.</p>`}
     <div class="opts">${opts.map(o=>`<button class="opt" data-o="${esc(o.id)}" aria-pressed="${o.id===L.id}">${layerThumb(o)}<b>${esc(o.name)}</b><code>${esc(o.id)}</code></button>`).join('')}</div>`;
   sideB.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{ chooseLayer(ls, b.dataset.o); buildHome(); renderSide(); toast(`${ls.label} → ${b.dataset.o}`); });
   sideB.querySelector('#toSheet').onclick=()=>{ state.sheetSlot=ls.id; openSheets(); };
   sideB.querySelector('#isoBtn').onclick=()=>setIsolate(state.isolate===ls.id ? null : ls.id, ls.label);
+  sideB.querySelectorAll('[data-lauto]').forEach(b=>b.onclick=()=>{ setLights(state.model,{auto:b.dataset.lauto==='1'}); buildHome(); renderSide(); });
+  const sp=sideB.querySelector('#ltSp'); if(sp) sp.onchange=()=>{ const v=Math.max(24,Math.min(72,+sp.value||42)); setLights(state.model,{spacing:v}); buildHome(); renderSide(); };
   
 }
 function layoutBlock(m){

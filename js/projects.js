@@ -30,7 +30,7 @@ function snapshot(name, id){
   if(model.base===undefined) delete model.base;
   if(m.base) model.base=m.base;
   return { id, name, saved:new Date().toISOString(), from:m.project ? (MODELS[state.model].from||state.model) : state.model, model,
-    picks: clone(state.picks[state.model]||{}), layerPicks: clone(state.layerPicks[state.model]||{}), wallA: clone(state.wallA[state.model]||{}), faces: clone(state.faces[state.model]||{}), inset: state.inset, bearing: getBearing(), found: foundationOf(state.model), deckOC: deckOCOf(state.model), units: clone(state.units?.[state.model]||{}) };
+    picks: clone(state.picks[state.model]||{}), layerPicks: clone(state.layerPicks[state.model]||{}), wallA: clone(state.wallA[state.model]||{}), faces: clone(state.faces[state.model]||{}), inset: state.inset, bearing: getBearing(), found: foundationOf(state.model), deckOC: deckOCOf(state.model), units: clone(state.units?.[state.model]||{}), cabinets: clone(state.cabinets?.[state.model]||{}), lights: clone(state.lights?.[state.model]||{}) };
 }
 /* Save: updates the open project, or makes a new one */
 function saveProject(name, asNew=false){
@@ -41,7 +41,7 @@ function saveProject(name, asNew=false){
   const k=keyOf(p);
   // carry this browser's choices over to the project key
   state.picks[k]=clone(p.picks); state.layerPicks[k]=clone(p.layerPicks||{}); (state.bearing ||= {})[k]=p.bearing; state.wallA[k]=clone(p.wallA); state.faces[k]=clone(p.faces);
-  (state.found ||= {})[k]=p.found; (state.deckOC ||= {})[k]=p.deckOC; (state.units ||= {})[k]=clone(p.units||{});
+  (state.found ||= {})[k]=p.found; (state.deckOC ||= {})[k]=p.deckOC; (state.units ||= {})[k]=clone(p.units||{}); (state.cabinets ||= {})[k]=clone(p.cabinets||{}); (state.lights ||= {})[k]=clone(p.lights||{});
   register(p); state.model=k; save();
   // new walls, floors, ceilings and pods of this home go into their libraries; the project then refers to them
   const counts = saveToLibraries(name);
@@ -56,6 +56,8 @@ function openProject(id){
   if(!state.layerPicks[k] || PROJECTS[id]) state.layerPicks[k]=clone(p.layerPicks||{});
   if(!state.wallA[k] || PROJECTS[id]) state.wallA[k]=clone(p.wallA||{});
   if(!state.faces[k] || PROJECTS[id]) state.faces[k]=clone(p.faces||{});
+  if(!state.cabinets?.[k] || PROJECTS[id]) (state.cabinets ||= {})[k]=clone(p.cabinets||{});
+  if(!state.lights?.[k] || PROJECTS[id]) (state.lights ||= {})[k]=clone(p.lights||{});
   if(p.inset) state.inset=p.inset;
   if(p.bearing!=null && (state.bearing?.[k]==null || PROJECTS[id])) (state.bearing ||= {})[k]=p.bearing;
   if(p.found && (state.found?.[k]==null || PROJECTS[id])) (state.found ||= {})[k]=p.found;
