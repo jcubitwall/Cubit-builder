@@ -15,6 +15,7 @@ import { FAMILIES, familyOf, familyById, variantsOf, saveSub, removeSub, editSub
 import { isAdmin, canSave } from './role.js';
 import { TYPES, unitsFor, unitFor, setUnit, unitSVG, unitLabel, catOf, okey, pairOf, doorOwner, setDoorOwner } from './units.js';
 import { fin } from './format.js';
+import { setIsolate } from './layers.js';
 
 const sideH=document.getElementById('sideH'), sideB=document.getElementById('sideB');
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -110,7 +111,7 @@ function renderSideInner(){
     const isInt=s.type==='int';
     sideH.innerHTML=`<div class="eyebrow">${isInt?'Interior wall · 4½″':'Exterior wall · 6½″'} · ${s.len}′ · ${s.len/4} panels</div><h2>${s.label}</h2><p>${s.detail} · faces ${fmtBearing(facing(s))} · now <b>${w?esc(w.id):'—'}</b> ${w?esc(w.name):''}</p>`;
     sideB.innerHTML=`
-      <div class="row"><button class="btn" id="toSheet">Assembly sheet</button>${s.short ? `<button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button>` : ''}</div>
+      <div class="row"><button class="btn" id="toSheet">Assembly sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===s.id}">${state.isolate===s.id?'Exit isolate':'Isolate'}</button>${s.short ? `<button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button>` : ''}</div>
       ${(state.wallA?.[state.model]?.[s.pod.i] || m.pods[s.pod.i]?.a) ? `<p class="note">Wall A for ${s.pod.label} was set by hand. <button class="linkbtn" id="autoA">Go back to automatic</button></p>`:''}
       ${isInt&&partnerOf(s,slots)?`<p class="note">Joins ${s.other.label} (${esc(partnerOf(s,slots).label)}). Picking a wall here gives that wall the same one, mirrored, so openings line up.</p>`:''}
       ${unitsBlock(s, bodyWall(s,w))}
@@ -124,6 +125,7 @@ function renderSideInner(){
       buildHome(); renderSide(); toast(`${s.label} → ${b.dataset.o}`+(pt?` · ${pt.label} → mirrored`:'')); });
     bindUnits(s, bodyWall(s,w));
     sideB.querySelector('#toSheet').onclick=()=>{ state.sheetSlot=s.id; openSheets(); };
+    sideB.querySelector('#isoBtn').onclick=()=>setIsolate(state.isolate===s.id ? null : s.id, s.label);
     
     const mk=sideB.querySelector('#makeA'); if(mk) mk.onclick=()=>{ ((state.wallA[state.model] ||= {}))[s.pod.i]=s.side; save(); buildHome(); renderSide(); toast(`${s.pod.label}: this is now Wall A`); };
     const auto=sideB.querySelector('#autoA'); if(auto) auto.onclick=()=>{ if(state.wallA[state.model]) delete state.wallA[state.model][s.pod.i]; delete m.pods[s.pod.i].a; if(m.custom) saveCustomModels(); save(); buildHome(); renderSide(); };
@@ -209,7 +211,7 @@ function renderDeckSide3d(k){
   const d=deckList(state.model)[k]; if(!d){ state.selected=null; renderSide(); return; }
   const L=d.L;
   sideH.innerHTML=`<div class="eyebrow">Deck ${k+1} · ${L.w}′ × ${L.d}′ frame</div><h2>${L.w}′ × ${L.d}′ deck</h2><p><code>${esc(L.id)}</code> · double 2×8 rims · 2×8 joists ${deckOCOf(state.model)}″ o.c. from the house · 4 corner notches 1½″ · ¾″ off the house</p>`;
-  sideB.innerHTML=`<div class="row"><button class="btn" id="toSheet">Framing sheet</button><button class="btn ghost" id="toPlan">Move in the plan</button></div>
+  sideB.innerHTML=`<div class="row"><button class="btn" id="toSheet">Framing sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate==='deck:'+k}">${state.isolate==='deck:'+k?'Exit isolate':'Isolate'}</button><button class="btn ghost" id="toPlan">Move in the plan</button></div>
     <div class="fld">Stands on<div class="seg"><button class="fsbtn" id="fScrews" aria-pressed="${d.found!=='pads'}">Ground screws</button><button class="fsbtn" id="fPads" aria-pressed="${d.found==='pads'}">Concrete pads (floating)</button></div></div>
     <div class="edit-only">${ocSeg()}</div>
     <p class="note">Decks dock with their ledger against a pod or another deck. Swap, turn or remove decks in the plan editor.</p>`;
@@ -217,6 +219,7 @@ function renderDeckSide3d(k){
   const setF=f=>{ setDeckFoundation(k,f); state.selected='deck:'+k; renderModels(); buildHome(); renderSide(); toast(f==='pads'?'Deck floats on concrete pads':'Deck on ground screws'); };
   sideB.querySelector('#fScrews').onclick=()=>setF('screws'); sideB.querySelector('#fPads').onclick=()=>setF('pads');
   sideB.querySelector('#toSheet').onclick=()=>{ state.sheetSlot='__deck:'+k; openSheets(); };
+  sideB.querySelector('#isoBtn').onclick=()=>setIsolate(state.isolate==='deck:'+k ? null : 'deck:'+k, `Deck ${k+1}`);
   sideB.querySelector('#toPlan').onclick=()=>document.getElementById('bPlan').click();
   
 }
@@ -225,13 +228,14 @@ function renderLayerSide(ls){
   const L=pickLayer(ls), K=LAYER_KINDS[ls.kind], opts=layerOptions(ls.kind, ls.len);
   sideH.innerHTML=`<div class="eyebrow">${K.label} · ${ls.len}′ × 8′ · ${(L.t||K.t)}″ thick</div><h2>${ls.label}</h2><p>now <b>${esc(L.id)}</b> ${esc(L.name)}</p>`;
   sideB.innerHTML=`
-    <div class="row"><button class="btn" id="toSheet">Layer sheet</button></div>
-    ${ls.kind==='ceiling-int'||ls.kind==='roof' ? '<p class="note">Turn on Ceiling or Roof under Layers (or use Exploded view) to see them in 3D.</p>':''}
+    <div class="row"><button class="btn" id="toSheet">Layer sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===ls.id}">${state.isolate===ls.id?'Exit isolate':'Isolate'}</button></div>
+    ${(ls.kind==='ceiling-int'||ls.kind==='roof') && state.isolate!==ls.id ? '<p class="note">Turn on Ceiling or Roof under Layers (or use Exploded view) to see them in 3D, or press Isolate.</p>':''}
     <div class="eyebrow">${opts.length} ${K.label.toLowerCase()} option${opts.length===1?'':'s'} for a ${ls.len}′ pod · seen from above</div>
     ${opts.length?'':`<p class="note">Nothing in the library for this yet. It fills up as STEP files are imported.</p>`}
     <div class="opts">${opts.map(o=>`<button class="opt" data-o="${esc(o.id)}" aria-pressed="${o.id===L.id}">${layerThumb(o)}<b>${esc(o.name)}</b><code>${esc(o.id)}</code></button>`).join('')}</div>`;
   sideB.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{ chooseLayer(ls, b.dataset.o); buildHome(); renderSide(); toast(`${ls.label} → ${b.dataset.o}`); });
   sideB.querySelector('#toSheet').onclick=()=>{ state.sheetSlot=ls.id; openSheets(); };
+  sideB.querySelector('#isoBtn').onclick=()=>setIsolate(state.isolate===ls.id ? null : ls.id, ls.label);
   
 }
 function layoutBlock(m){

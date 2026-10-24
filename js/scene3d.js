@@ -382,7 +382,7 @@ function buildHome(){
     g.traverse(o=>{ if(o.isMesh) { o.userData.slotId=s.id; pickables.push(o);} });
     if(state.letters){
       const t=(w.t||6.5)/12, mid=wallLen(w)/2/FT;
-      const lab=letterSprite(s.letter, 1.3); lab.position.set(mid, 4.6, -t-0.6); g.add(lab);   // on the inside face, mid-wall
+      const lab=letterSprite(s.letter, 1.3); lab.position.set(mid, 4.6, -t-0.6); lab.userData.letter=true; g.add(lab);   // on the inside face, mid-wall
     }
     // framing lumber inside the wall: plates, end studs, jacks, OSB splines (shown with Layers → Framing)
     const fr=wallFraming(s, pickFor(s));
@@ -517,6 +517,7 @@ function applyRimVis(){
 /* what shows: each layer on its own (Layers menu) */
 function applyLayers(){
   if(!floorGroup) return;
+  isoHidden.forEach(o=>{ o.visible=true; }); isoHidden=[];   // put back what an isolate hid; the switches below decide the rest
   const S=state.show, F=state.focusPod, inPod = i => F==null || i===F;
   wallGroups.forEach(g=>g.visible=S.walls && inPod(g.userData.slot.pod.i));
   floorGroup.visible=S.floors; ceilGroup.visible=S.ceiling; roofGroup.visible=S.roof;
@@ -536,6 +537,26 @@ function applyLayers(){
   MAT.door.opacity = MAT.doorInt.opacity = state.glass ? 0.25 : 1; MAT.door.depthWrite = MAT.doorInt.depthWrite = !state.glass;
   MAT.glass.needsUpdate = MAT.door.needsUpdate = MAT.doorInt.needsUpdate = true;
   controls.maxPolarAngle = S.screws ? Math.PI*0.62 : Math.PI*0.495;
+  applyIsolate();
+}
+/* Isolate: one wall, floor / ceiling / roof layer or deck on its own, to look at from every side (underneath too).
+   Everything else in the home is hidden; the part keeps its own switches (windows, lumber, splines). */
+let isoHidden=[];
+const isoTarget = id => id && (wallGroups.find(g=>g.userData.slot.id===id) || layerGroups.find(g=>g.userData.layerSlot.id===id) || deckGroups.find(g=>g.userData.id===id));
+function applyIsolate(){
+  const t=isoTarget(state.isolate); if(!t) return;
+  // walk up from the part to the home: on each level only the branch holding the part stays visible
+  const hide=o=>{ if(o.visible){ o.visible=false; isoHidden.push(o); } };
+  for(let o=t; o && o!==homeGroup; o=o.parent){ o.visible=true; if(o.parent) o.parent.children.forEach(c=>{ if(c!==o) hide(c); }); }
+  t.traverse(o=>{ if(o.userData?.unit) o.visible=state.show.units; if(o.userData?.letter) hide(o); });   // the big letter tag would cover the wall
+  controls.maxPolarAngle = Math.PI;
+}
+/* frame the camera on the isolated part, keeping the angle you look from */
+function focusIsolated(){
+  const t=isoTarget(state.isolate); if(!t) return;
+  const B=new THREE.Box3().setFromObject(t), c=B.getCenter(new THREE.Vector3()), size=B.getSize(new THREE.Vector3()).length();
+  const dir=camera.position.clone().sub(controls.target).normalize();
+  controls.target.copy(c); camera.position.copy(c).addScaledVector(dir, Math.max(6, size*1.25)); controls.update();
 }
 /* point the camera at one pod (or back at the whole home), keeping the angle you're looking from */
 function focusCamera(i){
@@ -545,9 +566,9 @@ function focusCamera(i){
   controls.target.copy(to); camera.position.copy(to).addScaledVector(dir, dist); controls.update();
 }
 function highlight(){
-  deckGroups.forEach(g=>{ const sel=g.userData.id===state.selected; g.userData.mat.color.set(sel?0xe0864a:0xa88f5d); g.userData.mat.emissive.set(sel?0x3a1a05:0x000000); });
-  layerGroups.forEach(g=>{ const sel=g.userData.layerSlot.id===state.selected; g.userData.mat.color.set(sel?0xe0864a:LAYER_COLOR[g.userData.layerSlot.kind]); g.userData.mat.emissive.set(sel?0x3a1a05:0x000000); });
-  wallGroups.forEach(g=>{ const sel=g.userData.slot.id===state.selected; g.userData.mat.color.set(sel?0xe0864a:(g.userData.slot.type==='int'?0xf0e6d0:0xc9a46a)); g.userData.mat.emissive.set(sel?0x3a1a05:0x000000); });
+  deckGroups.forEach(g=>{ const sel=g.userData.id===state.selected && !state.isolate; g.userData.mat.color.set(sel?0xe0864a:0xa88f5d); g.userData.mat.emissive.set(sel?0x3a1a05:0x000000); });
+  layerGroups.forEach(g=>{ const sel=g.userData.layerSlot.id===state.selected && !state.isolate; g.userData.mat.color.set(sel?0xe0864a:LAYER_COLOR[g.userData.layerSlot.kind]); g.userData.mat.emissive.set(sel?0x3a1a05:0x000000); });
+  wallGroups.forEach(g=>{ const sel=g.userData.slot.id===state.selected && !state.isolate; g.userData.mat.color.set(sel?0xe0864a:(g.userData.slot.type==='int'?0xf0e6d0:0xc9a46a)); g.userData.mat.emissive.set(sel?0x3a1a05:0x000000); });
 }
 function resize(){
   const r=stage.getBoundingClientRect(); renderer.setSize(r.width,r.height,false); camera.aspect=r.width/Math.max(1,r.height); camera.updateProjectionMatrix();
@@ -583,4 +604,4 @@ function loop(){
 function setExplodeGoal(v){ explodeGoal=v; }
 
 
-export { stage, renderer, scene, camera, controls, sun, grid, homeGroup, wallGroups, themeColors, applyTheme, MAT, lineMat, numberSprite, buildWallMesh, buildHome, explodeT, applyExplode, highlight, resize, ray, loop, setExplodeGoal, applyLayers, focusCamera, podCentres, roofGroup, floorGroup, screwGroup, pickables, explodeGoal, mouse };
+export { focusIsolated, isoTarget, stage, renderer, scene, camera, controls, sun, grid, homeGroup, wallGroups, themeColors, applyTheme, MAT, lineMat, numberSprite, buildWallMesh, buildHome, explodeT, applyExplode, highlight, resize, ray, loop, setExplodeGoal, applyLayers, focusCamera, podCentres, roofGroup, floorGroup, screwGroup, pickables, explodeGoal, mouse };

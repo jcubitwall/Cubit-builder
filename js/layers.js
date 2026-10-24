@@ -3,7 +3,7 @@
      Pods    look at one pod of a grouped home on its own (it explodes where it stands)
      Show    every part on its own switch, plus see-through glass and the labels */
 import { state, save } from './state.js';
-import { applyLayers, buildHome, focusCamera, applyExplode } from './scene3d.js';
+import { applyLayers, buildHome, focusCamera, applyExplode, focusIsolated, isoTarget, camera, controls, highlight } from './scene3d.js';
 import { renderSide } from './sidebar.js';
 import { podList, slotsFor, layerSlotsFor } from './layout.js';
 
@@ -65,16 +65,28 @@ function setPod(i){
   applyLayers(); applyExplode(); focusCamera(i); showBadge(); render();
 }
 function showBadge(){
+  if(state.isolate){ badge.hidden=false; badge.innerHTML=`${state.isoLabel||'Isolated'} only <span aria-hidden="true">✕</span>`; badge.title='Back to the whole home'; return; }
   badge.hidden = state.focusPod==null;
   if(!badge.hidden) badge.innerHTML=`Pod ${state.focusPod+1} only <span aria-hidden="true">✕</span>`;
   badge.title='Show the whole home again';
 }
-badge.onclick=()=>setPod(null);
+badge.onclick=()=>{ if(state.isolate) setIsolate(null); else setPod(null); };
+/* Isolate one part (wall, layer or deck): only it shows, from every angle. Leaving puts back the view you had. */
+let isoView=null;
+function setIsolate(id, label){
+  if(id && !isoTarget(id)) return;
+  if(id && !state.isolate) isoView={pos:camera.position.clone(), tgt:controls.target.clone()};
+  state.isolate=id||null; state.isoLabel=id ? (label||'') : '';
+  applyLayers(); highlight();
+  if(id) focusIsolated();
+  else if(isoView){ camera.position.copy(isoView.pos); controls.target.copy(isoView.tgt); controls.update(); isoView=null; }
+  showBadge(); renderSide();
+}
 /* double-tap (or double-click) a wall, floor, ceiling or roof: that pod on its own. Double-tap again anywhere: the
    whole home. Works with a finger on the iPad / iPhone as well as a mouse (touch screens don't send dblclick). */
 let lastTap=null;
 stage.addEventListener('pointerup', e=>{
-  if(e.target.tagName!=='CANVAS' || podList(state.model).length<2) return;
+  if(e.target.tagName!=='CANVAS' || podList(state.model).length<2 || state.isolate) return;
   const now=performance.now(), near = lastTap && now-lastTap.t<450 && Math.hypot(e.clientX-lastTap.x, e.clientY-lastTap.y)<30;
   if(!near){ lastTap={t:now, x:e.clientX, y:e.clientY}; return; }
   lastTap=null;
@@ -96,11 +108,14 @@ document.addEventListener('keydown', e=>{
   if(e.target.closest('input,textarea,select,[contenteditable]') || e.metaKey || e.ctrlKey || e.altKey || state.view!=='studio') return;
   if(e.key==='l'||e.key==='L'){ e.preventDefault(); open(pop.hidden); }
   if(e.key==='Escape' && !pop.hidden){ e.stopPropagation(); open(false); }
+  else if(e.key==='Escape' && state.isolate){ setIsolate(null); }
   else if(e.key==='Escape' && state.focusPod!=null){ setPod(null); }
 }, true);
 /* a different home: back to all pods */
 let lastModel=state.model;
-setInterval(()=>{ if(state.model!==lastModel){ lastModel=state.model; if(state.focusPod!=null){ state.focusPod=null; applyLayers(); showBadge(); } } }, 400);
+setInterval(()=>{ if(state.model!==lastModel){ lastModel=state.model; if(state.isolate){ state.isolate=null; isoView=null; applyLayers(); showBadge(); }
+  if(state.focusPod!=null){ state.focusPod=null; applyLayers(); showBadge(); } }
+  else if(state.isolate && !isoTarget(state.isolate)){ setIsolate(null); } }, 400);
 
 /* Exploded view brings the roof and ceiling in (they lift off the top); leaving it puts back what you had */
 let before=null;
@@ -109,4 +124,4 @@ function explodeLayers(on){
   else if(before){ Object.assign(state.show, before); before=null; }
   applyLayers(); if(!pop.hidden) render();
 }
-export { explodeLayers, render as renderLayers };
+export { explodeLayers, render as renderLayers, setIsolate };
