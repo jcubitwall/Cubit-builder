@@ -131,20 +131,21 @@ stage.addEventListener('pointerdown', e=>{
   if(D && (D.mode==='new'||D.mode==='fnew')){ turn(D, 1); return; }                       // another finger while dragging one in: turn it
   if(pointers.size===1){
     orbit=null; if(D && D.mode==='move') D=null;                        // nothing left over from a gesture that ended oddly
-    if(isFlat() && editable()){ const fh=furnAt(e.clientX,e.clientY), ph=hitAt(e.clientX,e.clientY);
-      if(fh && (!ph || fh.distance<=ph.distance+0.05)){ const it=furnById(fh.object.userData.furn);
-        if(it){ controls.enabled=false; D={mode:'fmove', id:it.id, it, sx:e.clientX, sy:e.clientY, started:false}; return; } } }
-    const o0 = isFlat() ? ownerOf(hitAt(e.clientX,e.clientY)) : null;
-    if(!(isFlat() && o0 && editable())){ orbit={x:e.clientX, y:e.clientY}; return; }   // not a pod in the plan: turn the view
-    const o=o0;
-    controls.enabled=false;
-    const at=planAt(e.clientX,e.clientY), m=MODELS[state.model];
-    if(o.deck){ const q=m.decks[o.i]; D={mode:'move', deck:true, i:o.i, lib:q.lib, rot:q.rot||0, grab:{x:at.x, z:at.z, x0:q.x, z0:q.z}, sx:e.clientX, sy:e.clientY, started:false}; }
-    else { const p=podList(state.model)[o.i], raw=m.pods[o.i]; D={mode:'move', deck:false, i:o.i, item:{t:raw.t}, t:raw.t, rot:raw.rot||0, grab:{x:at.x, z:at.z, x0:raw.x, z0:raw.z}, sx:e.clientX, sy:e.clientY, started:false}; }
-  } else if(pointers.size===3){                                         // three fingers: swipe left = undo, right = redo (Shapr3D)
+    clearTimeout(press?.timer); press=null;
+    // in the flat plan a pod, deck or cabinet moves straight away; anywhere else the finger turns the view
+    if(isFlat() && editable()){ const d=grabAt(e.clientX,e.clientY); if(d){ controls.enabled=false; D=d; return; } }
+    orbit={x:e.clientX, y:e.clientY};
+    // in 3D: a long touch (held still) on a pod, deck or cabinet picks it up to move it
+    if(editable()){ const x=e.clientX, y=e.clientY;
+      press={x, y, timer:setTimeout(()=>{ if(!press || pointers.size!==1) return; const d=grabAt(x,y); press=null; if(!d) return;
+        orbit=null; controls.enabled=false; D=d; D.started=true; D.lastXY=[x,y]; document.body.classList.add('dragging');
+        try{ navigator.vibrate?.(15); }catch(err){}
+        if(D.mode==='fmove'){ setHolderVisible(D.id,false); trackFurn(D, x, y); } else track(D, x, y);
+        toast(D.mode==='fmove' ? 'Moving the cabinet · lift to drop' : D.deck ? 'Moving the deck · lift to drop' : 'Moving the pod · lift to drop'); }, LONG_PRESS)}; }
+  } else if(pointers.size===3){ if(press){ clearTimeout(press.timer); press=null; }   // three fingers: swipe left = undo, right = redo (Shapr3D)
     orbit=null; viewTwist=null; if(D && D.mode!=='new' && D.mode!=='fnew'){ hideGhost(); hideFurnGhost(); if(D.id) setHolderVisible(D.id,true); D=null; document.body.classList.remove('dragging'); }
     controls.enabled=false; three={x0:centroid(), done:false};
-  } else if(pointers.size===2 && orbit){ orbit=null;                     // a second finger: OrbitControls pans and zooms; a twist turns the view
+  } else if(pointers.size===2 && orbit){ orbit=null; if(press){ clearTimeout(press.timer); press=null; }                     // a second finger: OrbitControls pans and zooms; a twist turns the view
     const [a,b]=[...pointers.values()]; viewTwist={a0:Math.atan2(b.y-a.y, b.x-a.x), acc:0};
   } else if(pointers.size===2 && D && D.mode==='fmove'){
     const [a,b]=[...pointers.values()]; D.twist={a0:Math.atan2(b.y-a.y, b.x-a.x)}; hideFurnGhost(); setHolderVisible(D.id,true); D.started=false;
@@ -153,7 +154,17 @@ stage.addEventListener('pointerdown', e=>{
     const [a,b]=[...pointers.values()]; D.twist={a0:Math.atan2(b.y-a.y, b.x-a.x), acc:0}; hideGhost(); D.started=false;
   }
 }, true);
-let three=null, viewTwist=null;
+let three=null, viewTwist=null, press=null;
+const LONG_PRESS=450;   // ms held still (within 10 px) to pick a part up in 3D
+/* what's under the finger to move: a cabinet (in front of the wall / floor) or the pod / deck it belongs to */
+function grabAt(x,y){
+  const fh=furnAt(x,y), ph=hitAt(x,y), glass = ph && /:(ceiling-int|roof)$/.test(ph.object.userData.slotId||'');
+  if(fh && (!ph || glass || fh.distance<=ph.distance+0.05)){ const it=furnById(fh.object.userData.furn); if(it) return {mode:'fmove', id:it.id, it, sx:x, sy:y, started:false}; }
+  const o=ownerOf(ph); if(!o) return null;
+  const at=planAt(x,y), m=MODELS[state.model]; if(!at) return null;
+  if(o.deck){ const q=m.decks[o.i]; return {mode:'move', deck:true, i:o.i, lib:q.lib, rot:q.rot||0, grab:{x:at.x, z:at.z, x0:q.x, z0:q.z}, sx:x, sy:y, started:false}; }
+  const raw=m.pods[o.i]; return {mode:'move', deck:false, i:o.i, item:{t:raw.t}, t:raw.t, rot:raw.rot||0, grab:{x:at.x, z:at.z, x0:raw.x, z0:raw.z}, sx:x, sy:y, started:false};
+}
 const centroid=()=>{ const v=[...pointers.values()]; return v.reduce((s,p)=>s+p.x,0)/v.length; };
 /* turn the view about the vertical through its centre (two-finger twist on empty space) */
 function turnView(rad){ const t=controls.target, o=camera.position.clone().sub(t); o.applyAxisAngle(new THREE.Vector3(0,1,0), rad); camera.position.copy(t).add(o); camera.lookAt(t); controls.update(); }
@@ -168,6 +179,7 @@ window.addEventListener('pointermove', e=>{
 });
 const sph=new THREE.Spherical(), off=new THREE.Vector3();
 window.addEventListener('pointermove', e=>{
+  if(press && Math.hypot(e.clientX-press.x, e.clientY-press.y)>10){ clearTimeout(press.timer); press=null; }
   if(!orbit || pointers.size!==1 || !pointers.has(e.pointerId)) return;
   const dx=e.clientX-orbit.x, dy=e.clientY-orbit.y; orbit.x=e.clientX; orbit.y=e.clientY;
   const h=Math.max(200, cv.clientHeight);
@@ -196,6 +208,7 @@ window.addEventListener('pointermove', e=>{
 });
 function release(e){
   pointers.delete(e.pointerId);
+  if(press){ clearTimeout(press.timer); press=null; }
   if(!pointers.size){ orbit=null; viewTwist=null; if(three){ three=null; controls.enabled=true; } }
   if(pointers.size<2) viewTwist=null;
   if(D && D.mode==='fmove'){ if(pointers.size) return;
