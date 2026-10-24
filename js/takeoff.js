@@ -2,10 +2,10 @@
    (Foundation → Floor → Walls → Roof → Decks → Windows & doors → Fasteners), and the shopping list made from it.
    Used by the Take-off and Shopping views (phone tabs, and sheets on bigger screens). */
 import { MODELS } from './data.js';
-import { ICF, DECK } from './config.js';
+import { ICF, DECK, FRAME } from './config.js';
 import { fin, fft } from './format.js';
 import { state, foundationOf } from './state.js';
-import { screwPlan, padsFor, deckList, slotsFor } from './layout.js';
+import { screwPlan, padsFor, deckList, slotsFor, podList } from './layout.js';
 import { concretePlan } from './concrete.js';
 import { homeFraming, podRims, framingTakeoff, floorBuilds } from './framing.js';
 import { deckTakeoff, deckName } from './deckframe.js';
@@ -54,7 +54,11 @@ function homeTakeoff(){
     plans.forEach(pl=>pl.panels.forEach(p=>{ const t=pl.slot.type==='int'?'4½″ interior':'6½″ exterior', k=t+'|'+(p.cut?p.width.toFixed(2):'full'); (g[k] ||= {n:0, what:`SIP panel ${t}`, len:p.cut?p.width:48, note:p.cut?'cut to width':'full 48″ × 96″'}).n++; }));
     add('walls','Walls',[...Object.values(g).sort((a,b)=>a.what.localeCompare(b.what)||b.len-a.len), ...byKind(p=>!/plate/.test(p.kind))]); }
   // Roof: LVL rims and the top plates that go on the ceiling
+  // SilverBack (butyl skin): two layers over every flat roof, wrapping down over the LVL rim on the sides where pods meet
+  const SB=(()=>{ const sl=slotsFor(state.model); let roof=0, wrap=0; podList(state.model).forEach(p=>{ roof+=p.len*8; });
+    sl.filter(s=>s.type==='int').forEach(s=>{ wrap+=s.len*(FRAME.lvl.roof/12); }); return {roof, wrap, total:2*(roof+wrap)}; })();
   add('roof','Roof & ceiling',[
+    {n:Math.ceil(SB.total*1.1), what:'sq ft SilverBack butyl skin', note:`2 layers · roof ${SB.roof} sq ft + down the LVL rim where pods meet ${SB.wrap.toFixed(0)} sq ft · +10%`},
     ...groupRims(rims,'Roof rim LVL','LVL 1⅞″ × 11⅞″'),
     ...byKind(p=>p.kind==='Top plate').map(x=>({...x, note:'top plate · on the ceiling · bevel 2 bottom corners ¾″'}))]);
   // Decks
@@ -99,6 +103,7 @@ function shoppingList(){
   const u={}; slotsFor(state.model).forEach(s=>{ const w=bodyWall(s, pickFor(s)); (w?.openings||[]).filter(catOf).forEach(o=>{ const r=unitFor(s,o); if(r) u[r.unit.name+' ('+r.unit.id+')']=(u[r.unit.name+' ('+r.unit.id+')']||0)+1; }); });
   Object.entries(u).forEach(([k,n])=>add('Windows & doors', n, k));
   { const S=sealRun(); if(S.n) add('Seals', +(S.tot/12*1.1).toFixed(0), `ft · ${SEAL.name}`); }
+  { const sl=slotsFor(state.model); const t=2*(podList(state.model).reduce((a,p)=>a+p.len*8,0) + sl.filter(s=>s.type==='int').reduce((a,s)=>a+s.len*FRAME.lvl.roof/12,0)); add('Roof', Math.ceil(t*1.1), 'sq ft SilverBack butyl skin (2 layers)'); }
   return lines;
 }
 const lenTxt = l => l ? ` @ ${fin(l)}${l>=24?` (${fft(l)})`:''}` : '';

@@ -136,11 +136,14 @@ function sealCallout(s, w, face){
   const hi=role==='high';
   return `<div class="seal-call ${role}"><b>${hi?'HIGH':'LOW'} compression seal</b> on the face toward ${esc(s.other.label)} (Side B), around ${n} opening${n>1?'s':''}.
     This is Wall <b>${esc(s.letter)}</b>; it meets ${esc(pt.label)} (Wall <b>${esc(pt.letter)}</b>), so it gets the <b>${hi?'higher':'lower'}</b> seal${hi?`: <b>2″ above and outside</b> the ${esc(pt.letter[0])} wall's`:`; the ${esc(pt.letter[0])} wall's seal runs 2″ above and outside this one`}.
-    Seal ${fin(SEAL.low+(hi?SEAL.rise:0))} out from the rough opening, crowned ${fin(SEAL.crown)} over the head, then down both sides to the bottom of the wall. Adhesive strip to the wall; the ¾″ rubber fills the space between the pods.</div>`;
+    Seal ${fin(SEAL.low+(hi?SEAL.rise:0))} out from the rough opening, crowned ${fin(SEAL.crown)} over the head, then down both sides to the bottom of the wall. Adhesive strip to the wall; the ¾″ rubber fills the space between the pods.${sealsFor(w, role, H).some(x=>x.onRim)?' Where the head runs above the wall it goes on the SilverBack over the 11⅞″ LVL roof rim.':''}</div>`;
 }
 function elevationSVG(w,face,rev,slot){
   const L=wallLen(w), n=panelCount(w), spans=panelSpans(w);
-  const s=Math.min(6, 900/L), Wd=L*s, Hd=H*s, ml=90, mt=110, mr=90, mb=130;
+  const s=Math.min(6, 900/L), Wd=L*s, Hd=H*s, ml=90, mr=90, mb=130;
+  // room above the wall for the roof rim when a seal head runs on it
+  const role = slot ? sealRole(slot, slotsFor(state.model)) : null, SL=sealsFor(w, role, H), rimUp=SL.some(x=>x.onRim);
+  const mt = 110 + (rimUp ? SEAL.rim*s + 4 : 0), mtop = 110;   // labels and dimensions above the wall go over the rim band
   const VW=Wd+ml+mr, VH=Hd+mt+mb;
   const X = x => ml + x*s;                      // view x (inches from view-left) -> svg
   const Y = y => mt + (H-y)*s;
@@ -154,7 +157,7 @@ function elevationSVG(w,face,rev,slot){
     const x0=X(va), pw=(vb-va)*s;
     g+=`<rect x="${x0}" y="${Y(H)}" width="${pw}" height="${Hd}" fill="url(#foam)" stroke="#111" stroke-width="1.4"/>`;
     const num=panelNum(n,kv,rev);
-    g+=`<circle cx="${x0+pw/2}" cy="${mt-58}" r="19" fill="#fff" stroke="#d0661f" stroke-width="3"/><text x="${x0+pw/2}" y="${mt-51}" text-anchor="middle" font-family="Archivo, Arial, sans-serif" font-weight="800" font-size="21" fill="#111">${num}</text>`;
+    g+=`<circle cx="${x0+pw/2}" cy="${mtop-58}" r="19" fill="#fff" stroke="#d0661f" stroke-width="3"/><text x="${x0+pw/2}" y="${mtop-51}" text-anchor="middle" font-family="Archivo, Arial, sans-serif" font-weight="800" font-size="21" fill="#111">${num}</text>`;
     g+=`<text x="${x0+pw/2}" y="${Y(H/2)}" text-anchor="middle" font-family="Archivo, Arial, sans-serif" font-weight="800" font-size="${Math.min(70,pw*0.55)}" fill="#111" opacity=".09">${num}</text>`;
     if(vb-va < PW-0.01) g+=`<text x="${x0+pw/2}" y="${Y(H)+14}" text-anchor="middle" font-size="10" fill="#b4520f" font-weight="600">CUT ${fin(vb-va)}</text>`;
   }
@@ -167,10 +170,10 @@ function elevationSVG(w,face,rev,slot){
   });
   // install direction arrow
   const ltr = true;   // assembly always runs left to right as the assemblers see the wall
-  g+=`<line x1="${X(ltr?6:L-6)}" y1="${mt-90}" x2="${X(ltr?L-6:6)}" y2="${mt-90}" stroke="#d0661f" stroke-width="2.2" marker-end="url(#ar)" style="color:#d0661f"/>`;
-  g+=`<text x="${X(ltr?6:L-6)}" y="${mt-96}" text-anchor="${ltr?'start':'end'}" font-size="12" fill="#d0661f" font-weight="600">ASSEMBLE LEFT → RIGHT</text>`;
+  g+=`<line x1="${X(ltr?6:L-6)}" y1="${mtop-90}" x2="${X(ltr?L-6:6)}" y2="${mtop-90}" stroke="#d0661f" stroke-width="2.2" marker-end="url(#ar)" style="color:#d0661f"/>`;
+  g+=`<text x="${X(ltr?6:L-6)}" y="${mtop-96}" text-anchor="${ltr?'start':'end'}" font-size="12" fill="#d0661f" font-weight="600">ASSEMBLE LEFT → RIGHT</text>`;
   // panel chain dims (top)
-  spans.forEach(([a,b])=>{ const va = face==='ext' ? a : L-b, vb = face==='ext' ? b : L-a; g+=dimH(X(va),X(vb),mt-22,fin(vb-va),mt); });
+  spans.forEach(([a,b])=>{ const va = face==='ext' ? a : L-b, vb = face==='ext' ? b : L-a; g+=dimH(X(va),X(vb),mtop-22,fin(vb-va),mt); });
   // framing lumber (plates, end studs, jacks) and the OSB splines at the joints, with which panel carries them
   if(slot){ const fr=wallFraming(slot, pickFor(slot));
     if(fr){ fr.pieces.filter(p=>p.kind!=='Spline').forEach(p=>{ const x=vx(p.x0,p.x1-p.x0);
@@ -229,8 +232,10 @@ function elevationSVG(w,face,rev,slot){
     g+=`<text transform="translate(${lx+4},${Y(0)+30}) rotate(90)" font-size="10.5" fill="#2f6db5">${fin(e)}</text>`; });
   if(edges.length) g+=`<text x="${X(0)-8}" y="${Y(0)+30}" text-anchor="end" font-size="9.5" fill="#2f6db5">from left ⟶</text>`;
   // compression seals: on the face toward the other pod, solid; seen from the room side, dashed (it's on the far face)
-  const role = slot ? sealRole(slot, slotsFor(state.model)) : null;
-  sealsFor(w, role, H).forEach(sl=>{
+  if(rimUp){   // the roof's LVL rim above the wall, wrapped in SilverBack: where the seal heads go
+    g+=`<rect x="${X(0)}" y="${Y(H+SEAL.rim)}" width="${L*s}" height="${SEAL.rim*s}" fill="#d7dadd" stroke="#8a9096" stroke-dasharray="4 3"/>`;
+    g+=`<text x="${X(0)+6}" y="${Y(H+SEAL.rim/2)+4}" font-size="9.5" fill="#4a5056">ROOF LVL RIM 11⅞″ · 2 × SILVERBACK — seal heads run on it</text>`; }
+  SL.forEach(sl=>{
     const P=sl.pts.map(([x,y])=>[X(vx(x)),Y(y)]), d=P.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
     const hi=role==='high', col=hi?'#b4520f':'#1d1f22';
     if(face==='ext'){
