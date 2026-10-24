@@ -63,6 +63,22 @@ function savePodLib(){ if(!canSave()) return; try{ localStorage.setItem(POD_KEY,
 function saveWallLib(){ if(!canSave()) return; try{ localStorage.setItem('cubit-walls-imported', JSON.stringify(LIB.filter(w=>w.src!=='library'))); }catch(e){} }
 function saveLayerLib(){ if(!canSave()) return; try{ localStorage.setItem('cubit-layers-saved', JSON.stringify(LAYERLIB.filter(l=>l.src==='saved'))); }catch(e){} }
 const layerOptions = (kind,len) => LAYERLIB.filter(l=>!l.deleted && l.kind===kind && l.len===len);
-const layerById = id => LAYERLIB.find(l=>l.id===id);
+/* mirrored floor / ceiling / roof layers: "<id>~mx" end for end (along the pod), "~mz" front to back, "~mxz" both */
+const LMIRROR = {};
+const splitLayerId = id => { const m=String(id||'').match(/^(.*?)~m(x?)(z?)$/); return m ? {base:m[1], x:!!m[2], z:!!m[3]} : {base:id, x:false, z:false}; };
+function mirrorLayer(l, mx, mz, id){
+  const L=l.len*12, W=96, fx=v=>mx?L-v:v, fz=v=>mz?W-v:v, mp=P=>P.map(([a,b])=>[+fx(a).toFixed(4), +fz(b).toFixed(4)]);
+  return {...l, id, name:l.name+` · ${mx&&mz?'mirrored + flipped':mx?'mirrored':'flipped'}`, mirrorOf:l.id, src:'mirror',
+    holes:(l.holes||[]).map(h=>({...h, x:+(mx?L-h.x-(h.w||0):h.x).toFixed(4), z:+(mz?W-h.z-(h.d||0):h.z).toFixed(4), ...(h.ends?{ends:mp(h.ends)}:{}), ...(h.path?{path:mp(h.path)}:{}), ...(h.tool?{tool:h.tool.map(mp)}:{})})),
+    seams:(l.seams||[]).map(s=>typeof s==='number' ? (mx?L-s:s) : s)};
+}
+const layerById = id => {
+  if(!id) return undefined;
+  const s=splitLayerId(id); if(!s.x && !s.z) return LAYERLIB.find(l=>l.id===id);
+  if(LMIRROR[id]) return LMIRROR[id];
+  const b=LAYERLIB.find(l=>l.id===s.base); return b ? (LMIRROR[id]=mirrorLayer(b, s.x, s.z, id)) : undefined;
+};
+/* the id of a layer mirrored once more along x ('x') or z ('z') */
+const layerMirrorId = (id, ax) => { const s=splitLayerId(id); const x=ax==='x'?!s.x:s.x, z=ax==='z'?!s.z:s.z; return s.base+(x||z?`~m${x?'x':''}${z?'z':''}`:''); };
 
-export { clearMirrors, DECKLIB, deckById, saveDeckLib, MODELS, LIB, LAYERLIB, PODLIB, loadData, optionsFor, byId, mirrorId, mirrorWall, podById, layerOptions, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib };
+export { layerMirrorId, clearMirrors, DECKLIB, deckById, saveDeckLib, MODELS, LIB, LAYERLIB, PODLIB, loadData, optionsFor, byId, mirrorId, mirrorWall, podById, layerOptions, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib };

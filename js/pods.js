@@ -17,7 +17,7 @@
 import { POD, LAYER_KINDS } from './config.js';
 import { checkpoint } from './history.js';
 import { podRemoved } from './furniture.js';
-import { MODELS, LIB, LAYERLIB, PODLIB, byId, podById, deckById, DECKLIB, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib } from './data.js';
+import { MODELS, mirrorId, layerMirrorId, LIB, LAYERLIB, PODLIB, byId, podById, deckById, DECKLIB, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib } from './data.js';
 import { slotsFor, layerSlotsFor, podList, localSide } from './layout.js';
 import { state, save, pickFor, pickLayer } from './state.js';
 
@@ -230,6 +230,20 @@ function replaceDeck(k, lib){
   const key=editKey(); MODELS[key].decks[k].lib=lib; finish(key); return '';
 }
 /* what a deck stands on: 'screws' (ground screws, the default) or 'pads' (floating on concrete pads); k = index or 'all' */
+/* mirror a pod end for end ('x', left ↔ right along it) or flip it front to back ('z'), where it stands:
+   its walls change sides and run the other way (each one mirrored), Wall A follows, floors and ceilings mirror too */
+function mirrorPod(i, ax='x'){
+  const key=editKey(), p=MODELS[key].pods[i]; if(!p) return 'No such pod.';
+  const L=POD[p.t].len, sw = ax==='x' ? {W:'E',E:'W'} : {S:'N',N:'S'};
+  const walls={S:[],E:[],N:[],W:[]};
+  SIDES.forEach(side=>{ const ns=sw[side]||side, sl=(side==='S'||side==='N') ? L : 8;
+    (p.walls?.[side]||[]).forEach(g=>walls[ns].push({...g, from:+(sl-g.from-g.len).toFixed(4), ...(g.wall?{wall:mirrorId(g.wall)}:{})})); });
+  SIDES.forEach(k=>walls[k].sort((a,b)=>a.from-b.from));
+  p.walls=walls; if(p.a) p.a=sw[p.a]||p.a;
+  if(p.layers) Object.keys(p.layers).forEach(k=>{ p.layers[k]=layerMirrorId(p.layers[k], ax); });
+  delete p.src;   // no longer the library pod as it was drawn
+  finish(key); return '';
+}
 function setDeckFoundation(k, found){
   const key=editKey(), decks=MODELS[key].decks||[];
   (k==='all' ? decks : [decks[k]]).forEach(d=>{ if(!d) return; if(found==='pads') d.found='pads'; else delete d.found; });
@@ -279,7 +293,7 @@ function libraryWall(id, counts){
   LIB.push(nw); counts.walls++; return nw.id;
 }
 function libraryLayer(id, counts){
-  const L=layerById(id); if(!L || LAYERLIB.includes(L)) return id;
+  const L=layerById(id); if(!L || LAYERLIB.includes(L) || (L.mirrorOf && LAYERLIB.find(x=>x.id===L.mirrorOf))) return id;
   const nl={...clone(L), id:nextId(`${LAYER_KINDS[L.kind].code}${String(L.len).padStart(2,'0')}`, LAYERLIB), src:'saved'};
   LAYERLIB.push(nl); counts.layers++; return nl.id;
 }
@@ -318,4 +332,4 @@ const countsText = c => {
 function renameLibPod(id, name){ const p=podById(id); if(p && p.src==='saved'){ p.name=name; savePodLib(); } }
 function deleteLibPod(id){ const k=PODLIB.findIndex(p=>p.id===id && p.src==='saved'); if(k>=0){ PODLIB.splice(k,1); savePodLib(); } }
 
-export { isProtected, makeDraftCopy, ensureDraft, setDeckFoundation, deckFoot, LEDGER, addDeck, moveDeck, removeDeck, replaceDeck, deckSpots, turnDeck, foot, problem, bake, addPod, movePod, rotatePod, replacePod, deletePod, dockSpots, turnSpot, saveToLibraries, countsText, sizeText, renameLibPod, deleteLibPod, podSig };
+export { mirrorPod, isProtected, makeDraftCopy, ensureDraft, setDeckFoundation, deckFoot, LEDGER, addDeck, moveDeck, removeDeck, replaceDeck, deckSpots, turnDeck, foot, problem, bake, addPod, movePod, rotatePod, replacePod, deletePod, dockSpots, turnSpot, saveToLibraries, countsText, sizeText, renameLibPod, deleteLibPod, podSig };

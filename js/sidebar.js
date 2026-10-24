@@ -1,12 +1,12 @@
 /* Cubit Builder — sidebar.js : model chips, wall list, wall options, layout editor, wall upload */
 import { FT, POD, PW, T, TI } from './config.js';
-import { LIB, MODELS, optionsFor, saveCustomModels, layerOptions, mirrorId } from './data.js';
+import { LIB, MODELS, optionsFor, saveCustomModels, layerOptions, mirrorId, layerMirrorId } from './data.js';
 import { LAYER_KINDS } from './config.js';
 import { screwsFor, slotsFor, podList, CW, layerSlotsFor, partnerOf, deckList } from './layout.js';
 import { panelCount, thumbSVG, bodyWall, wallLen } from './panels.js';
 import { buildHome, highlight } from './scene3d.js';
 import { facing, fmtBearing } from './orient.js';
-import { setDeckFoundation, rotatePod, deletePod, ensureDraft } from './pods.js';
+import { setDeckFoundation, rotatePod, deletePod, ensureDraft, mirrorPod } from './pods.js';
 import { checkpoint } from './history.js';
 import { openSheets } from './sheets.js';
 import { pickFor, save, state, choose, pickLayer, chooseLayer, foundationOf, setFoundation, deckOCOf } from './state.js';
@@ -91,9 +91,11 @@ function renderSide(){
   // the pod this wall / floor belongs to: turn it or take it out, right here
   const pi = state.selected && !String(state.selected).startsWith('deck:') ? parseInt(state.selected,10) : NaN;
   if(Number.isFinite(pi) && sideB && canSave() && MODELS[state.model].pods[pi]){
-    sideB.insertAdjacentHTML('afterbegin', `<div class="pod-acts"><b>Pod ${pi+1}</b><button class="btn ghost sm" id="podTurn">Turn 90°</button><button class="btn ghost sm" id="podRm">Remove pod</button></div>`);
+    sideB.insertAdjacentHTML('afterbegin', `<div class="pod-acts"><b>Pod ${pi+1}</b><button class="btn ghost sm" id="podTurn">Turn 90°</button><button class="btn ghost sm" id="podMir" title="End for end: left ↔ right">Mirror</button><button class="btn ghost sm" id="podFlip" title="Front ↔ back">Flip</button><button class="btn ghost sm" id="podRm">Remove pod</button></div>`);
     const go=(why,msg)=>{ if(why){ toast(why); return; } state.selected=null; renderModels(); buildHome(); renderSide(); toast(msg); };
     sideB.querySelector('#podTurn').onclick=()=>go(rotatePod(pi),'Pod turned 90°');
+    sideB.querySelector('#podMir').onclick=()=>go(mirrorPod(pi,'x'),'Pod mirrored end for end');
+    sideB.querySelector('#podFlip').onclick=()=>go(mirrorPod(pi,'z'),'Pod flipped front to back');
     sideB.querySelector('#podRm').onclick=e=>{ const b=e.target; if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to remove'; return; } go(deletePod(pi),'Pod removed'); };
   }
   // a window or door tapped in 3D: straight to its options
@@ -136,7 +138,7 @@ function renderSideInner(){
     sideH.innerHTML=`<div class="eyebrow">${isInt?'Interior wall · 4½″':'Exterior wall · 6½″'} · ${s.len}′ · ${s.len/4} panels</div><h2>${s.label}</h2><p>${s.detail} · faces ${fmtBearing(facing(s))} · now <b>${w?esc(w.id):'—'}</b> ${w?esc(w.name):''}${w&&!w.blank?' <button class="linkbtn ren-link edit-only" id="renWall">Rename</button>':''}</p>`;
     const rw=sideH.querySelector('#renWall'); if(rw) rw.onclick=()=>askRename('walls', w.mirrorOf||w.id);
     sideB.innerHTML=`
-      <div class="row"><button class="btn" id="toSheet">Assembly sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===s.id}">${state.isolate===s.id?'Exit isolate':'Isolate'}</button>${s.short ? `<button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button>` : ''}</div>
+      <div class="row"><button class="btn" id="toSheet">Assembly sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===s.id}">${state.isolate===s.id?'Exit isolate':'Isolate'}</button>${s.short ? `<button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button>` : ''}${w&&!w.blank?`<button class="btn ghost edit-only" id="wMir" title="The same wall the other way round (left ↔ right)">Mirror wall</button>`:''}</div>
       ${(state.wallA?.[state.model]?.[s.pod.i] || m.pods[s.pod.i]?.a) ? `<p class="note">Wall A for ${s.pod.label} was set by hand. <button class="linkbtn" id="autoA">Go back to automatic</button></p>`:''}
       ${isInt&&partnerOf(s,slots)?`<p class="note">Joins ${s.other.label} (${esc(partnerOf(s,slots).label)}). Picking a wall here gives that wall the same one, mirrored, so openings line up.</p>`:''}
       ${unitsBlock(s, bodyWall(s,w))}
@@ -153,6 +155,7 @@ function renderSideInner(){
       // where two pods join, the neighbour's wall becomes the same wall, mirrored
       const pt=partnerOf(s, slots); if(pt) choose(pt, mirrorId(b.dataset.o));
       buildHome(); renderSide(); toast(`${s.label} → ${b.dataset.o}`+(pt?` · ${pt.label} → mirrored`:'')); });
+    sideB.querySelector('#wMir')?.addEventListener('click',()=>{ const id=mirrorId(w.id); choose(s, id); const pt=partnerOf(s, slots); if(pt) choose(pt, mirrorId(id)); buildHome(); renderSide(); toast(`${s.label} mirrored`+(pt?` · ${pt.label} follows`:'')); });
     bindUnits(s, bodyWall(s,w));
     sideB.querySelectorAll('[data-cab]').forEach(b=>b.onclick=()=>{ setCabinet(state.model, s.id, +b.dataset.cab, b.dataset.cabn); buildHome(); renderSide(); });
     const cd=sideB.querySelector('#cabD'); if(cd) cd.onchange=()=>{ setCabinet(state.model, s.id, Math.max(0,+cd.value||0), 'Custom'); buildHome(); renderSide(); };
@@ -261,7 +264,7 @@ function renderLayerSide(ls){
   sideH.innerHTML=`<div class="eyebrow">${K.label} · ${ls.len}′ × 8′ · ${(L.t||K.t)}″ thick</div><h2>${ls.label}</h2><p>now <b>${esc(L.id)}</b> ${esc(L.name)}${L.blank?'':' <button class="linkbtn ren-link edit-only" id="renLayer">Rename</button>'}</p>`;
   const rl=sideH.querySelector('#renLayer'); if(rl) rl.onclick=()=>askRename('layers', L.id);
   sideB.innerHTML=`
-    <div class="row"><button class="btn" id="toSheet">Layer sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===ls.id}">${state.isolate===ls.id?'Exit isolate':'Isolate'}</button></div>
+    <div class="row"><button class="btn" id="toSheet">Layer sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===ls.id}">${state.isolate===ls.id?'Exit isolate':'Isolate'}</button>${L.blank?'':'<button class="btn ghost edit-only" id="lMir" title="End for end">Mirror</button><button class="btn ghost edit-only" id="lFlip" title="Front to back">Flip</button>'}</div>
     ${(ls.kind==='ceiling-int'||ls.kind==='roof') && state.isolate!==ls.id ? '<p class="note">Turn on Ceiling or Roof under Layers (or use Exploded view) to see them in 3D, or press Isolate.</p>':''}
     ${ls.kind==='ceiling-int' ? (()=>{ const c=cfgOf(state.model), LL=withLights(L, ls);
       return `<div class="lights-box"><div class="eyebrow">Pot lights · 4″, ${LL.lights??0} in this pod</div>
@@ -272,6 +275,8 @@ function renderLayerSide(ls){
     ${opts.length?'':`<p class="note">Nothing in the library for this yet. It fills up as STEP files are imported.</p>`}
     <div class="opts">${opts.map(o=>`<button class="opt" data-o="${esc(o.id)}" aria-pressed="${o.id===L.id}">${layerThumb(o)}<b>${esc(o.name)}</b><code>${esc(o.id)}</code></button>`).join('')}</div>`;
   sideB.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{ chooseLayer(ls, b.dataset.o); buildHome(); renderSide(); toast(`${ls.label} → ${b.dataset.o}`); });
+  sideB.querySelector('#lMir')?.addEventListener('click',()=>{ chooseLayer(ls, layerMirrorId(L.id,'x')); buildHome(); renderSide(); toast(`${ls.label} mirrored end for end`); });
+  sideB.querySelector('#lFlip')?.addEventListener('click',()=>{ chooseLayer(ls, layerMirrorId(L.id,'z')); buildHome(); renderSide(); toast(`${ls.label} flipped front to back`); });
   sideB.querySelector('#toSheet').onclick=()=>{ state.sheetSlot=ls.id; openSheets(); };
   sideB.querySelector('#isoBtn').onclick=()=>setIsolate(state.isolate===ls.id ? null : ls.id, ls.label);
   sideB.querySelectorAll('[data-lauto]').forEach(b=>b.onclick=()=>{ setLights(state.model,{auto:b.dataset.lauto==='1'}); buildHome(); renderSide(); });

@@ -96,6 +96,7 @@ function renderDetail(body){
         ${sizeRow('y','Off the floor',it.y||0,null,[0,96],false)}
       </div>
       ${(d.opts||[]).map(([k,l,vals])=>`<div class="cw-opt"><span>${l}</span><div class="seg wrap">${vals.map(v=>`<button data-opt="${k}" data-v="${esc(v)}" aria-pressed="${String((it.opt||{})[k] ?? d.opt?.[k])===String(v)}">${esc(v)}</button>`).join('')}</div></div>`).join('')}
+      <div class="cw-opt"><span>Mirror</span><div class="seg"><button data-mir="0" aria-pressed="${!it.mirror}">As drawn</button><button data-mir="1" aria-pressed="${!!it.mirror}">Mirrored (left ↔ right)</button></div></div>
       <div class="row cw-acts">
         ${editing ? `<button class="btn" id="cwDone">Done</button>` : `<button class="btn edit-only" id="cwAdd">Add to this home</button>`}
         ${cut.length?`<button class="btn ghost" id="cwCsv">Cut list (CSV)</button>`:''}
@@ -115,6 +116,7 @@ function renderDetail(body){
   const clampR=(k,v)=>{ const r={w:d.wR,h:d.hR,d:d.dR,y:[0,96]}[k]||[0,200]; return Math.min(r[1], Math.max(r[0], v)); };
   body.querySelectorAll('[data-len]').forEach(inp=>inp.onchange=()=>{ const v=parseLen(inp.value); if(!isFinite(v)){ inp.value=show(it[inp.dataset.len]||0); return; } apply({[inp.dataset.len]:clampR(inp.dataset.len, v)}); });
   body.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>{ const k=b.dataset.step, st=U()==='mm'?10*MM:(k==='y'?1:0.5); apply({[k]:clampR(k,(it[k]||0)+st*(+b.dataset.dir))}); });
+  body.querySelectorAll('[data-mir]').forEach(b=>b.onclick=()=>apply({mirror:b.dataset.mir==='1'}));
   body.querySelectorAll('[data-pre]').forEach(b=>b.onclick=()=>apply({[b.dataset.pre]:+b.dataset.v}));
   body.querySelectorAll('[data-opt]').forEach(b=>b.onclick=()=>{ const raw=b.dataset.v, v=isNaN(+raw)?raw:+raw; apply({opt:{...(it.opt||{}), [b.dataset.opt]:v}}); });
   body.querySelector('#cwCsv')?.addEventListener('click',()=>download(`${d.name.replace(/[^\w]+/g,'-')}-${Math.round(it.w)}x${Math.round(it.h)}x${Math.round(it.d)}.csv`, csv(it, d.name)));
@@ -224,7 +226,7 @@ function furnSide(sideH, sideB){
   sideH.querySelector('#sideXf').onclick=()=>{ state.selFurn=null; applyFurniture(); renderSide(); };
   const ed=canSave();
   sideB.innerHTML=`<div class="row"><button class="btn" id="fOpen">3D, exploded &amp; parts</button></div>
-    ${ed?`<div class="row"><button class="btn ghost sm" id="fTurn">Turn 90°</button><button class="btn ghost sm" id="fDup">Duplicate</button><button class="btn ghost sm" id="fRm">Remove</button></div>`:''}
+    ${ed?`<div class="row"><button class="btn ghost sm" id="fTurn">Turn 90°</button><button class="btn ghost sm" id="fMir" aria-pressed="${!!it.mirror}">Mirror</button><button class="btn ghost sm" id="fDup">Duplicate</button><button class="btn ghost sm" id="fRm">Remove</button></div>`:''}
     <div class="cw-sizes compact">
       ${['w','h','d','y'].map(k=>`<label class="cw-f"><span>${{w:'Width',h:'Height',d:'Depth',y:'Off the floor'}[k]}</span><input data-fl="${k}" value="${esc(show(it[k]||0))}" inputmode="decimal" ${!ed||(d.fixed&&k!=='y')?'disabled':''}><i>${unitSign()}</i></label>`).join('')}
     </div>
@@ -233,6 +235,7 @@ function furnSide(sideH, sideB){
   const ch=patch=>{ updateItem(it.id, patch); if(d.sized && patch.opt) Object.assign(it, d.sized(it)); refreshItem(it); renderSide(); };
   sideB.querySelector('#fOpen').onclick=()=>openCaseLib({edit:it.id});
   sideB.querySelector('#fTurn')?.addEventListener('click',()=>{ turnItem(it.id); refreshItem(it); renderSide(); });
+  sideB.querySelector('#fMir')?.addEventListener('click',()=>{ ch({mirror:!it.mirror}); toast(it.mirror?'Mirrored':'Back as drawn'); });
   sideB.querySelector('#fDup')?.addEventListener('click',()=>{ const c=duplicateItem(it.id); state.selFurn=c.id; refreshItem(c); applyFurniture(); renderSide(); toast('Duplicated · drag it where it goes'); });
   sideB.querySelector('#fRm')?.addEventListener('click',e=>{ const b=e.target; if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to remove'; return; } removeItem(it.id); refreshItem({id:it.id}); renderSide(); toast('Removed'); });
   sideB.querySelectorAll('[data-fl]').forEach(inp=>inp.onchange=()=>{ const v=parseLen(inp.value); if(isFinite(v) && v>=0) ch({[inp.dataset.fl]:v}); else inp.value=show(it[inp.dataset.fl]||0); });

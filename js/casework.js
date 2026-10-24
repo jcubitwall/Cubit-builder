@@ -400,6 +400,11 @@ function newItem(k){
 function partsOf(it){
   const d=itemDef(it.k); if(!d) return [];
   const P=d.build({ ...it, opt:{...(d.opt||{}), ...(it.opt||{})} }).filter(Boolean).map(finishPart);
+  if(it.mirror){   // mirrored left ↔ right: hinges, drawers, partitions and names change sides
+    const W=it.w, sw=s=>String(s).replace(/\b(left|right|Left|Right)\b/g, w=>({left:'right',right:'left',Left:'Right',Right:'Left'}[w]));
+    P.forEach(p=>{ p.box=[W-p.box[0]-p.box[3], ...p.box.slice(1)]; p.tenonGeo=(p.tenonGeo||[]).map(b=>[W-b[0]-b[3], ...b.slice(1)]);
+      if(p.hole) p.hole=[W-p.hole[0]-p.hole[2], ...p.hole.slice(1)]; p.ex=[-p.ex[0], p.ex[1], p.ex[2]]; p.name=sw(p.name); p.ops=p.ops.map(sw); });
+  }
   return P;
 }
 /* the cut list: parts grouped by material and size */

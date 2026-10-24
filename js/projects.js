@@ -132,10 +132,10 @@ const isTeam = () => remote;
 /* exported projects carry the library items they use that aren't in the shared library files */
 function libraryFor(p){
   const walls=new Set(), layers=new Set(), pods=new Set(), M=p.model||{};
-  const addPod = q => { if(!q) return; Object.values(q.walls||{}).flat().forEach(g=>g.wall&&walls.add(g.wall.replace(/~m$/,''))); Object.values(q.layers||{}).forEach(id=>layers.add(id)); };
+  const addPod = q => { if(!q) return; Object.values(q.walls||{}).flat().forEach(g=>g.wall&&walls.add(g.wall.replace(/~m$/,''))); Object.values(q.layers||{}).forEach(id=>layers.add(String(id).replace(/~mx?z?$/,''))); };
   (M.pods||[]).forEach(q=>{ addPod(q); if(q.src){ pods.add(q.src); addPod(podById(q.src)); } });
   [M.picks, p.picks].forEach(o=>Object.values(o||{}).forEach(id=>walls.add(String(id).replace(/~m$/,''))));
-  [M.layerPicks, p.layerPicks].forEach(o=>Object.values(o||{}).forEach(id=>layers.add(id)));
+  [M.layerPicks, p.layerPicks].forEach(o=>Object.values(o||{}).forEach(id=>layers.add(String(id).replace(/~mx?z?$/,''))));
   const own = x => x && x.src && x.src!=='library';
   const strip = ({src, ...x}) => x;
   const decks=[...new Set((M.decks||[]).map(d=>d.lib))];
