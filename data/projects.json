@@ -241,7 +241,7 @@
   {
     "id": "cubit-kya-nest",
     "name": "Cubit Kya Nest",
-    "saved": "2026-10-24T19:19:38Z",
+    "saved": "2026-10-24T19:26:12Z",
     "model": {
       "name": "Cubit Kya Nest",
       "size": "24 + 16",
@@ -278,7 +278,7 @@
         "1:ceiling-int": "CI16-03",
         "1:roof": "RF16-01"
       },
-      "note": "Scanned from 20261024191907-cl40.step on 2026-10-24."
+      "note": "Scanned from 20261024192537-2yba.step on 2026-10-24."
     },
     "picks": {},
     "wallA": {},
