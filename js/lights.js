@@ -18,6 +18,7 @@
    Ceilings are uploaded with their wire hatches and heat-pump head openings (kept exactly as drawn); the lights are
    added here. With lights placed by rule, round 4″ pockets drawn in the ceiling (and their wire holes) are replaced. */
 import { MODELS } from './data.js';
+import { wallDepths } from './furniture.js';
 import { state, save, pickFor } from './state.js';
 import { slotsFor, podList, layerSlotsFor } from './layout.js';
 import { FT, PW } from './config.js';
@@ -46,7 +47,8 @@ function sideInfo(k, pod, side, slots){
   const mine=slots.filter(s=>s.pod.i===pod.i && s.side===side);
   const cab=cabinetsOf(k);
   const t=Math.max(0, ...mine.map(s=>pickFor(s)?.t || (s.type==='int'?4.5:6.5)));
-  const depth=Math.max(0, ...mine.map(s=>cabDepth(cab[s.id])));
+  const placed=wallDepths(k);   // cabinets placed against these walls count too
+  const depth=Math.max(0, ...mine.map(s=>Math.max(cabDepth(cab[s.id]), placed[s.id]||0)));
   const joins=mine.filter(s=>s.type==='int' && s.other && (pickFor(s)?.openings||[]).some(o=>o.w>=OPEN_MIN && o.kind!=='door')).map(s=>s.other);
   return { t: t||6.5, depth, joins };
 }

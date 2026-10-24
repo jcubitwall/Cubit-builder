@@ -224,3 +224,9 @@ See that folder's README. The scan is exact, so **only upload accurate models**:
 - A shared wall library and saved homes for the whole team.
 - PDF export for the wall assembly sheets.
 - Direct ShopSabre G-code from the cut plan (see `docs/CNC.md`).
+
+## Cabinet library (Oct 2026)
+- `js/casework.js` — the engine. Every cabinet is generated from rules at any size: frameless, full overlay, ½″ and ⅝″ plywood only (measured thickness is a setting), edge banded (cut sizes deduct the band), mortise and tenon cut from one side (tenons in the outline, mortises as pockets on the inside face, ends overcut by the bit; back in a groove). Categories: base, upper, pantries, linen towers, wardrobes, vanities, window benches, shelves, fireplaces, countertops, appliances (24″ fridges and ranges included, sizes from the makers' sheets), furniture.
+- `js/casework3d.js` 3D parts (tenons drawn), `js/casework-svg.js` front-view thumbnails, `js/casework-ui.js` the library window (⋯ → Cabinet library): sizes, options, 3D with exploded view, parts with cut sizes and machining, hardware, CSV cut list, and the team's Shop settings (stored in R2 `casework/settings.json` via `functions/api/casework.js`).
+- `js/furniture.js` placed items per home (`state.furniture[home]`), in pod coordinates so they move and turn with the pod; drag in from the Build tray (Cabinets tab); they back onto the nearest wall and butt to neighbours. Each category has a switch in Layers. Depth of items against a wall feeds the pot-light rule.
+- `js/history.js` undo / redo; `js/viewcube.js` the Shapr3D view cube, undo / redo buttons, zoom to face.

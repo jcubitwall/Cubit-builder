@@ -25,7 +25,7 @@ function enter(){
   if(on || state.view!=='studio') return;
   on=true; studio.classList.add('fs'); studio.classList.remove('side-closed'); bFull.setAttribute('aria-pressed','true'); bFull.querySelector('.lbl').textContent='Exit';
   fsTools.appendChild(tools);
-  setPanel(!!state.selected);
+  setPanel(!!(state.selected||state.selFurn));
   // computers use the browser's real full screen (Esc leaves). Tablets and phones fill the window instead:
   // the browser's full screen there exits on a downward swipe, which is too easy to do by accident.
   // On a tablet, only the Exit button leaves.
@@ -54,9 +54,9 @@ document.addEventListener('keydown', e=>{
 });
 // clicking a wall, floor or deck brings the panel in with its options
 studio.querySelector('#stage').addEventListener('pointerup', e=>{ if(e.target.tagName!=='CANVAS') return; const x=e.clientX, y=e.clientY;
-  setTimeout(()=>{ if(state.selected && !panelOpen()) setPanel(true);
-    else if(!state.selected && panelOpen() && overlay() && !document.body.classList.contains('dragging') && !e.defaultPrevented) setPanel(false); }, 0); });
+  setTimeout(()=>{ if((state.selected||state.selFurn) && !panelOpen()) setPanel(true);
+    else if(!state.selected && !state.selFurn && panelOpen() && overlay() && !document.body.classList.contains('dragging') && !e.defaultPrevented) setPanel(false); }, 0); });
 
-export { enter as enterFullscreen, exit as exitFullscreen };
+export { enter as enterFullscreen, exit as exitFullscreen, setPanel, panelOpen };
 // leaving the 3D view (sheets, plan) always leaves full screen first
 new MutationObserver(()=>{ if(studio.hidden && on) exit(); }).observe(studio, {attributes:true, attributeFilter:['hidden']});

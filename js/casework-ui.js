@@ -1,0 +1,260 @@
+/* Cubit Builder — casework-ui.js : the Cabinet library window (browse, resize, 3D with exploded view and parts,
+   cut list), the shop settings (plywood, edge band, joinery, hardware), and the options of a placed item. */
+import { CATS, ITEMS, itemDef, catOf, newItem, partsOf, hardwareOf, totals, csv, fmt, fmtU, settings, saveSettings, loadSettings, DEFAULTS, MM } from './casework.js';
+import { itemModel } from './casework3d.js';
+import { frontSVG } from './casework-svg.js';
+import { furnitureOf, furnById, updateItem, removeItem, duplicateItem, turnItem, refreshItem, addItem, snap, applyFurniture, podsShown } from './furniture.js';
+import { state, save } from './state.js';
+import { canSave } from './role.js';
+import { homeGroup, wallGroups, highlight } from './scene3d.js';
+import { renderSide, toast } from './sidebar.js';
+import { setPanel, panelOpen } from './fullscreen.js';
+
+const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const U = () => settings().units;
+const show = v => fmt(v);                                  // a length in the shop's units, no unit sign
+/* exact values for the settings (a measured 0.469″ must not round to ½″) */
+const prec = v => { if(U()==='mm'){ const m=v/MM; return String(Math.round(m*10)/10); } return Math.abs(v*16-Math.round(v*16))<1e-6 ? fmt(v) : String(Math.round(v*1000)/1000); };
+const unitSign = () => U()==='mm' ? 'mm' : '″';
+/* "34 1/2", "34.5", "34-1/2", "876 mm" → inches */
+function parseLen(s){
+  s=String(s).trim().toLowerCase(); if(!s) return NaN;
+  const mm=/mm$/.test(s) || (U()==='mm' && !/["″in]$/.test(s)); s=s.replace(/mm|in|["″]/g,'').trim();
+  if(mm) return parseFloat(s)*MM;
+  const m=s.match(/^(\d+(?:\.\d+)?)?[\s-]*(?:(\d+)\/(\d+))?$/); if(!m) return parseFloat(s);
+  return (m[1]?parseFloat(m[1]):0) + (m[2]?(+m[2])/(+m[3]):0);
+}
+const sizeTxt = it => `${show(it.w)} × ${show(it.h)} × ${show(it.d)}${unitSign()}`;
+const bandTxt = b => !b.long && !b.short ? '—' : [b.long?`${b.long} long`:'' , b.short?`${b.short} short`:''].filter(Boolean).join(', ');
+function download(name, text, type='text/csv'){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type})); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 500); }
+
+/* ---------------------------------------------------------------- the window */
+let dlg=null, view={ tab:'lib', cat:'base', item:null, edit:null, explode:0, sel:null };
+function ensure(){
+  if(dlg) return dlg;
+  dlg=document.createElement('dialog'); dlg.className='cw-dlg'; dlg.setAttribute('aria-label','Cabinet library');
+  dlg.innerHTML=`<div class="cw">
+    <header class="cw-h"><h2>Cabinet library</h2>
+      <div class="seg" role="tablist"><button role="tab" data-tab="lib">Library</button><button role="tab" data-tab="set">Shop settings</button></div>
+      <span class="spacer"></span><button class="btn ghost cw-x" aria-label="Close">✕</button></header>
+    <div class="cw-body"></div></div>`;
+  document.body.appendChild(dlg);
+  dlg.querySelector('.cw-x').onclick=()=>dlg.close();
+  dlg.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{ view.tab=b.dataset.tab; render(); });
+  dlg.addEventListener('close', ()=>{ stopViewer(); });
+  return dlg;
+}
+async function openCaseLib(o={}){
+  ensure(); await loadSettings();
+  if(o.edit){ const it=furnById(o.edit); if(it){ view.edit=it.id; view.item=it; view.cat=itemDef(it.k).cat; } }
+  else { view.edit=null; view.item=o.k ? newItem(o.k) : null; if(o.cat) view.cat=o.cat; if(o.k) view.cat=itemDef(o.k).cat; }
+  view.tab=o.tab||'lib'; view.explode=0; view.sel=null;
+  render(); if(!dlg.open) dlg.showModal();
+}
+function render(){
+  dlg.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected', b.dataset.tab===view.tab));
+  const body=dlg.querySelector('.cw-body');
+  stopViewer();
+  if(view.tab==='set'){ renderSettings(body); return; }
+  if(view.item){ renderDetail(body); return; }
+  const items=ITEMS.filter(i=>i.cat===view.cat);
+  body.innerHTML=`<nav class="cw-cats" aria-label="Categories">${CATS.map(c=>`<button data-cat="${c.k}" aria-current="${c.k===view.cat}"><span>${c.name}</span><small>${ITEMS.filter(i=>i.cat===c.k).length}</small></button>`).join('')}</nav>
+    <section class="cw-grid">${items.map(d=>{ const it=newItem(d.k); return `<button class="cw-card" data-k="${d.k}"><div class="cw-thumb">${frontSVG(it)}</div><b>${esc(d.name)}</b><small>${sizeTxt(it)}${d.fixed?' · fixed size':''}</small></button>`; }).join('')}</section>`;
+  body.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{ view.cat=b.dataset.cat; render(); });
+  body.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{ view.item=newItem(b.dataset.k); view.edit=null; view.explode=0; view.sel=null; render(); });
+}
+
+/* ---------------------------------------------------------------- one item: 3D, sizes, options, parts */
+function groupsOf(parts){
+  const G=new Map();
+  parts.forEach((p,i)=>{ const key=[p.hw||p.solid?'x':'p', p.name.replace(/, (left|right)$/,'').replace(/ \d+( |$)/,' # '), p.mat, p.cutL, p.cutW, p.band.long, p.band.short].join('|');
+    const g=G.get(key); if(g) g.idx.push(i); else G.set(key,{ p, idx:[i] }); });
+  return [...G.values()];
+}
+function sizeRow(key, label, val, list, range, fixed){
+  return `<div class="cw-size"><label for="cw-${key}">${label}</label>
+    <div class="cw-step"><button class="cw-b" data-step="${key}" data-dir="-1" aria-label="Smaller" ${fixed?'disabled':''}>−</button><input id="cw-${key}" data-len="${key}" value="${esc(show(val))}" inputmode="decimal" ${fixed?'disabled':''}><span class="u">${unitSign()}</span><button class="cw-b" data-step="${key}" data-dir="1" aria-label="Bigger" ${fixed?'disabled':''}>+</button></div>
+    ${list&&!fixed?`<div class="cw-pre">${list.map(v=>`<button data-pre="${key}" data-v="${v}" aria-pressed="${Math.abs(v-val)<1e-6}">${show(v)}</button>`).join('')}</div>`:''}</div>`;
+}
+function renderDetail(body){
+  const it=view.item, d=itemDef(it.k), cat=catOf(d.cat), parts=partsOf(it), G=groupsOf(parts);
+  const cut=G.filter(g=>!g.p.hw && !g.p.solid), solids=G.filter(g=>g.p.solid), hw=hardwareOf(it), tot=totals([it]);
+  const editing=!!view.edit;
+  body.innerHTML=`<div class="cw-detail">
+    <div class="cw-view">
+      <div class="cw-vh"><button class="btn ghost sm" id="cwBack">← ${editing?'Close':esc(cat.name)}</button><b>${esc(d.name)}</b><span class="spacer"></span>
+        <button class="btn ghost sm" id="cwFront">Front</button><button class="btn ghost sm" id="cwIso">3D</button></div>
+      <canvas id="cwCanvas" aria-label="3D view of ${esc(d.name)}"></canvas>
+      <div class="cw-ex"><label for="cwEx">Exploded</label><input type="range" id="cwEx" min="0" max="1" step="0.01" value="${view.explode}"><span class="note">Tap a part to find it in the list</span></div>
+    </div>
+    <div class="cw-side">
+      ${d.note?`<p class="note">${esc(d.note)} · check the maker's current spec sheet before ordering.</p>`:''}
+      <div class="cw-sizes">
+        ${sizeRow('w','Width',it.w,d.sizes,d.wR,d.fixed)}
+        ${sizeRow('h','Height',it.h,d.hSizes,d.hR,d.fixed)}
+        ${sizeRow('d','Depth',it.d,d.dSizes,d.dR,d.fixed)}
+        ${sizeRow('y','Off the floor',it.y||0,null,[0,96],false)}
+      </div>
+      ${(d.opts||[]).map(([k,l,vals])=>`<div class="cw-opt"><span>${l}</span><div class="seg wrap">${vals.map(v=>`<button data-opt="${k}" data-v="${esc(v)}" aria-pressed="${String((it.opt||{})[k] ?? d.opt?.[k])===String(v)}">${esc(v)}</button>`).join('')}</div></div>`).join('')}
+      <div class="row cw-acts">
+        ${editing ? `<button class="btn" id="cwDone">Done</button>` : `<button class="btn edit-only" id="cwAdd">Add to this home</button>`}
+        ${cut.length?`<button class="btn ghost" id="cwCsv">Cut list (CSV)</button>`:''}
+      </div>
+      ${cut.length?`<p class="cw-tot">${parts.filter(p=>!p.hw&&!p.solid).length} parts · ${Object.entries(tot.area).map(([n,a])=>`${n}″ ply ${a.toFixed(1)} sq ft`).join(' · ')} · ${tot.bandFt} ft of edge band</p>`:''}
+      ${cut.length?`<h3>Parts <small>cut sizes, after edge band</small></h3>
+      <div class="cw-parts" role="list">${cut.map(g=>{ const p=g.p; return `<details class="cw-part" data-parts="${g.idx.join(',')}" role="listitem"><summary><span class="q">${g.idx.length}×</span><span class="n">${esc(p.name.replace(/, (left|right)$/,''))}</span><span class="m">${esc(settings().use[p.mat]||p.mat)}″</span><span class="s">${show(p.cutL)} × ${show(p.cutW)}</span></summary>
+        <ul><li>Finished ${show(p.L)} × ${show(p.W)} × ${show(p.T)}${unitSign()} · edge band ${bandTxt(p.band)}${p.ten?` · ${p.ten} tenons each end`:''}</li>${p.ops.map(o=>`<li>${esc(o)}</li>`).join('')}</ul></details>`; }).join('')}</div>`:''}
+      ${solids.length?`<h3>Pieces</h3><div class="cw-parts">${solids.map(g=>`<details class="cw-part" data-parts="${g.idx.join(',')}"><summary><span class="q">${g.idx.length}×</span><span class="n">${esc(g.p.name)}</span><span class="s">${show(g.p.box[3])} × ${show(g.p.box[4])} × ${show(g.p.box[5])}</span></summary>${g.p.note?`<ul><li>${esc(g.p.note)}</li></ul>`:''}</details>`).join('')}</div>`:''}
+      ${hw.length?`<h3>Hardware</h3><ul class="cw-hw">${hw.map(h=>`<li><b>${h.qty}×</b> ${esc(h.name)}</li>`).join('')}</ul>`:''}
+    </div></div>`;
+  startViewer(body.querySelector('#cwCanvas'), it);
+  const apply=(patch)=>{ if(editing) updateItem(it.id, patch); else Object.assign(it, patch); if(d.sized && patch.opt) Object.assign(it, d.sized(it)); if(editing){ refreshItem(it); renderSide(); } const ex=view.explode; render(); view.explode=ex; };
+  body.querySelector('#cwBack').onclick=()=>{ if(editing){ dlg.close(); return; } view.item=null; render(); };
+  body.querySelector('#cwFront').onclick=()=>V?.front(); body.querySelector('#cwIso').onclick=()=>V?.iso();
+  body.querySelector('#cwEx').oninput=e=>{ view.explode=+e.target.value; V?.explode(view.explode); };
+  const clampR=(k,v)=>{ const r={w:d.wR,h:d.hR,d:d.dR,y:[0,96]}[k]||[0,200]; return Math.min(r[1], Math.max(r[0], v)); };
+  body.querySelectorAll('[data-len]').forEach(inp=>inp.onchange=()=>{ const v=parseLen(inp.value); if(!isFinite(v)){ inp.value=show(it[inp.dataset.len]||0); return; } apply({[inp.dataset.len]:clampR(inp.dataset.len, v)}); });
+  body.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>{ const k=b.dataset.step, st=U()==='mm'?10*MM:(k==='y'?1:0.5); apply({[k]:clampR(k,(it[k]||0)+st*(+b.dataset.dir))}); });
+  body.querySelectorAll('[data-pre]').forEach(b=>b.onclick=()=>apply({[b.dataset.pre]:+b.dataset.v}));
+  body.querySelectorAll('[data-opt]').forEach(b=>b.onclick=()=>{ const raw=b.dataset.v, v=isNaN(+raw)?raw:+raw; apply({opt:{...(it.opt||{}), [b.dataset.opt]:v}}); });
+  body.querySelector('#cwCsv')?.addEventListener('click',()=>download(`${d.name.replace(/[^\w]+/g,'-')}-${Math.round(it.w)}x${Math.round(it.h)}x${Math.round(it.d)}.csv`, csv(it, d.name)));
+  body.querySelector('#cwDone')?.addEventListener('click',()=>dlg.close());
+  body.querySelector('#cwAdd')?.addEventListener('click',()=>{ if(!canSave()){ toast('Viewers can look but not change the home.'); return; } const f=placeAuto(it); if(f){ dlg.close(); toast(`${d.name} added · drag it in the plan to move it`); } });
+  body.querySelectorAll('.cw-part').forEach(el=>el.addEventListener('toggle',()=>{ if(el.open){ body.querySelectorAll('.cw-part[open]').forEach(o=>{ if(o!==el) o.open=false; }); V?.select(el.dataset.parts.split(',').map(Number)); } else V?.select(null); }));
+}
+/* add an item to the home: backed against the nearest wall to the middle of the first pod */
+function placeAuto(it){
+  const pods=podsShown(); if(!pods.length) return null;
+  const p=pods[0], pt=new THREE.Vector3(p.x+p.w/2, 0, p.z+p.d/2);
+  const at=snap(it, pt, wallGroups, homeGroup);
+  if(!at){ toast('No room found. Open Build and drag it in.'); return null; }
+  const f=addItem(it.k, { w:it.w, h:it.h, d:it.d, y:it.y, opt:JSON.parse(JSON.stringify(it.opt||{})), ...at });
+  state.selFurn=f.id; state.selected=null; refreshItem(f); highlight(); renderSide(); if(!panelOpen()) setPanel(true); return f;
+}
+/* ---------------------------------------------------------------- the 3D viewer */
+let V=null;
+function startViewer(canvas, it){
+  const r=new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true }); r.setPixelRatio(Math.min(2, devicePixelRatio)); r.shadowMap.enabled=true;
+  const sc=new THREE.Scene(), cam=new THREE.PerspectiveCamera(35, 1, 1, 5000);
+  sc.add(new THREE.HemisphereLight(0xffffff, 0x8a8f86, 0.85)); const sun=new THREE.DirectionalLight(0xffffff, 0.75); sun.position.set(60,120,90); sc.add(sun);
+  const fill=new THREE.DirectionalLight(0xffffff,0.3); fill.position.set(-80,40,-60); sc.add(fill);
+  const M=itemModel(it, { edges:true, tenons:true }); M.group.position.set(-it.w/2, 0, -it.d/2); sc.add(M.group);
+  const span=Math.max(it.w, it.h, it.d), ctl=new THREE.OrbitControls(cam, canvas); ctl.enableDamping=true; ctl.target.set(0, it.h/2, 0);
+  const grid=new THREE.GridHelper(span*3, 12, 0xbfc5bd, 0xdde1da); grid.material.transparent=true; grid.material.opacity=0.5; sc.add(grid);
+  const fit=(az, el)=>{ const d=span*2.4+20; cam.position.set(Math.sin(az)*Math.cos(el)*d, it.h/2+Math.sin(el)*d, Math.cos(az)*Math.cos(el)*d); ctl.target.set(0,it.h/2,0); ctl.update(); };
+  fit(0.62, 0.32);
+  M.explode(view.explode);
+  const size=()=>{ const w=canvas.clientWidth, h=canvas.clientHeight; if(!w||!h) return; r.setSize(w,h,false); cam.aspect=w/h; cam.updateProjectionMatrix(); };
+  const ro=new ResizeObserver(size); ro.observe(canvas); size();
+  let raf=0, sel=null; const loop=()=>{ raf=requestAnimationFrame(loop); ctl.update(); r.render(sc,cam); }; loop();
+  // tap a part: open its row
+  const rc=new THREE.Raycaster(), nd=new THREE.Vector2(); let down=null;
+  canvas.addEventListener('pointerdown', e=>{ down=[e.clientX,e.clientY]; });
+  canvas.addEventListener('pointerup', e=>{ if(!down || Math.hypot(e.clientX-down[0],e.clientY-down[1])>6) return; const b=canvas.getBoundingClientRect(); nd.set((e.clientX-b.left)/b.width*2-1, -(e.clientY-b.top)/b.height*2+1); rc.setFromCamera(nd,cam);
+    const h=rc.intersectObjects(M.meshes,false)[0], i=h?.object.userData.part;
+    const rows=[...dlg.querySelectorAll('.cw-part')]; rows.forEach(x=>x.open=false);
+    if(i==null){ M.select(null); return; }
+    const row=rows.find(x=>x.dataset.parts.split(',').map(Number).includes(i));
+    if(row){ row.open=true; row.scrollIntoView({block:'nearest', behavior:'smooth'}); } else M.select([i]); });
+  V={ explode:e=>M.explode(e), front:()=>fit(0,0.02), iso:()=>fit(0.62,0.32),
+    select:idx=>{ if(!idx){ M.select(null); return; } M.meshes.forEach(m=>{ const on=idx.includes(m.userData.part); m.material = on ? selMat : dimMat(m); }); },
+    stop:()=>{ cancelAnimationFrame(raf); ro.disconnect(); ctl.dispose(); r.dispose(); } };
+  const selMat=new THREE.MeshStandardMaterial({color:0xd0661f, roughness:0.6, emissive:0x4a1c04});
+  const dims=new Map(); const dimMat=m=>{ const base=M.parts[m.userData.part]; const k=base.role; if(!dims.has(k)){ const c=m.material.clone(); c.transparent=true; c.opacity=0.16; c.depthWrite=false; dims.set(k,c); } return dims.get(k); };
+  M.select=(idx)=>{ if(idx) return V.select(idx); M.meshes.forEach(m=>{ m.material = origMat.get(m); }); };
+  const origMat=new Map(M.meshes.map(m=>[m,m.material]));
+}
+function stopViewer(){ if(V){ V.stop(); V=null; } }
+
+/* ---------------------------------------------------------------- shop settings */
+const F = (path, label, kind='len', extra='') => ({ path, label, kind, extra });
+const SECTIONS = [
+  ['Plywood', 'Only ½″ and ⅝″ plywood. Enter the thickness you actually measure; every cut size follows it.', [
+    F('thick.1/2','½″ plywood measures'), F('thick.5/8','⅝″ plywood measures'), F('ply.name','Plywood','text'), F('ply.sheet.0','Sheet width'), F('ply.sheet.1','Sheet length'),
+    ...[['carcass','Sides, tops, bottoms'],['back','Backs'],['door','Doors and drawer fronts'],['shelf','Adjustable shelves'],['drawer','Drawer box sides, fronts, backs'],['bottom','Drawer bottoms'],['kick','Toe kick']].map(([k,l])=>F(`use.${k}`, l, 'ply')) ]],
+  ['Edge band', 'Every visible edge is banded. Cut sizes come off by the band thickness on each banded edge.', [ F('band.t','Band thickness'), F('band.w','Band width'), F('band.name','Edge band','text') ]],
+  ['Joinery', 'Mortise and tenon, cut from one side: tenons in the outline, mortises as pockets on the inside face, ends overcut by the bit.', [
+    F('tenon.len','Tenon length (= mortise depth)'), F('tenon.w','Tenon width'), F('tenon.every','Tenons no more than … apart'), F('tenon.fit','Mortise clearance'), F('bit','Cutter diameter'), F('groove.depth','Back groove depth'), F('groove.inset','Back groove in from the back edge') ]],
+  ['Cabinet rules', '', [ F('kick.h','Toe kick height'), F('kick.set','Toe kick setback'), F('reveal','Gap between doors / fronts'), F('pins.dia','Shelf-pin hole'), F('pins.pitch','Shelf-pin spacing'), F('pins.edge','Pin rows in from the edge') ]],
+  ['Hinges', '', [ F('hinge.name','Hinge','text'), F('hinge.cup','Cup diameter'), F('hinge.depth','Cup depth'), F('hinge.edge','Cup centre from the door edge'), F('hinge.end','First hinge from the door end') ]],
+  ['Drawer glides', 'The box is the opening less the glide clearance; its length is the longest glide that fits.', [ F('glide','Glides used','glide') ]],
+  ['Pulls and fasteners', '', [ F('pull.name','Pull','text'), F('pull.cc','Pull hole spacing (centre to centre)'), F('pull.hole','Pull screw hole'), F('pull.edge','Door pull in from the edge'), F('pull.end','Door pull from the end'),
+    F('screw.name','Assembly fastener','text'), F('screw.every','Fastener spacing'), F('rod.name','Closet rod','text') ]],
+  ['Countertops', '', [ F('counter.name','Material','text'), F('counter.t','Thickness'), F('counter.over','Front overhang') ]],
+];
+const getP = (o,p) => p.split('.').reduce((a,k)=>a?.[k], o);
+function setP(o,p,v){ const ks=p.split('.'); const last=ks.pop(); const t=ks.reduce((a,k)=>(a[k] ??= {}), o); t[last]=v; }
+function renderSettings(body){
+  const S=JSON.parse(JSON.stringify(settings())), ro=!canSave();
+  const field=f=>{ const v=getP(S,f.path);
+    if(f.kind==='text') return `<label class="cw-f"><span>${f.label}</span><input data-p="${f.path}" data-kind="text" value="${esc(v)}" ${ro?'disabled':''}></label>`;
+    if(f.kind==='ply') return `<div class="cw-f"><span>${f.label}</span><div class="seg">${['1/2','5/8'].map(n=>`<button data-p="${f.path}" data-v="${n}" aria-pressed="${v===n}" ${ro?'disabled':''}>${n==='1/2'?'½″':'⅝″'}</button>`).join('')}</div></div>`;
+    if(f.kind==='glide') return `<div class="cw-f wide"><span>${f.label}</span><div class="seg wrap">${Object.entries(S.glides).map(([k,g])=>`<button data-p="glide" data-v="${k}" aria-pressed="${S.glide===k}" ${ro?'disabled':''}>${esc(g.name)}</button>`).join('')}</div></div>
+      ${Object.entries(S.glides).map(([k,g])=>`<fieldset class="cw-gl"><legend>${esc(g.name)}</legend>
+        <label class="cw-f"><span>Name</span><input data-p="glides.${k}.name" data-kind="text" value="${esc(g.name)}" ${ro?'disabled':''}></label>
+        <label class="cw-f"><span>Clearance, both sides together</span><input data-p="glides.${k}.clear" data-kind="len" value="${esc(prec(g.clear))}" ${ro?'disabled':''}><i>${unitSign()}</i></label>
+        <label class="cw-f"><span>Lengths (inches)</span><input data-p="glides.${k}.lens" data-kind="list" value="${g.lens.join(', ')}" ${ro?'disabled':''}></label>
+        <label class="cw-f wide"><span>Drawer prep</span><input data-p="glides.${k}.prep" data-kind="text" value="${esc(g.prep)}" ${ro?'disabled':''}></label></fieldset>`).join('')}`;
+    return `<label class="cw-f"><span>${f.label}</span><input data-p="${f.path}" data-kind="len" value="${esc(prec(v))}" inputmode="decimal" ${ro?'disabled':''}><i>${unitSign()}</i></label>`; };
+  body.innerHTML=`<div class="cw-set">
+    <div class="cw-set-h"><div class="seg"><button data-units="in" aria-pressed="${S.units==='in'}">Inches</button><button data-units="mm" aria-pressed="${S.units==='mm'}">Millimetres</button></div>
+      <span class="note">${ro?'Viewers can look but not change these.':'Shared by the whole team. Changes apply to every cabinet, in every home.'}</span><span class="spacer"></span>
+      ${ro?'':`<button class="btn ghost" id="cwReset">Back to defaults</button><button class="btn" id="cwSave">Save settings</button>`}</div>
+    ${SECTIONS.map(([h,note,fs])=>`<section><h3>${h}</h3>${note?`<p class="note">${note}</p>`:''}<div class="cw-fs">${fs.map(field).join('')}</div></section>`).join('')}
+  </div>`;
+  const read=()=>{ body.querySelectorAll('input[data-p]').forEach(inp=>{ const k=inp.dataset.kind, p=inp.dataset.p;
+      if(k==='text') setP(S,p,inp.value.trim());
+      else if(k==='list') setP(S,p,inp.value.split(/[,\s]+/).map(Number).filter(x=>x>0));
+      else { const v=parseLen(inp.value); if(isFinite(v) && v>=0) setP(S,p,v); } }); };
+  body.querySelectorAll('button[data-p]').forEach(b=>b.onclick=()=>{ read(); setP(S,b.dataset.p,b.dataset.v); b.parentElement.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed', x===b)); });
+  body.querySelectorAll('[data-units]').forEach(b=>b.onclick=async()=>{ read(); S.units=b.dataset.units; await commit(S, false); renderSettings(body); });
+  body.querySelector('#cwSave')?.addEventListener('click', async()=>{ read(); await commit(S, true); });
+  body.querySelector('#cwReset')?.addEventListener('click', e=>{ const b=e.target; if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to reset'; return; } commit({...JSON.parse(JSON.stringify(DEFAULTS)), units:S.units}, true).then(()=>renderSettings(body)); });
+}
+async function commit(S, say){
+  try{ await saveSettings(S); if(say) toast('Shop settings saved'); furnitureOf().forEach(refreshItem); renderSide(); }
+  catch(e){ toast(`Couldn't save: ${e.message||e}`); }
+}
+
+/* ---------------------------------------------------------------- a placed item, in the side panel */
+function furnSide(sideH, sideB){
+  const it=furnById(state.selFurn); if(!it) return false;
+  const d=itemDef(it.k), cat=catOf(d.cat), n=partsOf(it).filter(p=>!p.hw&&!p.solid).length, tot=totals([it]);
+  sideH.innerHTML=`<button class="side-x" id="sideXf" title="Back to the whole home" aria-label="Back to the whole home">✕</button><div class="eyebrow">${esc(cat.name)}</div><h2>${esc(d.name)}</h2><p>${sizeTxt(it)}${it.y?` · ${show(it.y)}${unitSign()} off the floor`:''}${n?` · ${n} parts · ${Object.entries(tot.area).map(([k,a])=>`${k}″ ${a.toFixed(1)} sq ft`).join(' · ')}`:''}</p>`;
+  sideH.querySelector('#sideXf').onclick=()=>{ state.selFurn=null; applyFurniture(); renderSide(); };
+  const ed=canSave();
+  sideB.innerHTML=`<div class="row"><button class="btn" id="fOpen">3D, exploded &amp; parts</button></div>
+    ${ed?`<div class="row"><button class="btn ghost sm" id="fTurn">Turn 90°</button><button class="btn ghost sm" id="fDup">Duplicate</button><button class="btn ghost sm" id="fRm">Remove</button></div>`:''}
+    <div class="cw-sizes compact">
+      ${['w','h','d','y'].map(k=>`<label class="cw-f"><span>${{w:'Width',h:'Height',d:'Depth',y:'Off the floor'}[k]}</span><input data-fl="${k}" value="${esc(show(it[k]||0))}" inputmode="decimal" ${!ed||(d.fixed&&k!=='y')?'disabled':''}><i>${unitSign()}</i></label>`).join('')}
+    </div>
+    ${(d.opts||[]).map(([k,l,vals])=>`<div class="cw-opt"><span>${l}</span><div class="seg wrap">${vals.map(v=>`<button data-fo="${k}" data-v="${esc(v)}" aria-pressed="${String((it.opt||{})[k] ?? d.opt?.[k])===String(v)}" ${ed?'':'disabled'}>${esc(v)}</button>`).join('')}</div></div>`).join('')}
+    <p class="note">Drag it in the plan (Build) to move it along the walls; it backs onto the nearest wall and butts up to the cabinets beside it.${it.wall?' Its depth counts for the pot lights along this wall.':''}</p>`;
+  const ch=patch=>{ updateItem(it.id, patch); if(d.sized && patch.opt) Object.assign(it, d.sized(it)); refreshItem(it); renderSide(); };
+  sideB.querySelector('#fOpen').onclick=()=>openCaseLib({edit:it.id});
+  sideB.querySelector('#fTurn')?.addEventListener('click',()=>{ turnItem(it.id); refreshItem(it); renderSide(); });
+  sideB.querySelector('#fDup')?.addEventListener('click',()=>{ const c=duplicateItem(it.id); state.selFurn=c.id; refreshItem(c); applyFurniture(); renderSide(); toast('Duplicated · drag it where it goes'); });
+  sideB.querySelector('#fRm')?.addEventListener('click',e=>{ const b=e.target; if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to remove'; return; } removeItem(it.id); refreshItem({id:it.id}); renderSide(); toast('Removed'); });
+  sideB.querySelectorAll('[data-fl]').forEach(inp=>inp.onchange=()=>{ const v=parseLen(inp.value); if(isFinite(v) && v>=0) ch({[inp.dataset.fl]:v}); else inp.value=show(it[inp.dataset.fl]||0); });
+  sideB.querySelectorAll('[data-fo]').forEach(b=>b.onclick=()=>{ const raw=b.dataset.v; ch({opt:{...(it.opt||{}), [b.dataset.fo]:isNaN(+raw)?raw:+raw}}); });
+  return true;
+}
+/* the home's cabinets, for the home overview */
+function homeBlock(){
+  const L=furnitureOf(); const t=totals(L);
+  return `<div class="cw-home"><div class="eyebrow">Cabinets &amp; furniture</div>
+    <p>${L.length ? `${L.length} item${L.length>1?'s':''}${Object.keys(t.area).length?` · ${Object.entries(t.sheets).map(([n,s])=>`${s} sheet${s>1?'s':''} of ${n}″`).join(' · ')} · ${t.bandFt} ft edge band`:''}` : 'None yet. Drag them in from the tray in Build, or add one from the library.'}</p>
+    <div class="row"><button class="btn ghost sm" id="cwLib">Cabinet library</button>${L.some(x=>partsOf(x).some(p=>!p.hw&&!p.solid))?'<button class="btn ghost sm" id="cwAll">Cut list for the home (CSV)</button>':''}</div></div>`;
+}
+function bindHomeBlock(root){
+  root.querySelector('#cwLib')?.addEventListener('click',()=>openCaseLib());
+  root.querySelector('#cwAll')?.addEventListener('click',()=>{ const L=furnitureOf(); download(`cabinets-${state.model}.csv`, L.map((it,i)=>csv(it, `${i+1}. ${itemDef(it.k).name}`)).join('\n\n')); });
+}
+export { openCaseLib, furnSide, homeBlock, bindHomeBlock, parseLen };
+/* ⋯ menu → Cabinet library (and the Homes window on a phone) */
+{ const pop=document.getElementById('morePop');
+  if(pop && !document.getElementById('bCabLib')){ const b=document.createElement('button'); b.setAttribute('role','menuitem'); b.id='bCabLib'; b.textContent='Cabinet library';
+    pop.insertBefore(b, document.getElementById('bUpload')); b.onclick=()=>{ pop.hidden=true; openCaseLib(); }; }
+  const hp=document.getElementById('hProjects');
+  if(hp && !document.getElementById('hCabLib')){ const b=document.createElement('button'); b.className='btn ghost'; b.id='hCabLib'; b.textContent='Cabinets';
+    hp.after(b); b.onclick=()=>{ document.getElementById('homeDlg')?.close(); openCaseLib(); }; } }

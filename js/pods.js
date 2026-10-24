@@ -15,6 +15,8 @@
    Pods sit on the 8′ grid: they dock flush end to end, or side by side in 8′ steps. Two pods must share
    at least 8′ of wall, may not overlap, and the ¾″ space at every joint is added by layout.js. */
 import { POD, LAYER_KINDS } from './config.js';
+import { checkpoint } from './history.js';
+import { podRemoved } from './furniture.js';
 import { MODELS, LIB, LAYERLIB, PODLIB, byId, podById, deckById, DECKLIB, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib } from './data.js';
 import { slotsFor, layerSlotsFor, podList, localSide } from './layout.js';
 import { state, save, pickFor, pickLayer } from './state.js';
@@ -111,6 +113,7 @@ function bake(key){
 /* Built-in homes stay as they are: the first edit makes the person's own copy (saved in this browser).
    Projects and own layouts are edited in place. Returns the key being edited. */
 function editKey(){
+  checkpoint();
   const key=state.model, m=MODELS[key];
   if(m.custom || m.project || m.sub){ bake(key); return key; }
   // the built-in home keeps its own picks; the copy carries them on its pods
@@ -120,6 +123,7 @@ function editKey(){
   if(state.found?.[key]!=null) state.found[nk]=state.found[key];
   if(state.deckOC?.[key]!=null) state.deckOC[nk]=state.deckOC[key];
   if(state.units?.[key]) state.units[nk]=clone(state.units[key]);
+  if(state.furniture?.[key]) state.furniture[nk]=clone(state.furniture[key]);
   state.model=nk;
   return nk;
 }
@@ -181,7 +185,7 @@ function replacePod(i, item){
 function deletePod(i){
   const pods=MODELS[state.model].pods; if(pods.length<2) return 'A home needs at least one pod.';
   const trial=pods.filter((_,j)=>j!==i); const why=problem(trial); if(why) return why.startsWith('A deck') ? 'A deck is docked to this pod. Move or remove the deck first.' : 'Removing this pod would leave the others apart.';
-  const key=editKey(); MODELS[key].pods.splice(i,1); finish(key); return '';
+  const key=editKey(); MODELS[key].pods.splice(i,1); podRemoved(key, i); finish(key); return '';
 }
 /* every grid spot where a footprint w×d could dock (used to snap a drag to the nearest good spot) */
 function dockSpots(item, rot, skip=-1){

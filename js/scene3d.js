@@ -16,6 +16,7 @@ import { wallFraming, floorBuild } from './framing.js';
 import { FRAME, FLOOR_BUILD } from './config.js';
 import { DECK } from './config.js';
 import { foundationOf } from './state.js';
+import { buildFurniture, applyFurniture, furnMeshes } from './furniture.js';
 
 /* ============================================================ 3D studio */
 const stage = document.getElementById('stage');
@@ -449,6 +450,8 @@ function buildHome(){
       B.tubes.forEach(r=>under(r, -ac.t-fr.h, fr.h, FRAME_MAT.steel, 'tube')); });
   }
   unitMeshes=[]; wallGroups.forEach(g=>g.traverse(o=>{ if(o.userData.unit) unitMeshes.push(o); }));
+  // cabinets, appliances and furniture, each standing in its pod
+  buildFurniture(homeGroup, pods);
   // faces sit a hair behind their own edge lines, so panel seams and outlines draw cleanly instead of flickering
   homeGroup.traverse(o=>{ const m=o.isMesh && o.material; if(m && !m.polygonOffset){ m.polygonOffset=true; m.polygonOffsetFactor=1; m.polygonOffsetUnits=1; } });
   applyLayers();
@@ -571,6 +574,7 @@ function applyLayers(){
   MAT.glass.needsUpdate = MAT.door.needsUpdate = MAT.doorInt.needsUpdate = true;
   controls.maxPolarAngle = Math.PI*0.999;   // turn the home right over to reach the underside of the floor
   applyIsolate();
+  applyFurniture();
 }
 /* Isolate: one wall, floor / ceiling / roof layer or deck on its own, to look at from every side (underneath too).
    Everything else in the home is hidden; the part keeps its own switches (windows, lumber, splines). */
@@ -618,6 +622,10 @@ renderer.domElement.addEventListener('pointerup',e=>{
   mouse.set(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1);
   ray.setFromCamera(mouse,camera);
   const hit=ray.intersectObjects(pickables,false).find(shown);
+  // a cabinet or piece of furniture in front of the wall / floor: pick it
+  const fh=ray.intersectObjects(furnMeshes(),false)[0];
+  if(fh && (!hit || fh.distance<=hit.distance+0.05)){ state.selFurn=fh.object.userData.furn; state.selected=null; state.selUnit=null; highlight(); applyFurniture(); renderSide(); return; }
+  if(state.selFurn){ state.selFurn=null; applyFurniture(); }
   state.selected = hit ? hit.object.userData.slotId : null;
   state.selUnit = null; for(let o=hit?.object; o; o=o.parent){ if(o.userData?.okey){ state.selUnit=o.userData.okey; break; } }
   highlight(); renderSide();

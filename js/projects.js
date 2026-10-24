@@ -76,7 +76,7 @@ function snapshot(name, id, k=state.model){
   if(m.base) model.base=m.base;
   const own = f => clone(state[f]?.[k]||{});
   return { id, name, saved:new Date().toISOString(), from:m.project ? (MODELS[k].from||k) : k, model,
-    picks: own('picks'), layerPicks: own('layerPicks'), wallA: own('wallA'), faces: own('faces'), inset: state.inset, bearing: getBearing(k), found: foundationOf(k), deckOC: deckOCOf(k), units: own('units'), cabinets: own('cabinets'), lights: own('lights') };
+    picks: own('picks'), layerPicks: own('layerPicks'), wallA: own('wallA'), faces: own('faces'), inset: state.inset, bearing: getBearing(k), found: foundationOf(k), deckOC: deckOCOf(k), units: own('units'), cabinets: own('cabinets'), furniture: clone(state.furniture?.[k]||[]), lights: own('lights') };
 }
 /* Save: updates the open project, or makes a new one. On the team's server when there is one. */
 const newId = () => Date.now().toString(36);
@@ -87,6 +87,7 @@ async function saveProject(name, asNew=false){
   // the project becomes the home on screen, carrying this browser's choices
   register(q0, true);
   ['picks','layerPicks','wallA','faces','units','cabinets','lights'].forEach(f=>{ (state[f] ||= {})[k]=clone(q0[f]||{}); });
+  (state.furniture ||= {})[k]=clone(q0.furniture||[]);
   (state.bearing ||= {})[k]=q0.bearing; (state.found ||= {})[k]=q0.found; (state.deckOC ||= {})[k]=q0.deckOC;
   state.model=k; save();
   // new walls, floors, ceilings and pods of this home go into their libraries; the project then refers to them
@@ -99,7 +100,7 @@ async function saveProject(name, asNew=false){
 }
 function openProject(id){
   const p = TEAM[id] || PROJECTS[id] || SHARED[id]; if(!p) return;
-  const fresh = !!(TEAM[id] || fresh);
+  const fresh = !!TEAM[id];
   const k=keyOf(p); register(p);
   if(!state.picks[k] || fresh) state.picks[k]=clone(p.picks||{});
   if(!state.layerPicks[k] || fresh) state.layerPicks[k]=clone(p.layerPicks||{});
@@ -107,6 +108,7 @@ function openProject(id){
   if(!state.faces[k] || fresh) state.faces[k]=clone(p.faces||{});
   if(!state.cabinets?.[k] || fresh) (state.cabinets ||= {})[k]=clone(p.cabinets||{});
   if(!state.lights?.[k] || fresh) (state.lights ||= {})[k]=clone(p.lights||{});
+  if(!state.furniture?.[k] || fresh) (state.furniture ||= {})[k]=clone(p.furniture||[]);
   if(p.inset) state.inset=p.inset;
   if(p.bearing!=null && (state.bearing?.[k]==null || fresh)) (state.bearing ||= {})[k]=p.bearing;
   if(p.found && (state.found?.[k]==null || fresh)) (state.found ||= {})[k]=p.found;

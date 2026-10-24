@@ -19,6 +19,7 @@ import { setIsolate } from './layers.js';
 import { applyEdits } from './libedit.js';
 import { withLights, cfgOf, setLights, cabinetsOf, setCabinet, cabDepth, CAB_PRESETS } from './lights.js';
 import { askRename } from './library-ui.js';
+import { furnSide, homeBlock, bindHomeBlock } from './casework-ui.js';
 
 const sideH=document.getElementById('sideH'), sideB=document.getElementById('sideB');
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -100,6 +101,7 @@ function renderSide(){
 }
 document.addEventListener('keydown', e=>{ if(e.key==='Escape' && state.view==='studio' && state.selected && !document.querySelector('dialog[open]') && !e.target.closest('input,textarea,select')){ state.selected=null; highlight(); renderSide(); } });
 function renderSideInner(){
+  if(state.selFurn && furnSide(sideH, sideB)) return;   // a cabinet or piece of furniture picked
   const slots=slotsFor(state.model); const m=MODELS[state.model];
   const ls=layerSlotsFor(state.model).find(x=>x.id===state.selected);
   if(ls){ renderLayerSide(ls); return; }
@@ -117,13 +119,14 @@ function renderSideInner(){
     sideB.innerHTML=`
       ${foundationBlock()}
       ${wallListHTML(slots,null)}
+      ${homeBlock()}
       <div class="more-grp">
       ${catalogBlock()}
       ${layoutBlock(m)}
       ${importBlock()}
       <details class="help"><summary>How walls are lettered</summary><p>Each pod's walls run A, B, C, D clockwise seen from above. A and C are the through walls (they run straight through, corner to corner) and B and D butt between them. Every pod's A points the same way: the way most pods' largest opening faces on the outside of the home. Click a through wall to make it A by hand. Panel numbers sit over the room side of each wall.</p></details>
       </div>`;
-    bindLayout(); bindFoundation(); bindCatalog();
+    bindLayout(); bindFoundation(); bindCatalog(); bindHomeBlock(sideB);
   } else {
     const w=pickFor(s); const opts=optionsFor(s.len, s.type||'ext', state.model);
     const isInt=s.type==='int';

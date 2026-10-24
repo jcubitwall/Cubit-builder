@@ -7,11 +7,18 @@ import { applyLayers, buildHome, focusCamera, applyExplode, focusIsolated, isoTa
 import { renderSide } from './sidebar.js';
 import { podList, slotsFor, layerSlotsFor } from './layout.js';
 
+import { CATS as CW_CATS } from './casework.js';
+import { applyFurniture } from './furniture.js';
+const CW_COL={base:'#dcc39a',upper:'#e4cfa4',tall:'#cdb287',linen:'#d8bd8c',wardrobe:'#c9a978',vanity:'#e6d3ae',bench:'#b98f60',shelf:'#ead9b6',fire:'#8a8f94',counter:'#8f9493',appliance:'#c9cdd1',furniture:'#8e978a'};
+const CW_ROWS = CW_CATS.map(c=>['cw-'+c.k, c.name, CW_COL[c.k]]);
 const ROWS = [
   ['Show'],
   ['roof','Roof','#4b514d'], ['ceiling','Ceiling','#d9d2bf'], ['walls','Walls (SIP)','#c9a46a'], ['floors','Floors','#8d8f86'],
   ['decks','Decks','#a88f5d'], ['screws','Foundation','#56606b'], ['frames','Steel frame & ACM','#3d4247'], ['seals','Compression seals','#e8170f'], ['units','Windows & doors','#8fc3ea'],
   ['framing','Lumber & LVL','#e0b36a'], ['splines','OSB splines','#b7864a'],
+  ['-'],
+  ['Cabinets & furniture'],
+  ...CW_ROWS,
   ['-'],
   ['glass','See-through glass & doors'],
   ['-'],
@@ -31,7 +38,7 @@ const FOCUS = [
   ['wire',    'Wiring',          null],
 ];
 const btn=document.getElementById('bLayers'), pop=document.getElementById('layersPop');
-const val=k=> k in state.show ? !!state.show[k] : (k==='frames'||k==='seals') ? true : state[k];
+const val=k=> k in state.show ? !!state.show[k] : (k==='frames'||k==='seals'||k.startsWith('cw-')) ? true : state[k];
 const stage=document.getElementById('stage');
 const badge=document.createElement('button'); badge.className='pod-badge'; badge.hidden=true; stage.appendChild(badge);
 
@@ -50,6 +57,7 @@ function render(){
   pop.innerHTML=h;
 }
 function set(k, v){
+  if(k.startsWith('cw-')){ state.show[k]=v; applyFurniture(); save(); render(); return; }
   if(k in state.show){ state.show[k]=v; applyLayers(); if(k==='screws') renderSide(); }
   else { state[k]=v; if(k==='glass') applyLayers(); else buildHome(); }
   save(); render();
