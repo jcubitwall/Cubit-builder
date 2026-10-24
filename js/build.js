@@ -3,8 +3,8 @@
    It opens as a flat plan, straight down. Gestures (the way Shapr3D works):
      · drag a pod (or deck) with one finger to move it; it snaps to the nearest spot where it docks properly
      · two fingers on a pod and twist: it turns 90° (each quarter turn of your fingers)
-     · one finger on empty space: orbit. A drag DOWN always tips the home down toward you into 3D (the view drops
-       toward the side, and on round underneath); a drag UP lifts it back toward the plan. Sideways turns it around.
+     · one finger on empty space: orbit, as in Shapr3D (you turn the home itself). A drag UP brings the near side up
+       into view and keeps going round underneath; a drag DOWN goes back toward the plan. Sideways turns it around.
        Two fingers pan, pinch zooms.
      · double-tap: back down to the flat plan
      · tap a wall, a floor, a ceiling, a window or a door: its options come up. Turn the home right over to reach
@@ -49,7 +49,7 @@ function flatten(fit=false){
   step();
 }
 const flatBadge=document.createElement('div'); flatBadge.className='flat-badge'; stage.appendChild(flatBadge);
-function badge(){ const f=isFlat(); flatBadge.textContent = f ? 'PLAN · drag a pod or cabinet to move it · drag empty space to tilt into 3D' : '3D · double-tap a part to zoom to it · double-tap empty space for the plan'; flatBadge.classList.toggle('three', !f); }
+function badge(){ const f=isFlat(); flatBadge.textContent = f ? 'PLAN · drag a pod or cabinet to move it · drag up on empty space to tilt into 3D' : '3D · double-tap a part to zoom to it · double-tap empty space for the plan'; flatBadge.classList.toggle('three', !f); }
 setInterval(()=>{ if(state.view==='studio') badge(); }, 300);
 
 /* ---------------------------------------------------------------- picking */
@@ -171,7 +171,7 @@ window.addEventListener('pointermove', e=>{
   const dx=e.clientX-orbit.x, dy=e.clientY-orbit.y; orbit.x=e.clientX; orbit.y=e.clientY;
   const h=Math.max(200, cv.clientHeight);
   off.copy(camera.position).sub(controls.target); sph.setFromVector3(off);
-  sph.theta -= dx*2*Math.PI/h*0.6; sph.phi = Math.min(Math.PI*0.999, Math.max(0.0001, sph.phi + dy*Math.PI/h));
+  sph.theta -= dx*2*Math.PI/h*0.6; sph.phi = Math.min(Math.PI*0.999, Math.max(0.0001, sph.phi - dy*Math.PI/h));   // Shapr3D: drag up tips the home toward you, down goes back toward the plan
   off.setFromSpherical(sph); camera.position.copy(controls.target).add(off); camera.lookAt(controls.target); controls.update();
 });
 window.addEventListener('pointermove', e=>{
