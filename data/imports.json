@@ -1,5 +1,16 @@
 [
  {
+  "id": "20261024121859-fylz",
+  "kind": "pod",
+  "name": "Preston  Cudmore",
+  "file": "Cubit Builder SIP File.step",
+  "by": "heinrich@cubithome.com",
+  "started": "2026-10-24T12:19:22+00:00",
+  "status": "failed",
+  "error": "read 32 solids in 0.7s\n  floor frame / ACM drawn under the floor: heights measured from 6.50″ up (bottom of the exterior SIP floor)\n  no FRP sheet: found the pods from 29 exterior floor bodies\nExpected one pod in a pod file, found 29. Upload it as a home instead.",
+  "finished": "2026-10-24T12:19:24+00:00"
+ },
+ {
   "id": "20261023211500-round",
   "kind": "home",
   "name": "Preston Cudmore",
