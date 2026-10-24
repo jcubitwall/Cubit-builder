@@ -548,3 +548,6 @@ dialog.lib-dlg::backdrop{background:rgba(20,24,22,.45)}
 .hand-t{color:#7d3c98}
 .hand-ck{display:inline-flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap}
 tr.hand-row td{background:#f7eefb}
+.vers{display:flex;flex-direction:column;gap:4px;margin-top:6px;grid-column:1/-1}
+.projrow .acts .edit-only{display:contents}
+.ver{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:var(--ink-2);border-top:1px dashed var(--line);padding-top:4px}
