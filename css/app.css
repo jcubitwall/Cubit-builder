@@ -551,5 +551,5 @@ tr.hand-row td{background:#f7eefb}
 .vers{display:flex;flex-direction:column;gap:4px;margin-top:6px;grid-column:1/-1}
 .projrow .acts .edit-only{display:contents}
 .ver{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:var(--ink-2);border-top:1px dashed var(--line);padding-top:4px}
-.seal-call{border:2px solid #1d1f22;border-left-width:8px;border-radius:8px;padding:8px 12px;font-size:13px;line-height:1.45;color:#222;background:#f6f4ef;margin:6px 0}
-.seal-call.high{border-color:#b4520f;background:#fdf1e7}
+.seal-call{border:2px solid #1f6fe0;border-left-width:8px;border-radius:8px;padding:8px 12px;font-size:13px;line-height:1.45;color:#222;background:#eef4fd;margin:6px 0}
+.seal-call.high{border-color:#e8170f;background:#fdeceb}

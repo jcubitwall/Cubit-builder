@@ -114,7 +114,7 @@ function holedSlab(a,b,y0,y1,shapes,d){
   return new THREE.ExtrudeGeometry(sh, {depth:d, bevelEnabled:false, curveSegments:24});
 }
 const HAND_LINE = new THREE.LineBasicMaterial({color:0x8e44ad});
-const SEAL_LOW = new THREE.MeshStandardMaterial({color:0x1d1f22, roughness:0.7}), SEAL_HIGH = new THREE.MeshStandardMaterial({color:0x3b2a1e, roughness:0.7, emissive:0x2a1200});
+const SEAL_LOW = new THREE.MeshStandardMaterial({color:0x1f6fe0, roughness:0.6, emissive:0x082a66}), SEAL_HIGH = new THREE.MeshStandardMaterial({color:0xe8170f, roughness:0.6, emissive:0x5a0400});   // high seal bright red (it takes the most water), low seal blue
 /* purple outline of a hand-made feature, drawn on a face (points in inches, plane z in feet) */
 function handLoop(P, z, flat){ const pts=P.map(p=>flat ? new THREE.Vector3(p[0]/FT, z, p[1]/FT) : new THREE.Vector3(p[0]/FT, p[1]/FT, z)); return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), HAND_LINE); }
 const BOX_FLOOR = new THREE.MeshBasicMaterial({color:0xf4f1ea, side:THREE.DoubleSide});   // the back of a carved electrical box
@@ -398,7 +398,7 @@ function buildHome(){
       w.openings.filter(o=>o.kind!=='vent' && o.w>=12 && (s.type==='int' || (o.kind==='opening' && o.w>=48))).forEach(o=>{
         const m=new THREE.Mesh(new THREE.PlaneGeometry(o.w/FT, o.h/FT), new THREE.MeshBasicMaterial({color:0xe0864a, transparent:true, opacity:0, depthWrite:false, side:THREE.DoubleSide}));
         m.position.set((o.x+o.w/2)/FT, (o.y+o.h/2)/FT, -t/2); m.userData.pickPane=true; m.renderOrder=2; g.add(m); }); }
-    // the rubber compression seal on the outside face (toward the other pod): high seal amber-edged, low seal plain
+    // the rubber compression seal on the outside face (toward the other pod): high seal red, low seal blue
     const role=sealRole(s, slots);
     sealsFor(w, role, H).forEach(sl=>{
       const curve=new THREE.CatmullRomCurve3(sl.pts.map(([x,y])=>new THREE.Vector3(x/FT, y/FT, SEAL.t/2/FT)), false, 'catmullrom', 0);

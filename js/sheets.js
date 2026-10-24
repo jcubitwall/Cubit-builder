@@ -134,7 +134,7 @@ function sealCallout(s, w, face){
   const slots=slotsFor(state.model), role=sealRole(s, slots); if(!role) return '';
   const pt=partnerOf(slots.find(x=>x.id===s.id)||s, slots), n=sealsFor(w, role, H).length; if(!n || !pt) return '';
   const hi=role==='high';
-  return `<div class="seal-call ${role}"><b>${hi?'HIGH':'LOW'} compression seal</b> on the face toward ${esc(s.other.label)} (Side B), around ${n} opening${n>1?'s':''}.
+  return `<div class="seal-call ${role}"><b>${hi?'HIGH (RED)':'LOW (BLUE)'} compression seal</b> on the face toward ${esc(s.other.label)} (Side B), around ${n} opening${n>1?'s':''}.
     This is Wall <b>${esc(s.letter)}</b>; it meets ${esc(pt.label)} (Wall <b>${esc(pt.letter)}</b>), so it gets the <b>${hi?'higher':'lower'}</b> seal${hi?`: <b>2″ above and outside</b> the ${esc(pt.letter[0])} wall's`:`; the ${esc(pt.letter[0])} wall's seal runs 2″ above and outside this one`}.
     Seal ${fin(SEAL.low+(hi?SEAL.rise:0))} out from the rough opening, crowned ${fin(SEAL.crown)} over the head, then down both sides to the bottom of the wall. Adhesive strip to the wall; the ¾″ rubber fills the space between the pods.${sealsFor(w, role, H).some(x=>x.onRim)?' Where the head runs above the wall it goes on the SilverBack over the 11⅞″ LVL roof rim.':''}</div>`;
 }
@@ -237,10 +237,9 @@ function elevationSVG(w,face,rev,slot){
     g+=`<text x="${X(0)+6}" y="${Y(H+SEAL.rim/2)+4}" font-size="9.5" fill="#4a5056">ROOF LVL RIM 11⅞″ · 2 × SILVERBACK — seal heads run on it</text>`; }
   SL.forEach(sl=>{
     const P=sl.pts.map(([x,y])=>[X(vx(x)),Y(y)]), d=P.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
-    const hi=role==='high', col=hi?'#b4520f':'#1d1f22';
+    const hi=role==='high', col=hi?'#e8170f':'#1f6fe0';
     if(face==='ext'){
       g+=`<path d="${d}" fill="none" stroke="${col}" stroke-width="${Math.max(4, SEAL.w*s)}" stroke-linejoin="round" stroke-linecap="round" opacity=".9"/>`;
-      g+=`<path d="${d}" fill="none" stroke="#e74c3c" stroke-width="1" stroke-dasharray="1 0"/>`;
     } else g+=`<path d="${d}" fill="none" stroke="${col}" stroke-width="2" stroke-dasharray="6 4" opacity=".75"/>`;
     const cx=X(vx(sl.o.x+sl.o.w/2)), cy=Y(sl.head+SEAL.crown)-8;
     g+=`<text x="${cx}" y="${cy}" text-anchor="middle" font-size="10.5" font-weight="800" fill="${col}">${hi?'HIGH SEAL':'LOW SEAL'} · ${fin(sl.out)} out · head ${fin(sl.head)}${face==='ext'?'':' (other face)'}</text>`;
