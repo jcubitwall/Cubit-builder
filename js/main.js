@@ -13,6 +13,8 @@ import { loadRole } from './role.js';
 import { initUpload } from './upload.js';
 import { loadUnits } from './units.js';
 import { loadCatalog } from './catalog.js';
+import { loadEdits } from './libedit.js';
+import './library-ui.js';
 import { initPhone } from './phone.js';
 import { initZoomView } from './zoomview.js';
 
@@ -38,7 +40,7 @@ document.getElementById('bPlan').onclick=()=>{ if(state.view==='plan'){ closePla
 document.querySelectorAll('.hint').forEach(h=>{ const host=h.parentNode; const off=()=>{ h.classList.add('gone'); host.removeEventListener('pointerdown',off); }; host.addEventListener('pointerdown',off); });
 
 (async function boot(){
-  try{ await loadRole(); await loadData(); await loadUnits(); await loadProjects(); await loadCatalog(); }
+  try{ await loadRole(); await loadData(); await loadUnits(); await loadProjects(); await loadCatalog(); await loadEdits(); }
   catch(e){ document.getElementById('sideH').innerHTML='<h2>Could not load the wall library</h2><p>Open the app from its web address (GitHub Pages) or a local web server, not by double-clicking the file.</p>'; return; }
   initState(); initProjectsUI(); initUpload();
   renderModels(); buildHome(); renderSide(); resize(); loop(); initPhone(); initZoomView();

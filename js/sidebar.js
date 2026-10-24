@@ -16,6 +16,8 @@ import { isAdmin, canSave } from './role.js';
 import { TYPES, unitsFor, unitFor, setUnit, unitSVG, unitLabel, catOf, okey, pairOf, doorOwner, setDoorOwner } from './units.js';
 import { fin } from './format.js';
 import { setIsolate } from './layers.js';
+import { applyEdits } from './libedit.js';
+import { askRename } from './library-ui.js';
 
 const sideH=document.getElementById('sideH'), sideB=document.getElementById('sideB');
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -23,13 +25,14 @@ const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&
 /* the header: one chip per model name; under the one you're on, its standard layout and sub-models */
 const famPick = {};   // last home opened under each model name (this visit)
 function renderModels(){
+  applyEdits();
   const el=document.getElementById('models');
   const fam=familyOf(state.model);
   if(fam) famPick[fam]=state.model;
   const tag = k => { const m=MODELS[k]; return familyById(familyOf(k))?.base===k ? 'standard' : m.sub ? 'sub-model' : m.custom ? 'your layout' : ''; };
-  let h = FAMILIES.map(f=>{ const v=variantsOf(f.id), base=f.base&&MODELS[f.base];
+  let h = FAMILIES.filter(f=>!f.deleted).map(f=>{ const v=variantsOf(f.id), base=f.base&&MODELS[f.base];
     return `<button class="chip ${v.length?'':'empty'}" data-f="${f.id}" aria-pressed="${fam===f.id}">${esc(f.name)}<small>${v.length>1?`${v.length} designs`:base?esc(base.size||''):v.length?esc(MODELS[v[0]].size||''):'no design yet'}</small></button>`; }).join('')
-    + Object.entries(MODELS).filter(([k,m])=>m.project).map(([k,m])=>`<button class="chip proj" data-m="${k}" aria-pressed="${k===state.model}" title="Saved project">${esc(m.name)}<small>${m.shared?'shared':'project'}</small></button>`).join('');
+    + Object.entries(MODELS).filter(([k,m])=>m.project && !m.deleted).map(([k,m])=>`<button class="chip proj" data-m="${k}" aria-pressed="${k===state.model}" title="Saved project">${esc(m.name)}<small>${m.shared?'shared':'project'}</small></button>`).join('');
   const v = fam ? variantsOf(fam) : [];
   if(v.length>1) h += `<div class="variants" role="group" aria-label="${esc(familyById(fam).name)} designs">${v.map(k=>`<button class="vchip" data-m="${k}" aria-pressed="${k===state.model}">${esc(MODELS[k].name)}<small>${tag(k)}</small></button>`).join('')}</div>`;
   el.innerHTML = h;
@@ -95,7 +98,8 @@ function renderSideInner(){
     const nS=screwsFor(state.model,state.inset).length, conc=foundationOf(state.model)==='concrete' ? concretePlan(state.model) : null;
     const facts=[`${pods} pod${pods>1?'s':''}`, `${area} sq ft`, `${slots.filter(x=>x.type!=='int').length} outside + ${slots.filter(x=>x.type==='int').length} inside walls`, `${panels} SIP panels`,
       conc ? `${Math.round(conc.icfLen)}′ ICF${nS?` · ${nS} deck screws`:''}` : `${nS} ground screws`, (m.decks||[]).length ? `${m.decks.length} deck${m.decks.length>1?'s':''}` : '', m.note ? 'scanned from STEP' : ''].filter(Boolean);
-    sideH.innerHTML=`<div class="eyebrow">${fam?esc(fam.name):'Model'}${m.sub?' · sub-model':m.custom?' · your layout':m.project?' · project':fam&&fam.base===state.model?' · standard':''}</div><h2>${esc(m.name)}</h2><p>${facts.join(' · ')}</p>`;
+    sideH.innerHTML=`<div class="eyebrow">${fam?esc(fam.name):'Model'}${m.sub?' · sub-model':m.custom?' · your layout':m.project?' · project':fam&&fam.base===state.model?' · standard':''}</div><h2>${esc(m.name)} <button class="linkbtn ren-link edit-only" id="renHome">Rename</button></h2><p>${facts.join(' · ')}</p>`;
+    sideH.querySelector('#renHome').onclick=()=>askRename('models', state.model);
     sideB.innerHTML=`
       ${foundationBlock()}
       ${wallListHTML(slots,null)}
@@ -109,7 +113,8 @@ function renderSideInner(){
   } else {
     const w=pickFor(s); const opts=optionsFor(s.len, s.type||'ext', state.model);
     const isInt=s.type==='int';
-    sideH.innerHTML=`<div class="eyebrow">${isInt?'Interior wall · 4½″':'Exterior wall · 6½″'} · ${s.len}′ · ${s.len/4} panels</div><h2>${s.label}</h2><p>${s.detail} · faces ${fmtBearing(facing(s))} · now <b>${w?esc(w.id):'—'}</b> ${w?esc(w.name):''}</p>`;
+    sideH.innerHTML=`<div class="eyebrow">${isInt?'Interior wall · 4½″':'Exterior wall · 6½″'} · ${s.len}′ · ${s.len/4} panels</div><h2>${s.label}</h2><p>${s.detail} · faces ${fmtBearing(facing(s))} · now <b>${w?esc(w.id):'—'}</b> ${w?esc(w.name):''}${w&&!w.blank?' <button class="linkbtn ren-link edit-only" id="renWall">Rename</button>':''}</p>`;
+    const rw=sideH.querySelector('#renWall'); if(rw) rw.onclick=()=>askRename('walls', w.mirrorOf||w.id);
     sideB.innerHTML=`
       <div class="row"><button class="btn" id="toSheet">Assembly sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===s.id}">${state.isolate===s.id?'Exit isolate':'Isolate'}</button>${s.short ? `<button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button>` : ''}</div>
       ${(state.wallA?.[state.model]?.[s.pod.i] || m.pods[s.pod.i]?.a) ? `<p class="note">Wall A for ${s.pod.label} was set by hand. <button class="linkbtn" id="autoA">Go back to automatic</button></p>`:''}
@@ -226,7 +231,8 @@ function renderDeckSide3d(k){
 /* ============================================================ layout editor: add / remove pods */
 function renderLayerSide(ls){
   const L=pickLayer(ls), K=LAYER_KINDS[ls.kind], opts=layerOptions(ls.kind, ls.len);
-  sideH.innerHTML=`<div class="eyebrow">${K.label} · ${ls.len}′ × 8′ · ${(L.t||K.t)}″ thick</div><h2>${ls.label}</h2><p>now <b>${esc(L.id)}</b> ${esc(L.name)}</p>`;
+  sideH.innerHTML=`<div class="eyebrow">${K.label} · ${ls.len}′ × 8′ · ${(L.t||K.t)}″ thick</div><h2>${ls.label}</h2><p>now <b>${esc(L.id)}</b> ${esc(L.name)}${L.blank?'':' <button class="linkbtn ren-link edit-only" id="renLayer">Rename</button>'}</p>`;
+  const rl=sideH.querySelector('#renLayer'); if(rl) rl.onclick=()=>askRename('layers', L.id);
   sideB.innerHTML=`
     <div class="row"><button class="btn" id="toSheet">Layer sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===ls.id}">${state.isolate===ls.id?'Exit isolate':'Isolate'}</button></div>
     ${(ls.kind==='ceiling-int'||ls.kind==='roof') && state.isolate!==ls.id ? '<p class="note">Turn on Ceiling or Roof under Layers (or use Exploded view) to see them in 3D, or press Isolate.</p>':''}

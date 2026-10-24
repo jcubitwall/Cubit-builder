@@ -10,6 +10,7 @@ import { state, save, pickFor, deckOCOf } from './state.js';
 import { getBearing, setBearing, northVec, fmtBearing } from './orient.js';
 import { setDeckFoundation, deckFoot, addDeck, moveDeck, removeDeck, replaceDeck, deckSpots, turnDeck, foot, addPod, movePod, rotatePod, replacePod, deletePod, dockSpots, saveToLibraries, countsText, renameLibPod, deleteLibPod } from './pods.js';
 import { buildHome } from './scene3d.js';
+import { askRename, askDelete } from './library-ui.js';
 import { renderModels, renderSide, toast } from './sidebar.js';
 
 const el = id => document.getElementById(id);
@@ -75,19 +76,19 @@ function deckThumb(L){
 /* ---------------------------------------------------------------- palette */
 function renderPalette(){
   const blanks=[['L24',24],['P16',16],['P8',8]];
-  const lib=PODLIB.slice().sort((a,b)=>b.len-a.len || a.id.localeCompare(b.id));
+  const lib=PODLIB.filter(p=>!p.deleted).sort((a,b)=>b.len-a.len || a.id.localeCompare(b.id));
   el('palette').innerHTML = `<div class="side-h"><div class="eyebrow">Pods · drag onto the plan</div></div>
     <div class="pal">
       <div class="pal-h">Blank pods</div>
       ${blanks.map(([t,len])=>`<div class="pod-item" data-t="${t}" tabindex="0" role="button" aria-label="Blank ${len} foot pod">${podThumb({len})}<div><b>${len}′ pod · blank</b><code>8′ × ${len}′</code></div></div>`).join('')}
       <div class="pal-h">Pod library · ${lib.length}</div>
       ${lib.length?'':'<p class="note">Empty. Import a STEP file, or save the pods of a home.</p>'}
-      ${lib.map(L=>`<div class="pod-item" data-lib="${esc(L.id)}" tabindex="0" role="button" aria-label="${esc(L.name)}">${podThumb(L)}<div><b>${esc(L.name)}</b><code>${esc(L.id)}${L.src==='saved'?' · saved here':''}</code>${L.src==='saved'?`<span class="pi-act"><button class="linkbtn" data-ren="${esc(L.id)}">Rename</button> <button class="linkbtn" data-del="${esc(L.id)}">Delete</button></span>`:''}</div></div>`).join('')}
-      <div class="pal-h">Deck library · ${DECKLIB.length}</div>
+      ${lib.map(L=>`<div class="pod-item" data-lib="${esc(L.id)}" tabindex="0" role="button" aria-label="${esc(L.name)}">${podThumb(L)}<div><b>${esc(L.name)}</b><code>${esc(L.id)}${L.src==='saved'?' · saved here':''}</code><span class="pi-act edit-only"><button class="linkbtn" data-ren="pods:${esc(L.id)}">Rename</button> <button class="linkbtn" data-del="pods:${esc(L.id)}">Delete</button></span></div></div>`).join('')}
+      <div class="pal-h">Deck library · ${DECKLIB.filter(d=>!d.deleted).length}</div>
       ${DECKLIB.length?'':'<p class="note">Empty. Import a STEP file with a porch or deck frame.</p>'}
       ${(()=>{ const used=new Set((MODELS[state.model].decks||[]).map(d=>d.lib));
         // the size this home already uses comes first: keep every deck the same size where you can
-        return DECKLIB.slice().sort((a,b)=>(used.has(b.id)-used.has(a.id))||a.id.localeCompare(b.id)).map(L=>`<div class="pod-item" data-deck="${esc(L.id)}" tabindex="0" role="button" aria-label="${esc(deckName(L))}">${deckThumb(L)}<div><b>${esc(deckName(L))}</b><code>${esc(L.id)}${used.has(L.id)?' · <b>on this home</b>':''}</code></div></div>`).join(''); })()}
+        return DECKLIB.filter(d=>!d.deleted).sort((a,b)=>(used.has(b.id)-used.has(a.id))||a.id.localeCompare(b.id)).map(L=>`<div class="pod-item" data-deck="${esc(L.id)}" tabindex="0" role="button" aria-label="${esc(deckName(L))}">${deckThumb(L)}<div><b>${esc(deckName(L))}</b><code>${esc(L.id)}${used.has(L.id)?' · <b>on this home</b>':''}</code><span class="pi-act edit-only"><button class="linkbtn" data-ren="decks:${esc(L.id)}">Rename</button> <button class="linkbtn" data-del="decks:${esc(L.id)}">Delete</button></span></div></div>`).join(''); })()}
     </div>`;
   el('palette').querySelectorAll('.pod-item').forEach(n=>{
     n.addEventListener('pointerdown', e=>{
@@ -103,8 +104,8 @@ function renderPalette(){
     });
     n.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); quickAdd(itemOf(n)); } });
   });
-  el('palette').querySelectorAll('[data-ren]').forEach(b=>b.onclick=()=>{ const L=podById(b.dataset.ren); const nm=prompt('Name for this pod', L.name); if(nm){ renameLibPod(L.id, nm.trim()); renderPalette(); } });
-  el('palette').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again'; return; } deleteLibPod(b.dataset.del); renderPalette(); });
+  el('palette').querySelectorAll('[data-ren]').forEach(b=>b.onclick=()=>{ const [k,...r]=b.dataset.ren.split(':'); askRename(k, r.join(':'), renderPalette); });
+  el('palette').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ const [k,...r]=b.dataset.del.split(':'); askDelete(b, k, r.join(':'), renderPalette); });
 }
 const itemOf = n => n.dataset.deck ? {deck:n.dataset.deck} : n.dataset.lib ? {lib:n.dataset.lib} : {t:n.dataset.t};
 /* keyboard / tap: drop at the first good spot */

@@ -38,11 +38,12 @@ function saveCustomModels(){
   try{ localStorage.setItem(CUSTOM_KEY, JSON.stringify(out)); }catch(e){}
 }
 /* options for a slot: same length and type; walls tied to one home only show up in that home */
-const optionsFor = (len,type='ext',model=null) => LIB.filter(w=>w.len===len && (w.type||'ext')===type && (!w.model || w.model===model || (model && MODELS[model]?.base===w.model)));
+const optionsFor = (len,type='ext',model=null) => LIB.filter(w=>!w.deleted && w.len===len && (w.type||'ext')===type && (!w.model || w.model===model || (model && MODELS[model]?.base===w.model)));
 /* Mirrored walls: where two pods join, the neighbour's wall is the same wall mirrored, so a door or
    opening lines up through both. "<id>~m" is the mirror of wall <id>: every x is measured from the
    other end (openings and boxes keep their physical place along the wall). */
 const MIRROR = {};
+const clearMirrors = () => { Object.keys(MIRROR).forEach(k=>delete MIRROR[k]); };   // after a rename
 function mirrorWall(w){
   // openings are placed by their left edge, face items by their centre; drawn outlines and tool paths mirror too
   const L=w.len*12, fo=o=>({...mapX(o, x=>L-x), x:+(L-o.x-(o.w||0)).toFixed(4)}), fi=b=>({...mapX(b, x=>L-x), x:+(L-b.x).toFixed(4)});
@@ -61,7 +62,7 @@ function saveDeckLib(){ if(!canSave()) return; try{ localStorage.setItem(DECK_KE
 function savePodLib(){ if(!canSave()) return; try{ localStorage.setItem(POD_KEY, JSON.stringify(PODLIB.filter(p=>p.src==='saved'))); }catch(e){} }
 function saveWallLib(){ if(!canSave()) return; try{ localStorage.setItem('cubit-walls-imported', JSON.stringify(LIB.filter(w=>w.src!=='library'))); }catch(e){} }
 function saveLayerLib(){ if(!canSave()) return; try{ localStorage.setItem('cubit-layers-saved', JSON.stringify(LAYERLIB.filter(l=>l.src==='saved'))); }catch(e){} }
-const layerOptions = (kind,len) => LAYERLIB.filter(l=>l.kind===kind && l.len===len);
+const layerOptions = (kind,len) => LAYERLIB.filter(l=>!l.deleted && l.kind===kind && l.len===len);
 const layerById = id => LAYERLIB.find(l=>l.id===id);
 
-export { DECKLIB, deckById, saveDeckLib, MODELS, LIB, LAYERLIB, PODLIB, loadData, optionsFor, byId, mirrorId, mirrorWall, podById, layerOptions, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib };
+export { clearMirrors, DECKLIB, deckById, saveDeckLib, MODELS, LIB, LAYERLIB, PODLIB, loadData, optionsFor, byId, mirrorId, mirrorWall, podById, layerOptions, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib };

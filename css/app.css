@@ -519,3 +519,22 @@ html.phone .plan-wrap .hint{display:none}
 .after-l{font-size:12.5px;margin:0 0 8px;color:#333}
 .build-seq{margin:4px 0 0;padding-left:20px;font-size:13px;line-height:1.5}
 .build-seq li{margin:3px 0}
+/* library window + rename */
+dialog.lib-dlg{border:0;border-radius:14px;padding:0;max-width:min(640px,calc(100vw - 32px));width:100%;background:var(--surface);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.3)}
+dialog#renDlg{max-width:min(420px,calc(100vw - 32px))}
+dialog.lib-dlg::backdrop{background:rgba(20,24,22,.45)}
+.lib-tabs{display:flex;gap:4px;flex-wrap:wrap}
+.lib-tabs button{font:inherit;font-size:13px;padding:6px 11px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--ink-2);cursor:pointer}
+.lib-tabs button[aria-selected="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.lib-bar{display:flex;gap:10px;align-items:center}
+.lib-bar input{flex:1;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);color:var(--ink)}
+.lib-list{max-height:min(56vh,520px);overflow:auto;display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.lib-row{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid var(--line)}
+.lib-th{width:64px;flex:none}.lib-th svg{width:64px;height:auto;display:block}
+.lib-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.lib-t b{font-size:14px;overflow-wrap:anywhere}.lib-t small{font-size:11.5px;color:var(--ink-2)}
+.lib-a{display:flex;gap:6px;flex:none}
+.btn.sm{padding:5px 10px;font-size:12.5px}
+.btn.danger{color:#b4321f}
+.ren-link{font-size:12px;margin-left:6px}
+@media (max-width:520px){ .lib-row{flex-wrap:wrap} .lib-a{width:100%;justify-content:flex-end} .lib-th{display:none} }

@@ -51,7 +51,7 @@ function deckTakeoff(Ls){
   const deckBoards=packStock(boardCuts);
   return { cuts:Object.values(cuts).sort((a,b)=>a.name.localeCompare(b.name)||b.len-a.len), pieces:all.length, frame, deckBoards, boardsN, angles:Ls.length*4, angleLen:DECK.depth };
 }
-const deckName = L => `${L.w}′ × ${L.d}′ deck`;
+const deckName = L => L.name || `${L.w}′ × ${L.d}′ deck`;
 /* which deck frames a home uses, most used first: [[libId, count], ...] */
 const deckSizes = m => { const c={}; (m.decks||[]).forEach(d=>{ c[d.lib]=(c[d.lib]||0)+1; }); return Object.entries(c).sort((a,b)=>b[1]-a[1]); };
 /* the 16″ / 24″ joist spacing switch (one setting for all the decks of a home); bindOC wires it up */

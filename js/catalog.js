@@ -57,7 +57,7 @@ function familyOf(key){
 }
 /* the homes filed under a model name: the standard one, the shared sub-models, then your own layouts */
 function variantsOf(fam){
-  const ks=Object.keys(MODELS).filter(k=>!MODELS[k].project && familyOf(k)===fam);
+  const ks=Object.keys(MODELS).filter(k=>!MODELS[k].project && !MODELS[k].deleted && familyOf(k)===fam);
   const rank=k=>{ const m=MODELS[k]; return familyById(fam)?.base===k ? 0 : m.sub ? 1 : 2; };
   return ks.sort((a,b)=>rank(a)-rank(b) || MODELS[a].name.localeCompare(MODELS[b].name));
 }
