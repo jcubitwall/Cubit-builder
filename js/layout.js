@@ -156,9 +156,9 @@ function fitShortWalls(slots, pods){
   });
   openJoinEnds(slots);
 }
-/* Where two pods meet part-way along a side and the wall between them is open (missing) up to the neighbour's outside
-   wall, the outside wall doesn't step down to a thin interior wall for that short stretch: it carries on at its full
-   thickness and ends flush with the inside face of the neighbour's outside wall. So the outside wall is made longer
+/* Where two pods meet part-way along a side, the outside (6½″) wall doesn't step down to the 4½″ wall between the pods
+   at the corner of the neighbour: it carries on at its full thickness and ends flush with the inside face of the
+   neighbour's outside wall, and the 4½″ wall starts there. So the outside wall is made longer
    by the neighbour's wall thickness (a negative trim at that end) and the interior wall shorter by the same. */
 function openJoinEnds(slots){
   const same=(a,b)=>Math.abs(a[0]-b[0])<EPS && Math.abs(a[1]-b[1])<EPS;
@@ -171,11 +171,8 @@ function openJoinEnds(slots){
       const nb=slots.find(q=>q.pod===s.other && q.type==='ext' && ((along===0) ? (q.side==='W'||q.side==='E') : (q.side==='S'||q.side==='N')) && Math.abs(q.p0n[along]-c[along])<EPS);
       if(!nb) return;
       const t=(pickFor(nb)?.t) || 6.5;
-      // only when the wall between the pods is open up to the neighbour's wall (no solid piece of its own beyond it)
-      const w=pickFor(s); if(!w) return; const L=w.len*12;
-      const ops=(w.openings||[]).filter(o=>o.kind!=='vent');
-      const near = k===0 ? Math.min(Infinity, ...ops.map(o=>o.x)) : Math.min(Infinity, ...ops.map(o=>L-(o.x+o.w)));
-      if(!(near <= t+1)) return;
+      // always (Oct 2026 rule): the 6½″ outside wall carries on, full thickness, until it's flush with the inside face of
+      // the neighbour's wall; only there does the 4½″ wall between the pods begin
       s.trim[k]=Math.max(s.trim[k], t);                     // the interior wall stops at the neighbour's wall face
       const ek = same(ext.p0n,c) ? 0 : 1; ext.trim[ek] = -t;   // the outside wall runs on to it, full thickness
       ext.joinExt=(ext.joinExt||0)+t;
