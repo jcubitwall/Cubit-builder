@@ -103,7 +103,7 @@ function renderSideInner(){
       ${catalogBlock()}
       ${layoutBlock(m)}
       ${importBlock()}
-      <details class="help"><summary>How walls are lettered</summary><p>Each pod's walls run A, B, C, D clockwise seen from above. A and C are the through walls (they run straight through, corner to corner) and B and D butt between them. A is the through wall with the largest opening; when both are the same, A matches the other pods so they all face the same way. Click a through wall to make it A by hand.</p></details>
+      <details class="help"><summary>How walls are lettered</summary><p>Each pod's walls run A, B, C, D clockwise seen from above. A and C are the through walls (they run straight through, corner to corner) and B and D butt between them. Every pod's A points the same way: the way most pods' largest opening faces on the outside of the home. Click a through wall to make it A by hand. Panel numbers sit over the room side of each wall.</p></details>
       </div>`;
     bindLayout(); bindFoundation(); bindCatalog();
   } else {

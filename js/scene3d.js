@@ -372,7 +372,8 @@ function buildHome(){
   slots.forEach(s=>{
     const w=bodyWall(s, pickFor(s)); if(!w) return;
     const mat=new THREE.MeshStandardMaterial({color:s.type==='int'?0xece0c6:0xc9a46a,roughness:0.85});
-    const built=buildWallMesh(w,mat,{nums:state.nums,numSize:1.0,unitOf:o=>unitFor(s,o),openOnly:o=>{ const pr=pairOf(s,o); return !!pr && doorOwner(s,o).id!==s.id; }});
+    const built=buildWallMesh(w,mat,{nums:state.nums,numSize:1.0,numZ:-(w.t||6.5)/FT-0.45,   // panel numbers over the room side, so a joined pod's numbers don't mix in
+      unitOf:o=>unitFor(s,o),openOnly:o=>{ const pr=pairOf(s,o); return !!pr && doorOwner(s,o).id!==s.id; }});
     const g=built.group;
     const r=[s.n[1],-s.n[0]];
     g.rotation.y=Math.atan2(-r[1],r[0]);

@@ -159,13 +159,15 @@ function fitShortWalls(slots, pods){
 /* ============================================================ wall letters
    Each pod's walls are A, B, C, D going CLOCKWISE (seen from above). Wall A is always a THROUGH wall — one of the
    two end walls that run straight through, corner to corner (they are the longer pair; the walls between them
-   butt up against them). Which one:
-     1. a wall you set with "Make this Wall A" (saved per model, per pod), if it is a through wall, else
-     2. the through wall with the largest single opening (width × height; exterior or between pods), else
-     3. on a tie (no openings, or the same size): the same end as the other pods of the home, so all A walls face
-        the same way; with nothing to match, an exterior door, then a patio door, then an interior door, else the
-        first end clockwise from the south.
-   So A and C are the through walls, B and D the walls between them.
+   butt up against them). In a home of several pods every Wall A points the SAME WAY. Which way:
+     1. each pod's own choice: a wall set by hand ("Make this Wall A"), else its through wall with the largest single
+        opening (width × height, exterior or between pods);
+     2. the home's direction is the one most pods chose for an OUTSIDE wall (their A is on the outside of the home);
+        with no outside A at all, the one most pods chose; a tie goes to the bigger opening;
+     3. every pod that can face that way does; a pod set by hand keeps its own A, and a pod turned the other way
+        (its through walls don't face that way) keeps its own choice.
+   On a pod with no openings at either end: an exterior door, then a patio door, then an interior door, else the
+   first end clockwise from the south.
    A side split into an exterior part and an interior part keeps one letter, numbered 1, 2 clockwise. */
 const CW = ['S','E','N','W'];
 const throughSides = pod => CW.filter(k=>!isLongSide(pod,k));
@@ -173,35 +175,30 @@ function openingsOn(pod, side, slots, type){
   return slots.filter(s=>s.pod===pod && s.side===side && (!type || s.type===type)).flatMap(s=>pickFor(s)?.openings||[]);
 }
 const biggest = ops => Math.max(0, ...ops.filter(o=>o.kind!=='vent').map(o=>o.w*o.h));
-/* Wall A from the openings alone; null on a tie */
-function wallABySize(modelKey, pod, slots){
-  const cand = throughSides(pod);
-  const own = state.wallA?.[modelKey]?.[pod.i];
+function handA(modelKey, pod){
+  const cand = throughSides(pod), own = state.wallA?.[modelKey]?.[pod.i];
   if(own && cand.includes(own)) return own;
   const podA = pod.a || podById(pod.src)?.a;           // set by hand, kept on the pod in its own frame
   if(podA && cand.includes(worldSide(pod.rot,podA))) return worldSide(pod.rot,podA);
-  const [a,b] = cand.map(k=>biggest(openingsOn(pod,k,slots)));
-  if(Math.abs(a-b) > 1) return a>b ? cand[0] : cand[1];   // more than 1 sq in bigger
   return null;
 }
-function tieBreak(pod, slots){
+function ownChoice(pod, slots){
   const cand = throughSides(pod), on=(k,type)=>openingsOn(pod,k,slots,type);
-  return cand.find(k=>on(k,'ext').some(o=>o.kind==='door'))
-      || cand.find(k=>on(k,'ext').some(o=>o.kind==='patio'))
-      || cand.find(k=>on(k).some(o=>o.kind==='door'))
-      || cand[0];
+  const [a,b] = cand.map(k=>biggest(on(k)));
+  if(Math.abs(a-b) > 1) return {side: a>b ? cand[0] : cand[1], size:Math.max(a,b)};
+  return {side: cand.find(k=>on(k,'ext').some(o=>o.kind==='door')) || cand.find(k=>on(k,'ext').some(o=>o.kind==='patio'))
+      || cand.find(k=>on(k).some(o=>o.kind==='door')) || cand[0], size:a, tie:true};
 }
 function assignLetters(modelKey, slots, pods){
-  const start = new Map();
-  pods.forEach(pod=>{ const k=wallABySize(modelKey, pod, slots); if(k) start.set(pod, k); });
-  // ties follow the pods that were decided: the end most of them face
-  const votes={}; start.forEach(k=>{ votes[k]=(votes[k]||0)+1; });
-  const ranked = Object.keys(votes).sort((x,y)=>votes[y]-votes[x]);
-  pods.forEach(pod=>{ if(start.has(pod)) return;
-    const k = ranked.find(r=>throughSides(pod).includes(r)) || tieBreak(pod, slots);
-    start.set(pod, k); });
+  const hand=new Map(), own=new Map();
+  pods.forEach(pod=>{ const h=handA(modelKey,pod); if(h) hand.set(pod,h); own.set(pod, h ? {side:h, size:Infinity} : ownChoice(pod,slots)); });
+  const outside = (pod,side) => slots.some(s=>s.pod===pod && s.side===side && s.type==='ext');
+  const tally = list => { const v={}; list.forEach(([pod,c])=>{ const t=(v[c.side] ||= {n:0, size:0}); t.n++; t.size=Math.max(t.size, c.size===Infinity?0:c.size); });
+    return Object.entries(v).sort((x,y)=>y[1].n-x[1].n || y[1].size-x[1].size)[0]?.[0]; };
+  const all=[...own.entries()].filter(([,c])=>!c.tie || hand.size);
+  const dir = tally([...own.entries()].filter(([pod,c])=>!c.tie && outside(pod,c.side))) || tally(all) || tally([...own.entries()]);
   pods.forEach(pod=>{
-    const a = start.get(pod);
+    const a = hand.get(pod) || (dir && throughSides(pod).includes(dir) ? dir : own.get(pod).side);
     const order = CW.slice(CW.indexOf(a)).concat(CW.slice(0, CW.indexOf(a)));
     order.forEach((side, li)=>{
       const mine = slots.filter(s=>s.pod===pod && s.side===side);
