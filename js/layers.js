@@ -11,14 +11,15 @@ import { CATS as CW_CATS } from './casework.js';
 import { applyFurniture, resetCabExplode, cabExploded } from './furniture.js';
 const CW_COL={base:'#dcc39a',upper:'#e4cfa4',tall:'#cdb287',linen:'#d8bd8c',wardrobe:'#c9a978',vanity:'#e6d3ae',bench:'#b98f60',shelf:'#ead9b6',fire:'#8a8f94',counter:'#8f9493',appliance:'#c9cdd1',furniture:'#8e978a'};
 const CW_ROWS = CW_CATS.map(c=>['cw-'+c.k, c.name, CW_COL[c.k]]);
+/* top down, the way the home is built: roof first, the ground screws and foundation last */
 const ROWS = [
   ['Show'],
-  ['roof','Roof','#4b514d'], ['ceiling','Ceiling','#d9d2bf'], ['walls','Walls (SIP)','#c9a46a'], ['floors','Floors','#8d8f86'],
-  ['decks','Decks','#a88f5d'], ['screws','Foundation','#56606b'], ['frames','Steel frame & ACM','#3d4247'], ['seals','Compression seals','#e8170f'], ['units','Windows & doors','#8fc3ea'],
-  ['framing','Lumber & LVL','#e0b36a'], ['splines','OSB splines','#b7864a'],
-  ['-'],
+  ['roof','Roof','#4b514d'], ['ceiling','Ceiling','#d9d2bf'], ['walls','Walls (SIP)','#c9a46a'], ['units','Windows & doors','#8fc3ea'],
+  ['seals','Compression seals','#e8170f'], ['framing','Lumber & LVL','#e0b36a'], ['splines','OSB splines','#b7864a'],
   ['Cabinets & furniture'],
   ...CW_ROWS,
+  ['-'],
+  ['floors','Floors','#8d8f86'], ['decks','Decks','#a88f5d'], ['frames','Steel frame & ACM','#3d4247'], ['screws','Ground screws & foundation','#56606b'],
   ['-'],
   ['glass','See-through glass & doors'],
   ['-'],
