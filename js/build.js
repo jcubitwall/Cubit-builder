@@ -3,7 +3,9 @@
    It opens as a flat plan, straight down. Gestures (the way Shapr3D works):
      · drag a pod (or deck) with one finger to move it; it snaps to the nearest spot where it docks properly
      · two fingers on a pod and twist: it turns 90° (each quarter turn of your fingers)
-     · one finger on empty space: the plan tilts up into 3D (orbit); two fingers pan, pinch zooms
+     · one finger on empty space: orbit. A drag DOWN always tips the home down toward you into 3D (the view drops
+       toward the side, and on round underneath); a drag UP lifts it back toward the plan. Sideways turns it around.
+       Two fingers pan, pinch zooms.
      · double-tap: back down to the flat plan
      · tap a wall, a floor, a ceiling, a window or a door: its options come up. Turn the home right over to reach
        the underside of the floor.
@@ -19,7 +21,7 @@ import { renderModels, renderSide, toast } from './sidebar.js';
 import { deckName } from './deckframe.js';
 
 const stage=document.getElementById('stage'), cv=renderer.domElement;
-const FLAT=0.06;                          // radians from straight down that still count as the flat plan
+const FLAT=0.12;                          // radians from straight down that still count as the flat plan
 const isFlat = () => controls.getPolarAngle() < FLAT;
 
 /* ---------------------------------------------------------------- flat plan ⇄ 3D */
@@ -30,7 +32,7 @@ function flatten(fit=false){
   let dist=off.length();
   if(fit){ const B=homeBox(); if(B){ const s=B.getSize(new THREE.Vector3()), asp=Math.max(0.5, cv.clientWidth/Math.max(1,cv.clientHeight));
     const span=Math.max(s.z, s.x/asp)+8;   /* what has to fit top to bottom on screen (x across, z up the screen) */ dist=span/2/Math.tan(camera.fov*Math.PI/360)*1.05; const c=B.getCenter(new THREE.Vector3()); t.set(c.x,0,c.z); } }
-  const end=new THREE.Vector3(t.x+Math.sin(az)*dist*0.01, t.y+dist, t.z+Math.cos(az)*dist*0.01);
+  const end=new THREE.Vector3(t.x+Math.sin(az)*dist*0.0005, t.y+dist, t.z+Math.cos(az)*dist*0.0005);
   const p0=camera.position.clone(), t0=controls.target.clone(), T=performance.now();
   cancelAnimationFrame(anim); controls.enableDamping=false;          // no drift left over from the last orbit
   const step=()=>{ const k=Math.min(1,(performance.now()-T)/320), e=k*k*(3-2*k);
@@ -74,7 +76,7 @@ function showGhost(f, ok){
 const hideGhost=()=>{ if(ghost) ghost.visible=false; };
 
 /* ---------------------------------------------------------------- moving, turning and adding */
-let tilt=null;        // a drag on empty space in the flat plan, deciding which way it tilts
+let orbit=null;       // one finger turning the view (ours, so a drag down always tips the home the same way)
 let D=null;           // the drag in progress: {mode:'move'|'new', deck, i, item, rot, spots, grab, at, ok, f}
 const pointers=new Map();
 const editable = () => canSave();
@@ -109,23 +111,29 @@ stage.addEventListener('pointerdown', e=>{
   pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
   if(D && D.mode==='new'){ turn(D, 1); return; }                       // another finger while dragging one in: turn it
   if(pointers.size===1){
+    orbit=null; if(D && D.mode==='move') D=null;                        // nothing left over from a gesture that ended oddly
     const o0 = isFlat() ? ownerOf(hitAt(e.clientX,e.clientY)) : null;
-    // empty space in the flat plan: a drag up OR down tilts it into 3D (OrbitControls alone only tilts on an upward drag)
-    if(isFlat() && !(o0 && editable())){ tilt={y:e.clientY, decided:false}; return; }
-    if(!isFlat() || !editable()) return;
-    const o=o0; if(!o) return;
+    if(!(isFlat() && o0 && editable())){ orbit={x:e.clientX, y:e.clientY}; return; }   // not a pod in the plan: turn the view
+    const o=o0;
     controls.enabled=false;
     const at=planAt(e.clientX,e.clientY), m=MODELS[state.model];
     if(o.deck){ const q=m.decks[o.i]; D={mode:'move', deck:true, i:o.i, lib:q.lib, rot:q.rot||0, grab:{x:at.x, z:at.z, x0:q.x, z0:q.z}, sx:e.clientX, sy:e.clientY, started:false}; }
     else { const p=podList(state.model)[o.i], raw=m.pods[o.i]; D={mode:'move', deck:false, i:o.i, item:{t:raw.t}, t:raw.t, rot:raw.rot||0, grab:{x:at.x, z:at.z, x0:raw.x, z0:raw.z}, sx:e.clientX, sy:e.clientY, started:false}; }
+  } else if(pointers.size===2 && orbit){ orbit=null;                     // a second finger: OrbitControls pans and zooms
   } else if(pointers.size===2 && D && D.mode==='move'){
     // two fingers on a pod: twist to turn it
     const [a,b]=[...pointers.values()]; D.twist={a0:Math.atan2(b.y-a.y, b.x-a.x), acc:0}; hideGhost(); D.started=false;
   }
 }, true);
+const sph=new THREE.Spherical(), off=new THREE.Vector3();
 window.addEventListener('pointermove', e=>{
-  if(tilt && !tilt.decided && pointers.size===1){ const dy=e.clientY-tilt.y; if(Math.abs(dy)>2){ controls.rotateSpeed = dy>0 ? -1 : 1; tilt.decided=true; } }
-}, true);
+  if(!orbit || pointers.size!==1 || !pointers.has(e.pointerId)) return;
+  const dx=e.clientX-orbit.x, dy=e.clientY-orbit.y; orbit.x=e.clientX; orbit.y=e.clientY;
+  const h=Math.max(200, cv.clientHeight);
+  off.copy(camera.position).sub(controls.target); sph.setFromVector3(off);
+  sph.theta -= dx*2*Math.PI/h*0.6; sph.phi = Math.min(Math.PI*0.999, Math.max(0.0001, sph.phi + dy*Math.PI/h));
+  off.setFromSpherical(sph); camera.position.copy(controls.target).add(off); camera.lookAt(controls.target); controls.update();
+});
 window.addEventListener('pointermove', e=>{
   if(!pointers.has(e.pointerId)) return;
   pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
@@ -143,7 +151,7 @@ window.addEventListener('pointermove', e=>{
 });
 function release(e){
   pointers.delete(e.pointerId);
-  if(!pointers.size && tilt){ tilt=null; controls.rotateSpeed=1; }
+  if(!pointers.size) orbit=null;
   if(!D || D.mode!=='move') { if(!pointers.size) controls.enabled=true; return; }
   if(pointers.size) return;                                             // wait for the last finger
   const d=D; D=null; hideGhost(); document.body.classList.remove('dragging'); controls.enabled=true;
@@ -156,12 +164,18 @@ function release(e){
 window.addEventListener('pointerup', release); window.addEventListener('pointercancel', release);
 
 /* ---------------------------------------------------------------- double-tap: back to the flat plan */
-let lastTap=null;
+let lastTap=null, downXY=null;
+stage.addEventListener('pointerdown', e=>{ if(e.target===cv) downXY=[e.clientX,e.clientY,performance.now()]; }, true);
 stage.addEventListener('pointerup', e=>{
   if(e.target!==cv) return;
-  const now=performance.now(), near=lastTap && now-lastTap.t<450 && Math.hypot(e.clientX-lastTap.x, e.clientY-lastTap.y)<30;
+  const clean = downXY && Math.hypot(e.clientX-downXY[0], e.clientY-downXY[1])<12 && performance.now()-downXY[2]<350 && pointers.size<=1;
+  if(!clean){ lastTap=null; return; }
+  const now=performance.now(), near=lastTap && now-lastTap.t<450 && Math.hypot(e.clientX-lastTap.x, e.clientY-lastTap.y)<40;
   lastTap = near ? null : {t:now, x:e.clientX, y:e.clientY};
-  if(near && !isFlat()){ e.stopImmediatePropagation(); flatten(); }
+  if(!near) return;
+  e.cubitFlat=true;                                                    // in Build a double-tap always means: the flat plan (layers.js leaves it alone)
+  if(state.focusPod!=null) document.querySelector('.pod-badge')?.click();
+  flatten();
 }, true);
 
 /* ---------------------------------------------------------------- the tray: pods and decks to drag in */
@@ -204,5 +218,6 @@ tray.addEventListener('click', e=>{
 });
 
 /* ---------------------------------------------------------------- start: the flat plan */
-function startBuild(){ renderTray(); setTimeout(()=>{ flatten(true); badge(); }, 60); }
+function startBuild(){ controls.enableRotate=false;   /* one-finger turning is ours (above); OrbitControls keeps pan and zoom */
+  renderTray(); setTimeout(()=>{ flatten(true); badge(); }, 60); }
 export { startBuild, flatten, isFlat, renderTray };

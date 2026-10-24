@@ -86,7 +86,7 @@ function setIsolate(id, label){
    whole home. Works with a finger on the iPad / iPhone as well as a mouse (touch screens don't send dblclick). */
 let lastTap=null;
 stage.addEventListener('pointerup', e=>{
-  if(e.target.tagName!=='CANVAS' || podList(state.model).length<2 || state.isolate) return;
+  if(e.target.tagName!=='CANVAS' || podList(state.model).length<2 || state.isolate || e.cubitFlat || document.getElementById('studio').classList.contains('build')) return;   // in Build, double-tap = the flat plan
   const now=performance.now(), near = lastTap && now-lastTap.t<450 && Math.hypot(e.clientX-lastTap.x, e.clientY-lastTap.y)<30;
   if(!near){ lastTap={t:now, x:e.clientX, y:e.clientY}; return; }
   lastTap=null;
