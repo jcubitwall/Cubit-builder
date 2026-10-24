@@ -102,7 +102,7 @@ function renderSideInner(){
       ${catalogBlock()}
       ${layoutBlock(m)}
       ${importBlock()}
-      <details class="help"><summary>How walls are lettered</summary><p>Each pod's walls run A, B, C, D clockwise seen from above. A is the short end wall with the door, so A and C are the short end walls (they run straight through, corner to corner) and B and D are the long walls (they butt between the end walls). Click a wall to swap it or to change which wall is A.</p></details>
+      <details class="help"><summary>How walls are lettered</summary><p>Each pod's walls run A, B, C, D clockwise seen from above. A and C are the through walls (they run straight through, corner to corner) and B and D butt between them. A is the through wall with the largest opening; when both are the same, A matches the other pods so they all face the same way. Click a through wall to make it A by hand.</p></details>
       </div>`;
     bindLayout(); bindFoundation(); bindCatalog();
   } else {
@@ -110,7 +110,7 @@ function renderSideInner(){
     const isInt=s.type==='int';
     sideH.innerHTML=`<div class="eyebrow">${isInt?'Interior wall · 4½″':'Exterior wall · 6½″'} · ${s.len}′ · ${s.len/4} panels</div><h2>${s.label}</h2><p>${s.detail} · faces ${fmtBearing(facing(s))} · now <b>${w?esc(w.id):'—'}</b> ${w?esc(w.name):''}</p>`;
     sideB.innerHTML=`
-      <div class="row"><button class="btn" id="toSheet">Assembly sheet</button>${(s.short || s.pod.len<=8) ? `<button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button>` : ''}</div>
+      <div class="row"><button class="btn" id="toSheet">Assembly sheet</button>${s.short ? `<button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button>` : ''}</div>
       ${(state.wallA?.[state.model]?.[s.pod.i] || m.pods[s.pod.i]?.a) ? `<p class="note">Wall A for ${s.pod.label} was set by hand. <button class="linkbtn" id="autoA">Go back to automatic</button></p>`:''}
       ${isInt&&partnerOf(s,slots)?`<p class="note">Joins ${s.other.label} (${esc(partnerOf(s,slots).label)}). Picking a wall here gives that wall the same one, mirrored, so openings line up.</p>`:''}
       ${unitsBlock(s, bodyWall(s,w))}
