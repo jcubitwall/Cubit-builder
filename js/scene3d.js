@@ -401,7 +401,7 @@ function buildHome(){
     // the rubber compression seal on the outside face (toward the other pod): high seal red, low seal blue
     const role=sealRole(s, slots);
     sealsFor(w, role, H).forEach(sl=>{
-      const curve=new THREE.CatmullRomCurve3(sl.pts.map(([x,y])=>new THREE.Vector3(x/FT, y/FT, SEAL.t/2/FT)), false, 'catmullrom', 0);
+      const curve=new THREE.CatmullRomCurve3(sl.pts.map(([x,y])=>new THREE.Vector3(x/FT, y/FT, SEAL.t/2/FT)), false, 'centripetal');
       const m=new THREE.Mesh(new THREE.TubeGeometry(curve, Math.max(40, sl.pts.length*3), SEAL.t/2/FT, 8, false), role==='high'?SEAL_HIGH:SEAL_LOW);
       m.userData.seal=role; g.add(m); });
     g.traverse(o=>{ if(o.isMesh) { o.userData.slotId=s.id; pickables.push(o);} });
