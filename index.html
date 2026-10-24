@@ -21,7 +21,7 @@
   <header class="bar">
     <div class="brand"><img src="logo.png" alt="Cubit" width="34" height="34"><b>Builder</b></div>
     <button class="home-pick" id="bHome" aria-haspopup="dialog" aria-controls="homeDlg"><span class="hp-k">Home</span><span class="hp-n" id="bHomeName">…</span><svg viewBox="0 0 12 8" width="12" height="8" aria-hidden="true"><path d="M1 1.5 6 6.5 11 1.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-    <nav class="views" id="views" aria-label="View"><button data-v="3d" aria-pressed="true">3D</button><button data-v="plan" class="edit-only" aria-pressed="false">Plan</button><button data-v="sheets" aria-pressed="false">Sheets</button></nav>
+    <nav class="views" id="views" aria-label="View"><button data-v="3d" aria-pressed="true">Build</button><button data-v="plan" class="edit-only" aria-pressed="false" hidden>Plan</button><button data-v="sheets" aria-pressed="false">Sheets</button></nav>
     <div class="spacer"></div>
     <span class="viewer-only who" title="You can explore everything; nothing you change is saved">View only</span>
     <div class="more edit-only"><button class="btn ghost more-b" id="bMore" aria-haspopup="menu" aria-expanded="false" title="More">⋯</button>
@@ -29,9 +29,9 @@
     <button id="bPlan" hidden></button><button id="bSheets" hidden></button>
   </header>
 
-  <main class="studio" id="studio">
+  <main class="studio build" id="studio">
     <div id="stage">
-      <div class="hint">Drag to orbit · scroll to zoom · click a wall to swap it</div>
+      <div class="hint">Drag a pod to move it · drag empty space to tilt into 3D · double-tap for the plan · tap a wall, floor or window for its options</div>
       <div class="fs-bar">
         <div id="fsTools" class="fs-tools"><div class="toggles" id="studioTools"><button class="tog" id="tExplode" aria-pressed="false">Exploded view</button></div></div>
         <button class="fsbtn" id="bLayers" aria-expanded="false" aria-controls="layersPop" title="Show or hide parts of the home (L)"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 1.5 15 5 8 8.5 1 5Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="m1 8 7 3.5L15 8M1 11l7 3.5 7-3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg> Layers</button>
@@ -59,11 +59,11 @@
     <div class="sheet" id="sheet"></div>
   </section>
   <nav class="tabs" id="tabs" aria-label="Views">
-    <button data-tab="3d" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 21 8v8l-9 5-9-5V8z M12 13l9-5 M12 13v8 M12 13 3 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>3D</button>
+    <button data-tab="3d" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 21 8v8l-9 5-9-5V8z M12 13l9-5 M12 13v8 M12 13 3 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>Build</button>
     <button data-tab="take"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z M9 10h7 M9 14h7 M9 18h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>Take-off</button>
     <button data-tab="shop" class="edit-only"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h2l2 11h10l2-8H7 M10 20a1 1 0 1 0 0-.01 M17 20a1 1 0 1 0 0-.01" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>Shopping</button>
     <button data-tab="sheets"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z M4 9h16 M9 9v10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>Sheets</button>
-    <button data-tab="plan" class="edit-only"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M16.5 14v6 M13.5 17h6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>Plan</button>
+    <button data-tab="plan" class="edit-only" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M16.5 14v6 M13.5 17h6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>Plan</button>
   </nav>
 </div>
 <dialog id="homeDlg" class="sheet-dlg" aria-labelledby="homeTitle"><div class="dlg">

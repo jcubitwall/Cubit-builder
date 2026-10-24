@@ -6,7 +6,7 @@ import { screwsFor, slotsFor, podList, CW, layerSlotsFor, partnerOf, deckList } 
 import { panelCount, thumbSVG, bodyWall, wallLen } from './panels.js';
 import { buildHome, highlight } from './scene3d.js';
 import { facing, fmtBearing } from './orient.js';
-import { setDeckFoundation } from './pods.js';
+import { setDeckFoundation, rotatePod, deletePod } from './pods.js';
 import { openSheets } from './sheets.js';
 import { pickFor, save, state, choose, pickLayer, chooseLayer, foundationOf, setFoundation, deckOCOf } from './state.js';
 import { ocSeg, bindOC } from './deckframe.js';
@@ -83,7 +83,20 @@ const sideWord = k => ({S:'top side', E:'right side', N:'bottom side', W:'left s
 function renderSide(){
   renderSideInner();
   if(state.selected && sideH){ sideH.insertAdjacentHTML('afterbegin','<button class="side-x" id="sideX" title="Back to the whole home (Esc)" aria-label="Back to the whole home">✕</button>');
-    sideH.querySelector('#sideX').onclick=()=>{ state.selected=null; highlight(); renderSide(); }; }
+    sideH.querySelector('#sideX').onclick=()=>{ state.selected=null; highlight(); renderSide();
+      const st=document.getElementById('studio'); if(st.classList.contains('panel-open')) document.getElementById('bSide').click(); }; }
+  // the pod this wall / floor belongs to: turn it or take it out, right here
+  const pi = state.selected && !String(state.selected).startsWith('deck:') ? parseInt(state.selected,10) : NaN;
+  if(Number.isFinite(pi) && sideB && canSave() && MODELS[state.model].pods[pi]){
+    sideB.insertAdjacentHTML('afterbegin', `<div class="pod-acts"><b>Pod ${pi+1}</b><button class="btn ghost sm" id="podTurn">Turn 90°</button><button class="btn ghost sm" id="podRm">Remove pod</button></div>`);
+    const go=(why,msg)=>{ if(why){ toast(why); return; } state.selected=null; renderModels(); buildHome(); renderSide(); toast(msg); };
+    sideB.querySelector('#podTurn').onclick=()=>go(rotatePod(pi),'Pod turned 90°');
+    sideB.querySelector('#podRm').onclick=e=>{ const b=e.target; if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to remove'; return; } go(deletePod(pi),'Pod removed'); };
+  }
+  // a window or door tapped in 3D: straight to its options
+  if(state.selUnit && sideB){ const el=[...sideB.querySelectorAll('[data-k]')].find(x=>x.dataset.k===state.selUnit);
+    const row=el?.closest('.unit-row'); if(row){ row.classList.add('unit-flash'); row.scrollIntoView({block:'center', behavior:'smooth'}); setTimeout(()=>row.classList.remove('unit-flash'), 1400); }
+    state.selUnit=null; }
 }
 document.addEventListener('keydown', e=>{ if(e.key==='Escape' && state.view==='studio' && state.selected && !document.querySelector('dialog[open]') && !e.target.closest('input,textarea,select')){ state.selected=null; highlight(); renderSide(); } });
 function renderSideInner(){

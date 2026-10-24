@@ -25,7 +25,7 @@ stage.prepend(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(40,1,0.5,500);
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true; controls.maxPolarAngle = Math.PI*0.495;
+controls.enableDamping = true; controls.maxPolarAngle = Math.PI*0.999; controls.minPolarAngle = 0;
 scene.add(new THREE.HemisphereLight(0xffffff,0x8a8a80,0.85));
 const sun = new THREE.DirectionalLight(0xffffff,0.75); sun.position.set(30,50,20); scene.add(sun);
 const grid = new THREE.GridHelper(96,24,0x9aa39b,0xc3c9c1); grid.position.y=-FLOOR-0.02; scene.add(grid);
@@ -192,7 +192,7 @@ function buildWallMesh(w, mat, opts={}){
     const m = r ? buildUnit(o, r, t, interior) : (()=>{ const thick = o.kind==='window'? 0.05 : 0.12;
       const b=new THREE.Mesh(new THREE.BoxGeometry(o.w/FT,o.h/FT,thick), o.kind==='door'?(interior?MAT.doorInt:MAT.door):MAT.glass);
       b.position.set((o.x+o.w/2)/FT,(o.y+o.h/2)/FT,-t/2); return b; })();
-    m.userData.unit=true; m.userData.k=panelAt(w, o.x+o.w/2);
+    m.userData.unit=true; m.userData.k=panelAt(w, o.x+o.w/2); m.userData.okey = o.key ?? `${o.kind}@${Math.round(o.x)}`;
     g.add(m);
   });
   // face items exactly as drawn: boxes at their real size, pockets / recesses / chases as dark outlines on their face;
@@ -456,7 +456,13 @@ function buildHome(){
   // frame camera
   const span=Math.max(maxx-minx,maxz-minz); homeSpan=span;
   if(!buildHome.framed || buildHome.framed!==state.model){
-    camera.position.set(span*1.0+14, span*0.95+12, span*1.35+18); controls.target.set(0,3.5,0); buildHome.framed=state.model;
+    // a home opens as the flat plan, straight down, filling the view. Editing a home (which turns a built-in home into
+    // your own copy) keeps the view where it is.
+    const M=MODELS[state.model], prev=buildHome.framed, edited = prev && (M.base===prev || M.base===MODELS[prev]?.base || state.model===MODELS[prev]?.base) && M.custom;
+    if(!edited){ const asp=Math.max(0.5, renderer.domElement.clientWidth/Math.max(1,renderer.domElement.clientHeight));
+      const sp=Math.max(maxz-minz, (maxx-minx)/asp)+10, dist=sp/2/Math.tan(camera.fov*Math.PI/360)*1.05;
+      camera.position.set(0, dist, 0.02); controls.target.set(0,0,0); }
+    buildHome.framed=state.model;
   }
   computeSpread(); explodeT = state.exploded?1:0; applyExplode();
 }
@@ -563,7 +569,7 @@ function applyLayers(){
   MAT.glass.opacity = state.glass ? 0.18 : 0.55;
   MAT.door.opacity = MAT.doorInt.opacity = state.glass ? 0.25 : 1; MAT.door.depthWrite = MAT.doorInt.depthWrite = !state.glass;
   MAT.glass.needsUpdate = MAT.door.needsUpdate = MAT.doorInt.needsUpdate = true;
-  controls.maxPolarAngle = S.screws ? Math.PI*0.62 : Math.PI*0.495;
+  controls.maxPolarAngle = Math.PI*0.999;   // turn the home right over to reach the underside of the floor
   applyIsolate();
 }
 /* Isolate: one wall, floor / ceiling / roof layer or deck on its own, to look at from every side (underneath too).
@@ -613,6 +619,7 @@ renderer.domElement.addEventListener('pointerup',e=>{
   ray.setFromCamera(mouse,camera);
   const hit=ray.intersectObjects(pickables,false).find(shown);
   state.selected = hit ? hit.object.userData.slotId : null;
+  state.selUnit = null; for(let o=hit?.object; o; o=o.parent){ if(o.userData?.okey){ state.selUnit=o.userData.okey; break; } }
   highlight(); renderSide();
 });
 renderer.domElement.addEventListener('pointermove',e=>{

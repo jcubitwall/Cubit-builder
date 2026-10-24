@@ -13,13 +13,14 @@ let on=false;
 const touchFirst = matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches;
 
 let sideNormal=true;   // panel open in the normal (not full-screen) view
+const overlay = () => on || (studio.classList.contains('build') && !document.documentElement.classList.contains('phone'));
 function setPanel(open){
-  if(on) studio.classList.toggle('panel-open', open); else sideNormal=open;
-  studio.classList.toggle('side-closed', !on && !open);
+  if(overlay()) studio.classList.toggle('panel-open', open); else sideNormal=open;
+  studio.classList.toggle('side-closed', !overlay() && !open);
   bSide.setAttribute('aria-expanded', open); bSide.title = (open?'Hide':'Show')+' the panel (T)';
   requestAnimationFrame(resize);
 }
-const panelOpen=()=> on ? studio.classList.contains('panel-open') : sideNormal;
+const panelOpen=()=> overlay() ? studio.classList.contains('panel-open') : sideNormal;
 function enter(){
   if(on || state.view!=='studio') return;
   on=true; studio.classList.add('fs'); studio.classList.remove('side-closed'); bFull.setAttribute('aria-pressed','true'); bFull.querySelector('.lbl').textContent='Exit';
@@ -52,7 +53,9 @@ document.addEventListener('keydown', e=>{
   if(e.key==='Escape' && on && !document.fullscreenElement) exit();
 });
 // clicking a wall, floor or deck brings the panel in with its options
-studio.querySelector('#stage').addEventListener('pointerup', e=>{ if(e.target.tagName!=='CANVAS') return; setTimeout(()=>{ if(state.selected && !panelOpen()) setPanel(true); }, 0); });
+studio.querySelector('#stage').addEventListener('pointerup', e=>{ if(e.target.tagName!=='CANVAS') return; const x=e.clientX, y=e.clientY;
+  setTimeout(()=>{ if(state.selected && !panelOpen()) setPanel(true);
+    else if(!state.selected && panelOpen() && overlay() && !document.body.classList.contains('dragging') && !e.defaultPrevented) setPanel(false); }, 0); });
 
 export { enter as enterFullscreen, exit as exitFullscreen };
 // leaving the 3D view (sheets, plan) always leaves full screen first

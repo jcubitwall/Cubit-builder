@@ -553,3 +553,34 @@ tr.hand-row td{background:#f7eefb}
 .ver{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:var(--ink-2);border-top:1px dashed var(--line);padding-top:4px}
 .seal-call{display:inline-block;border:2px solid #1f6fe0;border-left-width:8px;border-radius:8px;padding:5px 10px;font-size:13px;line-height:1.45;color:#222;background:#eef4fd;margin:6px 0}
 .seal-call.high{border-color:#e8170f;background:#fdeceb}
+/* ---------- the blueprint builder: one big view, the options float over it ---------- */
+html:not(.phone) .studio.build:not(.fs){position:relative;grid-template-columns:1fr;height:calc(100vh - 92px);min-height:480px}
+html:not(.phone) .studio.build:not(.fs) #stage{height:100%;min-height:0}
+html:not(.phone) .studio.build:not(.fs) > aside{position:absolute;top:12px;right:12px;bottom:12px;width:min(380px,calc(100% - 24px));z-index:6;box-shadow:0 12px 40px rgba(0,0,0,.22);transform:translateX(calc(100% + 24px));transition:transform .22s ease;visibility:hidden;max-height:none}
+html:not(.phone) .studio.build.panel-open:not(.fs) > aside{transform:none;visibility:visible}
+html:not(.phone) .studio.build:not(.fs).side-closed > aside{display:flex}
+@media (prefers-reduced-motion: reduce){ .studio.build > aside{transition:none} }
+.studio.build #stage{touch-action:none}
+.flat-badge{position:absolute;left:50%;top:14px;transform:translateX(-50%);font:600 11px var(--mono);letter-spacing:.04em;color:var(--ink-2);background:color-mix(in srgb,var(--surface) 90%,transparent);border:1px solid var(--line);padding:5px 10px;border-radius:999px;pointer-events:none;z-index:3;white-space:nowrap;max-width:calc(100% - 24px);overflow:hidden;text-overflow:ellipsis}
+.flat-badge.three{color:#b4520f}
+.build-tray{position:absolute;left:12px;right:12px;bottom:12px;z-index:4;display:flex;gap:8px;overflow-x:auto;padding:8px;background:color-mix(in srgb,var(--surface) 94%,transparent);border:1px solid var(--line);border-radius:14px;box-shadow:0 6px 20px rgba(0,0,0,.12);touch-action:pan-x;scrollbar-width:none;align-items:stretch}
+.build-tray::-webkit-scrollbar{display:none}
+.studio.build.panel-open .build-tray{right:404px}
+.tray-h{writing-mode:vertical-rl;transform:rotate(180deg);font:700 10px var(--mono);letter-spacing:.08em;color:var(--ink-2);text-transform:uppercase;align-self:center}
+.tray-it{flex:none;display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:96px;max-width:150px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:inherit;text-align:left;cursor:grab;touch-action:pan-x;user-select:none;-webkit-user-select:none}
+.tray-it svg{height:16px;width:auto;max-width:130px}
+.tray-it b{font-size:12.5px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px}
+.tray-it small{font-size:10.5px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px}
+.tray-it:active{transform:scale(.97)}
+body.dragging .build-tray{opacity:.55}
+.studio.build .hint{bottom:auto;top:52px;left:12px}
+.pod-acts{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-2);padding:6px 0}
+.pod-acts b{color:var(--ink);margin-right:4px}
+.unit-flash{outline:3px solid #e0864a;outline-offset:2px;border-radius:8px;transition:outline-color 1.2s}
+html.phone .build-tray{bottom:8px;left:8px;right:8px}
+html.phone .flat-badge{top:8px;font-size:10px}
+.studio.build .hint{display:none}
+.flat-badge{top:auto;bottom:96px}
+html.phone .flat-badge{display:none}
+html.phone .build-tray{bottom:54px}
+html.phone .tray-it{min-width:84px;padding:6px 8px}
