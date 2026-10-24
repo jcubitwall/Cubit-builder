@@ -390,6 +390,12 @@ function buildHome(){
     const tl=(w.trim?.[0]||0)/FT;   // long walls start inside the end wall's thickness
     g.userData={slot:s, mat, base:new THREE.Vector3(s.p0[0]+r[0]*tl,0,s.p0[1]+r[1]*tl), n:new THREE.Vector3(s.n[0],0,s.n[1])};
     g.position.copy(g.userData.base);
+    // between pods (and in a wide cased opening outside) an opening can take up most of the wall: a see-through pane fills it so a click there
+    // still picks this wall (and its options); it tints orange when the wall is picked
+    { const t=(w.t||(s.type==='int'?4.5:6.5))/FT;
+      w.openings.filter(o=>o.kind!=='vent' && o.w>=12 && (s.type==='int' || (o.kind==='opening' && o.w>=48))).forEach(o=>{
+        const m=new THREE.Mesh(new THREE.PlaneGeometry(o.w/FT, o.h/FT), new THREE.MeshBasicMaterial({color:0xe0864a, transparent:true, opacity:0, depthWrite:false, side:THREE.DoubleSide}));
+        m.position.set((o.x+o.w/2)/FT, (o.y+o.h/2)/FT, -t/2); m.userData.pickPane=true; m.renderOrder=2; g.add(m); }); }
     g.traverse(o=>{ if(o.isMesh) { o.userData.slotId=s.id; pickables.push(o);} });
     if(state.letters){
       const t=(w.t||6.5)/12, mid=wallLen(w)/2/FT;
@@ -580,7 +586,8 @@ function focusCamera(i){
 function highlight(){
   deckGroups.forEach(g=>{ const sel=g.userData.id===state.selected && !state.isolate; g.userData.mat.color.set(sel?0xe0864a:0xa88f5d); g.userData.mat.emissive.set(sel?0x3a1a05:0x000000); });
   layerGroups.forEach(g=>{ const sel=g.userData.layerSlot.id===state.selected && !state.isolate; g.userData.mat.color.set(sel?0xe0864a:LAYER_COLOR[g.userData.layerSlot.kind]); g.userData.mat.emissive.set(sel?0x3a1a05:0x000000); });
-  wallGroups.forEach(g=>{ const sel=g.userData.slot.id===state.selected && !state.isolate; g.userData.mat.color.set(sel?0xe0864a:(g.userData.slot.type==='int'?0xf0e6d0:0xc9a46a)); g.userData.mat.emissive.set(sel?0x3a1a05:0x000000); });
+  wallGroups.forEach(g=>{ const sel=g.userData.slot.id===state.selected && !state.isolate; g.userData.mat.color.set(sel?0xe0864a:(g.userData.slot.type==='int'?0xf0e6d0:0xc9a46a)); g.userData.mat.emissive.set(sel?0x3a1a05:0x000000);
+    g.children.forEach(o=>{ if(o.userData.pickPane) o.material.opacity = sel ? 0.28 : 0; }); });
 }
 function resize(){
   const r=stage.getBoundingClientRect(); renderer.setSize(r.width,r.height,false); camera.aspect=r.width/Math.max(1,r.height); camera.updateProjectionMatrix();
