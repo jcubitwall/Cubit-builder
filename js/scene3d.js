@@ -580,7 +580,7 @@ function applyLayers(){
 /* Isolate: one wall, floor / ceiling / roof layer or deck on its own, to look at from every side (underneath too).
    Everything else in the home is hidden; the part keeps its own switches (windows, lumber, splines). */
 let isoHidden=[];
-const isoTarget = id => id && (String(id).startsWith('furn:') ? furnHolder(id.slice(5)) : null || wallGroups.find(g=>g.userData.slot.id===id) || layerGroups.find(g=>g.userData.layerSlot.id===id) || deckGroups.find(g=>g.userData.id===id));
+const isoTarget = id => id && (String(id).startsWith('furn:') ? furnHolder(String(id).slice(5)) : null || wallGroups.find(g=>g.userData.slot.id===id) || layerGroups.find(g=>g.userData.layerSlot.id===id) || deckGroups.find(g=>g.userData.id===id));
 function applyIsolate(){
   const t=isoTarget(state.isolate); if(!t) return;
   // walk up from the part to the home: on each level only the branch holding the part stays visible

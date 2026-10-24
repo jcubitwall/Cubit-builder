@@ -21,7 +21,7 @@ import { addPod, movePod, rotatePod, addDeck, moveDeck, dockSpots, deckSpots, fo
 import { renderModels, renderSide, toast } from './sidebar.js';
 import { deckName } from './deckframe.js';
 import { furnMeshes, furnById, snap, addItem, updateItem, refreshItem, applyFurniture, showFurnGhost, hideFurnGhost, turnItem, setHolderVisible } from './furniture.js';
-import { CATS, ITEMS, newItem, itemDef } from './casework.js';
+import { CATS, ITEMS, newItem, itemDef, partsOf } from './casework.js';
 import { frontSVG } from './casework-svg.js';
 import { openCaseLib } from './casework-ui.js';
 import { setPanel, panelOpen } from './fullscreen.js';
@@ -215,7 +215,8 @@ window.addEventListener('pointerup', release); window.addEventListener('pointerc
 
 /* ---------------------------------------------------------------- double-tap: isolate */
 function isoLabel(id){
-  if(id.startsWith('furn:')){ const it=furnById(id.slice(5)); return it ? itemDef(it.k).name : 'Cabinet'; }
+  if(id.startsWith('furn:')){ const [,fid,part]=id.split(':'); const it=furnById(fid); if(!it) return 'Cabinet';
+    return part!=null ? (partsOf(it)[+part]?.name || 'Part') : itemDef(it.k).name; }
   if(id.startsWith('deck:')) return `Deck ${+id.slice(5)+1}`;
   return slotsFor(state.model).find(s=>s.id===id)?.label || layerSlotsFor(state.model).find(s=>s.id===id)?.label || '';
 }
@@ -233,8 +234,10 @@ stage.addEventListener('pointerup', e=>{
   // (or a pod on its own), the part you tapped (a wall, a floor / ceiling / roof, a cabinet). Decks are isolated
   // straight away. Double-tap the isolated part again, or empty space, to go back up one level.
   const fh=furnAt(e.clientX,e.clientY), ph=hitAt(e.clientX,e.clientY);
-  const id = fh && (!ph || fh.distance<=ph.distance) ? 'furn:'+fh.object.userData.furn : ph?.object?.userData?.slotId;
-  const up=()=>{ if(state.isolate) setIsolate(null); else if(state.focusPod!=null) setPod(null); renderSide(); };
+  let id = fh && (!ph || fh.distance<=ph.distance) ? 'furn:'+fh.object.userData.furn : ph?.object?.userData?.slotId;
+  // cabinets, the same way: a cabinet on its own, then the part of it you tap (a door, a side, a drawer…)
+  if(id && String(state.isolate).startsWith(id) && id.startsWith('furn:') && fh?.object?.userData?.part!=null){ id = `${id}:${fh.object.userData.part}`; }
+  const up=()=>{ const s=String(state.isolate||''); if(/^furn:[^:]+:\d+$/.test(s)){ const c=s.replace(/:\d+$/,''); setIsolate(c, isoLabel(c)); } else if(state.isolate) setIsolate(null); else if(state.focusPod!=null) setPod(null); renderSide(); };
   if(!id || id===state.isolate){ up(); return; }
   const deck=String(id).startsWith('deck:');
   const pod = deck ? null : String(id).startsWith('furn:') ? furnById(id.slice(5))?.pod : parseInt(id,10);

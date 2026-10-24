@@ -49,7 +49,7 @@ function refreshItem(it){ if(!it) return; const old=models.get(it.id); if(old){ 
 function applyFurniture(){
   if(!group) return;
   const F=state.focusPod;
-  models.forEach(({holder, m},id)=>{ const it=byId(id); holder.visible = !!it && (state.isolate ? state.isolate==='furn:'+id : shownCat(holder.userData.cat) && (F==null || it.pod===F));
+  models.forEach(({holder, m},id)=>{ const it=byId(id); holder.visible = !!it && (state.isolate ? isoMine(id) : shownCat(holder.userData.cat) && (F==null || it.pod===F));
     m.select(null);
     if(state.selFurn===id && !state.isolate) m.meshes.forEach(x=>{ x.material = x.material.clone(); x.material.emissive?.set(0x6a2a08); }); });
 }
@@ -57,10 +57,12 @@ function applyFurniture(){
 function explodeFurniture(e, spreadOf, eP, eW, lift){
   const iso=String(state.isolate||'').startsWith('furn:');   // an isolated cabinet comes apart where it stands
   frames.forEach(f=>{ const v=iso?[0,0]:(spreadOf(f.userData.pod)||[0,0]), b=f.userData.base; if(b) f.position.set(b.x+v[0]*eP, b.y+(iso?0:lift), b.z+v[1]*eP); });
-  models.forEach(({m},id)=>m.explode(state.isolate==='furn:'+id ? e : eW*0.6));
+  models.forEach(({m},id)=>m.explode(isoMine(id) ? e : eW*0.6));
 }
-const furnHolder = id => models.get(id)?.holder;
-const furnMeshes = () => { const out=[]; models.forEach(({holder})=>{ if(holder.visible) holder.traverse(o=>{ if(o.isMesh) out.push(o); }); }); return out; };
+/* isolate ids: 'furn:<item>' a whole cabinet, 'furn:<item>:<part>' one part of it */
+const isoMine = id => { const s=String(state.isolate||''); return s==='furn:'+id || s.startsWith('furn:'+id+':'); };
+const furnHolder = ref => { const [id,part]=String(ref).split(':'); const o=models.get(id); if(!o) return null; return part==null ? o.holder : o.m.group.children[+part] || null; };
+const furnMeshes = () => { const out=[]; const vis=o=>{ for(; o; o=o.parent) if(!o.visible) return false; return true; }; models.forEach(({holder})=>{ if(holder.visible) holder.traverse(o=>{ if(o.isMesh && vis(o)) out.push(o); }); }); return out; };
 
 /* ---------------------------------------------------------------- where an item lands */
 const ray=new THREE.Raycaster();

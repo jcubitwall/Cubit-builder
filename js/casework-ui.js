@@ -153,8 +153,14 @@ function startViewer(canvas, it){
   // tap a part: open its row
   const rc=new THREE.Raycaster(), nd=new THREE.Vector2(); let down=null;
   canvas.addEventListener('pointerdown', e=>{ down=[e.clientX,e.clientY]; });
+  // double-tap a part: it alone (as in the home); double-tap it again or empty space: the whole cabinet back
+  let isoPart=null, lastUp=null;
+  const shownM = m => { for(let o=m; o; o=o.parent) if(!o.visible) return false; return true; };
+  const isoTo = i => { isoPart=i; M.group.children.forEach(s=>{ s.visible = i==null || s.userData.part===i; }); };
   canvas.addEventListener('pointerup', e=>{ if(!down || Math.hypot(e.clientX-down[0],e.clientY-down[1])>6) return; const b=canvas.getBoundingClientRect(); nd.set((e.clientX-b.left)/b.width*2-1, -(e.clientY-b.top)/b.height*2+1); rc.setFromCamera(nd,cam);
-    const h=rc.intersectObjects(M.meshes,false)[0], i=h?.object.userData.part;
+    const h=rc.intersectObjects(M.meshes.filter(shownM),false)[0], i=h?.object.userData.part;
+    const now=performance.now(), dbl=lastUp && now-lastUp.t<450 && Math.hypot(e.clientX-lastUp.x, e.clientY-lastUp.y)<40; lastUp = dbl ? null : {t:now, x:e.clientX, y:e.clientY};
+    if(dbl){ isoTo(i==null || i===isoPart ? null : i); return; }
     const rows=[...dlg.querySelectorAll('.cw-part')]; rows.forEach(x=>x.open=false);
     if(i==null){ M.select(null); return; }
     const row=rows.find(x=>x.dataset.parts.split(',').map(Number).includes(i));
