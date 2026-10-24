@@ -30,7 +30,7 @@ function sealRole(slot, slots){
 function sealPath(o, role, L, H){
   const e = SEAL.low + (role==='high' ? SEAL.rise : 0);
   const xl=Math.max(0.6, o.x-e), xr=Math.min(L-0.6, o.x+o.w+e), r0=Math.min(SEAL.r, (xr-xl)/4);
-  const c=Math.max(0, (xr-xl)/2-r0)*SEAL.pitch;              // the rise from the corners to the peak: ¼″ per foot
+  const c=(xr-xl)/2*SEAL.pitch;                              // the rise to the peak: ¼″ per foot over half the width (8′ wide → 1″)
   const yt=Math.min(H+SEAL.rim-c-1, o.y+o.h+e), r=Math.min(r0, yt/2);
   const P=[[xl,0],[xl,yt-r]];
   for(let i=1;i<=6;i++){ const a=Math.PI-(i/6)*Math.PI/2; P.push([xl+r+r*Math.cos(a), yt-r+r*Math.sin(a)]); }
