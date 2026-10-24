@@ -8,7 +8,7 @@ import { renderSide } from './sidebar.js';
 import { podList, slotsFor, layerSlotsFor } from './layout.js';
 
 import { CATS as CW_CATS } from './casework.js';
-import { applyFurniture } from './furniture.js';
+import { applyFurniture, resetCabExplode, cabExploded } from './furniture.js';
 const CW_COL={base:'#dcc39a',upper:'#e4cfa4',tall:'#cdb287',linen:'#d8bd8c',wardrobe:'#c9a978',vanity:'#e6d3ae',bench:'#b98f60',shelf:'#ead9b6',fire:'#8a8f94',counter:'#8f9493',appliance:'#c9cdd1',furniture:'#8e978a'};
 const CW_ROWS = CW_CATS.map(c=>['cw-'+c.k, c.name, CW_COL[c.k]]);
 const ROWS = [
@@ -84,8 +84,11 @@ let isoView=null;
 function setIsolate(id, label){
   if(id && !isoTarget(id)) return;
   if(id && !state.isolate) isoView={pos:camera.position.clone(), tgt:controls.target.clone()};
+  const cabOf = s => (String(s||'').match(/^furn:([^:]+)/)||[])[1];
+  if(cabOf(id)!==cabOf(state.isolate)) resetCabExplode();   // a newly isolated cabinet starts assembled
   state.isolate=id||null; state.isoLabel=id ? (label||'') : '';
   applyLayers(); applyExplode(); highlight();
+  document.getElementById('tExplode')?.setAttribute('aria-pressed', cabOf(id) ? cabExploded() : !!state.exploded);
   if(id) focusIsolated();
   else if(isoView){ camera.position.copy(isoView.pos); controls.target.copy(isoView.tgt); controls.update(); isoView=null; }
   showBadge(); renderSide();

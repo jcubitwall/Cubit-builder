@@ -57,10 +57,21 @@ function applyFurniture(){
 function explodeFurniture(e, spreadOf, eP, eW, lift){
   const iso=String(state.isolate||'').startsWith('furn:');   // an isolated cabinet comes apart where it stands
   frames.forEach(f=>{ const v=iso?[0,0]:(spreadOf(f.userData.pod)||[0,0]), b=f.userData.base; if(b) f.position.set(b.x+v[0]*eP, b.y+(iso?0:lift), b.z+v[1]*eP); });
-  models.forEach(({m},id)=>m.explode(isoMine(id) ? e : 0));   // cabinets stay together unless one is isolated
+  models.forEach(({m},id)=>m.explode(isoMine(id) ? cabT : 0));   // cabinets stay together; an isolated one has its own explode
 }
 /* isolate ids: 'furn:<item>' a whole cabinet, 'furn:<item>:<part>' one part of it */
 const isoMine = id => { const s=String(state.isolate||''); return s==='furn:'+id || s.startsWith('furn:'+id+':'); };
+/* an isolated cabinet's own exploded view (Exploded view / three-finger spread while it's isolated); it starts
+   assembled every time a cabinet is isolated, whatever the home around it is doing */
+let cabT=0, cabGoal=0, cabRaf=0;
+function setCabExplode(on){
+  cabGoal=on?1:0; cancelAnimationFrame(cabRaf);
+  const step=()=>{ cabT+=(cabGoal-cabT)*0.15; if(Math.abs(cabGoal-cabT)<0.002) cabT=cabGoal;
+    models.forEach(({m},id)=>{ if(isoMine(id)) m.explode(cabT); }); if(cabT!==cabGoal) cabRaf=requestAnimationFrame(step); };
+  step();
+}
+function resetCabExplode(){ cancelAnimationFrame(cabRaf); cabT=cabGoal=0; models.forEach(({m})=>m.explode(0)); }
+const cabExploded = () => cabGoal>0.5;
 const furnHolder = ref => { const [id,part]=String(ref).split(':'); const o=models.get(id); if(!o) return null; return part==null ? o.holder : o.m.group.children[+part] || null; };
 const furnMeshes = () => { const out=[]; const vis=o=>{ for(; o; o=o.parent) if(!o.visible) return false; return true; }; models.forEach(({holder})=>{ if(holder.visible) holder.traverse(o=>{ if(o.isMesh && vis(o)) out.push(o); }); }); return out; };
 
@@ -134,4 +145,4 @@ const DEPTH_CATS=new Set(['base','upper','tall','linen','wardrobe','vanity','app
 function wallDepths(k=state.model){ const out={}; list(k).forEach(it=>{ if(it.wall && DEPTH_CATS.has(itemDef(it.k)?.cat)) out[it.wall]=Math.max(out[it.wall]||0, it.d); }); return out; }
 
 const podsShown = () => lastPods;
-export { explodeFurniture, furnHolder, podsShown, showFurnGhost, hideFurnGhost, setHolderVisible, list as furnitureOf, byId as furnById, buildFurniture, refreshItem, applyFurniture, furnMeshes, snap, podAt, addItem, updateItem, removeItem, duplicateItem, turnItem, podRemoved, wallDepths, shownCat, CATS as FURN_CATS };
+export { setCabExplode, resetCabExplode, cabExploded, explodeFurniture, furnHolder, podsShown, showFurnGhost, hideFurnGhost, setHolderVisible, list as furnitureOf, byId as furnById, buildFurniture, refreshItem, applyFurniture, furnMeshes, snap, podAt, addItem, updateItem, removeItem, duplicateItem, turnItem, podRemoved, wallDepths, shownCat, CATS as FURN_CATS };

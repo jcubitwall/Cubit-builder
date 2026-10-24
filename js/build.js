@@ -234,7 +234,8 @@ stage.addEventListener('pointerup', e=>{
   // (or a pod on its own), the part you tapped (a wall, a floor / ceiling / roof, a cabinet). Decks are isolated
   // straight away. Double-tap the isolated part again, or empty space, to go back up one level.
   const fh=furnAt(e.clientX,e.clientY), ph=hitAt(e.clientX,e.clientY);
-  let id = fh && (!ph || fh.distance<=ph.distance) ? 'furn:'+fh.object.userData.furn : ph?.object?.userData?.slotId;
+  const glass = ph && /:(ceiling-int|roof)$/.test(ph.object.userData.slotId||'');   // the see-through ceiling / roof never hides a cabinet
+  let id = fh && (!ph || glass || fh.distance<=ph.distance) ? 'furn:'+fh.object.userData.furn : ph?.object?.userData?.slotId;
   // cabinets, the same way: a cabinet on its own, then the part of it you tap (a door, a side, a drawer…)
   if(id && String(state.isolate).startsWith(id) && id.startsWith('furn:') && fh?.object?.userData?.part!=null){ id = `${id}:${fh.object.userData.part}`; }
   const up=()=>{ const s=String(state.isolate||''); if(/^furn:[^:]+:\d+$/.test(s)){ const c=s.replace(/:\d+$/,''); setIsolate(c, isoLabel(c)); } else if(state.isolate) setIsolate(null); else if(state.focusPod!=null) setPod(null); renderSide(); };

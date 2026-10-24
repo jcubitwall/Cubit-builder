@@ -545,7 +545,7 @@ function applyExplode(){
 /* LVL rims and the floor build-up show with Lumber & LVL, and always in the exploded view (with their layer) */
 function applyRimVis(){
   if(!rimGroup) return; const S=state.show, F=state.focusPod, ex=explodeT>0.01;
-  rimGroup.visible=true;
+  rimGroup.visible=!state.isolate;   // an isolated part shows on its own
   rimGroup.children.forEach(m=>{ const u=m.userData, layerOn = u.lay==='floor-int' ? S.floors : (S.ceiling||S.roof);
     // the steel frames and ACM under the floor are their own layer
     m.visible = (F==null || u.pod===F) && (u.lay==='frame' ? S.frames!==false : (S.framing || (ex && layerOn))); });
@@ -625,7 +625,7 @@ renderer.domElement.addEventListener('pointerup',e=>{
   const hit=ray.intersectObjects(pickables,false).find(shown);
   // a cabinet or piece of furniture in front of the wall / floor: pick it
   const fh=ray.intersectObjects(furnMeshes(),false)[0];
-  if(fh && (!hit || fh.distance<=hit.distance+0.05)){ state.selFurn=fh.object.userData.furn; state.selected=null; state.selUnit=null; highlight(); applyFurniture(); renderSide(); return; }
+  if(fh && (!hit || /:(ceiling-int|roof)$/.test(hit.object.userData.slotId||'') || fh.distance<=hit.distance+0.05)){ state.selFurn=fh.object.userData.furn; state.selected=null; state.selUnit=null; highlight(); applyFurniture(); renderSide(); return; }
   if(state.selFurn){ state.selFurn=null; applyFurniture(); }
   state.selected = hit ? hit.object.userData.slotId : null;
   state.selUnit = null; for(let o=hit?.object; o; o=o.parent){ if(o.userData?.okey){ state.selUnit=o.userData.okey; break; } }

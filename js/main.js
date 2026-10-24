@@ -19,6 +19,7 @@ import './library-ui.js';
 import { loadSettings } from './casework.js';
 import './casework-ui.js';
 import { loadDrafts } from './drafts.js';
+import { setCabExplode, cabExploded } from './furniture.js';
 import './publish-ui.js';
 import { toast } from './sidebar.js';
 import { MODELS } from './data.js';
@@ -29,7 +30,10 @@ import { initPhone } from './phone.js';
 import { initZoomView } from './zoomview.js';
 
 function bindTog(id,key,fn){ const b=document.getElementById(id); b.onclick=()=>{ state[key]=!state[key]; b.setAttribute('aria-pressed',state[key]); fn(); }; }
-bindTog('tExplode','exploded',()=>{ explodeLayers(state.exploded); setExplodeGoal(state.exploded?1:0); });
+/* Exploded view: the home (or the isolated pod); while a cabinet is isolated, that cabinet */
+const tEx=document.getElementById('tExplode'), cabIso=()=>String(state.isolate||'').startsWith('furn:');
+tEx.onclick=()=>{ if(cabIso()){ setCabExplode(!cabExploded()); tEx.setAttribute('aria-pressed', cabExploded()); return; }
+  state.exploded=!state.exploded; tEx.setAttribute('aria-pressed',state.exploded); explodeLayers(state.exploded); setExplodeGoal(state.exploded?1:0); };
 document.getElementById('bSheets').onclick=()=>{ if(state.view==='sheets'){ closeSheets(); } else { state.sheetSlot = state.selected || null; openSheets(); } };
 document.getElementById('bPlan').onclick=()=>{ if(state.view==='plan'){ closePlan(); closeSheets(); } else openPlan(); };
 
@@ -38,7 +42,7 @@ document.getElementById('bPlan').onclick=()=>{ if(state.view==='plan'){ closePla
 (()=>{ const stage=document.getElementById('stage'); let g=null;
   const spread=t=>{ const n=t.length; let cx=0,cy=0; for(const p of t){ cx+=p.clientX; cy+=p.clientY; } cx/=n; cy/=n;
     let d=0; for(const p of t) d+=Math.hypot(p.clientX-cx, p.clientY-cy); return d/n; };
-  const want=on=>{ if(!!state.exploded!==on) document.getElementById('tExplode').click(); };
+  const want=on=>{ const cur = cabIso() ? cabExploded() : !!state.exploded; if(cur!==on) tEx.click(); };
   stage.addEventListener('touchstart', e=>{ if(e.touches.length===3){ g={d0:spread(e.touches), done:false}; e.preventDefault(); } }, {passive:false});
   stage.addEventListener('touchmove', e=>{ if(!g || e.touches.length!==3) return; e.preventDefault(); if(g.done) return;
     const r=spread(e.touches)/g.d0; if(r>1.2){ want(true); g.done=true; } else if(r<0.83){ want(false); g.done=true; } }, {passive:false});
