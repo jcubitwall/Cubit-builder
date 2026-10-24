@@ -131,8 +131,7 @@ setInterval(()=>{ if(state.model!==lastModel){ lastModel=state.model; if(state.i
 /* Exploded view brings the roof and ceiling in (they lift off the top); leaving it puts back what you had */
 let before=null;
 function explodeLayers(on){
-  if(on){ before={roof:state.show.roof, ceiling:state.show.ceiling}; state.show.roof=state.show.ceiling=true; }
-  else if(before){ Object.assign(state.show, before); before=null; }
+  // only what's switched on comes apart; anything switched off stays hidden (no layer is turned on for you)
   applyLayers(); if(!pop.hidden) render();
 }
 export { explodeLayers, render as renderLayers, setIsolate, setPod };

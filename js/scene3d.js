@@ -542,13 +542,13 @@ function applyExplode(){
   explodeFurniture(e, sp, eP, eW, lift);
   applyRimVis();
 }
-/* LVL rims and the floor build-up show with Lumber & LVL, and always in the exploded view (with their layer) */
+/* LVL rims and the floor build-up show with Lumber & LVL (exploded or not); the steel frames and ACM with their own switch */
 function applyRimVis(){
   if(!rimGroup) return; const S=state.show, F=state.focusPod, ex=explodeT>0.01;
   rimGroup.visible=!state.isolate;   // an isolated part shows on its own
   rimGroup.children.forEach(m=>{ const u=m.userData, layerOn = u.lay==='floor-int' ? S.floors : (S.ceiling||S.roof);
     // the steel frames and ACM under the floor are their own layer
-    m.visible = (F==null || u.pod===F) && (u.lay==='frame' ? S.frames!==false : (S.framing || (ex && layerOn))); });
+    m.visible = (F==null || u.pod===F) && (u.lay==='frame' ? S.frames!==false : S.framing); });   // their own switches, exploded or not
 }
 /* what shows: each layer on its own (Layers menu) */
 function applyLayers(){
