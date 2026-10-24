@@ -77,6 +77,6 @@ function tick(){
   for(let c=0;c<3;c++) for(let r=0;r<3;r++) e[c*4+r]*=s[r]*s[c];
   cube.style.transform=`translateZ(-40px) matrix3d(${e.map(v=>Math.abs(v)<1e-10?0:+v.toFixed(6)).join(',')})`;
 }
-tick();
-function initViewCube({ reset, after, toast }){ resetFn=reset; afterHist=after; say=toast; refreshHist(); }
+let ticking=false;
+function initViewCube({ reset, after, toast }){ resetFn=reset; afterHist=after; say=toast; refreshHist(); if(!ticking){ ticking=true; tick(); } }
 export { initViewCube, flyTo, viewFrom, zoomToFace, doUndo, doRedo };

@@ -695,3 +695,20 @@ html.phone .studio.build .vcube-wrap{top:8px;right:8px;transform:scale(.85);tran
 .tray-cat{flex:none;display:flex;flex-direction:column;justify-content:center;gap:3px;padding:0 4px}
 .tray-cat span{font:700 10px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
 .tray-cat select{font:inherit;font-size:13px;padding:8px 28px 8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);min-height:40px}
+/* drafts, new home, publishing */
+.drafts-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;width:100%;padding-bottom:8px;margin-bottom:4px;border-bottom:1px solid var(--line)}
+.row-k{font:700 10.5px var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--ink-2);margin-right:4px}
+.chip.new{border-style:dashed;font-weight:700}
+.chip.draft{border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
+.new-b{padding:7px 12px;font-weight:700}
+.pub-box{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;background:var(--surface-2)}
+.pub-box.draft{border-color:color-mix(in srgb,var(--accent) 50%,var(--line));background:var(--accent-soft)}
+.pub-box p{margin:0;font-size:13px}
+.pub-box details summary{cursor:pointer;font-size:12.5px;color:var(--ink-2)}
+.pub-sel{width:100%;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+.pub-dlg .dlg input[type=text]{margin-bottom:4px}
+.pub-mode{margin-bottom:4px}
+.pub-warn{margin:0;padding:10px 12px;border-radius:9px;background:#fdecea;color:#7a1d12;border:1px solid #f2b8b0}
+.btn.danger{background:#b3261e;border-color:#b3261e;color:#fff}
+.btn.danger.ghost{background:transparent;color:#b3261e}
+.nh-pod{margin-top:4px}

@@ -110,22 +110,30 @@ function bake(key){
   state.picks[key]={}; state.layerPicks[key]={}; state.wallA[key]={}; state.faces[key]={};
 }
 
-/* Built-in homes stay as they are: the first edit makes the person's own copy (saved in this browser).
-   Projects and own layouts are edited in place. Returns the key being edited. */
+/* Cubit models (the standard design of each model name) and published variations (sub-models) are protected:
+   the first change makes a private draft copy in "My drafts" and the change goes there. Drafts and team projects
+   are edited in place. Publishing (publish-ui.js) is the only way a draft reaches the shared library. */
+const isProtected = key => { const m=MODELS[key]; return !!m && !m.custom && !m.project; };
+function makeDraftCopy(key){
+  const m=MODELS[key], nk='draft-'+Date.now().toString(36)+Math.random().toString(36).slice(2,4);
+  const fam = m.family || (m.base && MODELS[m.base]?.family) || null;
+  const n=Object.values(MODELS).filter(x=>x.custom && x.from===key).length;
+  MODELS[nk]={ name:m.name+(n?` (draft ${n+1})`:' (draft)'), size:m.size, ...(m.scratch?{scratch:true}:{}), base:m.base||(m.sub?undefined:key), family:fam, from:key, pods:bakedPods(key), decks:clone(m.decks||[]), picks:{}, layerPicks:{}, custom:true, draft:true, created:new Date().toISOString() };
+  if(!MODELS[nk].base) delete MODELS[nk].base;
+  ['bearing','found','deckOC'].forEach(f=>{ const v=state[f]?.[key] ?? m[f]; if(v!=null) (state[f] ||= {})[nk]=v; });
+  ['units','furniture','cabinets','lights'].forEach(f=>{ const v=state[f]?.[key] ?? (f==='units'?m.units:null); if(v) (state[f] ||= {})[nk]=clone(v); });
+  state.faces[nk]={}; state.picks[nk]={}; state.layerPicks[nk]={}; state.wallA[nk]={};
+  state.model=nk; saveCustomModels(); save();
+  try{ window.dispatchEvent(new CustomEvent('cubit:draft', {detail:{from:key, key:nk}})); }catch(e){}
+  return nk;
+}
+/* before any change: a protected home turns into your draft copy first. Returns the key to change. */
+function ensureDraft(){ return isProtected(state.model) ? makeDraftCopy(state.model) : state.model; }
 function editKey(){
   checkpoint();
   const key=state.model, m=MODELS[key];
-  if(m.custom || m.project || m.sub){ bake(key); return key; }
-  // the built-in home keeps its own picks; the copy carries them on its pods
-  const nk='custom-'+Date.now().toString(36);
-  MODELS[nk]={ name:m.name+' (custom)', size:m.size, base:m.base||key, pods:bakedPods(key), decks:clone(m.decks||[]), picks:{}, layerPicks:{}, custom:true };
-  if(state.bearing?.[key]!=null) state.bearing[nk]=state.bearing[key];
-  if(state.found?.[key]!=null) state.found[nk]=state.found[key];
-  if(state.deckOC?.[key]!=null) state.deckOC[nk]=state.deckOC[key];
-  if(state.units?.[key]) state.units[nk]=clone(state.units[key]);
-  if(state.furniture?.[key]) state.furniture[nk]=clone(state.furniture[key]);
-  state.model=nk;
-  return nk;
+  if(m.custom || m.project){ bake(key); return key; }
+  return makeDraftCopy(key);
 }
 function finish(key){
   const m=MODELS[key];
@@ -310,4 +318,4 @@ const countsText = c => {
 function renameLibPod(id, name){ const p=podById(id); if(p && p.src==='saved'){ p.name=name; savePodLib(); } }
 function deleteLibPod(id){ const k=PODLIB.findIndex(p=>p.id===id && p.src==='saved'); if(k>=0){ PODLIB.splice(k,1); savePodLib(); } }
 
-export { setDeckFoundation, deckFoot, LEDGER, addDeck, moveDeck, removeDeck, replaceDeck, deckSpots, turnDeck, foot, problem, bake, addPod, movePod, rotatePod, replacePod, deletePod, dockSpots, turnSpot, saveToLibraries, countsText, sizeText, renameLibPod, deleteLibPod, podSig };
+export { isProtected, makeDraftCopy, ensureDraft, setDeckFoundation, deckFoot, LEDGER, addDeck, moveDeck, removeDeck, replaceDeck, deckSpots, turnDeck, foot, problem, bake, addPod, movePod, rotatePod, replacePod, deletePod, dockSpots, turnSpot, saveToLibraries, countsText, sizeText, renameLibPod, deleteLibPod, podSig };

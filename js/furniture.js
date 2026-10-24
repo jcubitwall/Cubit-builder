@@ -8,6 +8,7 @@
    Every category has its own switch in Layers (state.show['cw-<cat>']). */
 import { state, save } from './state.js';
 import { checkpoint } from './history.js';
+import { ensureDraft } from './pods.js';
 import { itemDef, newItem, CATS } from './casework.js';
 import { itemModel } from './casework3d.js';
 
@@ -44,7 +45,7 @@ function place(it){
   f.add(holder); models.set(it.id, {holder, m});
   return holder;
 }
-function refreshItem(it){ const old=models.get(it.id); if(old) old.holder.parent?.remove(old.holder); place(it); applyFurniture(); }
+function refreshItem(it){ if(!it) return; const old=models.get(it.id); if(old){ old.holder.parent?.remove(old.holder); models.delete(it.id); } const cur=byId(it.id); if(cur) place(cur); applyFurniture(); }
 function applyFurniture(){
   if(!group) return;
   const F=state.focusPod;
@@ -111,12 +112,12 @@ const hideFurnGhost = () => { if(fg) fg.visible=false; };
 const setHolderVisible = (id, v) => { const m=models.get(id); if(m) m.holder.visible = v && shownCat(m.holder.userData.cat); };
 
 /* ---------------------------------------------------------------- edits */
-function addItem(k, at){ checkpoint(); const it={ id:newId(), ...newItem(k), ...at }; delete it.free; list().push(it); save(); return it; }
-function updateItem(id, patch){ checkpoint(); const it=byId(id); if(!it) return null; Object.assign(it, patch); delete it.free; save(); return it; }
-function removeItem(id){ checkpoint(); const L=list(), i=L.findIndex(f=>f.id===id); if(i>=0) L.splice(i,1); if(state.selFurn===id) state.selFurn=null; save(); }
-function duplicateItem(id){ checkpoint(); const it=byId(id); if(!it) return null; const c={...JSON.parse(JSON.stringify(it)), id:newId()};
+function addItem(k, at){ checkpoint(); ensureDraft(); const it={ id:newId(), ...newItem(k), ...at }; delete it.free; list().push(it); save(); return it; }
+function updateItem(id, patch){ checkpoint(); ensureDraft(); const it=byId(id); if(!it) return null; Object.assign(it, patch); delete it.free; save(); return it; }
+function removeItem(id){ checkpoint(); ensureDraft(); const L=list(), i=L.findIndex(f=>f.id===id); if(i>=0) L.splice(i,1); if(state.selFurn===id) state.selFurn=null; save(); }
+function duplicateItem(id){ checkpoint(); ensureDraft(); const it=byId(id); if(!it) return null; const c={...JSON.parse(JSON.stringify(it)), id:newId()};
   const r=(c.a||0)*Math.PI/180; c.u+=Math.cos(r)*c.w/FT; c.v-=Math.sin(r)*c.w/FT; list().push(c); save(); return c; }
-function turnItem(id, dir=1){ checkpoint(); const it=byId(id); if(!it) return; it.a=(((it.a||0)-90*dir)%360+360)%360; if(it.a>180) it.a-=360; it.wall=null; save(); }
+function turnItem(id, dir=1){ checkpoint(); ensureDraft(); const it=byId(id); if(!it) return; it.a=(((it.a||0)-90*dir)%360+360)%360; if(it.a>180) it.a-=360; it.wall=null; save(); }
 /* when a pod goes, its items go with it; later pods move down one */
 function podRemoved(k, i){ const L=list(k); for(let j=L.length-1;j>=0;j--){ if(L[j].pod===i) L.splice(j,1); else if(L[j].pod>i) L[j].pod--; } }
 /* deepest unit on each wall (inches), for the pot-light rule */

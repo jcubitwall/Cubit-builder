@@ -18,6 +18,8 @@
    Ceilings are uploaded with their wire hatches and heat-pump head openings (kept exactly as drawn); the lights are
    added here. With lights placed by rule, round 4″ pockets drawn in the ceiling (and their wire holes) are replaced. */
 import { MODELS } from './data.js';
+import { ensureDraft } from './pods.js';
+import { checkpoint } from './history.js';
 import { wallDepths } from './furniture.js';
 import { state, save, pickFor } from './state.js';
 import { slotsFor, podList, layerSlotsFor } from './layout.js';
@@ -26,9 +28,9 @@ import { FT, PW } from './config.js';
 const LIGHT = { d:4, depth:5.388, wire:0.78 };
 const BUMP = 6, OPEN_MIN = 48, SEAM_CLEAR = 4, END_MIN = 10, ROW_MIN = 8, HOLE_CLEAR = 3;   // clear of hatches, heat-pump heads, chases
 const cfgOf = k => ({ auto:true, spacing:42, ...(state.lights?.[k]||{}) });
-function setLights(k, ch){ ((state.lights ||= {})[k] = {...cfgOf(k), ...ch}); save(); }
+function setLights(k, ch){ if(k===state.model){ checkpoint(); k=ensureDraft(); } ((state.lights ||= {})[k] = {...cfgOf(k), ...ch}); save(); }
 const cabinetsOf = k => state.cabinets?.[k] || {};
-function setCabinet(k, slotId, depth, kind){ const c=((state.cabinets ||= {})[k] ||= {}); if(depth>0) c[slotId]={depth:+depth, kind:kind||'Custom'}; else delete c[slotId]; save(); }
+function setCabinet(k, slotId, depth, kind){ if(k===state.model){ checkpoint(); k=ensureDraft(); } const c=((state.cabinets ||= {})[k] ||= {}); if(depth>0) c[slotId]={depth:+depth, kind:kind||'Custom'}; else delete c[slotId]; save(); }
 const cabDepth = v => typeof v==='number' ? v : (v?.depth||0);
 
 /* a pod's ceiling frame (inches): x along the pod 0..len, z across 0..96; to and from the plan (feet) */

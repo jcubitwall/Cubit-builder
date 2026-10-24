@@ -6,7 +6,8 @@ import { screwsFor, slotsFor, podList, CW, layerSlotsFor, partnerOf, deckList } 
 import { panelCount, thumbSVG, bodyWall, wallLen } from './panels.js';
 import { buildHome, highlight } from './scene3d.js';
 import { facing, fmtBearing } from './orient.js';
-import { setDeckFoundation, rotatePod, deletePod } from './pods.js';
+import { setDeckFoundation, rotatePod, deletePod, ensureDraft } from './pods.js';
+import { checkpoint } from './history.js';
 import { openSheets } from './sheets.js';
 import { pickFor, save, state, choose, pickLayer, chooseLayer, foundationOf, setFoundation, deckOCOf } from './state.js';
 import { ocSeg, bindOC } from './deckframe.js';
@@ -20,6 +21,7 @@ import { applyEdits } from './libedit.js';
 import { withLights, cfgOf, setLights, cabinetsOf, setCabinet, cabDepth, CAB_PRESETS } from './lights.js';
 import { askRename } from './library-ui.js';
 import { furnSide, homeBlock, bindHomeBlock } from './casework-ui.js';
+import { draftBlock, bindDraftBlock, draftsRow } from './publish-ui.js';
 
 const sideH=document.getElementById('sideH'), sideB=document.getElementById('sideB');
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -31,8 +33,8 @@ function renderModels(){
   const el=document.getElementById('models');
   const fam=familyOf(state.model);
   if(fam) famPick[fam]=state.model;
-  const tag = k => { const m=MODELS[k]; return familyById(familyOf(k))?.base===k ? 'standard' : m.sub ? 'sub-model' : m.custom ? 'your layout' : ''; };
-  let h = FAMILIES.filter(f=>!f.deleted).map(f=>{ const v=variantsOf(f.id), base=f.base&&MODELS[f.base];
+  const tag = k => { const m=MODELS[k]; return familyById(familyOf(k))?.base===k ? 'Cubit model' : m.sub ? 'variation' : m.custom ? 'draft' : ''; };
+  let h = draftsRow() + FAMILIES.filter(f=>!f.deleted).map(f=>{ const v=variantsOf(f.id), base=f.base&&MODELS[f.base];
     return `<button class="chip ${v.length?'':'empty'}" data-f="${f.id}" aria-pressed="${fam===f.id}">${esc(f.name)}<small>${v.length>1?`${v.length} designs`:base?esc(base.size||''):v.length?esc(MODELS[v[0]].size||''):'no design yet'}</small></button>`; }).join('')
     + Object.entries(MODELS).filter(([k,m])=>m.project && !m.deleted).map(([k,m])=>`<button class="chip proj" data-m="${k}" aria-pressed="${k===state.model}" title="Saved project">${esc(m.name)}<small>${m.team?'team':m.shared?'shared':'project'}</small></button>`).join('');
   const v = fam ? variantsOf(fam) : [];
@@ -117,16 +119,17 @@ function renderSideInner(){
     sideH.innerHTML=`<div class="eyebrow">${fam?esc(fam.name):'Model'}${m.sub?' · sub-model':m.custom?' · your layout':m.project?' · project':fam&&fam.base===state.model?' · standard':''}</div><h2>${esc(m.name)} <button class="linkbtn ren-link edit-only" id="renHome">Rename</button></h2><p>${facts.join(' · ')}</p>`;
     sideH.querySelector('#renHome').onclick=()=>askRename('models', state.model);
     sideB.innerHTML=`
+      ${draftBlock()}
       ${foundationBlock()}
       ${wallListHTML(slots,null)}
       ${homeBlock()}
       <div class="more-grp">
-      ${catalogBlock()}
+      ${MODELS[state.model].project ? catalogBlock() : ''}
       ${layoutBlock(m)}
       ${importBlock()}
       <details class="help"><summary>How walls are lettered</summary><p>Each pod's walls run A, B, C, D clockwise seen from above. A and C are the through walls (they run straight through, corner to corner) and B and D butt between them. Every pod's A points the same way: the way most pods' largest opening faces on the outside of the home. Click a through wall to make it A by hand. Panel numbers sit over the room side of each wall.</p></details>
       </div>`;
-    bindLayout(); bindFoundation(); bindCatalog(); bindHomeBlock(sideB);
+    bindLayout(); bindFoundation(); bindCatalog(); bindHomeBlock(sideB); bindDraftBlock(sideB);
   } else {
     const w=pickFor(s); const opts=optionsFor(s.len, s.type||'ext', state.model);
     const isInt=s.type==='int';
@@ -156,8 +159,8 @@ function renderSideInner(){
     sideB.querySelector('#toSheet').onclick=()=>{ state.sheetSlot=s.id; openSheets(); };
     sideB.querySelector('#isoBtn').onclick=()=>setIsolate(state.isolate===s.id ? null : s.id, s.label);
     
-    const mk=sideB.querySelector('#makeA'); if(mk) mk.onclick=()=>{ ((state.wallA[state.model] ||= {}))[s.pod.i]=s.side; save(); buildHome(); renderSide(); toast(`${s.pod.label}: this is now Wall A`); };
-    const auto=sideB.querySelector('#autoA'); if(auto) auto.onclick=()=>{ if(state.wallA[state.model]) delete state.wallA[state.model][s.pod.i]; delete m.pods[s.pod.i].a; if(m.custom) saveCustomModels(); save(); buildHome(); renderSide(); };
+    const mk=sideB.querySelector('#makeA'); if(mk) mk.onclick=()=>{ checkpoint(); ensureDraft(); ((state.wallA[state.model] ||= {}))[s.pod.i]=s.side; save(); buildHome(); renderSide(); toast(`${s.pod.label}: this is now Wall A`); };
+    const auto=sideB.querySelector('#autoA'); if(auto) auto.onclick=()=>{ checkpoint(); ensureDraft(); const mm=MODELS[state.model]; if(state.wallA[state.model]) delete state.wallA[state.model][s.pod.i]; delete mm.pods[s.pod.i].a; if(mm.custom) saveCustomModels(); save(); buildHome(); renderSide(); };
   }
   sideB.querySelectorAll('.wl button').forEach(b=>b.onclick=()=>{ state.selected=b.dataset.s; highlight(); renderSide(); });
   const imp=sideB.querySelector('#bImport'); if(imp) imp.onclick=()=>document.getElementById('fileIn').click();

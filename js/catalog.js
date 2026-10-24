@@ -34,6 +34,7 @@ const keyOf = it => 'sub-'+it.id;
 /* the sub-model's own choices become the model's defaults, so everyone sees the same thing; anything you
    change on screen afterwards is yours until an admin saves it back */
 function register(it){
+  if(it.over){ registerOver(it); return; }
   SUBS[it.id]=it;
   const lib=it.library||{};
   (lib.walls||[]).forEach(w=>{ if(!LIB.find(x=>x.id===w.id)) LIB.push({...w, src:'catalog'}); });
@@ -49,6 +50,55 @@ function register(it){
   if(it.faces && !state.faces[k]) state.faces[k]=clone(it.faces);
   if(it.cabinets && !state.cabinets?.[k]) (state.cabinets ||= {})[k]=clone(it.cabinets);
   if(it.lights && !state.lights?.[k]) (state.lights ||= {})[k]=clone(it.lights);
+  if(it.furniture && !state.furniture?.[k]) (state.furniture ||= {})[k]=clone(it.furniture);
+}
+/* a Cubit model saved over (after the warnings): the shared version replaces the one in the shop files.
+   The shop files' version stays underneath, so removing the override brings it back. */
+const ORIGINAL = {};
+function registerOver(it){
+  const k=it.over, cur=MODELS[k]; if(!cur) return;
+  if(!ORIGINAL[k]) ORIGINAL[k]=clone(cur);
+  OVERS[k]=it;
+  const lib=it.library||{};
+  (lib.walls||[]).forEach(w=>{ if(!LIB.find(x=>x.id===w.id)) LIB.push({...w, src:'catalog'}); });
+  (lib.layers||[]).forEach(l=>{ if(!LAYERLIB.find(x=>x.id===l.id)) LAYERLIB.push({...l, src:'catalog'}); });
+  (lib.pods||[]).forEach(q=>{ if(!PODLIB.find(x=>x.id===q.id)) PODLIB.push({...q, src:'catalog'}); });
+  (lib.decks||[]).forEach(q=>{ if(!DECKLIB.find(x=>x.id===q.id)) DECKLIB.push({...q, src:'catalog'}); });
+  const m=clone(it.model), wallA={...(m.wallA||{})};
+  Object.entries(it.wallA||{}).forEach(([i,side])=>{ wallA[+i+1]=side; });
+  MODELS[k]={ ...cur, pods:m.pods, decks:m.decks||[], size:m.size||cur.size, picks:{...(m.picks||{}), ...(it.picks||{})}, layerPicks:{...(m.layerPicks||{}), ...(it.layerPicks||{})}, wallA,
+    units:it.units||{}, found:it.found, deckOC:it.deckOC, bearing:it.bearing, overBy:it.by, overAt:it.saved };
+  // the shared version wins over anything left in this browser for that model
+  ['picks','layerPicks','wallA','units','found','deckOC','bearing','cabinets','lights','faces','furniture'].forEach(f=>{ if(state[f]) delete state[f][k]; });
+  if(it.faces) state.faces[k]=clone(it.faces);
+  if(it.cabinets) (state.cabinets ||= {})[k]=clone(it.cabinets);
+  if(it.lights) (state.lights ||= {})[k]=clone(it.lights);
+  if(it.furniture) (state.furniture ||= {})[k]=clone(it.furniture);
+}
+const OVERS = {};
+function itemFrom(name, family, note, id){
+  const snap=snapshot(name, id);
+  const it = { id, family, name, note:note||'', saved:new Date().toISOString(), by:email()||'',
+    model:{...snap.model, name, base:familyById(family)?.base||snap.model.base}, picks:snap.picks, layerPicks:snap.layerPicks, wallA:snap.wallA,
+    faces:snap.faces, cabinets:snap.cabinets, lights:snap.lights, furniture:snap.furniture, found:snap.found, deckOC:snap.deckOC, units:snap.units, bearing:snap.bearing };
+  if(!it.model.base) delete it.model.base;
+  it.library=libraryFor(it);
+  return it;
+}
+/* save what's on screen over a standard Cubit model, for everyone (the caller has already warned three times) */
+async function saveOver(key){
+  const cur=MODELS[key]; if(!cur || cur.sub || cur.custom || cur.project) throw new Error('Not a Cubit model.');
+  const it={ ...itemFrom(cur.name, cur.family||familyOf(key), cur.note, 'over-'+key), over:key };
+  it.model.name=cur.name; delete it.model.base;
+  await store('upsert', {item:it});
+  registerOver(it); state.model=key; state.selected=null; save();
+  return key;
+}
+/* back to the shop files' version of a Cubit model (removes the shared override) */
+async function removeOver(key){
+  await store('delete', {id:'over-'+key});
+  if(ORIGINAL[key]) MODELS[key]=ORIGINAL[key];
+  delete OVERS[key]; delete ORIGINAL[key];
 }
 const familyById = id => FAMILIES.find(f=>f.id===id);
 function familyOf(key){
@@ -59,7 +109,7 @@ function familyOf(key){
 }
 /* the homes filed under a model name: the standard one, the shared sub-models, then your own layouts */
 function variantsOf(fam){
-  const ks=Object.keys(MODELS).filter(k=>!MODELS[k].project && !MODELS[k].deleted && familyOf(k)===fam);
+  const ks=Object.keys(MODELS).filter(k=>!MODELS[k].project && !MODELS[k].custom && !MODELS[k].deleted && familyOf(k)===fam);
   const rank=k=>{ const m=MODELS[k]; return familyById(fam)?.base===k ? 0 : m.sub ? 1 : 2; };
   return ks.sort((a,b)=>rank(a)-rank(b) || MODELS[a].name.localeCompare(MODELS[b].name));
 }
@@ -77,17 +127,13 @@ const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''
 async function saveSub({family, name, note, id}){
   const from=state.model, snap=snapshot(name, id||'x');
   const nid = id || `${slug(name)}-${Date.now().toString(36).slice(-4)}`;
-  const it = { id:nid, family, name, note:note||'', saved:new Date().toISOString(), by:email()||'',
-    model:{...snap.model, name, base:familyById(family)?.base||snap.model.base}, picks:snap.picks, layerPicks:snap.layerPicks, wallA:snap.wallA,
-    faces:snap.faces, cabinets:snap.cabinets, lights:snap.lights, found:snap.found, deckOC:snap.deckOC, units:snap.units, bearing:snap.bearing };
-  if(!it.model.base) delete it.model.base;
-  it.library=libraryFor(it);
+  const it = itemFrom(name, family, note, nid);
   const prev=SUBS[nid]; SUBS[nid]=it;
   try{ await store('upsert', {item:it}); }catch(e){ if(prev) SUBS[nid]=prev; else delete SUBS[nid]; throw e; }
   register(it);
   // the catalog now holds these choices: clear this browser's overrides for it
-  const k=keyOf(it); ['picks','layerPicks','wallA','units','found','deckOC','bearing','cabinets','lights'].forEach(f=>{ if(state[f]) delete state[f][k]; });
-  state.faces[k]=clone(it.faces||{});
+  const k=keyOf(it); ['picks','layerPicks','wallA','units','found','deckOC','bearing','cabinets','lights','furniture'].forEach(f=>{ if(state[f]) delete state[f][k]; });
+  state.faces[k]=clone(it.faces||{}); if(it.furniture) (state.furniture ||= {})[k]=clone(it.furniture);
   if(from!==k && MODELS[from]?.custom){ /* your own layout stays as it was */ }
   state.model=k; state.selected=null; save();
   return k;
@@ -104,4 +150,4 @@ async function editSub(id, changes){
   try{ await store('upsert', {item:it}); }catch(e){ SUBS[id]=prev; throw e; }
   register(it);
 }
-export { FAMILIES, SUBS, loadCatalog, familyOf, familyById, variantsOf, saveSub, removeSub, editSub };
+export { saveOver, removeOver, OVERS, FAMILIES, SUBS, loadCatalog, familyOf, familyById, variantsOf, saveSub, removeSub, editSub };

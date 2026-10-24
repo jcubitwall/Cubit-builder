@@ -3,11 +3,13 @@
    It is kept per home (and saved with projects), drawn as a north arrow on the plan, the 3D view and the
    foundation sheet, and used to say which way every wall faces. */
 import { MODELS } from './data.js';
+import { ensureDraft } from './pods.js';
+import { checkpoint } from './history.js';
 import { state, save } from './state.js';
 
 const norm = d => ((d%360)+360)%360;
 const getBearing = (key=state.model) => norm(+(state.bearing?.[key] ?? MODELS[key]?.bearing ?? 0) || 0);
-function setBearing(deg, key=state.model){ (state.bearing ||= {})[key]=Math.round(norm(deg)*10)/10; save(); }
+function setBearing(deg, key=state.model){ if(key===state.model){ checkpoint(); key=ensureDraft(); } (state.bearing ||= {})[key]=Math.round(norm(deg)*10)/10; save(); }
 const NAMES=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
 const compass = d => NAMES[Math.round(norm(d)/22.5)%16];
 const fmtBearing = d => `${Math.round(norm(d))}° ${compass(d)}`;

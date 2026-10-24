@@ -230,3 +230,9 @@ See that folder's README. The scan is exact, so **only upload accurate models**:
 - `js/casework3d.js` 3D parts (tenons drawn), `js/casework-svg.js` front-view thumbnails, `js/casework-ui.js` the library window (⋯ → Cabinet library): sizes, options, 3D with exploded view, parts with cut sizes and machining, hardware, CSV cut list, and the team's Shop settings (stored in R2 `casework/settings.json` via `functions/api/casework.js`).
 - `js/furniture.js` placed items per home (`state.furniture[home]`), in pod coordinates so they move and turn with the pod; drag in from the Build tray (Cabinets tab); they back onto the nearest wall and butt to neighbours. Each category has a switch in Layers. Depth of items against a wall feeds the pot-light rule.
 - `js/history.js` undo / redo; `js/viewcube.js` the Shapr3D view cube, undo / redo buttons, zoom to face.
+
+## Drafts, new homes and publishing (Oct 2026)
+- **New home** (top bar ＋ New, or Homes → ＋ New home): starts a draft from one blank 8′/16′/24′ pod, optionally filed under a model name. Walls stay plain until picked.
+- **My drafts** (`js/drafts.js`, `functions/api/drafts.js`): each person's drafts live in their own R2 folder `drafts/<email>/<key>.json` and only they see them. Every save sends the draft up a moment later.
+- **Protected models**: Cubit models (the standard design of each model name) and published variations can't be changed in place. The first change makes a draft copy (`ensureDraft` / `makeDraftCopy` in `js/pods.js`), and the change goes there.
+- **Publish** (`js/publish-ui.js`, from the draft's panel): add it as a variation (sub-model) under any model name, or save it over the Cubit model it was copied from, after three warnings and typing the model's name. Saving over a standard model stores an `over` item in `catalog/submodels.json`. The shop files' version stays underneath and can be brought back. Every replaced or removed catalog version is kept in `catalog/history/<id>/`.

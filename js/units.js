@@ -14,6 +14,7 @@
    the home's own (models.json "units"), else the only library unit of the right kind that fits the
    rough opening. If several fit, it is left for the person to choose. */
 import { state, save } from './state.js';
+import { ensureDraft } from './pods.js';
 import { checkpoint } from './history.js';
 import { MODELS } from './data.js';
 import { slotsFor, partnerOf } from './layout.js';
@@ -93,7 +94,7 @@ function unitFor(slot, o){
   if(fitting.length===1){ const u=fitting[0].u; return { unit:u, hand:u.hand||'L', swing:u.swing||'in', how:'auto' }; }
   return null;
 }
-function setUnit(slot, o, pick){ checkpoint();   // pick: {u, hand, swing} · null = back to automatic · false = leave empty
+function setUnit(slot, o, pick){ checkpoint(); ensureDraft();   // pick: {u, hand, swing} · null = back to automatic · false = leave empty
   const m=(state.units[state.model] ||= {}), s=(m[slot.id] ||= {}), k=okey(o);
   if(pick===null) delete s[k]; else s[k]=pick;
   save();

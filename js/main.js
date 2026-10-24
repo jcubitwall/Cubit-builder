@@ -18,6 +18,13 @@ import { startBuild } from './build.js';
 import './library-ui.js';
 import { loadSettings } from './casework.js';
 import './casework-ui.js';
+import { loadDrafts } from './drafts.js';
+import './publish-ui.js';
+import { toast } from './sidebar.js';
+import { MODELS } from './data.js';
+/* the first change to a Cubit model went into your own draft copy */
+window.addEventListener('cubit:draft', e=>{ setTimeout(()=>{ renderModels(); buildHome(); renderSide();
+  toast(`Editing your draft of ${MODELS[e.detail.from]?.name||'this home'} · the Cubit model is unchanged`); }, 0); });
 import { initPhone } from './phone.js';
 import { initZoomView } from './zoomview.js';
 
@@ -45,6 +52,7 @@ document.querySelectorAll('.hint').forEach(h=>{ const host=h.parentNode; const o
 (async function boot(){
   try{ await loadRole(); await loadData(); await loadUnits(); await loadProjects(); await loadCatalog(); await loadEdits(); await loadSettings(); }
   catch(e){ document.getElementById('sideH').innerHTML='<h2>Could not load the wall library</h2><p>Open the app from its web address (GitHub Pages) or a local web server, not by double-clicking the file.</p>'; return; }
-  initState(); initProjectsUI(); initUpload();
+  initState(); try{ await loadDrafts(); }catch(e){}
+  initProjectsUI(); initUpload();
   renderModels(); buildHome(); renderSide(); resize(); loop(); initPhone(); initZoomView(); startBuild();
 })();
