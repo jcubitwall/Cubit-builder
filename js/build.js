@@ -241,7 +241,8 @@ stage.addEventListener('pointerup', e=>{
   if(!id || id===state.isolate){ up(); return; }
   const deck=String(id).startsWith('deck:');
   const pod = deck ? null : String(id).startsWith('furn:') ? furnById(id.slice(5))?.pod : parseInt(id,10);
-  if(!deck && !state.isolate && state.focusPod==null && MODELS[state.model].pods.length>1 && Number.isFinite(pod)){ setPod(pod); renderSide(); return; }
+  const cab=String(id).startsWith('furn:');   // a cabinet is isolated right away, whatever level you're at
+  if(!deck && !cab && !state.isolate && state.focusPod==null && MODELS[state.model].pods.length>1 && Number.isFinite(pod)){ setPod(pod); renderSide(); return; }
   setIsolate(id, isoLabel(id)); renderSide();
 }, true);
 

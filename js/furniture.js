@@ -53,11 +53,11 @@ function applyFurniture(){
     m.select(null);
     if(state.selFurn===id && !state.isolate) m.meshes.forEach(x=>{ x.material = x.material.clone(); x.material.emissive?.set(0x6a2a08); }); });
 }
-/* the exploded view: cabinets ride with their pod's floor; each one comes apart too (fully when it's isolated) */
+/* the exploded view: cabinets ride with their pod's floor, in one piece; an isolated cabinet comes apart where it stands */
 function explodeFurniture(e, spreadOf, eP, eW, lift){
   const iso=String(state.isolate||'').startsWith('furn:');   // an isolated cabinet comes apart where it stands
   frames.forEach(f=>{ const v=iso?[0,0]:(spreadOf(f.userData.pod)||[0,0]), b=f.userData.base; if(b) f.position.set(b.x+v[0]*eP, b.y+(iso?0:lift), b.z+v[1]*eP); });
-  models.forEach(({m},id)=>m.explode(isoMine(id) ? e : eW*0.6));
+  models.forEach(({m},id)=>m.explode(isoMine(id) ? e : 0));   // cabinets stay together unless one is isolated
 }
 /* isolate ids: 'furn:<item>' a whole cabinet, 'furn:<item>:<part>' one part of it */
 const isoMine = id => { const s=String(state.isolate||''); return s==='furn:'+id || s.startsWith('furn:'+id+':'); };
