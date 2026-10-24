@@ -267,6 +267,7 @@ function buildHome(){
   });
   // with the house turned off, only the ground screws, pads and footprints show
   screwGroup=new THREE.Group(); homeGroup.add(screwGroup);
+  screwGroup.position.y=-0.006;   // the foundation stops a hair below the ACM, so their touching faces never flicker through each other
   // concrete pads under decks that float instead of sitting on screws
   { const padG=new THREE.BoxGeometry(16/FT, 8/FT, 16/FT), padM=new THREE.MeshStandardMaterial({color:0xa7a9a4, roughness:0.95});
     padsFor(state.model, state.inset).forEach(pd=>{ const m=new THREE.Mesh(padG,padM); m.position.set(pd.x, -WALL_BASE/FT - 4/FT, pd.z); screwGroup.add(m); }); }
@@ -445,8 +446,8 @@ function computeSpread(){
 const ease = (a,b,t) => { const u=Math.min(1,Math.max(0,(t-a)/(b-a))); return u*u*(3-2*u); };
 function applyExplode(){
   const e=explodeT, eP=ease(0,0.55,e), eW=ease(0.4,1,e);   // stage 1: pods apart · stage 2: each pod comes apart
-  const lift = e*2.5;   // the house rises off its ground screws
-  const OFFS = {frame:-4, 'floor-ext':-2.2, 'floor-int':0, 'ceiling-int':5, 'roof':7.5};
+  const lift = e*4.5;   // the house rises off its foundation, high enough that the frames clear the screw heads
+  const OFFS = {frame:-3.6, 'floor-ext':-2.2, 'floor-int':0, 'ceiling-int':5, 'roof':7.5};
   const sp = k => state.focusPod!=null ? [0,0] : (spread.pods[k]||[0,0]);   // one pod on its own comes apart where it stands
   layerGroups.forEach(g=>{ const u=g.userData, v=sp(u.pod);
     g.position.set(u.bx+v[0]*eP, u.baseY + lift + eW*OFFS[u.layerSlot.kind], u.bz+v[1]*eP); });
@@ -466,8 +467,9 @@ function applyExplode(){
 function applyRimVis(){
   if(!rimGroup) return; const S=state.show, F=state.focusPod, ex=explodeT>0.01;
   rimGroup.visible=true;
-  rimGroup.children.forEach(m=>{ const u=m.userData, layerOn = u.lay==='floor-int'||u.lay==='frame' ? S.floors : (S.ceiling||S.roof);
-    m.visible = (F==null || u.pod===F) && (u.always ? S.floors : (S.framing || (ex && layerOn))); });
+  rimGroup.children.forEach(m=>{ const u=m.userData, layerOn = u.lay==='floor-int' ? S.floors : (S.ceiling||S.roof);
+    // the steel frames and ACM under the floor are their own layer
+    m.visible = (F==null || u.pod===F) && (u.lay==='frame' ? S.frames!==false : (S.framing || (ex && layerOn))); });
 }
 /* what shows: each layer on its own (Layers menu) */
 function applyLayers(){

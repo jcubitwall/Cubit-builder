@@ -10,7 +10,7 @@ import { podList, slotsFor, layerSlotsFor } from './layout.js';
 const ROWS = [
   ['Show'],
   ['roof','Roof','#4b514d'], ['ceiling','Ceiling','#d9d2bf'], ['walls','Walls (SIP)','#c9a46a'], ['floors','Floors','#8d8f86'],
-  ['decks','Decks','#a88f5d'], ['screws','Foundation','#56606b'], ['units','Windows & doors','#8fc3ea'],
+  ['decks','Decks','#a88f5d'], ['screws','Foundation','#56606b'], ['frames','Steel frame & ACM','#3d4247'], ['units','Windows & doors','#8fc3ea'],
   ['framing','Lumber & LVL','#e0b36a'], ['splines','OSB splines','#b7864a'],
   ['-'],
   ['glass','See-through glass & doors'],
@@ -19,7 +19,7 @@ const ROWS = [
   ['letters','Wall letters'], ['nums','Panel numbers'],
 ];
 /* Focus presets: what a trade wants to see. Walls go see-through whenever lumber or splines show. */
-const BASE = { roof:false, ceiling:false, walls:true, floors:true, decks:true, screws:false, units:true, framing:false, splines:false };
+const BASE = { roof:false, ceiling:false, walls:true, floors:true, decks:true, screws:false, frames:true, units:true, framing:false, splines:false };
 const FOCUS = [
   ['home',    'Whole home',      {}],
   ['sip',     'SIP panels',      { roof:true, ceiling:true, decks:false, units:false }],
@@ -31,7 +31,7 @@ const FOCUS = [
   ['wire',    'Wiring',          null],
 ];
 const btn=document.getElementById('bLayers'), pop=document.getElementById('layersPop');
-const val=k=> k in state.show ? !!state.show[k] : state[k];
+const val=k=> k in state.show ? !!state.show[k] : k==='frames' ? true : state[k];
 const stage=document.getElementById('stage');
 const badge=document.createElement('button'); badge.className='pod-badge'; badge.hidden=true; stage.appendChild(badge);
 

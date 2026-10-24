@@ -4,7 +4,7 @@ import { LAYER_KINDS, T, TI } from './config.js';
 import { canSave } from './role.js';
 
 const state = { model:'cove', picks:{}, units:{}, found:{}, deckOC:{}, icf:{ brand:'nudura', core:6 }, layerPicks:{}, wallA:{}, faces:{}, bearing:{}, northUp:false, selected:null, exploded:false, nums:true, letters:true,
-  show:{ roof:false, ceiling:false, walls:true, floors:true, decks:true, screws:false, units:true, framing:false, splines:false }, focusPod:null, glass:false, inset:6, view:'studio', face:'int', reverse:false, sheetSlot:null };
+  show:{ roof:false, ceiling:false, walls:true, floors:true, decks:true, screws:false, frames:true, units:true, framing:false, splines:false }, focusPod:null, glass:false, inset:6, view:'studio', face:'int', reverse:false, sheetSlot:null };
 const KEY='cubit-wall-studio';
 function initState(){
   try{
