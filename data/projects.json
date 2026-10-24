@@ -164,5 +164,78 @@
     "faces": {},
     "inset": 6,
     "from": ""
+  },
+  {
+    "id": "cubit-kya-expanse-pc",
+    "name": "Cubit Kya Expanse PC",
+    "saved": "2026-10-24T19:17:45Z",
+    "model": {
+      "name": "Cubit Kya Expanse PC",
+      "size": "2×24 + 2×16",
+      "pods": [
+        {
+          "t": "L24",
+          "x": 0,
+          "z": 0
+        },
+        {
+          "t": "L24",
+          "x": 104,
+          "z": 0
+        },
+        {
+          "t": "P16",
+          "x": 192,
+          "z": 0
+        },
+        {
+          "t": "P16",
+          "x": 288,
+          "z": 0
+        }
+      ],
+      "decks": [],
+      "picks": {
+        "0W0": "W08-07",
+        "0E0": "W08-08",
+        "0N0": "W24-06",
+        "0S0": "W24-07",
+        "1W0": "W08-09",
+        "1E0": "W08-10",
+        "1N104": "W24-08",
+        "1S104": "W24-09",
+        "2W0": "W08-11",
+        "2E0": "W08-12",
+        "2N192": "W16-02",
+        "2S192": "W16-03",
+        "3W0": "W08-13",
+        "3E0": "W08-14",
+        "3N288": "W16-04",
+        "3S288": "W16-05"
+      },
+      "layerPicks": {
+        "0:floor-ext": "FE24-03",
+        "0:floor-int": "FI24-03",
+        "0:ceiling-int": "CI24-03",
+        "0:roof": "RF24-01",
+        "1:floor-ext": "FE24-STD",
+        "1:floor-int": "FI24-STD",
+        "1:ceiling-int": "CI24-04",
+        "1:roof": "RF24-01",
+        "2:floor-ext": "FE16-STD",
+        "2:floor-int": "FI16-STD",
+        "2:ceiling-int": "CI16-02",
+        "2:roof": "RF16-01",
+        "3:floor-ext": "FE16-02",
+        "3:floor-int": "FI16-02",
+        "3:roof": "RF16-01"
+      },
+      "note": "Scanned from 20261024191712-r4uv.step on 2026-10-24."
+    },
+    "picks": {},
+    "wallA": {},
+    "faces": {},
+    "inset": 6,
+    "from": ""
   }
 ]
