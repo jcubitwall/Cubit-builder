@@ -6,7 +6,8 @@
        e.g. a C wall meeting an A wall: C carries the high seal, A the low one. Same letter: the higher pod number.
      · shape: up both sides of the opening, over the head with a slight crown, then down the far side to the bottom,
        so water running down either wall is caught by one of the two seals and led around the opening.
-   Low seal: 1½″ out from the rough opening (sides and head). High seal: 3½″ out. The head peaks in the middle and falls
+   Low seal: 1½″ out from the rough opening (sides and head). High seal: 3½″ out, on the sides as well as the head, so
+   the two never cross; next to a wall end the sides carry on onto the end face of the pod's end wall. The head peaks in the middle and falls
    ¼″ per foot to each side.
    Above the wall every pod has its 11⅞″ LVL roof rim, wrapped on these sides by the roof's two layers of SilverBack
    (butyl skin). Where the head of a seal runs above the top of the wall it goes on the SilverBack over the rim, so
@@ -27,9 +28,11 @@ function sealRole(slot, slots){
   return me.pod.i>pt.pod.i ? 'high' : 'low';
 }
 /* the seal's centre line around one opening, in wall face coords (x from the outside-left end, y up), inches */
-function sealPath(o, role, L, H){
+function sealPath(o, role, L, H, ends=[0,0]){
   const e = SEAL.low + (role==='high' ? SEAL.rise : 0);
-  const xl=Math.max(0.6, o.x-e), xr=Math.min(L-0.6, o.x+o.w+e), r0=Math.min(SEAL.r, (xr-xl)/4);
+  // the sides may run past the end of this wall onto the end face of the pod's end wall beside it (ends = how much of
+  // it there is at each end), so the red seal keeps its 2″ outside the blue one on the sides too
+  const xl=Math.max(0.6-ends[0], o.x-e), xr=Math.min(L+ends[1]-0.6, o.x+o.w+e), r0=Math.min(SEAL.r, (xr-xl)/4);
   const c=(xr-xl)/2*SEAL.pitch;                              // the rise to the peak: ¼″ per foot over half the width (8′ wide → 1″)
   const yt=Math.min(H+SEAL.rim-c-1, o.y+o.h+e), r=Math.min(r0, yt/2);
   const P=[[xl,0],[xl,yt-r]];
@@ -43,6 +46,7 @@ function sealPath(o, role, L, H){
 function sealsFor(w, role, H){
   if(!role || !w) return [];
   const L = w.L ?? w.len*12;
-  return (w.openings||[]).filter(sealKinds).map(o=>({ o, ...sealPath(o, role, L, H) }));
+  const ends=[Math.max(0, w.trim?.[0]||0), Math.max(0, w.trim?.[1]||0)];
+  return (w.openings||[]).filter(sealKinds).map(o=>({ o, ...sealPath(o, role, L, H, ends) }));
 }
 export { SEAL, sealRole, sealPath, sealsFor };
