@@ -3,7 +3,7 @@
 import { partsOf } from './casework.js';
 
 const FILL = { carcass:'#e6d3ae', shelf:'#ead9b6', back:'#d6bf95', front:'#f7f3ea', drawer:'#dcc394', hw:'#3b3f42', appliance:'#cfd3d6', appdoor:'#e6e8ea', top:'#9a9f9e',
-  furnsoft:'#97a093', furnsoft2:'#aab2a4', furnwood:'#b98f60', furnwood2:'#c9a070' };
+  furnsoft:'#97a093', porcelain:'#fbfbf8', acrylic:'#f1f3f1', steel:'#c4c9cd', furnsoft2:'#aab2a4', furnwood:'#b98f60', furnwood2:'#c9a070' };
 function frontSVG(it, { pad=2, stroke='#1c211e' }={}){
   const P=partsOf(it).filter(p=>p.box[5]>0.001 || p.box[3]>0.001);
   let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;

@@ -117,7 +117,10 @@ function snap(it, pt, wallGroups, homeGroup, keepA=null){
     const gap1=(cx-half)-(ocx+oh), gap2=(ocx-oh)-(cx+half);
     if(Math.abs(gap1)<4/FT){ if(ax[0]) ux-=gap1; else vz-=gap1; }
     else if(Math.abs(gap2)<4/FT){ if(ax[0]) ux+=gap2; else vz+=gap2; } });
-  return { pod:p.i, u: ax[0]? ux : u0, v: ax[1]? vz : v0, a, wall: best.slot||null };
+  // items that stand off the wall (a sink in the countertop) move out by their gap
+  let U = ax[0]? ux : u0, V = ax[1]? vz : v0; const gap=(itemDef(it.k)?.gap||0)/FT;
+  if(gap){ const r=a*Math.PI/180; U+=Math.sin(r)*gap; V+=Math.cos(r)*gap; }
+  return { pod:p.i, u:U, v:V, a, wall: best.slot||null };
 }
 
 /* ---------------------------------------------------------------- stretch handles
@@ -156,7 +159,8 @@ function roomBeyond(it, side){
     ray.set(wo,wd); ray.far=40; const hit=ray.intersectObjects(W,false)[0]; if(hit) room=Math.min(room, Math.max(0, hit.distance-0.01)); }));
   // other items in the same pod whose height range overlaps
   const y0=it.y||0, y1=y0+it.h;
-  list().forEach(o=>{ if(o.id===it.id || o.pod!==it.pod) return; const oy0=o.y||0, oy1=oy0+o.h; if(oy1<=y0+0.25 || oy0>=y1-0.25) return;
+  const sinkTop = k => ['counter','sink'].includes(itemDef(k)?.cat);   // a sink sits in the countertop: they don't stop each other
+  list().forEach(o=>{ if(o.id===it.id || o.pod!==it.pod) return; if(sinkTop(o.k) && sinkTop(it.k) && itemDef(o.k).cat!==itemDef(it.k).cat) return; const oy0=o.y||0, oy1=oy0+o.h; if(oy1<=y0+0.25 || oy0>=y1-0.25) return;
     const ohw=o.w/2/FT, od=o.d/FT, pts=[[-ohw,0],[ohw,0],[ohw,od],[-ohw,od]].map(([x,z])=>{ const p=toPod(o,x,z); return toItem(it,p.u,p.v); });
     const xs=pts.map(p=>p.x), zs=pts.map(p=>p.z), mnx=Math.min(...xs), mxx=Math.max(...xs), mnz=Math.min(...zs), mxz=Math.max(...zs), e=0.02;
     if(ox){ if(mnz>=d-e || mxz<=e) return; const gap = ox>0 ? mnx-hw : -hw-mxx; if(gap>-e) room=Math.min(room, Math.max(0,gap)); }
@@ -199,6 +203,25 @@ function stretchTo(it, side, pt, homeGroup, room){
   const min=-room; let z=Math.max(q.z, min); if(Math.abs(z-min)<snapTo) z=min; let dpt=r8(dd-z); dpt=Math.min(d.dR[1], Math.max(d.dR[0], dpt));
   const p=toPod(it, 0, dd-dpt/FT); return { d:dpt, u:p.u, v:p.v, snapped: z===min && room<39 };
 }
+/* ---------------------------------------------------------------- a free spot for a new item
+   Two items clash when their heights overlap and their footprints overlap (a sink in a countertop doesn't count). */
+function clash(a, b){
+  if(a.pod!==b.pod) return false;
+  const ca=itemDef(a.k)?.cat, cb=itemDef(b.k)?.cat; if((ca==='sink'&&cb==='counter')||(ca==='counter'&&cb==='sink')) return false;
+  const ay0=a.y||0, by0=b.y||0; if(ay0+a.h<=by0+0.25 || by0+b.h<=ay0+0.25) return false;
+  const sep=(A,B)=>{ const hw=A.w/2/FT, d=A.d/FT; const pts=[[-B.w/2/FT,0],[B.w/2/FT,0],[B.w/2/FT,B.d/FT],[-B.w/2/FT,B.d/FT]].map(([x,z])=>{ const p=toPod(B,x,z); return toItem(A,p.u,p.v); });
+    const e=0.02; return Math.max(...pts.map(p=>p.x))<=-hw+e || Math.min(...pts.map(p=>p.x))>=hw-e || Math.max(...pts.map(p=>p.z))<=e || Math.min(...pts.map(p=>p.z))>=d-e; };
+  return !(sep(a,b) || sep(b,a));
+}
+/* try spots along the walls of every pod (both long walls, then the ends), first one that's free */
+function freeSpot(it, homeGroup){
+  for(const p of lastPods){ const f=frames[p.i]; if(!f) continue; f.updateMatrixWorld(true);
+    const tries=[]; for(let u=1.5; u<=p.len-1.5; u+=1) tries.push([u,1.2],[u,6.8]); tries.push([1.2,4],[p.len-1.2,4]);
+    for(const [u,v] of tries){ const pt=homeGroup.worldToLocal(f.localToWorld(new THREE.Vector3(u,0,v)));
+      const at=snap(it, pt, wallsRef(), homeGroup); if(!at || at.free) continue;
+      const cand={...it, ...at, id:'_new'}; if(!list().some(o=>clash(cand,o))) return at; } }
+  return null;
+}
 /* ---------------------------------------------------------------- the ghost while dragging */
 let fg=null;
 function showFurnGhost(it, at){
@@ -227,4 +250,4 @@ const DEPTH_CATS=new Set(['base','upper','tall','linen','wardrobe','vanity','app
 function wallDepths(k=state.model){ const out={}; list(k).forEach(it=>{ if(it.wall && DEPTH_CATS.has(itemDef(it.k)?.cat)) out[it.wall]=Math.max(out[it.wall]||0, it.d); }); return out; }
 
 const podsShown = () => lastPods;
-export { setWalls, handleMeshes, roomBeyond, stretchTo, updateHandles, onFurnApplied, setCabExplode, resetCabExplode, cabExploded, explodeFurniture, furnHolder, podsShown, showFurnGhost, hideFurnGhost, setHolderVisible, list as furnitureOf, byId as furnById, buildFurniture, refreshItem, applyFurniture, furnMeshes, snap, podAt, addItem, updateItem, removeItem, duplicateItem, turnItem, podRemoved, wallDepths, shownCat, CATS as FURN_CATS };
+export { freeSpot, clash, setWalls, handleMeshes, roomBeyond, stretchTo, updateHandles, onFurnApplied, setCabExplode, resetCabExplode, cabExploded, explodeFurniture, furnHolder, podsShown, showFurnGhost, hideFurnGhost, setHolderVisible, list as furnitureOf, byId as furnById, buildFurniture, refreshItem, applyFurniture, furnMeshes, snap, podAt, addItem, updateItem, removeItem, duplicateItem, turnItem, podRemoved, wallDepths, shownCat, CATS as FURN_CATS };

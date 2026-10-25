@@ -222,6 +222,8 @@ const CATS = [
   { k:'fire',      name:'Fireplaces',        y:0 },
   { k:'counter',   name:'Countertops',       y:34.5 },
   { k:'appliance', name:'Appliances',        y:0 },
+  { k:'bath',      name:'Bathroom fixtures', y:0 },
+  { k:'sink',      name:'Sinks',             y:27 },
   { k:'furniture', name:'Furniture',         y:0 },
 ];
 const W_STD = [9,12,15,18,21,24,27,30,33,36];
@@ -387,12 +389,68 @@ def({ k:'DESK', cat:'furniture', name:'Desk', w:48, h:30, d:24, wR:[30,72], size
 def({ k:'NS', cat:'furniture', name:'Nightstand', w:20, h:24, d:16, build: it => [ solid('Case','furnwood',[0,4,0,it.w,it.h-4,it.d],[0,0,0]), solid('Drawer','furnwood2',[1,it.h-8,it.d,it.w-2,6,0.75],[0,0,1.6]), ...legs(it.w,it.d,4,1.25,1) ] });
 def({ k:'CTB', cat:'furniture', name:'Coffee table', w:44, h:17, d:24, build: it => [ solid('Top','furnwood',[0,it.h-1.25,0,it.w,1.25,it.d],[0,1.5,0]), ...legs(it.w,it.d,it.h-1.25,2,1.5) ] });
 
+/* ---------------------------------------------------------------- plumbing fixtures
+   Generic sizes of common stock fixtures (always check the model you buy), plus Cubit's own stock pieces drawn from
+   their STEP files (loaded at start: data/fixtures-*.json, one mesh per solid so they explode). */
+const FIX = {};
+const FIX_FILES = { lpgShower:'data/fixtures-lifepodgo-shower.json' };
+async function loadFixtures(){ await Promise.all(Object.entries(FIX_FILES).map(async([k,u])=>{ try{ const r=await fetch(u); if(r.ok) FIX[k]=await r.json(); }catch(e){} })); }
+const fx = (name, role, box, o={}) => ({ ...part(name, role, 'buy', box, 'y', {ex:o.ex||[0,0,0]}), solid:true, shape:o.shape, t:o.t, note:o.note||'' });
+/* an open basin (tub, shower pan, sink bowl): rim walls `t` thick plus a floor */
+const basin = (name, role, [x,y,z,w,h,d], t, ex=[0,0,0]) => [ fx(name, role, [x,y,z,w,h,d], {shape:'basin', t, ex}), fx(name+' floor', role, [x+t,y,z+t,w-2*t,Math.min(1,h/4),d-2*t], {ex}) ];
+function meshParts(key, it){
+  const F=FIX[key]; if(!F) return [fx('Loading…','acrylic',[0,0,0,it.w,it.h,it.d])];
+  return F.parts.map(pt=>{ let mn=[1e9,1e9,1e9], mx=[-1e9,-1e9,-1e9]; for(let i=0;i<pt.p.length;i+=3) for(let a=0;a<3;a++){ const v=pt.p[i+a]/F.q; if(v<mn[a]) mn[a]=v; if(v>mx[a]) mx[a]=v; }
+    return { ...fx(pt.name,'acrylic',[mn[0],mn[1],mn[2],mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]],{ex:pt.ex}), mesh:pt, meshQ:F.q }; });
+}
+const BATH_NOTE='Typical size, check the model you buy';
+const toilet = (seatH, tankH) => it => { const W=it.w, D=it.d, cx=W/2;
+  return [ fx('Tank','porcelain',[cx-W/2,seatH,0.5,W,tankH-seatH,8],{ex:[0,.4,-.6]}), fx('Tank lid','porcelain',[cx-W/2-0.25,tankH,0.25,W+0.5,1,8.5],{ex:[0,1.2,-.6]}),
+    fx('Pedestal','porcelain',[cx-4.5,0,7,9,seatH-2,11],{shape:'cyl',ex:[0,-.4,0]}), fx('Bowl','porcelain',[cx-7.25,seatH-6,6,14.5,5,D-6.5],{shape:'cyl',ex:[0,0,.4]}),
+    fx('Seat','porcelain',[cx-7.25,seatH-1,6.5,14.5,1,D-7],{shape:'cyl',ex:[0,.8,.4]}) ]; };
+def({ k:'WC-R',  cat:'bath', name:'Toilet, round front',             w:20.5, h:29, d:27.5, fixed:true, note:BATH_NOTE, build:toilet(15,29) });
+def({ k:'WC-E',  cat:'bath', name:'Toilet, elongated comfort height', w:20.5, h:31, d:30,   fixed:true, note:BATH_NOTE, build:toilet(17,31) });
+def({ k:'WC-C',  cat:'bath', name:'Toilet, compact elongated',        w:18,   h:30, d:26.5, fixed:true, note:BATH_NOTE, build:toilet(16.5,30) });
+def({ k:'WC-W',  cat:'bath', name:'Toilet, wall hung (in-wall carrier)', w:14.5, h:16, d:21, y:0, fixed:true, note:BATH_NOTE+'. Needs a 2×6 or carrier wall', build: it=>[ fx('Bowl','porcelain',[0,11,1,14.5,5,20],{shape:'cyl',ex:[0,0,.4]}), fx('Seat','porcelain',[0,15.5,1.5,14.5,0.75,19],{shape:'cyl',ex:[0,.8,.4]}), fx('Flush plate','steel',[2.25,40,0,10,6.5,0.4],{ex:[0,0,.6]}) ] });
+const oneShower = (pan=6) => it => { const W=it.w, D=it.d, H=it.h, t=1.5;
+  return [ ...basin('Shower base','acrylic',[0,0,0,W,pan,D],2.5,[0,-.6,0]),
+    fx('Back wall','acrylic',[0,pan,0,W,H-pan,t],{ex:[0,0,-1]}), fx('Left wall','acrylic',[0,pan,0,t,H-pan,D],{ex:[-1,0,0]}), fx('Right wall','acrylic',[W-t,pan,0,t,H-pan,D],{ex:[1,0,0]}),
+    fx('Grab bar / soap shelf','steel',[W*0.35,44,t,W*0.3,1.5,3],{ex:[0,0,1]}) ]; };
+def({ k:'SH-4836', cat:'bath', name:'Shower, one piece walk-in 48 × 36', w:48, h:76, d:36, fixed:true, note:BATH_NOTE+' (fibreglass / acrylic one piece; fits a 48 × 36 alcove)', build:oneShower() });
+def({ k:'SH-6032', cat:'bath', name:'Shower, one piece walk-in 60 × 32', w:60, h:76, d:32, fixed:true, note:BATH_NOTE, build:oneShower() });
+def({ k:'SH-3636', cat:'bath', name:'Shower, one piece 36 × 36',         w:36, h:76, d:36, fixed:true, note:BATH_NOTE, build:oneShower() });
+def({ k:'SH-3232', cat:'bath', name:'Shower, one piece 32 × 32',         w:32, h:76, d:32, fixed:true, note:BATH_NOTE, build:oneShower() });
+def({ k:'TS-6030', cat:'bath', name:'Tub-shower, one piece 60 × 30',     w:60, h:74.5, d:30, fixed:true, note:BATH_NOTE, build:it=>{ const P=oneShower(18)(it); P[0].name='Tub'; P[1].name='Tub floor'; return P; } });
+def({ k:'TS-6032', cat:'bath', name:'Tub-shower, one piece 60 × 32',     w:60, h:76,   d:32, fixed:true, note:BATH_NOTE, build:it=>{ const P=oneShower(18)(it); P[0].name='Tub'; P[1].name='Tub floor'; return P; } });
+const tub = it => [ ...basin('Tub','acrylic',[0,0,0,it.w,it.h,it.d],3,[0,0,0]), fx('Apron','acrylic',[0,0,it.d-1,it.w,it.h-1,1],{ex:[0,0,1]}) ];
+def({ k:'BT-6030', cat:'bath', name:'Bathtub, alcove 60 × 30', w:60, h:15, d:30, fixed:true, note:BATH_NOTE, build:tub });
+def({ k:'BT-6032', cat:'bath', name:'Bathtub, alcove 60 × 32', w:60, h:20, d:32, fixed:true, note:BATH_NOTE, build:tub });
+def({ k:'BT-FS60', cat:'bath', name:'Bathtub, freestanding 60″', w:60, h:23, d:30, fixed:true, note:BATH_NOTE, build:it=>[ fx('Tub','acrylic',[0,0,0,it.w,it.h,it.d],{shape:'basin',t:2.5}), fx('Tub floor','acrylic',[3,0,3,it.w-6,2,it.d-6],{}) ] });
+def({ k:'BT-FS67', cat:'bath', name:'Bathtub, freestanding 67″', w:67, h:23, d:32, fixed:true, note:BATH_NOTE, build:it=>[ fx('Tub','acrylic',[0,0,0,it.w,it.h,it.d],{shape:'basin',t:2.5}), fx('Tub floor','acrylic',[3,0,3,it.w-6,2,it.d-6],{}) ] });
+def({ k:'LV-WH', cat:'bath', name:'Bathroom sink, wall hung 20 × 17', w:20, h:6, d:17, y:28, fixed:true, note:BATH_NOTE, build:it=>basin('Basin','porcelain',[0,0,0,it.w,it.h,it.d],1.5) });
+/* Cubit stock: LifePodGo one-piece shower (Shapr3D STEP, Oct 2026). Both hands are in stock. */
+def({ k:'LPG-SH-L', cat:'bath', name:'LifePodGo shower · left hand', w:42.56, h:87.13, d:35.5, fixed:true, note:'Cubit stock, drawn from the LifePodGo STEP file. Left hand: the deep side wall is on the left, seen from the front. In stock both hands', build:it=>meshParts('lpgShower', it) });
+def({ k:'LPG-SH-R', cat:'bath', name:'LifePodGo shower · right hand', w:42.56, h:87.13, d:35.5, fixed:true, mirrored:true, note:'Cubit stock, drawn from the LifePodGo STEP file. Right hand: the deep side wall is on the right, seen from the front. In stock both hands', build:it=>meshParts('lpgShower', it) });
+/* kitchen and utility sinks: they sit in the countertop (top of the rim at the counter top), 2″ off the wall */
+const sinkY = h => () => 34.5 + (S.counter?.t ?? 1.25) - h + 0.2;
+const sink1 = it => basin('Bowl','steel',[0,0,0,it.w,it.h,it.d],1);
+const sink2 = (split=0.5) => it => { const a=it.w*split; return [ ...basin('Left bowl','steel',[0,0,0,a+0.5,it.h,it.d],1,[-.5,0,0]), ...basin('Right bowl','steel',[a-0.5,0,0,it.w-a+0.5,it.h,it.d],1,[.5,0,0]) ]; };
+def({ k:'SK-1-25', cat:'sink', name:'Kitchen sink, single bowl 25 × 22 drop-in', w:25, h:8,  d:22, gap:1.5, y:sinkY(8),  fixed:true, note:BATH_NOTE+' · fits a 30″ sink base', build:sink1 });
+def({ k:'SK-1-30', cat:'sink', name:'Kitchen sink, single bowl 30 × 18 undermount', w:30, h:9, d:18, gap:3, y:sinkY(9), fixed:true, note:BATH_NOTE+' · fits a 33–36″ sink base', build:sink1 });
+def({ k:'SK-2-33', cat:'sink', name:'Kitchen sink, double bowl 33 × 22 drop-in', w:33, h:8,  d:22, gap:1.5, y:sinkY(8),  fixed:true, note:BATH_NOTE+' · fits a 36″ sink base', build:sink2() });
+def({ k:'SK-2-32', cat:'sink', name:'Kitchen sink, double bowl 32 × 18 undermount', w:32, h:9, d:18, gap:3, y:sinkY(9), fixed:true, note:BATH_NOTE+' · fits a 36″ sink base', build:sink2() });
+def({ k:'SK-2-60', cat:'sink', name:'Kitchen sink, 60/40 double 33 × 22', w:33, h:9, d:22, gap:1.5, y:sinkY(9), fixed:true, note:BATH_NOTE, build:sink2(0.6) });
+def({ k:'SK-FH-30', cat:'sink', name:'Farmhouse (apron) sink 30″', w:30, h:10, d:20, gap:2, y:sinkY(10), fixed:true, note:BATH_NOTE+' · needs a farmhouse sink base', build:it=>[ ...basin('Bowl','porcelain',[0,0,0,it.w,it.h,it.d],1.25), fx('Apron','porcelain',[0,0,it.d-0.75,it.w,it.h,0.75],{ex:[0,0,1]}) ] });
+def({ k:'SK-FH-33', cat:'sink', name:'Farmhouse (apron) sink 33″', w:33, h:10, d:21, gap:2, y:sinkY(10), fixed:true, note:BATH_NOTE+' · needs a farmhouse sink base', build:it=>[ ...basin('Bowl','porcelain',[0,0,0,it.w,it.h,it.d],1.25), fx('Apron','porcelain',[0,0,it.d-0.75,it.w,it.h,0.75],{ex:[0,0,1]}) ] });
+def({ k:'SK-BAR', cat:'sink', name:'Bar / prep sink 15 × 15', w:15, h:7, d:15, gap:3, y:sinkY(7), fixed:true, note:BATH_NOTE, build:sink1 });
+def({ k:'SK-LAU', cat:'sink', name:'Laundry tub, freestanding 24 × 22', w:24, h:34, d:22, y:0, fixed:true, note:BATH_NOTE, build:it=>[ ...basin('Tub','acrylic',[0,22,0,it.w,12,it.d],1.25,[0,.6,0]), ...[[1,1],[it.w-2.5,1],[1,it.d-2.5],[it.w-2.5,it.d-2.5]].map(([x,z],i)=>fx(`Leg ${i+1}`,'steel',[x,0,z,1.5,22,1.5],{ex:[x<it.w/2?-.6:.6,-.4,z<it.d/2?-.6:.6]})) ] });
+
 const itemDef = k => ITEMS.find(i=>i.k===k);
 const catOf = k => CATS.find(c=>c.k===k);
 /* a fresh item of a kind, at its default size */
 function newItem(k){
   const d=itemDef(k); if(!d) return null;
-  const it={ k, w:d.w, h:d.h, d:d.d, y: d.y ?? catOf(d.cat)?.y ?? 0, opt:clone(d.opt||{}) };
+  const it={ k, w:d.w, h:d.h, d:d.d, y: (typeof d.y==='function' ? d.y() : d.y) ?? catOf(d.cat)?.y ?? 0, opt:clone(d.opt||{}) };
   if(d.sized) Object.assign(it, d.sized(it));
   return it;
 }
@@ -400,10 +458,10 @@ function newItem(k){
 function partsOf(it){
   const d=itemDef(it.k); if(!d) return [];
   const P=d.build({ ...it, opt:{...(d.opt||{}), ...(it.opt||{})} }).filter(Boolean).map(finishPart);
-  if(it.mirror){   // mirrored left ↔ right: hinges, drawers, partitions and names change sides
+  if(!!it.mirror !== !!d.mirrored){   // mirrored left ↔ right: hinges, drawers, partitions and names change sides
     const W=it.w, sw=s=>String(s).replace(/\b(left|right|Left|Right)\b/g, w=>({left:'right',right:'left',Left:'Right',Right:'Left'}[w]));
     P.forEach(p=>{ p.box=[W-p.box[0]-p.box[3], ...p.box.slice(1)]; p.tenonGeo=(p.tenonGeo||[]).map(b=>[W-b[0]-b[3], ...b.slice(1)]);
-      if(p.hole) p.hole=[W-p.hole[0]-p.hole[2], ...p.hole.slice(1)]; p.ex=[-p.ex[0], p.ex[1], p.ex[2]]; p.name=sw(p.name); p.ops=p.ops.map(sw); });
+      if(p.hole) p.hole=[W-p.hole[0]-p.hole[2], ...p.hole.slice(1)]; if(p.mesh) p.mirrorW=W; p.ex=[-p.ex[0], p.ex[1], p.ex[2]]; p.name=sw(p.name); p.ops=p.ops.map(sw); });
   }
   return P;
 }
@@ -442,4 +500,4 @@ function csv(it, name){
   rows.unshift([`${name} — ${fmt(it.w)} W × ${fmt(it.h)} H × ${fmt(it.d)} D (${S.units==='mm'?'mm':'inches'})`]);
   return rows.map(r=>r.map(v=>/[",\n]/.test(String(v))?`"${String(v).replace(/"/g,'""')}"`:v).join(',')).join('\n');
 }
-export { DEFAULTS, MM, CATS, ITEMS, itemDef, catOf, newItem, partsOf, cutList, hardwareOf, totals, csv, fmt, fmtU, settings, loadSettings, saveSettings, th, nomOf };
+export { loadFixtures, DEFAULTS, MM, CATS, ITEMS, itemDef, catOf, newItem, partsOf, cutList, hardwareOf, totals, csv, fmt, fmtU, settings, loadSettings, saveSettings, th, nomOf };

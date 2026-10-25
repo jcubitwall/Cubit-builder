@@ -16,7 +16,7 @@ import { loadCatalog } from './catalog.js';
 import { loadEdits } from './libedit.js';
 import { startBuild } from './build.js';
 import './library-ui.js';
-import { loadSettings } from './casework.js';
+import { loadSettings, loadFixtures } from './casework.js';
 import './casework-ui.js';
 import { loadDrafts } from './drafts.js';
 import { setCabExplode, cabExploded } from './furniture.js';
@@ -54,7 +54,7 @@ document.getElementById('bPlan').onclick=()=>{ if(state.view==='plan'){ closePla
 document.querySelectorAll('.hint').forEach(h=>{ const host=h.parentNode; const off=()=>{ h.classList.add('gone'); host.removeEventListener('pointerdown',off); }; host.addEventListener('pointerdown',off); });
 
 (async function boot(){
-  try{ await loadRole(); await loadData(); await loadUnits(); await loadProjects(); await loadCatalog(); await loadEdits(); await loadSettings(); }
+  try{ await loadRole(); await loadData(); await loadUnits(); await loadProjects(); await loadCatalog(); await loadEdits(); await loadSettings(); await loadFixtures(); }
   catch(e){ document.getElementById('sideH').innerHTML='<h2>Could not load the wall library</h2><p>Open the app from its web address (GitHub Pages) or a local web server, not by double-clicking the file.</p>'; return; }
   initState(); try{ await loadDrafts(); }catch(e){}
   initProjectsUI(); initUpload();

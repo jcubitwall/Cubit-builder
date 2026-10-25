@@ -4,11 +4,11 @@
 import { partsOf } from './casework.js';
 
 const COL = { carcass:0xdcc39a, shelf:0xe4cfa4, back:0xcdb287, front:0xf1ece2, drawer:0xd8bd8c, hw:0x5d6166, appliance:0xc9cdd1, appdoor:0xdfe2e5, top:0x8f9493,
-  furnsoft:0x8e978a, furnsoft2:0xa3ab9d, furnwood:0xb48a5c, furnwood2:0xc49a6b };
+  furnsoft:0x8e978a, porcelain:0xf6f6f2, acrylic:0xeef0ee, steel:0xc9ced2, furnsoft2:0xa3ab9d, furnwood:0xb48a5c, furnwood2:0xc49a6b };
 const mats = {};
 function matFor(role, dim=false){
   const k=role+(dim?'-d':'');
-  if(!mats[k]) mats[k]=new THREE.MeshStandardMaterial({ color:COL[role]??0xcccccc, roughness: role==='hw'||role==='appliance'||role==='appdoor' ? 0.35 : 0.8, metalness: role==='hw'||role==='appliance' ? 0.55 : 0, transparent:dim, opacity:dim?0.18:1, depthWrite:!dim });
+  if(!mats[k]) mats[k]=new THREE.MeshStandardMaterial({ color:COL[role]??0xcccccc, roughness: role==='hw'||role==='appliance'||role==='appdoor'||role==='steel' ? 0.35 : role==='porcelain'||role==='acrylic' ? 0.3 : 0.8, metalness: role==='hw'||role==='appliance' ? 0.55 : role==='steel' ? 0.15 : 0, transparent:dim, opacity:dim?0.18:1, depthWrite:!dim });
   return mats[k];
 }
 const EDGE = new THREE.LineBasicMaterial({ color:0x2b2f2c, transparent:true, opacity:0.28 });
@@ -16,6 +16,19 @@ const SEL = new THREE.MeshStandardMaterial({ color:0xd0661f, roughness:0.6, emis
 
 function boxGeo(p){
   const [x,y,z,sx,sy,sz]=p.box;
+  // a mesh drawn from a STEP file (inches × q), mirrored if the item is
+  if(p.mesh){ const q=p.meshQ||100, P=p.mesh.p, W=p.mirrorW||0, pos=new Float32Array(P.length);
+    for(let i=0;i<P.length;i+=3){ pos[i]=W ? W-P[i]/q : P[i]/q; pos[i+1]=P[i+1]/q; pos[i+2]=P[i+2]/q; }
+    let idx=p.mesh.i; if(W){ idx=idx.slice(); for(let i=0;i<idx.length;i+=3){ const t=idx[i+1]; idx[i+1]=idx[i+2]; idx[i+2]=t; } }
+    const g=new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos,3)); g.setIndex(idx); g.computeVertexNormals(); return g; }
+  // round (toilet bowl, pedestal): an elliptic cylinder filling the box
+  if(p.shape==='cyl'){ const g=new THREE.CylinderGeometry(0.5,0.5,1,28); g.scale(sx,sy,sz); g.translate(x+sx/2,y+sy/2,z+sz/2); return g; }
+  // an open basin (tub, shower pan, sink): the rim walls, with a rounded inside
+  if(p.shape==='basin'){ const t=p.t||1, s=new THREE.Shape(), r=Math.min(3, (Math.min(sx,sz)-2*t)/4);
+    s.moveTo(0,0); s.lineTo(sx,0); s.lineTo(sx,-sz); s.lineTo(0,-sz); s.lineTo(0,0);
+    const h=new THREE.Path(), a=t, b=-t, c=sx-t, d=-(sz-t);
+    h.moveTo(a+r,b); h.lineTo(c-r,b); h.quadraticCurveTo(c,b,c,b-r); h.lineTo(c,d+r); h.quadraticCurveTo(c,d,c-r,d); h.lineTo(a+r,d); h.quadraticCurveTo(a,d,a,d+r); h.lineTo(a,b-r); h.quadraticCurveTo(a,b,a+r,b);
+    s.holes.push(h); const g=new THREE.ExtrudeGeometry(s,{depth:sy, bevelEnabled:false, curveSegments:6}); g.rotateX(-Math.PI/2); g.translate(x,y,z); return g; }
   // a side with a toe-kick notch: the profile in z–y, pushed out along x
   if(p.notch){ const [ks,kh,dc]=p.notch, s=new THREE.Shape();
     s.moveTo(0,0); s.lineTo(dc-ks,0); s.lineTo(dc-ks,kh); s.lineTo(dc,kh); s.lineTo(dc,sy); s.lineTo(0,sy); s.lineTo(0,0);

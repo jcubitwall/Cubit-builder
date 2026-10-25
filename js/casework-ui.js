@@ -3,7 +3,7 @@
 import { CATS, ITEMS, itemDef, catOf, newItem, partsOf, hardwareOf, totals, csv, fmt, fmtU, settings, saveSettings, loadSettings, DEFAULTS, MM } from './casework.js';
 import { itemModel } from './casework3d.js';
 import { frontSVG } from './casework-svg.js';
-import { furnitureOf, furnById, updateItem, removeItem, duplicateItem, turnItem, refreshItem, addItem, snap, applyFurniture, podsShown } from './furniture.js';
+import { furnitureOf, furnById, updateItem, removeItem, duplicateItem, turnItem, refreshItem, addItem, snap, applyFurniture, podsShown, freeSpot } from './furniture.js';
 import { state, save } from './state.js';
 import { canSave } from './role.js';
 import { homeGroup, wallGroups, highlight } from './scene3d.js';
@@ -128,8 +128,7 @@ function renderDetail(body){
 /* add an item to the home: backed against the nearest wall to the middle of the first pod */
 function placeAuto(it){
   const pods=podsShown(); if(!pods.length) return null;
-  const p=pods[0], pt=new THREE.Vector3(p.x+p.w/2, 0, p.z+p.d/2);
-  const at=snap(it, pt, wallGroups, homeGroup);
+  const at=freeSpot(it, homeGroup);   // against a wall, clear of everything already placed
   if(!at){ toast('No room found. Open Build and drag it in.'); return null; }
   const f=addItem(it.k, { w:it.w, h:it.h, d:it.d, y:it.y, opt:JSON.parse(JSON.stringify(it.opt||{})), ...at });
   state.selFurn=f.id; state.selected=null; refreshItem(f); highlight(); renderSide(); if(!panelOpen()) setPanel(true); return f;
