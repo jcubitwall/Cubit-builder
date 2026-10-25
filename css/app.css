@@ -730,3 +730,16 @@ html.phone .studio.build .vcube-wrap{top:8px;right:8px;transform:scale(.85);tran
 .le-arrows{display:grid;grid-template-columns:repeat(4,44px);gap:6px}
 .le-arrows button{height:44px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:20px;cursor:pointer;color:var(--ink)}
 .le-arrows button:disabled{opacity:.35;cursor:default}
+/* the homes list: one chip per model name, its designs listed under it */
+.chip.fam .caret{font-size:10px;color:var(--ink-2);margin-left:2px;transition:transform .15s}
+.chip.fam[aria-expanded="true"] .caret{transform:rotate(180deg)}
+.chip.fam[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip.fam[aria-pressed="true"] small,.chip.fam[aria-pressed="true"] .caret{color:inherit;opacity:.75}
+.fam-list{flex-basis:100%;border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:6px;display:flex;flex-direction:column;gap:2px;max-height:min(60vh,520px);overflow:auto}
+.fam-gh{font:700 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);padding:8px 10px 4px}
+.fam-it{display:flex;justify-content:space-between;align-items:baseline;gap:10px;width:100%;border:0;background:none;text-align:left;padding:10px 12px;border-radius:9px;cursor:pointer;font:inherit;color:var(--ink);min-height:44px}
+.fam-it:hover{background:var(--surface-2)}
+.fam-it[aria-selected="true"]{background:var(--accent-soft)}
+.fam-it b{font-weight:600;font-size:14px}
+.fam-it small{font:11px var(--mono);color:var(--ink-2);white-space:nowrap}
+.fam-it.draft b::before{content:"✎ ";color:var(--accent)}

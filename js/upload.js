@@ -2,6 +2,7 @@
    a scan runs (GitHub Action), and the results land in the libraries; this dialog follows the scan and
    shows what was added. */
 import { isAdmin } from './role.js';
+import { FAMILIES, famByName } from './catalog.js';
 import { toast } from './sidebar.js';
 
 const el = id => document.getElementById(id);
@@ -42,14 +43,17 @@ function initUpload(){
   const dlg=el('upDlg');
   el('bUpload').onclick=()=>{ dlg.showModal(); refresh(); };
   el('upClose').onclick=()=>dlg.close();
-  const unitUI=()=>{ const k=new FormData(el('upForm')).get('kind'), t=el('upType').value;
+  const famSel=el('upFam'); if(famSel && famSel.options.length<2) FAMILIES.filter(x=>!x.deleted).forEach(x=>famSel.add(new Option(x.name, x.id)));
+  const unitUI=()=>{ const k=new FormData(el('upForm')).get('kind'), t=el('upType').value; if(el('upFamF')) el('upFamF').hidden = k!=='home';
     el('upUnit').hidden = k!=='unit';
     el('upHandF').hidden = !['casement','slider','entry','patio'].includes(t);
     el('upSwingF').hidden = t!=='entry'; };
   el('upForm').addEventListener('change', unitUI);
   el('upForm').onsubmit=async e=>{
     e.preventDefault();
-    const f=el('upFile').files[0], name=el('upName').value.trim();
+    const f=el('upFile').files[0]; let name=el('upName').value.trim();
+    // a home: its model goes in its name ("… · Nest") so it files itself under that model
+    const fam=FAMILIES.find(x=>x.id===el('upFam')?.value); if(fam && new FormData(el('upForm')).get('kind')==='home' && famByName(name)!==fam.id) name=`${name} · ${fam.name}`;
     let kind=new FormData(el('upForm')).get('kind');
     if(kind==='unit') kind=`unit-${el('upType').value}-${el('upHand').value}-${el('upSwing').value}`;
     if(!f || !name) return;

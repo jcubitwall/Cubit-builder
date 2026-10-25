@@ -66,7 +66,7 @@ function initPhone(){
   $('hUpload').onclick=()=>{ dlg.close(); $('bUpload').click(); };
   // picking a home closes the sheet (a model name with more than one design stays open to pick one)
   models.addEventListener('click', e=>{ const b=e.target.closest('button'); if(!b) return;
-    setTimeout(()=>{ if(b.dataset.m || !models.querySelector('.variants')) dlg.close(); }, 0); });
+    setTimeout(()=>{ if(b.dataset.m) dlg.close(); }, 0); });
   // keep the label and the open page in step with the home on screen
   new MutationObserver(()=>{ label(); if(on && (tab==='take'||tab==='shop')) show(tab); }).observe(models, {childList:true});
   document.querySelectorAll('#tabs [data-tab]').forEach(b=>b.onclick=()=>show(b.dataset.tab));

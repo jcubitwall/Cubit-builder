@@ -29,24 +29,31 @@ const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&
 
 /* the header: one chip per model name; under the one you're on, its standard layout and sub-models */
 const famPick = {};   // last home opened under each model name (this visit)
+let openFam, famInit=false;   // the model name whose designs are listed ('none' = closed; null = the homes not filed yet)
+const KIND = k => { const m=MODELS[k]; return familyById(familyOf(k))?.base===k ? ['Cubit model','base'] : m.sub ? ['Variations','sub'] : m.project ? ['Team projects','proj'] : m.custom ? ['My drafts','draft'] : ['Other','other']; };
 function renderModels(){
   applyEdits();
   const el=document.getElementById('models');
-  const fam=familyOf(state.model);
+  const fam=familyOf(state.model)||null;
   if(fam) famPick[fam]=state.model;
-  const tag = k => { const m=MODELS[k]; return familyById(familyOf(k))?.base===k ? 'Cubit model' : m.sub ? 'variation' : m.custom ? 'draft' : ''; };
-  let h = draftsRow() + FAMILIES.filter(f=>!f.deleted).map(f=>{ const v=variantsOf(f.id), base=f.base&&MODELS[f.base];
-    return `<button class="chip ${v.length?'':'empty'}" data-f="${f.id}" aria-pressed="${fam===f.id}">${esc(f.name)}<small>${v.length>1?`${v.length} designs`:base?esc(base.size||''):v.length?esc(MODELS[v[0]].size||''):'no design yet'}</small></button>`; }).join('')
-    + Object.entries(MODELS).filter(([k,m])=>m.project && !m.deleted).map(([k,m])=>`<button class="chip proj" data-m="${k}" aria-pressed="${k===state.model}" title="Saved project">${esc(m.name)}<small>${m.team?'team':m.shared?'shared':'project'}</small></button>`).join('');
-  const v = fam ? variantsOf(fam) : [];
-  if(v.length>1) h += `<div class="variants" role="group" aria-label="${esc(familyById(fam).name)} designs">${v.map(k=>`<button class="vchip" data-m="${k}" aria-pressed="${k===state.model}">${esc(MODELS[k].name)}<small>${tag(k)}</small></button>`).join('')}</div>`;
+  if(!famInit){ openFam=fam; famInit=true; }
+  const unfiled=variantsOf(null);
+  const chip=(id,name,list,extra='')=>`<button class="chip fam ${list.length?'':'empty'}" data-f="${id??''}" aria-pressed="${openFam===id}" aria-expanded="${openFam===id}">${esc(name)}<small>${list.length} design${list.length===1?'':'s'}</small><span class="caret" aria-hidden="true">▾</span>${extra}</button>`;
+  let h = FAMILIES.filter(f=>!f.deleted).map(f=>chip(f.id, f.name, variantsOf(f.id))).join('')
+    + (unfiled.length ? chip(null, 'Not filed yet', unfiled) : '')
+    + (canSave() ? `<button class="chip new" data-new="1">＋ New home</button>` : '');
+  const list = openFam!=='none' && (openFam===null ? unfiled : variantsOf(openFam));
+  if(list && (openFam!==null || unfiled.length)){
+    const groups={}; list.forEach(k=>{ const [g]=KIND(k); (groups[g] ||= []).push(k); });
+    h += `<div class="fam-list" role="listbox" aria-label="${esc(openFam ? familyById(openFam)?.name : 'Not filed yet')} designs">${list.length ? Object.entries(groups).map(([g,ks])=>`<div class="fam-g"><div class="fam-gh">${g}</div>${ks.map(k=>{ const m=MODELS[k], [,cls]=KIND(k);
+      return `<button class="fam-it ${cls}" role="option" data-m="${k}" aria-selected="${k===state.model}"><b>${esc(m.name)}</b><small>${esc(m.size||'')}${m.team?' · team':''}${m.custom?' · only you see it':''}</small></button>`; }).join('')}</div>`).join('')
+      : `<p class="note">No design under ${esc(familyById(openFam)?.name||'')} yet. Start one with ＋ New home and pick ${esc(familyById(openFam)?.name||'it')}, or name a draft after it.</p>`}
+      ${openFam===null ? '<p class="note">Name a home after its model (it has “Nest”, “Cove”… in its name) or pick the model in its panel, and it moves under that model.</p>' : ''}</div>`;
+  }
   el.innerHTML = h;
   const go = k => { state.model=k; state.selected=null; save(); renderModels(); buildHome(); renderSide(); if(state.view==='sheets') openSheets(); };
   el.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>go(b.dataset.m));
-  el.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{
-    const f=b.dataset.f, list=variantsOf(f);
-    if(!list.length){ toast(`${familyById(f).name} has no design yet. Build a layout in Plan & pods, then add it to ${familyById(f).name}.`); return; }
-    go(famPick[f] && list.includes(famPick[f]) ? famPick[f] : list[0]); });
+  el.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{ const f=b.dataset.f||null; openFam = openFam===f ? 'none' : f; renderModels(); });
 }
 function wallListHTML(slots, current){
   const layers=layerSlotsFor(state.model);

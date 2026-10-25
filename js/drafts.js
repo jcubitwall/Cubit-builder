@@ -7,6 +7,7 @@
 import { MODELS, saveCustomModels } from './data.js';
 import { state, save, onSave } from './state.js';
 import { canSave } from './role.js';
+import { famByName } from './catalog.js';
 
 const FIELDS = ['picks','layerPicks','units','wallA','faces','cabinets','lights','furniture','found','deckOC','bearing'];
 let remote=false;
@@ -46,6 +47,7 @@ onSave(()=>{ const k=state.model; if(!remote || !isDraft(k)) return; clearTimeou
 /* a new home from scratch: one blank pod, filed under a model name if you pick one */
 function newHome({ name, family=null, pod='L24' }){
   const k='draft-'+Date.now().toString(36);
+  family = family || famByName(name);
   MODELS[k]={ name:name||'New home', size:'', family:family||null, pods:[{t:pod, x:0, z:0, rot:0}], decks:[], picks:{}, layerPicks:{}, custom:true, draft:true, created:new Date().toISOString(), scratch:true };
   if(!family) delete MODELS[k].family;
   ['picks','layerPicks','wallA','faces'].forEach(f=>{ (state[f] ||= {})[k]={}; });
@@ -53,7 +55,9 @@ function newHome({ name, family=null, pod='L24' }){
   saveCustomModels(); save(); push(k);
   return k;
 }
-function renameDraft(k, name){ if(!isDraft(k)) return; MODELS[k].name=String(name).trim().slice(0,80)||MODELS[k].name; saveCustomModels(); save(); push(k); }
+function renameDraft(k, name){ if(!isDraft(k)) return; MODELS[k].name=String(name).trim().slice(0,80)||MODELS[k].name;
+  const f=famByName(MODELS[k].name); if(f) MODELS[k].family=f;   // named after a model: it files itself under it
+  saveCustomModels(); save(); push(k); }
 function setDraftFamily(k, family){ if(!isDraft(k)) return; if(family) MODELS[k].family=family; else delete MODELS[k].family; saveCustomModels(); save(); push(k); }
 async function deleteDraft(k){
   if(!isDraft(k)) return;
