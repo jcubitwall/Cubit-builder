@@ -22,6 +22,7 @@ import { withLights, cfgOf, setLights, cabinetsOf, setCabinet, cabDepth, CAB_PRE
 import { askRename } from './library-ui.js';
 import { furnSide, homeBlock, bindHomeBlock } from './casework-ui.js';
 import { draftBlock, bindDraftBlock, draftsRow } from './publish-ui.js';
+import { lightEditorHTML, bindLightEditor } from './light-edit-ui.js';
 
 const sideH=document.getElementById('sideH'), sideB=document.getElementById('sideB');
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -271,10 +272,12 @@ function renderLayerSide(ls){
         <div class="seg" role="group" aria-label="Pot lights"><button data-lauto="1" aria-pressed="${c.auto}">Placed by rule</button><button data-lauto="0" aria-pressed="${!c.auto}">As drawn</button></div>
         ${c.auto?`<label class="lt-sp">Spacing about <input type="number" id="ltSp" min="24" max="72" step="1" value="${c.spacing}"> ″ <small>(whole home)</small></label>
         <p class="note">Rows run the long way, evenly spaced with half a spacing to the walls; pods joined by a large opening space as one room. Lights move 6″ in front of cabinets set on a wall, and never land on a panel joint.</p>`:''}</div>`; })() : ''}
+    ${ls.kind==='ceiling-int' ? lightEditorHTML(ls) : ''}
     <div class="eyebrow">${opts.length} ${K.label.toLowerCase()} option${opts.length===1?'':'s'} for a ${ls.len}′ pod · seen from above</div>
     ${opts.length?'':`<p class="note">Nothing in the library for this yet. It fills up as STEP files are imported.</p>`}
     <div class="opts">${opts.map(o=>`<button class="opt" data-o="${esc(o.id)}" aria-pressed="${o.id===L.id}">${layerThumb(o)}<b>${esc(o.name)}</b><code>${esc(o.id)}</code></button>`).join('')}</div>`;
   sideB.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{ chooseLayer(ls, b.dataset.o); buildHome(); renderSide(); toast(`${ls.label} → ${b.dataset.o}`); });
+  if(ls.kind==='ceiling-int') bindLightEditor(sideB, ls);
   sideB.querySelector('#lMir')?.addEventListener('click',()=>{ chooseLayer(ls, layerMirrorId(L.id,'x')); buildHome(); renderSide(); toast(`${ls.label} mirrored end for end`); });
   sideB.querySelector('#lFlip')?.addEventListener('click',()=>{ chooseLayer(ls, layerMirrorId(L.id,'z')); buildHome(); renderSide(); toast(`${ls.label} flipped front to back`); });
   sideB.querySelector('#toSheet').onclick=()=>{ state.sheetSlot=ls.id; openSheets(); };

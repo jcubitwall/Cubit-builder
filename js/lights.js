@@ -123,20 +123,39 @@ function lightPlan(k=state.model){
 }
 const isDrawnLight = h => h.shape==='round' && ((Math.abs((h.dia||h.w)-LIGHT.d)<0.1 && h.face==='bottom') || Math.abs((h.dia||h.w)-LIGHT.wire)<0.05 && !h.depth);
 /* the interior ceiling with its lights: drawn 4″ pockets swapped for the automatic ones */
+/* lights changed by hand, per pod: hide = rule lights taken away (by their rule spot, "x,z" in ½″), pins = lights set by
+   hand (moved ones and added ones, e.g. a pendant) at an exact spot in the ceiling (inches, x along the pod, z across).
+   A pinned light stays exactly where it was put, whatever the rules do later. */
+const keyOf = (x,z) => `${Math.round(x*2)/2},${Math.round(z*2)/2}`;
+const editsOf = (k, pod) => { const e=cfgOf(k).edits?.[pod]; return { hide:[...(e?.hide||[])], pins:(e?.pins||[]).map(p=>({...p})) }; };
+function setEdits(k, pod, e){ if(k===state.model){ checkpoint(); k=ensureDraft(); }
+  const c=(state.lights ||= {}), cur={...cfgOf(k)}; cur.edits={...(cur.edits||{})};
+  if(!e.hide.length && !e.pins.length) delete cur.edits[pod]; else cur.edits[pod]={hide:e.hide, pins:e.pins};
+  c[k]=cur; save(); }
+/* every light in one pod's ceiling as it will be cut: [{id, x, z, pin, rule}] (centres, inches) */
+function lightsIn(L, ls, k=state.model){
+  const out=[], c=LIGHT.d/2+HOLE_CLEAR;
+  const keep=(L.holes||[]).filter(h=>!isDrawnLight(h)), blocked=(x,z)=>keep.some(h=>x>h.x-c && x<h.x+h.w+c && z>h.z-c && z<h.z+h.d+c);
+  const E=editsOf(k, ls.pod.i), hide=new Set(E.hide);
+  if(cfgOf(k).auto){ const plan=lightPlan(k)[ls.pod.i];
+    (plan?.pts||[]).forEach(({x,z})=>{ const id='r:'+keyOf(x,z); if(hide.has(id)) return;
+      let X=x; if(blocked(X,z)){ X=[1,-1,2,-2,3,-3,4,-4,6,-6,8,-8,10,-10,12,-12].map(d=>x+d).find(v=>!blocked(v,z)); }
+      if(X!=null) out.push({ id, x:X, z, rule:true }); }); }
+  E.pins.forEach(p=>out.push({ id:p.id, x:p.x, z:p.z, pin:true, added:!!p.added }));
+  return out;
+}
 function withLights(L, ls, k=state.model){
-  if(!L || ls.kind!=='ceiling-int' || !cfgOf(k).auto) return L;
-  const plan=lightPlan(k)[ls.pod.i]; if(!plan) return L;
-  const keep=(L.holes||[]).filter(h=>!isDrawnLight(h));
-  const c=LIGHT.d/2+HOLE_CLEAR, blocked=(x,z)=>keep.some(h=>x>h.x-c && x<h.x+h.w+c && z>h.z-c && z<h.z+h.d+c);
-  const holes=keep.slice(), r=LIGHT.d/2, rw=LIGHT.wire/2; let n=0;
-  plan.pts.forEach(({x,z})=>{
-    let X=x; if(blocked(X,z)){ X=[1,-1,2,-2,3,-3,4,-4,6,-6,8,-8,10,-10,12,-12].map(d=>x+d).find(v=>!blocked(v,z)); }
-    if(X==null) return; n++;
-    holes.push({ x:+(X-r).toFixed(4), z:+(z-r).toFixed(4), w:LIGHT.d, d:LIGHT.d, shape:'round', dia:LIGHT.d, depth:Math.min(LIGHT.depth, (L.t||6.47)-1), face:'bottom', light:true });
-    holes.push({ x:+(X-rw).toFixed(4), z:+(z-rw).toFixed(4), w:LIGHT.wire, d:LIGHT.wire, shape:'round', dia:LIGHT.wire, light:true });
+  if(!L || ls.kind!=='ceiling-int') return L;
+  const auto=cfgOf(k).auto, E=editsOf(k, ls.pod.i);
+  if(!auto && !E.pins.length) return L;
+  const pts=lightsIn(L, ls, k);
+  const holes=(auto ? (L.holes||[]).filter(h=>!isDrawnLight(h)) : (L.holes||[]).slice()), r=LIGHT.d/2, rw=LIGHT.wire/2;
+  pts.forEach(({id,x,z})=>{
+    holes.push({ x:+(x-r).toFixed(4), z:+(z-r).toFixed(4), w:LIGHT.d, d:LIGHT.d, shape:'round', dia:LIGHT.d, depth:Math.min(LIGHT.depth, (L.t||6.47)-1), face:'bottom', light:true, lightId:id });
+    holes.push({ x:+(x-rw).toFixed(4), z:+(z-rw).toFixed(4), w:LIGHT.wire, d:LIGHT.wire, shape:'round', dia:LIGHT.wire, light:true, lightId:id });
   });
   holes.sort((a,b)=>a.x-b.x || a.z-b.z);
-  return { ...L, holes, lights:n, auto:true };
+  return { ...L, holes, lights:pts.length+(auto?0:(L.holes||[]).filter(isDrawnLight).length/2|0), auto };
 }
 const CAB_PRESETS = [['None',0],['Upper cabinets',13],['Base cabinets',24],['Wardrobe',24],['Fridge',30]];
-export { lightPlan, withLights, cfgOf, setLights, cabinetsOf, setCabinet, cabDepth, CAB_PRESETS, LIGHT };
+export { lightsIn, editsOf, setEdits, keyOf, frame as ceilingFrame, lightPlan, withLights, cfgOf, setLights, cabinetsOf, setCabinet, cabDepth, CAB_PRESETS, LIGHT };

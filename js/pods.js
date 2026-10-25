@@ -195,6 +195,7 @@ function deletePod(i){
   const trial=pods.filter((_,j)=>j!==i); const why=problem(trial); if(why) return why.startsWith('A deck') ? 'A deck is docked to this pod. Move or remove the deck first.' : 'Removing this pod would leave the others apart.';
   const key=editKey(); MODELS[key].pods.splice(i,1); podRemoved(key, i);   // its cabinets and furniture go with it
   state.focusPod=null; state.isolate=null; state.selFurn=null;                 // nothing left pointing at the old pod numbers
+  const LE=state.lights?.[key]?.edits; if(LE){ const n={}; Object.entries(LE).forEach(([k,v])=>{ k=+k; if(k<i) n[k]=v; else if(k>i) n[k-1]=v; }); state.lights[key].edits=n; }
   finish(key); return '';
 }
 /* every grid spot where a footprint w×d could dock (used to snap a drag to the nearest good spot) */

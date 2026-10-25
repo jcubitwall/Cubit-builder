@@ -16,6 +16,7 @@ import { wallFraming, floorBuild } from './framing.js';
 import { FRAME, FLOOR_BUILD } from './config.js';
 import { DECK } from './config.js';
 import { foundationOf } from './state.js';
+import { pickLightAt, selectedLights, onMarkers, lightsOfSlot } from './light-edit-ui.js';
 import { buildFurniture, applyFurniture, furnMeshes, explodeFurniture, furnHolder, onFurnApplied, setWalls, handleMeshes } from './furniture.js';
 
 /* ============================================================ 3D studio */
@@ -302,7 +303,7 @@ function buildHome(){
     const inner=new THREE.Group(); inner.add(...grp.children); grp.add(inner);
     inner.rotation.y=th; inner.position.set(off[0],0,off[1]);
     grp.position.set(ls.x, y, ls.z);
-    grp.userData={layerSlot:ls, mat, baseY:y, bx:grp.position.x, bz:grp.position.z, pod:ls.pod.i};
+    grp.userData={layerSlot:ls, mat, baseY:y, bx:grp.position.x, bz:grp.position.z, pod:ls.pod.i, inner};
     grp.traverse(o=>{ if(o.isMesh){ o.userData.slotId=ls.id; pickables.push(o); } });
     (isFloor?floorGroup:ls.kind==='roof'?roofGroup:ceilGroup).add(grp); layerGroups.push(grp);
   });
@@ -606,6 +607,19 @@ function focusCamera(i){
 }
 /* tap a part: it stays solid and everything else goes see-through (like the cabinet viewer). Tap empty space to
    have the whole home solid again. Not while a part is isolated (it's on its own already). */
+/* orange rings under the lights picked by hand (light-edit-ui.js) */
+let lightMarks=null;
+function applyLightMarkers(){
+  if(lightMarks){ lightMarks.parent?.remove(lightMarks); lightMarks=null; }
+  const S=selectedLights(); if(!S.ids.size || !/:ceiling-int$/.test(state.selected||'')) return;
+  const g=layerGroups.find(g=>g.userData.layerSlot.id===state.selected); if(!g) return;
+  lightMarks=new THREE.Group(); lightMarks.userData.noGhost=true;
+  const mat=new THREE.MeshBasicMaterial({color:0xd0661f, side:THREE.DoubleSide, depthTest:false});
+  lightsOfSlot(g.userData.layerSlot).filter(p=>S.ids.has(p.id)).forEach(p=>{ const m=new THREE.Mesh(new THREE.RingGeometry(2.4/FT, 3.6/FT, 32), mat);
+    m.rotation.x=Math.PI/2; m.position.set(p.x/FT, -0.02, p.z/FT); m.renderOrder=40; m.userData.noGhost=true; lightMarks.add(m); });
+  g.userData.inner.add(lightMarks);
+}
+onMarkers(()=>applyLightMarkers());
 const GHOST=new WeakMap();
 setWalls(()=>wallGroups);
 onFurnApplied(()=>applyGhost());
@@ -627,6 +641,7 @@ function highlight(){
   wallGroups.forEach(g=>{ const sel=g.userData.slot.id===state.selected && !state.isolate; g.userData.mat.color.set(sel?0xe0864a:(g.userData.slot.type==='int'?0xf0e6d0:0xc9a46a)); g.userData.mat.emissive.set(sel?0x3a1a05:0x000000);
     g.children.forEach(o=>{ if(o.userData.pickPane) o.material.opacity = sel ? 0.28 : 0; }); });
   applyGhost();
+  applyLightMarkers();
 }
 function resize(){
   const r=stage.getBoundingClientRect(); renderer.setSize(r.width,r.height,false); camera.aspect=r.width/Math.max(1,r.height); camera.updateProjectionMatrix();
@@ -647,6 +662,10 @@ renderer.domElement.addEventListener('pointerup',e=>{
   const fh=ray.intersectObjects(furnMeshes(),false)[0];
   if(fh && (!hit || /:(ceiling-int|roof)$/.test(hit.object.userData.slotId||'') || fh.distance<=hit.distance+0.05)){ state.selFurn=fh.object.userData.furn; state.selected=null; state.selUnit=null; applyFurniture(); highlight(); renderSide(); return; }
   if(state.selFurn){ state.selFurn=null; applyFurniture(); }
+  // the ceiling already picked: a tap on it picks / unpicks the light hole there (or places a new light)
+  if(hit && hit.object.userData.slotId===state.selected && /:ceiling-int$/.test(state.selected||'')){
+    const g=layerGroups.find(g=>g.userData.layerSlot.id===state.selected), inner=g?.userData.inner;
+    if(inner){ const l=inner.worldToLocal(hit.point.clone()); if(pickLightAt(g.userData.layerSlot, l.x*FT, l.z*FT)) return; } }
   state.selected = hit ? hit.object.userData.slotId : null;
   state.selUnit = null; for(let o=hit?.object; o; o=o.parent){ if(o.userData?.okey){ state.selUnit=o.userData.okey; break; } }
   highlight(); renderSide();
