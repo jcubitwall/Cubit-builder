@@ -1,5 +1,27 @@
 [
  {
+  "id": "20261025125215-k3ju",
+  "kind": "home",
+  "name": "Cubit Kya - Nest (Standard)",
+  "file": "Cubit Kya : Nest.step",
+  "by": "heinrich@cubithome.com",
+  "started": "2026-10-25T12:52:39+00:00",
+  "status": "done",
+  "summary": {
+   "kind": "home",
+   "project": "cubit-kya-nest-standard",
+   "pods": 2,
+   "walls": 9,
+   "new_walls": 3,
+   "layers": 8,
+   "new_layers": 0,
+   "new_pods": 2,
+   "decks": 0,
+   "new_decks": 0
+  },
+  "finished": "2026-10-25T12:52:48+00:00"
+ },
+ {
   "id": "20261024192537-2yba",
   "kind": "home",
   "name": "Cubit Kya Nest",
