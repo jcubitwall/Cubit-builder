@@ -166,54 +166,6 @@
     "from": ""
   },
   {
-    "id": "cubit-kya-nest",
-    "name": "Cubit Kya Nest",
-    "saved": "2026-10-24T19:26:12Z",
-    "model": {
-      "name": "Cubit Kya Nest",
-      "size": "24 + 16",
-      "pods": [
-        {
-          "t": "L24",
-          "x": 0,
-          "z": 0
-        },
-        {
-          "t": "P16",
-          "x": 88,
-          "z": 0
-        }
-      ],
-      "decks": [],
-      "picks": {
-        "0W0": "W08-15",
-        "0E0": "W08-09",
-        "0S0": "W24-10",
-        "0N0": "W24-11",
-        "1W0": "W08-16",
-        "1E0": "W08-09",
-        "1S88": "W16-06",
-        "1N88": "W16-07"
-      },
-      "layerPicks": {
-        "0:floor-ext": "FE24-04",
-        "0:floor-int": "FI24-04",
-        "0:ceiling-int": "CI24-05",
-        "0:roof": "RF24-01",
-        "1:floor-ext": "FE16-STD",
-        "1:floor-int": "FI16-STD",
-        "1:ceiling-int": "CI16-03",
-        "1:roof": "RF16-01"
-      },
-      "note": "Scanned from 20261024192537-2yba.step on 2026-10-24."
-    },
-    "picks": {},
-    "wallA": {},
-    "faces": {},
-    "inset": 6,
-    "from": ""
-  },
-  {
     "id": "cubit-kya-nest-standard",
     "name": "Cubit Kya - Nest (Standard)",
     "saved": "2026-10-25T12:52:47Z",
@@ -329,6 +281,55 @@
         "3:roof": "RF16-02"
       },
       "note": "Scanned from 20261025151103-2bh5.step on 2026-10-25."
+    },
+    "picks": {},
+    "wallA": {},
+    "faces": {},
+    "inset": 6,
+    "from": ""
+  },
+  {
+    "id": "cubit-kya-nest",
+    "name": "Cubit Kya Nest",
+    "saved": "2026-10-26T12:48:32Z",
+    "model": {
+      "name": "Cubit Kya Nest",
+      "size": "24 + 16",
+      "pods": [
+        {
+          "t": "L24",
+          "x": 0,
+          "z": 0
+        },
+        {
+          "t": "P16",
+          "x": 0,
+          "z": 8
+        }
+      ],
+      "decks": [],
+      "picks": {
+        "0W0": "W08-15",
+        "0E0": "W08-09",
+        "0S0": "W24-10",
+        "0N0i": "I16-03",
+        "0N16": "W08-17",
+        "1W8": "W08-16",
+        "1E8": "W08-09",
+        "1S0i": "I16-04",
+        "1N0": "W16-07"
+      },
+      "layerPicks": {
+        "0:floor-ext": "FE24-04",
+        "0:floor-int": "FI24-04",
+        "0:ceiling-int": "CI24-05",
+        "0:roof": "RF24-01",
+        "1:floor-ext": "FE16-STD",
+        "1:floor-int": "FI16-STD",
+        "1:ceiling-int": "CI16-03",
+        "1:roof": "RF16-01"
+      },
+      "note": "Scanned from 20261026124758-dz57.step on 2026-10-26."
     },
     "picks": {},
     "wallA": {},
