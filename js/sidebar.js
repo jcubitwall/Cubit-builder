@@ -6,7 +6,7 @@ import { screwsFor, slotsFor, podList, CW, layerSlotsFor, partnerOf, deckList } 
 import { panelCount, thumbSVG, bodyWall, wallLen, layerHoles, outlinePts, shapeOf } from './panels.js';
 import { buildHome, highlight } from './scene3d.js';
 import { facing, fmtBearing } from './orient.js';
-import { setDeckFoundation, rotatePod, deletePod, ensureDraft, mirrorPod } from './pods.js';
+import { setDeckFoundation, rotatePod, deletePod, ensureDraft, mirrorPod, removeDeck, turnDeck } from './pods.js';
 import { checkpoint } from './history.js';
 import { openSheets } from './sheets.js';
 import { pickFor, save, state, choose, pickLayer, chooseLayer, foundationOf, setFoundation, deckOCOf } from './state.js';
@@ -263,16 +263,18 @@ function renderDeckSide3d(k){
   const d=deckList(state.model)[k]; if(!d){ state.selected=null; renderSide(); return; }
   const L=d.L;
   sideH.innerHTML=`<div class="eyebrow">Deck ${k+1} · ${L.w}′ × ${L.d}′ frame</div><h2>${L.w}′ × ${L.d}′ deck</h2><p><code>${esc(L.id)}</code> · double 2×8 rims · 2×8 joists ${deckOCOf(state.model)}″ o.c. from the house · 4 corner notches 1½″ · ¾″ off the house</p>`;
-  sideB.innerHTML=`<div class="row"><button class="btn" id="toSheet">Framing sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate==='deck:'+k}">${state.isolate==='deck:'+k?'Exit isolate':'Isolate'}</button><button class="btn ghost" id="toPlan">Move in the plan</button></div>
+  sideB.innerHTML=`<div class="row"><button class="btn" id="toSheet">Framing sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate==='deck:'+k}">${state.isolate==='deck:'+k?'Exit isolate':'Isolate'}</button><button class="btn ghost edit-only" id="dTurn" title="Turn it a quarter turn where it docks">Turn</button><button class="btn ghost danger edit-only" id="dDel">Remove deck</button></div>
     <div class="fld">Stands on<div class="seg"><button class="fsbtn" id="fScrews" aria-pressed="${d.found!=='pads'}">Ground screws</button><button class="fsbtn" id="fPads" aria-pressed="${d.found==='pads'}">Concrete pads (floating)</button></div></div>
     <div class="edit-only">${ocSeg()}</div>
-    <p class="note">Decks dock with their ledger against a pod or another deck. Swap, turn or remove decks in the plan editor.</p>`;
+    <p class="note">Decks dock with their ledger against a pod or another deck. Long-press a deck to pick it up and move it.</p>`;
   bindOC(sideB, ()=>{ buildHome(); renderSide(); });
   const setF=f=>{ setDeckFoundation(k,f); state.selected='deck:'+k; renderModels(); buildHome(); renderSide(); toast(f==='pads'?'Deck floats on concrete pads':'Deck on ground screws'); };
   sideB.querySelector('#fScrews').onclick=()=>setF('screws'); sideB.querySelector('#fPads').onclick=()=>setF('pads');
   sideB.querySelector('#toSheet').onclick=()=>{ state.sheetSlot='__deck:'+k; openSheets(); };
   sideB.querySelector('#isoBtn').onclick=()=>setIsolate(state.isolate==='deck:'+k ? null : 'deck:'+k, `Deck ${k+1}`);
-  sideB.querySelector('#toPlan').onclick=()=>document.getElementById('bPlan').click();
+  sideB.querySelector('#dDel')?.addEventListener('click', e=>{ const b=e.currentTarget; if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to remove'; return; }
+    const why=removeDeck(k); if(why){ toast(why); return; } state.selected=null; if(state.isolate==='deck:'+k) setIsolate(null); renderModels(); buildHome(); renderSide(); toast(`Deck ${k+1} removed · undo brings it back`); });
+  sideB.querySelector('#dTurn')?.addEventListener('click', ()=>{ const why=turnDeck(k); if(why){ toast(why); return; } state.selected='deck:'+k; renderModels(); buildHome(); renderSide(); });
   
 }
 /* ============================================================ layout editor: add / remove pods */
