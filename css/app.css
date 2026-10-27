@@ -901,3 +901,13 @@ html.standalone:not(.phone) .ss-bar #ssClose{top:max(54px, calc(env(safe-area-in
 .lay-all .sw.some{background:color-mix(in srgb,var(--accent) 45%,var(--line))}.lay-all .sw.some::after{transform:translateX(6px)}
 .layers-pop{min-width:270px}
 .lay-fold{white-space:nowrap;overflow:hidden}.lay-fold small{white-space:nowrap}
+/* north compass in the Build view, under the view cube */
+.compass.bc-compass{top:168px;right:12px;bottom:auto;left:auto;z-index:6;box-shadow:0 6px 18px rgba(0,0,0,.10)}
+.studio.build.panel-open .compass.bc-compass{right:404px}
+.compass.bc-compass.mini{padding:5px 9px 5px 5px}
+.compass.bc-compass.mini .dial{width:40px;height:40px}
+.compass.bc-compass.mini .cb-val{font-size:13px}
+.compass.bc-compass[hidden]{display:none}
+.studio:not(.build) .compass.bc-compass{display:none}
+html.phone .compass.bc-compass{top:auto;bottom:calc(140px + env(safe-area-inset-bottom,0px));right:8px;left:auto}
+@media (max-width:900px){ .compass.bc-compass .cb-note{display:none} }

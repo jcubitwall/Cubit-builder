@@ -27,6 +27,7 @@ import { openWallBuilder } from './wall-builder.js';
 import './shape-studio.js';
 import { openLayerBuilder } from './layer-builder.js';
 import './panel-builder.js';
+import './compass-ui.js';
 
 const sideH=document.getElementById('sideH'), sideB=document.getElementById('sideB');
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
