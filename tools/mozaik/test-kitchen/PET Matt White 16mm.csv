@@ -1,0 +1,55 @@
+1|False,591.77,172.57,Drawer,R19C2,A-1|1|1|1#CBT DarkOak 18mm,None,Drawer Face
+1|False,591.77,304.27,Drawer,R19C2,A-1|1|1|1#CBT DarkOak 18mm,None,Drawer Face
+1|False,591.77,304.37,Drawer,R19C2,A-1|1|1|1#CBT DarkOak 18mm,None,Drawer Face
+1|False,89.54,541.20,Drw Back,R19C2,None#CBT DarkOak 18mm,None,Drawer Box Back
+1|False,89.54,541.20,Drw Front,R19C2,None#CBT DarkOak 18mm,None,Drawer Box Front
+1|False,120.65,539.75,Drw L Side,R19C2,None#CBT DarkOak 18mm,None,Drawer Box Side
+1|False,120.65,539.75,Drw R Side,R19C2,None#CBT DarkOak 18mm,None,Drawer Box Side
+1|False,191.14,535.55,Drw Back,R19C2,None#CBT DarkOak 18mm,None,Drawer Box Back
+1|False,191.14,535.55,Drw Back,R19C2,None#CBT DarkOak 18mm,None,Drawer Box Back
+1|False,191.14,535.55,Drw Front,R19C2,None#CBT DarkOak 18mm,None,Drawer Box Front
+1|False,191.14,535.55,Drw Front,R19C2,None#CBT DarkOak 18mm,None,Drawer Box Front
+1|False,222.25,539.75,Drw L Side,R19C2,None#CBT DarkOak 18mm,None,Drawer Box Side
+1|False,222.25,539.75,Drw L Side,R19C2,None#CBT DarkOak 18mm,None,Drawer Box Side
+1|False,222.25,539.75,Drw R Side,R19C2,None#CBT DarkOak 18mm,None,Drawer Box Side
+1|False,222.25,539.75,Drw R Side,R19C2,None#CBT DarkOak 18mm,None,Drawer Box Side
+1|False,534.34,539.75,Drw Bottom,R19C2,None#CBT DarkOak 18mm,None,Drawer Box Bottom
+1|False,534.34,539.75,Drw Bottom,R19C2,None#CBT DarkOak 18mm,None,Drawer Box Bottom
+1|False,535.1,539.75,Drw Bottom,R19C2,None#CBT DarkOak 18mm,None,Drawer Box Bottom
+1|False,101.6,585.47,Rear Stretcher,R19C2,None#CBT DarkOak 18mm,None,
+1|False,152.4,585.47,Front Stretcher,R19C2,None#CBT DarkOak 18mm,None,
+1|False,584.84,585.47,Bottom,R19C2,None#CBT DarkOak 18mm,None,
+1|False,585.47,806.45, BACK,R19C2,None#CBT DarkOak 18mm,None,
+1|False,600.08,901.70,FEnd (L),R19C2,None#CBT DarkOak 18mm,None,
+1|False,600.08,901.7,FEnd (R),R19C2,None#CBT DarkOak 18mm,None,Finished End
+1|False,285.76,793.7,Door(L),R19C3,1|1|1|1#,None,Cabinet Door
+1|False,285.76,793.7,Door(R),R19C3,1|1|1|1#,None,Cabinet Door
+1|False,101.6,547.37,Front Toe,R19C3,None#,None,Structural Toe parts
+1|False,101.6,560.07,Front Stretcher,R19C3,None#,None,Horizontal Stretchers
+1|False,101.6,560.07,Rear Stretcher,R19C3,None#,None,Horizontal Stretchers
+1|False,560.07,791.21,Back,R19C3,None#,None,Unfinished Back
+1|False,578.46,544.20,Adjustable Shelf,R19C3,None#,None,Adjustable Shelf
+1|False,578.46,544.20,Adjustable Shelf,R19C3,None#,None,Adjustable Shelf
+1|False,600.08,560.07,Bottom,R19C3,None#,None,Bottom of cabinet box
+1|False,600.08,901.7,FEnd (L),R19C3,None#,None,Finished End
+1|False,600.08,901.7,FEnd (R),R19C3,None#,None,Finished End
+1|False,352.5,987.4,Door(L),R19C4,1|1|1|1#,None,Cabinet Door
+1|False,283.18,321.94,Adjustable Shelf,R19C4,None#,None,
+1|False,283.18,321.94,Adjustable Shelf,R19C4,None#,None,
+1|False,286.36,337.82,Top,R19C4,None#,None,Top of cabinet box
+1|False,304.8,337.82,Bottom,R19C4,None#,None,
+1|False,304.8,977.9,FEnd (L),R19C4,None#,None,
+1|False,304.8,977.9,FEnd (R),R19C4,None#,None,
+1|False,337.82,969.01,Back,R19C4,None#,None,
+1|False,504.9,802.40,Door(R),R19C1,1|1|1|1#,None,Cabinet Door
+1|False,504.9,972.50,Door(R),R19C1,1|1|1|1#,None,Cabinet Door
+1|False,422.88,474.34,Adjustable Shelf,R19C1,None#,None,Adjustable Shelf
+1|False,422.88,474.34,Adjustable Shelf,R19C1,None#,None,Adjustable Shelf
+1|False,422.88,474.34,Adjustable Shelf,R19C1,None#,None,Adjustable Shelf
+1|False,422.88,474.34,Adjustable Shelf,R19C1,None#,None,Adjustable Shelf
+1|False,426.06,490.22,Fixed Shelf,R19C1,None#,None,Fixed Shelf
+1|False,426.06,490.22,Top,R19C1,None#,None,
+1|False,444.5,490.22,Bottom,R19C1,None#,None,
+1|False,444.5,1879.6,FEnd (L),R19C1,None#,None,
+1|False,444.5,1879.6,FEnd (R),R19C1,None#,None,
+1|False,490.22,1775.46,Back,R19C1,None#,None,
