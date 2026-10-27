@@ -24,6 +24,7 @@ import { furnSide, homeBlock, bindHomeBlock } from './casework-ui.js';
 import { draftBlock, bindDraftBlock, draftsRow } from './publish-ui.js';
 import { lightEditorHTML, bindLightEditor } from './light-edit-ui.js';
 import { openWallBuilder } from './wall-builder.js';
+import { openLayerBuilder } from './layer-builder.js';
 
 const sideH=document.getElementById('sideH'), sideB=document.getElementById('sideB');
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -274,7 +275,7 @@ function renderLayerSide(ls){
   sideH.innerHTML=`<div class="eyebrow">${K.label} · ${ls.len}′ × 8′ · ${(L.t||K.t)}″ thick</div><h2>${ls.label}</h2><p>now <b>${esc(L.id)}</b> ${esc(L.name)}${L.blank?'':' <button class="linkbtn ren-link edit-only" id="renLayer">Rename</button>'}</p>`;
   const rl=sideH.querySelector('#renLayer'); if(rl) rl.onclick=()=>askRename('layers', L.id);
   sideB.innerHTML=`
-    <div class="row"><button class="btn" id="toSheet">Layer sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===ls.id}">${state.isolate===ls.id?'Exit isolate':'Isolate'}</button>${L.blank?'':'<button class="btn ghost edit-only" id="lMir" title="End for end">Mirror</button><button class="btn ghost edit-only" id="lFlip" title="Front to back">Flip</button>'}</div>
+    <div class="row"><button class="btn" id="toSheet">Layer sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===ls.id}">${state.isolate===ls.id?'Exit isolate':'Isolate'}</button>${L.blank?'':'<button class="btn ghost edit-only" id="lMir" title="End for end">Mirror</button><button class="btn ghost edit-only" id="lFlip" title="Front to back">Flip</button>'}<button class="btn ghost" id="lBuild" title="Holes, hatches and pockets, typed in inches">Layer builder</button></div>
     ${(ls.kind==='ceiling-int'||ls.kind==='roof') && state.isolate!==ls.id ? '<p class="note">Turn on Ceiling or Roof under Layers (or use Exploded view) to see them in 3D, or press Isolate.</p>':''}
     ${ls.kind==='ceiling-int' ? (()=>{ const c=cfgOf(state.model), LL=withLights(L, ls);
       return `<div class="lights-box"><div class="eyebrow">Pot lights · 4″, ${LL.lights??0} in this pod</div>
@@ -289,6 +290,7 @@ function renderLayerSide(ls){
   if(ls.kind==='ceiling-int') bindLightEditor(sideB, ls);
   sideB.querySelector('#lMir')?.addEventListener('click',()=>{ chooseLayer(ls, layerMirrorId(L.id,'x')); buildHome(); renderSide(); toast(`${ls.label} mirrored end for end`); });
   sideB.querySelector('#lFlip')?.addEventListener('click',()=>{ chooseLayer(ls, layerMirrorId(L.id,'z')); buildHome(); renderSide(); toast(`${ls.label} flipped front to back`); });
+  sideB.querySelector('#lBuild')?.addEventListener('click',()=>openLayerBuilder({ from: L.blank ? null : L.id, slot:ls, len:ls.len, kind:ls.kind }));
   sideB.querySelector('#toSheet').onclick=()=>{ state.sheetSlot=ls.id; openSheets(); };
   sideB.querySelector('#isoBtn').onclick=()=>setIsolate(state.isolate===ls.id ? null : ls.id, ls.label);
   sideB.querySelectorAll('[data-lauto]').forEach(b=>b.onclick=()=>{ setLights(state.model,{auto:b.dataset.lauto==='1'}); buildHome(); renderSide(); });

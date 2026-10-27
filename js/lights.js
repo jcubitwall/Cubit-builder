@@ -158,4 +158,4 @@ function withLights(L, ls, k=state.model){
   return { ...L, holes, lights:pts.length+(auto?0:(L.holes||[]).filter(isDrawnLight).length/2|0), auto };
 }
 const CAB_PRESETS = [['None',0],['Upper cabinets',13],['Base cabinets',24],['Wardrobe',24],['Fridge',30]];
-export { lightsIn, editsOf, setEdits, keyOf, frame as ceilingFrame, lightPlan, withLights, cfgOf, setLights, cabinetsOf, setCabinet, cabDepth, CAB_PRESETS, LIGHT };
+export { edgeSides, isDrawnLight, lightsIn, editsOf, setEdits, keyOf, frame as ceilingFrame, lightPlan, withLights, cfgOf, setLights, cabinetsOf, setCabinet, cabDepth, CAB_PRESETS, LIGHT };

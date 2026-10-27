@@ -778,3 +778,7 @@ html.standalone:not(.phone) .studio.fs .fs-bar{top:max(54px, calc(env(safe-area-
 html.standalone:not(.phone) .studio.fs .layers-pop{top:max(96px, calc(env(safe-area-inset-top,0px) + 72px))}
 html.standalone:not(.phone) .studio.fs .pod-badge{top:max(56px, calc(env(safe-area-inset-top,0px) + 32px))}
 html.standalone:not(.phone) .studio.fs.build .vcube-wrap{top:max(54px, calc(env(safe-area-inset-top,0px) + 30px))}
+/* floor / ceiling / roof builder */
+.wb-wall.lb-floor-ext{fill:#d9c6a2}.wb-wall.lb-floor-int{fill:#e8d3ad}.wb-wall.lb-ceiling-int{fill:#f2ead8}.wb-wall.lb-roof{fill:#d6d2c4}
+.lb-thru{fill:#fbfaf6;stroke:#2f6db5}
+.lb-light{fill:none;stroke:#8a8f88;stroke-width:.35;stroke-dasharray:1 .8;pointer-events:none}

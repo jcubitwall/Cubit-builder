@@ -31,6 +31,8 @@ async function loadData(){
   walls.forEach(w=>LIB.push({...w, src:'library'}));
   // walls made in the wall builder, shared by the team (api/walls); opened from a local server: this browser's own
   try{ const r=await fetch('api/walls',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ (await r.json()).forEach(w=>{ const i=LIB.findIndex(x=>x.id===w.id); if(i>=0) LIB[i]={...w, src:'team'}; else LIB.push({...w, src:'team'}); }); } }catch(e){}
+  // floors / ceilings / roofs made in the layer builder, shared by the team (api/layers)
+  try{ const r=await fetch('api/layers',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ (await r.json()).forEach(l=>{ const i=LAYERLIB.findIndex(x=>x.id===l.id); if(i>=0) LAYERLIB[i]={...l, src:'team'}; else LAYERLIB.push({...l, src:'team'}); }); } }catch(e){}
   try{ const saved = JSON.parse(localStorage.getItem('cubit-walls-imported')||'[]'); saved.forEach(w=>{ if(!LIB.find(x=>x.id===w.id)) LIB.push(w); }); }catch(e){}
   try{ const custom = JSON.parse(localStorage.getItem(CUSTOM_KEY)||'{}'); Object.entries(custom).forEach(([k,m])=>{ MODELS[k]={...m, custom:true}; }); }catch(e){}
 }
@@ -67,6 +69,8 @@ function saveLayerLib(){ if(!canSave()) return; try{ localStorage.setItem('cubit
 const layerOptions = (kind,len) => LAYERLIB.filter(l=>!l.deleted && l.kind===kind && l.len===len);
 /* mirrored floor / ceiling / roof layers: "<id>~mx" end for end (along the pod), "~mz" front to back, "~mxz" both */
 const LMIRROR = {};
+/* forget the mirrored copies of a layer (after it is saved again) */
+const forgetLayerMirrors = id => { Object.keys(LMIRROR).forEach(k=>{ if(k.startsWith(id+'~m')) delete LMIRROR[k]; }); };
 const splitLayerId = id => { const m=String(id||'').match(/^(.*?)~m(x?)(z?)$/); return m ? {base:m[1], x:!!m[2], z:!!m[3]} : {base:id, x:false, z:false}; };
 function mirrorLayer(l, mx, mz, id){
   const L=l.len*12, W=96, fx=v=>mx?L-v:v, fz=v=>mz?W-v:v, mp=P=>P.map(([a,b])=>[+fx(a).toFixed(4), +fz(b).toFixed(4)]);
@@ -83,4 +87,4 @@ const layerById = id => {
 /* the id of a layer mirrored once more along x ('x') or z ('z') */
 const layerMirrorId = (id, ax) => { const s=splitLayerId(id); const x=ax==='x'?!s.x:s.x, z=ax==='z'?!s.z:s.z; return s.base+(x||z?`~m${x?'x':''}${z?'z':''}`:''); };
 
-export { layerMirrorId, clearMirrors, DECKLIB, deckById, saveDeckLib, MODELS, LIB, LAYERLIB, PODLIB, loadData, optionsFor, byId, mirrorId, mirrorWall, podById, layerOptions, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib };
+export { mirrorLayer, forgetLayerMirrors, layerMirrorId, clearMirrors, DECKLIB, deckById, saveDeckLib, MODELS, LIB, LAYERLIB, PODLIB, loadData, optionsFor, byId, mirrorId, mirrorWall, podById, layerOptions, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib };
