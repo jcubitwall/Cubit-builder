@@ -2,6 +2,8 @@
    cut list), the shop settings (plywood, edge band, joinery, hardware), and the options of a placed item. */
 import { CATS, ITEMS, itemDef, catOf, newItem, partsOf, cutList, hardwareOf, totals, csv, fmt, fmtU, fx3, settings, saveSettings, loadSettings, DEFAULTS, MM } from './casework.js';
 import { partSVG, opsTable } from './casework-parts.js';
+import { cabinetJob, jobZip, sheetSVG, CAB_CNC } from './cabcnc.js';
+import { MODELS } from './data.js';
 import { itemModel } from './casework3d.js';
 import { frontSVG } from './casework-svg.js';
 import { furnitureOf, furnById, updateItem, removeItem, duplicateItem, turnItem, refreshItem, addItem, snap, applyFurniture, podsShown, freeSpot } from './furniture.js';
@@ -142,7 +144,7 @@ function renderDetail(body){
 function openPlan(it, name){
   const rows=cutList(it), d=document.createElement('dialog'); d.className='cw-dlg pt-plan'; d.setAttribute('aria-label','Cutting plan');
   const S=settings();
-  d.innerHTML=`<div class="cw"><header class="cw-h"><h2>Cutting plan · ${esc(name)}</h2><span class="note">${fmt(it.w)} × ${fmt(it.h)} × ${fmt(it.d)}″ · ${esc(S.mat.name)} at ${fx3(S.mat.t)}</span><span class="spacer"></span><button class="btn ghost" id="ptPrint">Print</button><button class="btn ghost cw-x" aria-label="Close">✕</button></header>
+  d.innerHTML=`<div class="cw"><header class="cw-h"><h2>Cutting plan · ${esc(name)}</h2><span class="note">${fmt(it.w)} × ${fmt(it.h)} × ${fmt(it.d)}″ · ${esc(S.mat.name)} at ${fx3(S.mat.t)}</span><span class="spacer"></span><button class="btn" id="ptCnc">G-code…</button><button class="btn ghost" id="ptPrint">Print</button><button class="btn ghost cw-x" aria-label="Close">✕</button></header>
     <div class="pt-list">
       <section class="pt-intro"><h3>How these parts are cut</h3><ul>
         <li><b>Side A</b> is the last program for a sheet: the face named on each part is up, its dados, grooves and holes are cut, then every part is cut out (a skim pass that leaves about 1 mm, then the final pass through). Side B, when a part has cuts on its other face, is cut <b>first</b>, so the cut-throughs are always last.</li>
@@ -154,9 +156,55 @@ function openPlan(it, name){
     </div></div>`;
   document.body.appendChild(d);
   d.querySelector('.cw-x').onclick=()=>d.close(); d.addEventListener('close',()=>d.remove());
+  d.querySelector('#ptCnc').onclick=()=>openCnc([{ it, label:'C1' }], name);
   d.querySelector('#ptPrint').onclick=()=>{ document.documentElement.classList.add('print-plan'); window.print(); setTimeout(()=>document.documentElement.classList.remove('print-plan'),500); };
   d.showModal();
 }
+/* G-code: measure the sheets first (every time), then nest every part and write one program per sheet */
+function openCnc(items, title){
+  const S=settings(), d=document.createElement('dialog'); d.className='cw-dlg cc-dlg'; d.setAttribute('aria-label','Cabinet G-code');
+  const job=(MODELS[state.model]?.name||'Cubit Home').replace(/\s+\(draft.*\)$/,'');
+  d.innerHTML=`<div class="cw"><header class="cw-h"><h2>G-code · ${esc(title)}</h2><span class="note">${items.length} cabinet${items.length>1?'s':''} · ${esc(S.mat.name)}</span><span class="spacer"></span><button class="btn ghost cw-x" aria-label="Close">✕</button></header>
+    <div class="cc-body">
+      <section class="cc-measure"><h3>1 · Measure the sheets</h3>
+        <p class="note">Sheets vary. Measure the ones you're about to cut (a few spots, with calipers) and type what they measure. Every dado width, every depth and the panels between the ends follow it.</p>
+        <div class="row"><label class="cw-f"><span>Sheets measure</span><input id="ccT" inputmode="decimal" value=""><i>″ or mm</i></label>
+          <span class="note">Last time: ${fx3(S.mat.t,'in')} (${Math.round(S.mat.t/MM*100)/100} mm)</span></div>
+        <label class="wb-chk"><input type="checkbox" id="ccOk"> I measured these sheets just now</label>
+        <label class="cw-f"><span>Job name (on the files)</span><input id="ccJob" value="${esc(job)}"></label>
+        <div class="row"><button class="btn" id="ccGo" disabled>Make the G-code</button></div></section>
+      <section class="cc-out" hidden></section>
+    </div></div>`;
+  document.body.appendChild(d);
+  d.querySelector('.cw-x').onclick=()=>d.close(); d.addEventListener('close',()=>d.remove());
+  const tIn=d.querySelector('#ccT'), ok=d.querySelector('#ccOk'), go=d.querySelector('#ccGo');
+  const val=()=>{ const raw=String(tIn.value).trim().toLowerCase(); if(!raw) return NaN; let v=parseFloat(raw); if(/mm$/.test(raw) || v>2) v=v*MM; return v; };
+  const check=()=>{ const v=val(); go.disabled=!(ok.checked && v>0.3 && v<1.2); };
+  tIn.oninput=check; ok.onchange=check;
+  go.onclick=async()=>{
+    const t=r4(val());
+    if(Math.abs(t-S.mat.t)>1e-6){ try{ await saveSettings({...settings(), mat:{...settings().mat, t}}); furnitureOf().forEach(refreshItem); }catch(e){ toast(`Couldn't keep the thickness: ${e.message||e}`); } }
+    const J=cabinetJob(items, { job:d.querySelector('#ccJob').value.trim()||job, t });
+    const out=d.querySelector('.cc-out'); out.hidden=false;
+    out.innerHTML=`<h3>2 · ${J.sheets.length} sheet${J.sheets.length>1?'s':''} · ${J.pieces.length} parts · at ${fx3(t,'in')}</h3>
+      ${J.tooBig.length?`<p class="wb-warn">Too big for a ${CAB_CNC.sheet[0]} × ${CAB_CNC.sheet[1]} sheet: ${J.tooBig.map(q=>esc(q.label)).join(', ')}</p>`:''}
+      <p class="note">Load each sheet <b>good face down</b> and run its program. Every part's inside face is up, so no sheet needs turning over. The cut-throughs are last in each program.</p>
+      <div class="row"><button class="btn" id="ccZip">Download the programs (.zip)</button></div>
+      <div class="cc-sheets">${J.sheets.map((sh,i)=>`<figure><figcaption><b>Sheet ${i+1}</b> · ${sh.placed.length} parts · ${(sh.yield*100).toFixed(0)}% used · <code>${esc(J.files.filter(f=>f.sheet===i).map(f=>f.name).join(', '))}</code></figcaption>${sheetSVG(sh,{px:720})}</figure>`).join('')}</div>`;
+    out.querySelector('#ccZip').onclick=async()=>{ const b=await jobZip(J); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=`${J.job.replace(/[^\w .+-]+/g,'')} cabinets.zip`; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },500); };
+    out.scrollIntoView({behavior:'smooth'});
+  };
+  d.showModal(); tIn.focus();
+}
+const r4 = v => Math.round(v*10000)/10000;
+/* all the cabinets in this home → one job */
+function openHomeCnc(){
+  const its=furnitureOf().filter(it=>partsOf(it).some(p=>p.cnc));
+  if(!its.length){ toast('No cabinets in this home yet. Add some from the cabinet library.'); return; }
+  openCnc(its.map((it,i)=>({ it, label:`C${i+1}` })), `${its.length} cabinets in this home`);
+}
+{ const pop=document.getElementById('morePop');
+  if(pop && !document.getElementById('bCabCnc')){ const b=document.createElement('button'); b.setAttribute('role','menuitem'); b.id='bCabCnc'; b.className='edit-only'; b.textContent='Cabinet G-code'; pop.appendChild(b); b.onclick=()=>{ pop.hidden=true; loadSettings().then(openHomeCnc); }; } }
 /* add an item to the home: backed against the nearest wall to the middle of the first pod */
 function placeAuto(it){
   const pods=podsShown(); if(!pods.length) return null;

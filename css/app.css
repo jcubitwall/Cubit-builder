@@ -976,3 +976,17 @@ dialog.v3-dlg[open]{display:flex;flex-direction:column}
 .pt-plan .pt-intro ul{margin:6px 0 0 18px;padding:0;font-size:13.5px;line-height:1.45}
 dialog.pt-plan[open]{display:flex;flex-direction:column}
 @media print{ html.print-plan body > *:not(.pt-plan){display:none!important} html.print-plan .pt-plan{position:static;display:block;width:auto;height:auto;border:0} html.print-plan .pt-plan .cw-h button{display:none} html.print-plan .pt-list{overflow:visible} }
+/* cabinet G-code (cabcnc.js) */
+dialog.cc-dlg[open]{display:flex;flex-direction:column}
+.cc-body{overflow:auto;padding:14px 18px 40px;display:flex;flex-direction:column;gap:16px}
+.cc-measure{border:1px solid var(--accent);border-radius:12px;padding:12px 14px;background:color-mix(in srgb,var(--accent-soft) 35%,transparent);max-width:720px}
+.cc-measure .cw-f{max-width:300px}
+.cc-sheets{display:flex;flex-direction:column;gap:14px}
+.cc-sheets figure{margin:0}
+.cc-sheets figcaption{font-size:13px;margin-bottom:4px}
+.cc-sheet{max-width:100%;height:auto;display:block}
+.cc-board{fill:#fbf8f1;stroke:#9aa39b}
+.cc-part{fill:#efe2c7;stroke:#1c211e;stroke-width:.8}
+.cc-hole{fill:#2f6db5}
+.cc-dado{fill:#d0661f66}
+.cc-lab{font:600 7px var(--mono);fill:#1c211e}

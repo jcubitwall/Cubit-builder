@@ -315,7 +315,7 @@ const CATS = [
   { k:'bench',     name:'Window benches',    y:0 },
   { k:'shelf',     name:'Shelves',           y:0 },
   { k:'fire',      name:'Fireplaces',        y:0 },
-  { k:'counter',   name:'Countertops',       y:34.5 },
+  { k:'counter',   name:'Countertops',       y:35.5 },
   { k:'appliance', name:'Appliances',        y:0 },
   { k:'bath',      name:'Bathroom fixtures', y:0 },
   { k:'sink',      name:'Sinks',             y:27 },
@@ -325,7 +325,7 @@ const W_STD = [9,12,15,18,21,24,27,30,33,36];
 const ITEMS = [];
 const def = o => { ITEMS.push({ wR:[6,48], hR:[6,108], dR:[6,30], opts:[], ...o }); };
 
-/* base cabinets: 34½″ box + countertop = 36″; 24″ deep with the doors */
+/* base cabinets (Mozaik's): 35½″ box, 23⅝″ deep box + the doors */
 const hidOf = it => it.opt?.handle ?? S.handle;
 const baseBuild = kind => it => {
   const c=carcass(it,{kick:true, top:'stretchers', adj: kind==='door'||kind==='doordrawer' ? (it.opt.shelves??1) : 0});
@@ -336,12 +336,12 @@ const baseBuild = kind => it => {
   if(kind==='sink'){ P.push(...drawer(c,'Top', s,W-s, f1-6,f1, true), ...doors(c,W,f0,f1-6-g,'top','Door',hid)); }
   return P;
 };
-def({ k:'B',   cat:'base', name:'Base, doors',           w:18, h:34.5, d:24, sizes:W_STD, opts:[['shelves','Shelves',[0,1,2]]], opt:{shelves:1}, build:baseBuild('door') });
-def({ k:'BDD', cat:'base', name:'Base, drawer over door', w:24, h:34.5, d:24, sizes:W_STD.filter(w=>w>=12), opts:[['shelves','Shelves',[0,1,2]],['top','Drawer front',[5,6,7]]], opt:{shelves:1, top:6}, build:baseBuild('doordrawer') });
-def({ k:'BD',  cat:'base', name:'Drawer base',           w:18, h:34.5, d:24, sizes:W_STD.filter(w=>w>=12), opts:[['drawers','Drawers',[2,3,4]]], opt:{drawers:3}, build:baseBuild('drawers') });
-def({ k:'BS',  cat:'base', name:'Sink base',             w:30, h:34.5, d:24, sizes:[24,27,30,33,36], build:baseBuild('sink') });
+def({ k:'B',   cat:'base', name:'Base, doors',           w:18, h:35.5, d:24.225, sizes:W_STD, opts:[['shelves','Shelves',[0,1,2]]], opt:{shelves:1}, build:baseBuild('door') });
+def({ k:'BDD', cat:'base', name:'Base, drawer over door', w:24, h:35.5, d:24.225, sizes:W_STD.filter(w=>w>=12), opts:[['shelves','Shelves',[0,1,2]],['top','Drawer front',[5,6,7]]], opt:{shelves:1, top:6}, build:baseBuild('doordrawer') });
+def({ k:'BD',  cat:'base', name:'Drawer base',           w:18, h:35.5, d:24.225, sizes:W_STD.filter(w=>w>=12), opts:[['drawers','Drawers',[2,3,4]]], opt:{drawers:3}, build:baseBuild('drawers') });
+def({ k:'BS',  cat:'base', name:'Sink base',             w:30, h:35.5, d:24.225, sizes:[24,27,30,33,36], build:baseBuild('sink') });
 
-/* uppers: 12″ deep; 30 / 36 / 42″ tall (15–24″ over a fridge or range hood) */
+/* uppers (Mozaik's): 12″ deep box + the door; 38½″ tall by default (15–24″ over a fridge or range hood) */
 const upperBuild = open => it => {
   const n = it.opt.shelves ?? Math.max(0, Math.round((it.h-12)/12));
   const c=carcass(it,{kick:false, top:'full', adj:n, doors:!open});
@@ -349,22 +349,22 @@ const upperBuild = open => it => {
   if(!open) P.push(...doors(c,it.w,f0,f1,'bottom','Door',hidOf(it)));
   return P;
 };
-def({ k:'W',  cat:'upper', name:'Upper, doors',     w:30, h:30, d:12, sizes:W_STD, hSizes:[12,15,18,24,30,36,42], opts:[['shelves','Shelves',[0,1,2,3]]], opt:{shelves:2}, build:upperBuild(false) });
-def({ k:'WO', cat:'upper', name:'Upper, open',      w:30, h:30, d:12, sizes:W_STD, hSizes:[12,15,18,24,30,36,42], opts:[['shelves','Shelves',[0,1,2,3]]], opt:{shelves:2}, build:upperBuild(true) });
-def({ k:'WF', cat:'upper', name:'Over the fridge',  w:30, h:15, d:24, sizes:[24,30,33,36], hSizes:[12,15,18,24], opt:{shelves:0}, build:upperBuild(false) });
+def({ k:'W',  cat:'upper', name:'Upper, doors',     w:30, h:38.5, d:12.6, sizes:W_STD, hSizes:[12,15,18,24,30,36,38.5,42], opts:[['shelves','Shelves',[0,1,2,3]]], opt:{shelves:2}, build:upperBuild(false) });
+def({ k:'WO', cat:'upper', name:'Upper, open',      w:30, h:38.5, d:12, sizes:W_STD, hSizes:[12,15,18,24,30,36,38.5,42], opts:[['shelves','Shelves',[0,1,2,3]]], opt:{shelves:2}, build:upperBuild(true) });
+def({ k:'WF', cat:'upper', name:'Over the fridge',  w:30, h:15, d:24.225, sizes:[24,30,33,36], hSizes:[12,15,18,24], opt:{shelves:0}, build:upperBuild(false) });
 
 /* pantries: 84 / 90 / 96″, 24″ deep; a fixed shelf where the doors split */
-def({ k:'P', cat:'tall', name:'Pantry, doors', w:24, h:84, d:24, sizes:[18,20,24,30,36], hSizes:[74,84,90,96], opts:[['shelves','Shelves',[3,4,5,6]],['split','Door split at',[35.4,48]]], opt:{shelves:4, split:35.4},
+def({ k:'P', cat:'tall', name:'Pantry, doors', w:24, h:84, d:24.225, sizes:[18,20,24,30,36], hSizes:[74,84,90,96], opts:[['shelves','Shelves',[3,4,5,6]],['split','Door split at',[35.4,48]]], opt:{shelves:4, split:35.4},
   build: it => { const sp=Math.min(it.opt.split ?? 35.4, it.h-12), T=th(), g=S.fronts.gap; const c=carcass(it,{kick:true, top:'full', fixed:[sp-0.17], adj:it.opt.shelves??4});
     const P=c.parts, [f0,f1]=frontSpan('tall',c,it.h), hid=hidOf(it); P.push(...doors(c,it.w,f0,sp-g/2,'top','Lower door',hid), ...doors(c,it.w,sp+g/2,f1,'bottom','Upper door',hid)); return P; } });
-def({ k:'PD', cat:'tall', name:'Pantry, drawers + doors', w:24, h:84, d:24, sizes:[18,24,30,36], hSizes:[84,90,96], opts:[['drawers','Drawers',[2,3,4]]], opt:{drawers:3},
+def({ k:'PD', cat:'tall', name:'Pantry, drawers + doors', w:24, h:84, d:24.225, sizes:[18,24,30,36], hSizes:[84,90,96], opts:[['drawers','Drawers',[2,3,4]]], opt:{drawers:3},
   build: it => { const top=36, g=S.fronts.gap; const c=carcass(it,{kick:true, top:'full', fixed:[top-th()], adj:3});
     const P=c.parts, [f0,f1]=frontSpan('tall',c,it.h), n=it.opt.drawers??3, hid=hidOf(it);
     P.push(...drawerStack(c, 0,it.w, f0,top-g/2, split(top-g/2-f0,n), hid), ...doors(c,it.w,top+g/2,f1,'bottom','Upper door',hid)); return P; } });
 
 /* linen towers: 18 / 24″ wide, 84″, 21″ deep */
 def({ k:'L', cat:'linen', name:'Linen tower', w:18, h:84, d:21, sizes:[15,18,21,24], hSizes:[72,84,90,96], opts:[['base','Lower part',['drawers','doors']]], opt:{base:'drawers'},
-  build: it => { const top=34.5, g=S.fronts.gap; const c=carcass(it,{kick:true, top:'full', fixed:[top-th()], adj:3});
+  build: it => { const top=35.5, g=S.fronts.gap; const c=carcass(it,{kick:true, top:'full', fixed:[top-th()], adj:3});
     const P=c.parts, [f0,f1]=frontSpan('tall',c,it.h), hid=hidOf(it);
     if(it.opt.base==='doors') P.push(...doors(c,it.w,f0,top-g/2,'top','Lower door',hid)); else P.push(...drawerStack(c, 0,it.w, f0,top-g/2, split(top-g/2-f0,3), hid));
     P.push(...doors(c,it.w,top+g/2,f1,'bottom','Upper door',hid)); return P; } });
@@ -528,7 +528,7 @@ def({ k:'LV-WH', cat:'bath', name:'Bathroom sink, wall hung 20 × 17', w:20, h:6
 def({ k:'LPG-SH-L', cat:'bath', name:'LifePodGo shower · left hand', w:42.56, h:87.13, d:35.5, fixed:true, note:'Cubit stock, drawn from the LifePodGo STEP file. Left hand: the deep side wall is on the left, seen from the front. In stock both hands', build:it=>meshParts('lpgShower', it) });
 def({ k:'LPG-SH-R', cat:'bath', name:'LifePodGo shower · right hand', w:42.56, h:87.13, d:35.5, fixed:true, mirrored:true, note:'Cubit stock, drawn from the LifePodGo STEP file. Right hand: the deep side wall is on the right, seen from the front. In stock both hands', build:it=>meshParts('lpgShower', it) });
 /* kitchen and utility sinks: they sit in the countertop (top of the rim at the counter top), 2″ off the wall */
-const sinkY = h => () => 34.5 + (S.counter?.t ?? 1.25) - h + 0.2;
+const sinkY = h => () => 35.5 + (S.counter?.t ?? 1.25) - h + 0.2;
 const sink1 = it => basin('Bowl','steel',[0,0,0,it.w,it.h,it.d],1);
 const sink2 = (split=0.5) => it => { const a=it.w*split; return [ ...basin('Left bowl','steel',[0,0,0,a+0.5,it.h,it.d],1,[-.5,0,0]), ...basin('Right bowl','steel',[a-0.5,0,0,it.w-a+0.5,it.h,it.d],1,[.5,0,0]) ]; };
 def({ k:'SK-1-25', cat:'sink', name:'Kitchen sink, single bowl 25 × 22 drop-in', w:25, h:8,  d:22, gap:1.5, y:sinkY(8),  fixed:true, note:BATH_NOTE+' · fits a 30″ sink base', build:sink1 });

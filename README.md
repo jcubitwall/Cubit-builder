@@ -307,3 +307,18 @@ Every part carries its exact machining (`part.cnc`). In the library, opening a p
 - Side B is cut first, and only if a part has cuts on its other face.
 
 Handles are picked per cabinet, or left to drill later (the default). `node tools/mozaik/compare.mjs` checks the rules against Mozaik's cut list.
+
+## Cabinet G-code
+Open ⋯ → **Cabinet G-code** for every cabinet in the home, or **G-code…** in a cabinet's Cutting plan for just that one (`js/cabcnc.js`). The steps:
+1. **Measure the sheets.** The thickness is asked for every time, in inches or mm. Every dado width, depth and inside panel size follows it.
+2. **Nesting.** Every part is nested on 48 × 96 sheets with 9/16″ between parts and ⅛″ trimmed off each edge. Parts can be turned; PET has no grain.
+3. **One ShopSabre program per sheet,** in Mozaik's style and on the same tool table as the walls ("WALLS TOOLSET"). The order:
+   - T7 5 mm drill: shelf pins, plate marks, runner holes, handle holes.
+   - T11 35 mm and T8 8 mm: hinge cups and dowels.
+   - T2 ½″: dados and grooves.
+   - T14 ¼″: drawer-box dados and tongues.
+   - T1 ⅜″: every outline last. Big parts get a skim pass that leaves 0.04″, then every part is cut through.
+   - Every part's inside face is up, so sheets go in good face down and none need turning over.
+   - If a part ever has cuts on its other face, its sheet gets a "-B first" program, so the cut-throughs are always in the last program.
+
+The zip holds the programs, a parts list with each part's place on its sheet, and a README.
