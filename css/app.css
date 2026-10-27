@@ -845,3 +845,28 @@ html.standalone:not(.phone) .ss-bar{padding-top:max(54px, calc(env(safe-area-ins
 .wb-shp svg path{stroke:#1c211e;stroke-width:.8}.wb-shp svg path.pk{fill:#c8a97a}.wb-shp svg path.th{fill:#fff;stroke:#2f6db5}
 .wb-shp small{display:block;font:11px var(--mono);color:var(--ink-2)}
 .ss-svg:focus{outline:none}
+/* Shape studio, Shapr3D look: dark lines, blue picks, regions shaded by what they cut */
+.ss-sub{display:flex;gap:8px;align-items:center;padding:6px 12px;border-bottom:1px solid var(--line);background:var(--surface)}
+.ss-sub[hidden]{display:none}
+.ss-tools .ic{font-size:14px;margin-right:4px}.ss-tools button{padding:6px 9px}
+@media (max-width:1100px){ .ss-tools .lb{display:none} .ss-tools .ic{margin:0;font-size:16px} }
+.ss-e{stroke:#2b2f33;stroke-width:1.6;fill:none;vector-effect:non-scaling-stroke}
+.ss-e.sp{stroke-width:1.6}.ss-e.on{stroke:#0a84ff;stroke-width:2.6}
+.ss-e.ss-prev{stroke:#0a84ff;stroke-dasharray:6 4}
+.ss-r{stroke:none}.ss-rn{fill:transparent}.ss-rn.hv{fill:rgba(10,132,255,.06)}
+.ss-rp{fill:#8a6a3e}.ss-rt{fill:#ffffff}.ss-r.hv{filter:brightness(1.05)}
+.ss-rsel{fill:rgba(10,132,255,.28)}
+.ss-pt{fill:#fff;stroke:#2b2f33;stroke-width:1.4}.ss-pt.on{fill:#0a84ff;stroke:#0a84ff}.ss-pt.fil{stroke:#0a84ff}
+.ss-box{fill:rgba(10,132,255,.08);stroke:#0a84ff;stroke-width:1;stroke-dasharray:4 3}
+.ss-guide{stroke:#0a84ff;stroke-width:1;stroke-dasharray:2 3;opacity:.8}
+.ss-snap{fill:none;stroke:#0a84ff;stroke-width:2}.ss-snap.close{stroke:#2f8a57;stroke-width:3}
+.ss-snapt{font:600 10.5px var(--mono);fill:#0a84ff;paint-order:stroke;stroke:#fbfaf7;stroke-width:3px}
+.ss-b{cursor:default}.ss-b rect{fill:#fff;stroke:#c9c4b8}.ss-b text{fill:#1c211e;font:600 12px var(--mono);text-anchor:middle}
+.ss-b[data-dim]{cursor:pointer}.ss-b[data-dim] rect{stroke:#0a84ff}.ss-b[data-dim] text{fill:#0a5fc0}
+.ss-b.live rect{fill:#0a84ff;stroke:#0a84ff}.ss-b.live text{fill:#fff}.ss-b.typing rect{fill:#fff;stroke:#0a84ff;stroke-width:2}.ss-b.typing text{fill:#0a5fc0}
+.ss-b.ss-tag rect{fill:rgba(255,255,255,.88)}
+.ss-hl{stroke:#0a84ff;stroke-width:1;stroke-dasharray:3 2}.ss-hd{fill:#0a84ff;stroke:#fff;stroke-width:1.5}
+.ss-edit{position:absolute;z-index:5;background:var(--surface);border:2px solid #0a84ff;border-radius:10px;padding:8px 10px;box-shadow:0 10px 28px rgba(0,0,0,.18)}
+.ss-edit label{display:flex;align-items:center;gap:8px;font-size:12.5px}.ss-edit input{width:110px;font:600 16px var(--mono);border:1px solid var(--line);border-radius:6px;padding:5px 7px}
+.ss-insp hr{border:0;border-top:1px solid var(--line);margin:2px 0}
+.ss-lo svg path.pk,.wb-shp svg path.pk{fill:#c8a97a;stroke:#1c211e;stroke-width:.8}.ss-lo svg path.th,.wb-shp svg path.th{fill:#fff;stroke:#2f6db5;stroke-width:.8}

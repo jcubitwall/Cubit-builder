@@ -134,13 +134,26 @@ const BOX_FLOOR = new THREE.MeshBasicMaterial({color:0xf4f1ea, side:THREE.Double
 /* A slab piece (inches a..b × y0..y1, d feet thick along its extrusion axis, 0..d) with every cut exactly as drawn:
    cuts = [{P:[[x,y],…] closed outline in inches, lo, hi}] — removed between lo and hi (feet along the thickness).
    Through cuts run 0..d; a pocket runs from its face to its depth. Built as one extrusion per depth band. */
+const bbx = P => { const xs=P.map(p=>p[0]), ys=P.map(p=>p[1]); return [Math.min(...xs),Math.max(...xs),Math.min(...ys),Math.max(...ys)]; };
 function cutSlab(a,b,y0,y1,d,cuts,outline){
   const zs=[...new Set([0,d,...cuts.flatMap(c=>[c.lo,c.hi]).filter(z=>z>1e-4 && z<d-1e-4)])].sort((p,q)=>p-q), out=[];
   for(let i=0;i<zs.length-1;i++){
     const z0=zs[i], z1=zs[i+1]; if(z1-z0<1e-4) continue; const mid=(z0+z1)/2;
     const sh=new THREE.Shape((outline||[[a,y0],[b,y0],[b,y1],[a,y1]]).map(([x,y])=>new THREE.Vector2(x/FT,y/FT)));
-    cuts.filter(c=>c.lo<=mid && c.hi>=mid).forEach(c=>sh.holes.push(new THREE.Path(c.P.slice(0,-1).map(([x,y])=>new THREE.Vector2(x/FT,y/FT)))));
+    const act=cuts.filter(c=>c.lo<=mid && c.hi>=mid);
+    const V2=P=>P.map(([x,y])=>new THREE.Vector2(x/FT,y/FT)), solid=(o,hs=[])=>{ const q=new THREE.Shape(V2(o)); hs.forEach(h=>q.holes.push(new THREE.Path(V2(h)))); const ig=new THREE.ExtrudeGeometry(q,{depth:z1-z0, bevelEnabled:false}); ig.translate(0,0,z0); out.push(ig); };
+    // holes that overlap (a hole inside a pocket, two pockets touching) are merged first: a slab can't have overlapping holes
+    const overlap = act.length>1 && globalThis.ClipperLib && act.some((c,i)=>act.some((d,j)=>j>i && (()=>{ const A=c.B||(c.B=bbx(c.P)), B=d.B||(d.B=bbx(d.P)); return A[0]<B[1] && B[0]<A[1] && A[2]<B[3] && B[2]<A[3]; })()));
+    if(overlap){ boolTree(act.map(c=>c.P.slice(0,-1)), [], 'union').forEach(u=>{ sh.holes.push(new THREE.Path(V2(u.outer))); u.holes.forEach(h=>solid(h)); }); }
+    else act.forEach(c=>sh.holes.push(new THREE.Path(c.P.slice(0,-1).map(([x,y])=>new THREE.Vector2(x/FT,y/FT)))));
     const g=new THREE.ExtrudeGeometry(sh,{depth:z1-z0, bevelEnabled:false, curveSegments:24}); g.translate(0,0,z0); out.push(g);
+    // islands inside a drawn cut stay standing in this band
+    // (less whatever else is cut away in this band, e.g. a hole right through the island)
+    act.forEach(c=>(c.islands||[]).forEach(I=>{
+      const others=act.filter(o=>o!==c).map(o=>o.P.slice(0,-1));
+      boolTree([I], others, 'diff').forEach(q=>{ const sh2=new THREE.Shape(q.outer.map(([x,y])=>new THREE.Vector2(x/FT,y/FT)));
+        q.holes.forEach(h=>sh2.holes.push(new THREE.Path(h.map(([x,y])=>new THREE.Vector2(x/FT,y/FT)))));
+        const ig=new THREE.ExtrudeGeometry(sh2,{depth:z1-z0, bevelEnabled:false}); ig.translate(0,0,z0); out.push(ig); }); }));
   }
   return out;
 }
@@ -162,7 +175,7 @@ function buildWallMesh(w, mat, opts={}){
   const faceCuts=[];
   [[w.inside||[], x=>L-x, true], [w.outside||[], x=>x, false]].forEach(([items,toX,ins])=>items.forEach(b=>{
     if(!b.depth) return; const P=faceShape(b,toX); if(!P) return; b.carved=false;
-    faceCuts.push({P, dep:Math.min(b.depth,(w.t||T))/FT, inside:ins, src:b}); }));
+    faceCuts.push({P, dep:Math.min(b.depth,(w.t||T))/FT, inside:ins, src:b, islands:(b.islands||[]).map(I=>I.map(([x,y])=>[toX(x),y]))}); }));
   for(let k=0;k<n;k++){
     const pg=new THREE.Group(); pg.userData.k=k;
     const [nl,nr]=w.notch||[0,0], nd=Math.min(NOTCH, (w.t||T)-0.5)/FT;
@@ -181,7 +194,10 @@ function buildWallMesh(w, mat, opts={}){
         // a drawn outline (Shape studio, STEP) over the edge: the piece minus the outlines, exactly (Clipper), holes and all
         if(edge.some(o=>o.shape==='poly') && globalThis.ClipperLib){
           const rect=[[a,y0],[b,y0],[b,y1],[a,y1]], parts=boolTree([rect], edge.map(o=>outlinePts(shapeOf(o)).slice(0,-1)), 'diff');
-          const extra=inside.map(o=>({P:outlinePts(shapeOf(o)), lo:0, hi:d})).concat(pk), close=P=>[...P, P[0]];
+          const extra=inside.map(o=>({P:outlinePts(shapeOf(o)), lo:0, hi:d, islands:o.islands})).concat(pk), close=P=>[...P, P[0]];
+          // islands of the drawn cuts over this edge stand up again, clipped to this piece
+          edge.filter(o=>o.islands).forEach(o=>o.islands.forEach(I=>boolTree([I],[rect],'inter').forEach(q=>{ const P=q.outer;
+            const ig=new THREE.ExtrudeGeometry(new THREE.Shape(P.map(([x,y])=>new THREE.Vector2(x/FT,y/FT))),{depth:d, bevelEnabled:false}); const m=new THREE.Mesh(ig, mat); m.position.z=-t; pg.add(m); })));
           const within=(P,q)=>{ let c=false; for(let i=0,j=P.length-1;i<P.length;j=i++){ const u=P[i], v=P[j]; if((u[1]>q[1])!==(v[1]>q[1]) && q[0]<(v[0]-u[0])*(q[1]-u[1])/(v[1]-u[1])+u[0]) c=!c; } return c; };
           parts.forEach(pt=>{ const mine=extra.filter(c=>within(pt.outer, c.P[0])), holes=pt.holes.map(h=>({P:close(h), lo:0, hi:d}));
             cutSlab(a,b,y0,y1,d,holes.concat(mine),pt.outer).forEach(g=>{ const m=new THREE.Mesh(g, mat); m.position.z=-t; pg.add(m); }); });
@@ -189,7 +205,7 @@ function buildWallMesh(w, mat, opts={}){
         }
         const outline = edge.length ? notchedOutline(a,b,y0,y1, edge.map(shapeOf)) || null : null;
         if(inside.length || pk.length || outline){
-          const thr=inside.map(o=>({P:outlinePts(shapeOf(o)), lo:0, hi:d}));
+          const thr=inside.map(o=>({P:outlinePts(shapeOf(o)), lo:0, hi:d, islands:o.islands}));
           cutSlab(a,b,y0,y1,d,thr.concat(pk),outline).forEach(g=>{ const m=new THREE.Mesh(g, mat); m.position.z=-t; pg.add(m); });
         } else {
           const m=new THREE.Mesh(new THREE.BoxGeometry((b-a)/FT,(y1-y0)/FT,d),mat);
@@ -258,13 +274,13 @@ function buildLayerMesh(L, mat){
   const zs=[...new Set([0,wid,...holes.flatMap(h=>[h.z0,h.z1])])].filter(v=>v>=0&&v<=wid).sort((a,b)=>a-b);
   const lsh = h => shapeOf({...h, y:h.z, h:h.d, d:h.dia, ends:h.ends});   // layer coords: x along, z across
   // pockets from the top or the bottom: carved to their depth (extrusion z: 0 = top face, t = bottom face)
-  const bcuts=blind.map(h=>{ const dp=Math.min(h.depth,(L.t||4.5))/FT; return {P:outlinePts(lsh(h)), lo:h.face==='bottom'?t-dp:0, hi:h.face==='bottom'?t:dp, src:h}; });
+  const bcuts=blind.map(h=>{ const dp=Math.min(h.depth,(L.t||4.5))/FT; return {P:outlinePts(lsh(h)), lo:h.face==='bottom'?t-dp:0, hi:h.face==='bottom'?t:dp, src:h, islands:h.islands}; });
   const carvedSet=new Set();
   const piece=(x0,x1,z0,z1)=>{
     const inside=shaped.filter(h=>h.x>=x0-1e-6 && h.x+h.w<=x1+1e-6 && h.z>=z0-1e-6 && h.z+h.d<=z1+1e-6);
     const pk=carvable(bcuts.map(c=>({...c})), x0,x1,z0,z1); pk.forEach(c=>carvedSet.add(c.src));
     if(inside.length || pk.length){
-      cutSlab(x0,x1,z0,z1,t, inside.map(h=>({P:outlinePts(lsh(h)), lo:0, hi:t})).concat(pk)).forEach(geo=>{
+      cutSlab(x0,x1,z0,z1,t, inside.map(h=>({P:outlinePts(lsh(h)), lo:0, hi:t, islands:h.islands})).concat(pk)).forEach(geo=>{
         const m=new THREE.Mesh(geo, mat); m.rotation.x=Math.PI/2; m.position.y=t; g.add(m); });
       return; }
     const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT,t,(z1-z0)/FT),mat); m.position.set((x0+x1)/2/FT,t/2,(z0+z1)/2/FT); g.add(m); };

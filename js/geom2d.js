@@ -57,7 +57,21 @@ function fillet(c, i){
   return { A, B, cx, cy, R, a0, sweep:sw, t };
 }
 /* the contour as points (closed: the first point isn't repeated) */
+/* a spline drawn through its points (Shapr3D's fit-point spline): smooth handles worked out from the neighbours
+   (Catmull-Rom), so the curve passes through every point it was drawn with */
+function splineNodes(c){
+  const n=c.nodes, N=n.length; if(N<2) return n;
+  return n.map((p,i)=>{
+    const prev = i>0 ? n[i-1] : c.closed ? n[N-1] : null, next = i<N-1 ? n[i+1] : c.closed ? n[0] : null;
+    const q={x:p.x, y:p.y};
+    if(prev && next){ const t=[(next.x-prev.x)/6, (next.y-prev.y)/6]; q.hi=[p.x-t[0], p.y-t[1]]; q.ho=[p.x+t[0], p.y+t[1]]; }
+    else if(next){ q.ho=[p.x+(next.x-p.x)/3, p.y+(next.y-p.y)/3]; }
+    else if(prev){ q.hi=[p.x-(p.x-prev.x)/3, p.y-(p.y-prev.y)/3]; }
+    return q;
+  });
+}
 function flatten(c, tol=0.01){
+  if(c.spline) c={...c, nodes:splineNodes(c), spline:false, b:{}};
   if(c.kind==='circle'){ const out=[]; arcPts(c.cx, c.cy, c.rad, 0, 2*Math.PI, tol, out); out.pop(); return out; }
   const n=c.nodes, N=n.length; if(N<2) return n.map(P);
   const F=n.map((_,i)=>fillet(c,i)), out=[];
@@ -90,7 +104,7 @@ const toCl = pts => pts.map(([x,y])=>({X:Math.round(x*SCALE), Y:Math.round(y*SCA
 const fromCl = path => path.map(p=>[p.X/SCALE, p.Y/SCALE]);
 function offset(paths, delta, round=true){
   const C=CL(); if(!C) return [];
-  const co=new C.ClipperOffset(2, 0.002*SCALE); co.AddPaths(paths.map(toCl), round?C.JoinType.jtRound:C.JoinType.jtMiter, C.EndType.etClosedPolygon);
+  const co=new C.ClipperOffset(round?2:20, 0.002*SCALE); co.AddPaths(paths.map(toCl), round?C.JoinType.jtRound:C.JoinType.jtMiter, C.EndType.etClosedPolygon);
   const out=new C.Paths(); co.Execute(out, delta*SCALE); return out.map(fromCl).filter(p=>p.length>2);
 }
 function bool(subj, clip, op){
@@ -107,14 +121,19 @@ function boolTree(subj, clip, op){
   return C.JS.PolyTreeToExPolygons(tree).map(e=>({ outer:e.outer.map(p=>[p.X/SCALE,p.Y/SCALE]), holes:e.holes.map(h=>h.map(p=>[p.X/SCALE,p.Y/SCALE])) }));
 }
 /* what the ¾″ bit really leaves of a pocket / hole outline (inside corners rounded to ⅜″) */
-const asCut = (pts, R=R_BIT) => offset(offset([pts], -R), R);
+const asCut = (pts, R=R_BIT) => offset(offset(Array.isArray(pts[0]?.[0]) ? pts : [pts], -R), R);
 /* the bit's paths, tool centres: a through cut = the loops ⅜″ inside the outline; a pocket = rings from the middle
    out, 0.3″ apart, the last one ⅜″ inside the outline (the finish pass). Holes run clockwise, pockets climb. */
 function toolRings(outline, thru, R=R_BIT, step=STEP){
-  const first=offset([outline], -R); if(!first.length) return [];
-  const cw = p => area(p)<0 ? p : p.slice().reverse(), ccw = p => area(p)>0 ? p : p.slice().reverse(), close = p => [...p, p[0]];
-  if(thru) return first.map(p=>close(cw(p)));
-  const rings=[]; for(let k=0;k<400;k++){ const o=k? offset([outline], -(R+k*step)) : first; if(!o.length) break; o.forEach(p=>rings.push(close(ccw(p)))); }
+  // outline: one ring, or [outer, ...islands] (a region with islands). Outer anticlockwise, islands clockwise.
+  const rings0 = Array.isArray(outline[0]?.[0]) ? outline : [outline];
+  const paths = rings0.map((p,i)=> i===0 ? (area(p)>0?p:p.slice().reverse()) : (area(p)<0?p:p.slice().reverse()));
+  const close = p => [...p, p[0]];
+  const first=offset(paths, -R); if(!first.length) return [];
+  // through: the bit goes clockwise inside the hole and anticlockwise round an island (conventional, as the shop's files)
+  if(thru) return first.map(p=>close(p.slice().reverse()));
+  // pocket: rings from the middle out, climbing (anticlockwise round the outside, clockwise round islands)
+  const rings=[]; for(let k=0;k<400;k++){ const o=k? offset(paths, -(R+k*step)) : first; if(!o.length) break; o.forEach(p=>rings.push(close(p))); }
   return rings.reverse();
 }
 /* corners the bit can't make: inside corners of the cut (convex corners of the outline) with a radius under ⅜″ */
@@ -174,4 +193,87 @@ function fitArcs(pts, tol=0.0015){
   }
   return out;
 }
-export { R_BIT, flatten, area, bbox, bboxAll, segCount, segType, segLength, bulgeArc, fillet, offset, bool, boolTree, asCut, toolRings, tightCorners, mapAll, mirrorAll, normalize, fitArcs };
+/* ---------------------------------------------------------------- regions, the Shapr3D way
+   Every area the sketch closes off is a region, whatever drew it: overlapping outlines and lines across an outline
+   split it. regionsOf(contours) → [{ outer:[[x,y]…] anticlockwise, holes:[…] clockwise, area }] */
+function arrangement(contours, tol=0.01){
+  const K=1e4, key=(x,y)=>Math.round(x*K)+','+Math.round(y*K);
+  // 1. every curve as straight pieces
+  const segs=[];
+  contours.forEach(c=>{ const pts=flatten(c, tol); if(pts.length<2) return; const closed=c.kind==='circle'||c.closed;
+    for(let i=0;i<pts.length-(closed?0:1);i++){ const a=pts[i], b=pts[(i+1)%pts.length]; if(hyp(b[0]-a[0],b[1]-a[1])>1e-7) segs.push({a, b, cuts:[0,1]}); } });
+  // 2. where pieces cross (a sweep along x keeps it quick)
+  const bx=segs.map((s,i)=>({i, x0:Math.min(s.a[0],s.b[0]), x1:Math.max(s.a[0],s.b[0]), y0:Math.min(s.a[1],s.b[1]), y1:Math.max(s.a[1],s.b[1])})).sort((p,q)=>p.x0-q.x0);
+  const E=1e-9, cross=[];
+  for(let u=0;u<bx.length;u++){ const A=bx[u], s=segs[A.i];
+    for(let v=u+1;v<bx.length && bx[v].x0<=A.x1+1e-7;v++){ const B=bx[v]; if(B.y0>A.y1+1e-7 || B.y1<A.y0-1e-7) continue; const t=segs[B.i];
+      const r=sub(s.b,s.a), q=sub(t.b,t.a), d=r[0]*q[1]-r[1]*q[0], w=sub(t.a,s.a);
+      if(Math.abs(d)<1e-12){   // parallel: if they lie on one line, each one's ends cut the other
+        if(Math.abs(w[0]*r[1]-w[1]*r[0])>1e-7) continue;
+        const rr=r[0]*r[0]+r[1]*r[1], qq=q[0]*q[0]+q[1]*q[1];
+        [t.a,t.b].forEach(p=>{ const k=((p[0]-s.a[0])*r[0]+(p[1]-s.a[1])*r[1])/rr; if(k>E && k<1-E) s.cuts.push(k); });
+        [s.a,s.b].forEach(p=>{ const k=((p[0]-t.a[0])*q[0]+(p[1]-t.a[1])*q[1])/qq; if(k>E && k<1-E) t.cuts.push(k); });
+        continue; }
+      const ts=(w[0]*q[1]-w[1]*q[0])/d, us=(w[0]*r[1]-w[1]*r[0])/d;
+      if(ts>-E && ts<1+E && us>-E && us<1+E){ s.cuts.push(Math.min(1,Math.max(0,ts))); t.cuts.push(Math.min(1,Math.max(0,us)));
+        if(ts>1e-6 && ts<1-1e-6 || us>1e-6 && us<1-1e-6) cross.push([s.a[0]+r[0]*ts, s.a[1]+r[1]*ts]); } } }
+  // 3. a graph of points and edges
+  const V=new Map(), pt=[], vid=(x,y)=>{ const k=key(x,y); let i=V.get(k); if(i==null){ i=pt.length; V.set(k,i); pt.push([x,y]); } return i; };
+  const edges=new Set(), adj=[];
+  segs.forEach(s=>{ const c=[...new Set(s.cuts)].sort((a,b)=>a-b); let prev=null;
+    c.forEach(k=>{ const p=[s.a[0]+(s.b[0]-s.a[0])*k, s.a[1]+(s.b[1]-s.a[1])*k], id=vid(p[0],p[1]);
+      if(prev!=null && prev!==id){ const ek=prev<id?prev+'_'+id:id+'_'+prev; if(!edges.has(ek)){ edges.add(ek); (adj[prev] ||= []).push(id); (adj[id] ||= []).push(prev); } }
+      prev=id; }); });
+  // 4. loose ends can't close anything off: prune them
+  const deg=i=>(adj[i]||[]).length; let stack=pt.map((_,i)=>i).filter(i=>deg(i)===1);
+  while(stack.length){ const i=stack.pop(); if(deg(i)!==1) continue; const j=adj[i][0]; adj[i]=[]; adj[j]=adj[j].filter(x=>x!==i); if(deg(j)===1) stack.push(j); }
+  // 5. walk the faces: at each point take the next edge turning clockwise (the region on the left)
+  const ang=(i,j)=>Math.atan2(pt[j][1]-pt[i][1], pt[j][0]-pt[i][0]);
+  const order=adj.map((a,i)=>(a||[]).slice().sort((p,q)=>ang(i,p)-ang(i,q)));
+  const used=new Set(), faces=[];
+  order.forEach((nb,i)=>nb.forEach(j=>{ if(used.has(i+'>'+j)) return; const ring=[]; let u=i, v=j, guard=0;
+    while(!used.has(u+'>'+v) && guard++<200000){ used.add(u+'>'+v); ring.push(pt[u]); const o=order[v], k=o.indexOf(u); const w=o[(k-1+o.length)%o.length]; u=v; v=w; }
+    if(ring.length>2) faces.push(ring); }));
+  // 6. anticlockwise faces are regions; clockwise ones are the outsides of separate pieces, which are islands in the
+  //    smallest region around them
+  const regs=faces.filter(f=>area(f)>1e-6).map(f=>({outer:f, holes:[], area:area(f)}));
+  const outs=faces.filter(f=>area(f)<-1e-6);
+  outs.forEach(o=>{ const p=o[0];
+    // the region it sits in: smallest one containing it that isn't this piece's own face
+    let best=null; regs.forEach(r=>{ if(r.area<=-area(o)+1e-6) return; if(!inPoly(p, r.outer) || onRing(p, r.outer)) return; if(!best || r.area<best.area) best=r; });
+    if(best) best.holes.push(o); });
+  regs.forEach(r=>{ r.net=r.area+r.holes.reduce((s,h)=>s+area(h),0); });
+  const out=regs.filter(r=>r.net>1e-5); out.cross=cross; return out;
+}
+function inPoly(p, P){ let c=false; for(let i=0,j=P.length-1;i<P.length;j=i++){ const a=P[i], b=P[j]; if((a[1]>p[1])!==(b[1]>p[1]) && p[0]<(b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1])+a[0]) c=!c; } return c; }
+function onRing(p, P){ for(let i=0;i<P.length;i++){ const a=P[i], b=P[(i+1)%P.length]; if(distToSeg(p,a,b)<1e-6) return true; } return false; }
+function distToSeg(p, a, b){ const dx=b[0]-a[0], dy=b[1]-a[1], L=dx*dx+dy*dy; let t=L?((p[0]-a[0])*dx+(p[1]-a[1])*dy)/L:0; t=Math.max(0,Math.min(1,t)); return hyp(p[0]-a[0]-t*dx, p[1]-a[1]-t*dy); }
+const inRegion = (p, r) => inPoly(p, r.outer) && !r.holes.some(h=>inPoly(p, h));
+/* a point well inside a region (for its label and to remember it by): the middle of the widest gap on a few
+   horizontal lines across it */
+function interiorPoint(r){
+  const B=bbox(r.outer), rings=[r.outer, ...r.holes]; let best=null;
+  for(let k=1;k<=9;k++){ const y=B.y0+B.h*k/10, xs=[];
+    rings.forEach(P=>{ for(let i=0,j=P.length-1;i<P.length;j=i++){ const a=P[i], b=P[j]; if((a[1]>y)!==(b[1]>y)) xs.push(a[0]+(y-a[1])*(b[0]-a[0])/(b[1]-a[1])); } });
+    xs.sort((a,b)=>a-b);
+    for(let i=0;i+1<xs.length;i+=2){ const w=xs[i+1]-xs[i]; if(!best || w>best.w) best={w, p:[(xs[i]+xs[i+1])/2, y]}; } }
+  return best ? best.p : r.outer[0];
+}
+/* fewer points on a polyline, within tol (Douglas-Peucker; closed rings keep their start) */
+function simplify(pts, tol=0.002, closed=true){
+  if(pts.length<4) return pts.slice();
+  const keep=new Array(pts.length).fill(false); keep[0]=keep[pts.length-1]=true;
+  const st=[[0,pts.length-1]];
+  while(st.length){ const [a,b]=st.pop(); let m=-1, md=tol; for(let i=a+1;i<b;i++){ const d=distToSeg(pts[i],pts[a],pts[b]); if(d>md){ md=d; m=i; } } if(m>0){ keep[m]=true; st.push([a,m],[m,b]); } }
+  return pts.filter((_,i)=>keep[i]);
+}
+/* where a polyline crosses all the others: distances along it (for Trim) */
+function crossings(line, others){
+  const out=[]; let acc=0;
+  for(let i=0;i+1<line.length;i++){ const s=line[i], e=line[i+1], r=sub(e,s), L=hyp(r[0],r[1]);
+    others.forEach(Q=>{ for(let k=0;k+1<Q.length;k++){ const t0=Q[k], q=sub(Q[k+1],t0), d=r[0]*q[1]-r[1]*q[0]; if(Math.abs(d)<1e-12) continue; const w=sub(t0,s);
+      const ts=(w[0]*q[1]-w[1]*q[0])/d, us=(w[0]*r[1]-w[1]*r[0])/d; if(ts>=-1e-9 && ts<=1+1e-9 && us>=-1e-9 && us<=1+1e-9) out.push({d:acc+ts*L, p:[s[0]+r[0]*ts, s[1]+r[1]*ts]}); } });
+    acc+=L; }
+  return out.sort((a,b)=>a.d-b.d);
+}
+export { arrangement, inRegion, interiorPoint, simplify, crossings, distToSeg, splineNodes, inPoly, R_BIT, flatten, area, bbox, bboxAll, segCount, segType, segLength, bulgeArc, fillet, offset, bool, boolTree, asCut, toolRings, tightCorners, mapAll, mirrorAll, normalize, fitArcs };

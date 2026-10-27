@@ -16,7 +16,7 @@ import { buildHome } from './scene3d.js';
 import { renderSide, toast } from './sidebar.js';
 import { choose } from './state.js';
 import { fin } from './format.js';
-import { SHAPELIB, placeItem, regionsOf } from './shapes.js';
+import { SHAPELIB, placeItem, regionsOf, shapeThumb } from './shapes.js';
 import { openShapeStudio } from './shape-studio.js';
 import { flatten, bboxAll } from './geom2d.js';
 import { makeHistory, histButtons, bindHistory } from './local-history.js';
@@ -30,7 +30,7 @@ const r8 = v => Math.round(v*8)/8;
 const ROUND_RO = 33;   // Cubit's round window is exactly 32″ across, so its round rough opening is 33″
 let W=null, view='outside', sel=null, dlg=null, origin=null, forSlot=null, RD=null, rulesOpen=false, shapePick=false;
 /* the Shape library as tappable thumbnails */
-function shapeThumb(s){ const B=bboxAll(s.contours), k=44/Math.max(B.w,B.h,1); return `<svg viewBox="-2 -2 48 48" width="48" height="48" aria-hidden="true">${s.contours.filter(c=>c.kind==='circle'||c.closed).map(c=>`<path d="M${flatten(c,0.05).map(([x,y])=>`${((x-B.x0)*k).toFixed(1)} ${(44-(y-B.y0)*k).toFixed(1)}`).join('L')}Z" class="${c.cut==='thru'?'th':'pk'}"/>`).join('')}</svg>`; }
+/* (shape thumbnails: shapeThumb in shapes.js) */
 function shapePicker(){ return `<div class="wb-shapes">${SHAPELIB.length ? SHAPELIB.map(s=>`<button class="wb-shp" data-shape="${esc(s.id)}">${shapeThumb(s)}<span><b>${esc(s.name)}</b><small>${fin(s.w||0)} × ${fin(s.h||0)}</small></span></button>`).join('') : '<p class="note">No shapes yet: Draw a new shape.</p>'}</div>`; }
 const HIST = makeHistory(()=>(W), v=>{ W=v; sel=null; });
 
@@ -138,7 +138,8 @@ function elevation(){
     else g+=`<rect x="${x}" y="${H-o.y-o.h}" width="${o.w}" height="${o.h}" class="wb-op ${o.kind}${on?' on':''}" data-k="op" data-i="${i}"/><text x="${x+o.w/2}" y="${H-o.y-o.h/2}" class="wb-lab">${o.kind==='opening'?'cased':o.kind}</text>`; });
   (W.shapes||[]).forEach((it,i)=>{ const on=sel&&sel.k==='sh'&&sel.i===i, far=it.face!==near(view), t=W.t;
     let p=''; regionsOf(it).forEach(r=>{ const thru=r.cut==='thru'||r.depth>=t-0.0625;
-      p+=`<path d="M${r.pts.map(([x,y])=>{ const X=it.x+x; return `${(view==='inside'?L()-X:X).toFixed(2)} ${(H-it.y-y).toFixed(2)}`; }).join('L')}Z" class="${thru?'wb-op':'wb-box wb-pk'+(far?' far':'')}${on?' on':''}"/>`; });
+      const ring=P=>'M'+P.map(([x,y])=>{ const X=it.x+x; return `${(view==='inside'?L()-X:X).toFixed(2)} ${(H-it.y-y).toFixed(2)}`; }).join('L')+'Z';
+      p+=`<path d="${[r.pts,...(r.holes||[])].map(ring).join(' ')}" fill-rule="evenodd" class="${thru?'wb-op':'wb-box wb-pk'+(far?' far':'')}${on?' on':''}"/>`; });
     const x=drawX('sh',it); p+=`<rect x="${x-3}" y="${H-it.y-it.h-3}" width="${it.w+6}" height="${it.h+6}" class="wb-hit"/>`;
     g+=`<g class="wb-shape${on?' on':''}" data-k="sh" data-i="${i}">${p}</g>`; });
   ['inside','outside'].forEach(k=>W[k].forEach((b,i)=>{ const x=drawX(k,b), on=sel&&sel.k===k&&sel.i===i, far = k!==near(view);

@@ -59,7 +59,7 @@ function outlinePts(S, seg=40){
 /* moves (or mirrors) the drawn points of an item along the wall: f maps x → x (its own x is set by the caller) */
 function mapX(o, f){
   const m=P=>P.map(([x,y])=>[+f(x).toFixed(4),y]);
-  return {...o, ...(o.ends?{ends:m(o.ends)}:{}), ...(o.path?{path:m(o.path)}:{}), ...(o.tool?{tool:o.tool.map(m)}:{})};
+  return {...o, ...(o.ends?{ends:m(o.ends)}:{}), ...(o.path?{path:m(o.path)}:{}), ...(o.islands?{islands:o.islands.map(m)}:{}), ...(o.tool?{tool:o.tool.map(m)}:{})};
 }
 /* a face item (box, pocket, round recess, chase…) as an outline in face coords; toX maps its x to the face's x.
    Items are placed by their centre. null = an old-style marker with no drawn size (plug/switch symbol). */

@@ -22,7 +22,7 @@ import { state } from './state.js';
 import { gcode, TOOLS, SKIN, THRU } from './gcode.js';
 import { cncSettings, zip } from './cnc.js';
 import { fin } from './format.js';
-import { bool, toolRings, area } from './geom2d.js';
+import { bool, boolTree, toolRings, area } from './geom2d.js';
 
 const BLANK = 48, R = TOOLS[13].d/2;
 const SLOT = { in:1.375, z:0.53, over:0.1875 };
@@ -124,8 +124,9 @@ function roundOverJoint(ops, o, U, W, warn){
    is cut with the bit ⅜″ inside it, so the cut reaches right to the edge and the piece drops out */
 function polyOverJoint(ops, o, U, W, warn){
   const pts=o.path.map(([x,y])=>[U(x), y]), clip=[[-2*R,-1],[W+2*R,-1],[W+2*R,H+1],[-2*R,H+1]];
-  const parts=bool([pts],[clip],'inter'); let n=0;
-  parts.forEach(P=>toolRings(P,true).forEach(r=>{ const xs=r.map(p=>p[0]), ys=r.map(p=>p[1]);
+  const isl=(o.islands||[]).map(I=>I.map(([x,y])=>[U(x), y]));
+  const parts=boolTree(bool([pts],[clip],'inter'), isl, 'diff'); let n=0;
+  parts.forEach(P=>toolRings([P.outer, ...P.holes],true).forEach(r=>{ const xs=r.map(p=>p[0]), ys=r.map(p=>p[1]);
     ops.push({tp:'shaped', kind:'loop', pts:r, what:`${o.name||'shaped cut'} (over the panel joint)`, arcs:true, passes:[THRU], waste: n++===0 ? [Math.max(0,Math.min(...xs)), Math.min(W,Math.max(...xs)), Math.min(...ys), Math.max(...ys)] : null}); }));
   if(!n) warn.push(`${o.name||'shaped cut'}: its part on this panel is narrower than the bit`);
 }

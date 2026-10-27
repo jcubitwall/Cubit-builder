@@ -22,7 +22,7 @@ import { slotsFor } from './layout.js';
 import { edgeSides, isDrawnLight } from './lights.js';
 import { LAYER_KINDS } from './config.js';
 import { fin } from './format.js';
-import { SHAPELIB, placeItem, regionsOf } from './shapes.js';
+import { SHAPELIB, placeItem, regionsOf, shapeThumb } from './shapes.js';
 import { openShapeStudio } from './shape-studio.js';
 import { flatten, bboxAll } from './geom2d.js';
 import { makeHistory, histButtons, bindHistory } from './local-history.js';
@@ -35,7 +35,7 @@ let Lr=null, view='top', sel=null, dlg=null, origin=null, forSlot=null, ssel=nul
 /* placed shapes: screen x of the left edge of the box, and back */
 const ssx = it => view==='top' ? it.x : L()-it.x-it.w;
 const fromSsx = (it, x) => view==='top' ? x : L()-x-it.w;
-function shapeThumb(s){ const B=bboxAll(s.contours), k=44/Math.max(B.w,B.h,1); return `<svg viewBox="-2 -2 48 48" width="48" height="48" aria-hidden="true">${s.contours.filter(c=>c.kind==='circle'||c.closed).map(c=>`<path d="M${flatten(c,0.05).map(([x,y])=>`${((x-B.x0)*k).toFixed(1)} ${(44-(y-B.y0)*k).toFixed(1)}`).join('L')}Z" class="${c.cut==='thru'?'th':'pk'}"/>`).join('')}</svg>`; }
+/* (shape thumbnails: shapeThumb in shapes.js) */
 const HIST = makeHistory(()=>(Lr), v=>{ Lr=v; sel=null; ssel=null; });
 
 function blank(len=24, kind='ceiling-int'){ const K=LAYER_KINDS[kind]; return { id:null, name:'', kind, len, t:K.t, z:K.z, seams:[], holes:[] }; }
@@ -107,7 +107,8 @@ function plan(){
   });
   (Lr.shapes||[]).forEach((it,i)=>{ const on=ssel===i, far=it.face!==near(); let p='';
     regionsOf(it).forEach(r=>{ const thru=r.cut==='thru'||r.depth>=T()-0.0625;
-      p+=`<path d="M${r.pts.map(([x,y])=>{ const X=it.x+x; return `${(view==='top'?X:L()-X).toFixed(2)} ${(it.z+it.h-y).toFixed(2)}`; }).join('L')}Z" class="${thru?'wb-op lb-thru':'wb-box wb-pk'+(far?' far':'')}"/>`; });
+      const ring=P=>'M'+P.map(([x,y])=>{ const X=it.x+x; return `${(view==='top'?X:L()-X).toFixed(2)} ${(it.z+it.h-y).toFixed(2)}`; }).join('L')+'Z';
+      p+=`<path d="${[r.pts,...(r.holes||[])].map(ring).join(' ')}" fill-rule="evenodd" class="${thru?'wb-op lb-thru':'wb-box wb-pk'+(far?' far':'')}"/>`; });
     const x=ssx(it); p+=`<rect x="${x-3}" y="${it.z-3}" width="${it.w+6}" height="${it.h+6}" class="wb-hit"/>`;
     g+=`<g class="wb-shape${on?' on':''}" data-k="s" data-i="${i}">${p}</g>`; });
   if(ssel!=null){ const it=(Lr.shapes||[])[ssel]; if(it){ const x=ssx(it), ym=it.z+it.h/2, xm=x+it.w/2;
