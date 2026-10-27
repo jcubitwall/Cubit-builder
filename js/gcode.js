@@ -30,6 +30,7 @@
      { kind:'rings',  rings:[[[x,y],…],…], z }                any drawn pocket: clearing rings (tool centres), inner first;
                                                               lifts between rings that are far apart
 */
+import { fitArcs } from './geom2d.js';
 const TOOLS = { 13: { name:'End mill ¾″ (SIP panel cutter)', d:0.75, rpm:10000, feed:180, plunge:150, step:0.3 } };
 const THRU = -0.05, SKIN = 0.125;
 const f4 = v => (Math.abs(v)<5e-5 ? 0 : v).toFixed(4);
@@ -63,6 +64,8 @@ function gcode(job){
   const lineTo = (x,y) => P.feed(x,y,null,T.feed);
   const arcTo = (cw,x,y,i,j) => P.arc(cw,x,y,i,j,T.feed);
   const plunge = z => P.feed(null,null,z,T.plunge);
+  // a drawn path: runs of points along one circle go out as true arcs (G2 / G3), the rest as lines
+  const follow = Q => { let cur=Q[0]; fitArcs(Q).forEach(s=>{ if(s.k==='A') arcTo(s.cw, s.p[0], s.p[1], s.c[0]-cur[0], s.c[1]-cur[1]); else lineTo(s.p[0], s.p[1]); cur=s.p; }); };
   const down = (x,y,z,newSeg) => {
     if(first){ P.rapid(x,y,null); P.L(`G0   Z${f4(safe)}`); first=false; }   // after the header Z is written again
     else if(newSeg) P.rapid(x,y,safe,true);
@@ -118,6 +121,7 @@ function gcode(job){
     else if(op.kind==='loop'){
       const zs=op.passes||[SKIN, op.z??THRU], Q=op.pts;
       zs.forEach((z,i)=>{ if(i) plunge(z); else down(Q[0][0], Q[0][1], z, newSeg);
+        if(op.arcs){ follow(Q); if(Math.hypot(Q[0][0]-Q[Q.length-1][0],Q[0][1]-Q[Q.length-1][1])>1e-6) lineTo(Q[0][0],Q[0][1]); return; }
         Q.slice(1).forEach(([x,y])=>lineTo(x,y)); if(Math.hypot(Q[0][0]-Q[Q.length-1][0],Q[0][1]-Q[Q.length-1][1])>1e-6) lineTo(Q[0][0],Q[0][1]); });
     }
     else if(op.kind==='rings'){
@@ -126,7 +130,7 @@ function gcode(job){
         if(i===0) down(Q[0][0], Q[0][1], op.z, newSeg);
         else if(Math.hypot(Q[0][0]-last[0], Q[0][1]-last[1]) > T.step*2){ P.rapid(null,null,near); P.rapid(Q[0][0],Q[0][1],null); plunge(op.z); }
         else lineTo(Q[0][0], Q[0][1]);
-        Q.slice(1).forEach(([x,y])=>lineTo(x,y)); last=Q[Q.length-1]; });
+        if(op.arcs) follow(Q); else Q.slice(1).forEach(([x,y])=>lineTo(x,y)); last=Q[Q.length-1]; });
     }
     else if(op.kind==='part'){
       const {x0,y0,x1,y1}=op, zs=op.passes||[SKIN, THRU];

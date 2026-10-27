@@ -1,5 +1,6 @@
 /* Cubit Builder — panels.js */
 import { FT, H, PW, NOTCH } from './config.js';
+import { expandWallShapes, expandLayerShapes } from './shapes.js';
 
 /* ============================================================ panel geometry (shared by 3D + 2D) */
 /* Walls are measured in inches from the LEFT END SEEN FROM OUTSIDE (x = 0) to L.
@@ -21,6 +22,8 @@ function panelAt(w, x){
 function bodyWall(slot, w){
   if(!w || w.fitted) return w;
   const tl=slot?.trim?.[0]||0, tr=slot?.trim?.[1]||0, full=w.len*FT, L=full-tl-tr;
+  // shapes from the Shape studio become ordinary cuts first (exact outlines with their tool paths)
+  if(w.shapes?.length){ const X=expandWallShapes(w); w={ ...w, openings:[...(w.openings||[]), ...X.openings], inside:[...(w.inside||[]), ...X.inside], outside:[...(w.outside||[]), ...X.outside] }; }
   const clip = o => {
     if(isShaped(o)){   // exact shapes move, they're never squared off
       const x0=o.x-tl; if(x0+o.w<=0 || x0>=L) return null;
@@ -69,7 +72,7 @@ function faceShape(b, toX){
 }
 /* A round hole / slot that runs over a panel joint is cut exactly on both panels: each panel gets its part of the
    curve as a notch in its edge, never a square. clipStrip keeps the part of a closed outline between x=a and x=b. */
-const crossesJoint = o => (o.shape==='round' || o.shape==='slot');
+const crossesJoint = o => (o.shape==='round' || o.shape==='slot' || o.shape==='poly');
 function clipStrip(P, a, b){
   const clip=(pts, inside, cut)=>{ const out=[]; for(let i=0;i<pts.length;i++){ const p=pts[i], q=pts[(i+1)%pts.length], pi=inside(p), qi=inside(q);
       if(pi) out.push(p); if(pi!==qi) out.push(cut(p,q)); } return out; };
@@ -132,7 +135,7 @@ function thumbSVG(w){
 
 /* a floor / ceiling layer's holes plus the four corner spine notches (unless the scan already has one there) */
 function layerHoles(L){
-  const len=L.len*FT, wid=96, n=NOTCH, holes=(L.holes||[]).slice();
+  const len=L.len*FT, wid=96, n=NOTCH, holes=(L.holes||[]).concat(L.shapes?.length ? expandLayerShapes(L) : []);
   [[0,0],[len-n,0],[0,wid-n],[len-n,wid-n]].forEach(([x,z])=>{
     const cx=x+n/2, cz=z+n/2;
     if(!holes.some(h=>cx>h.x-0.01 && cx<h.x+h.w+0.01 && cz>h.z-0.01 && cz<h.z+h.d+0.01)) holes.push({x,z,w:n,d:n,notch:true});

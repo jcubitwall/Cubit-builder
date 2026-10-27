@@ -52,7 +52,8 @@ function mirrorWall(w){
   // openings are placed by their left edge, face items by their centre; drawn outlines and tool paths mirror too
   const L=w.len*12, fo=o=>({...mapX(o, x=>L-x), x:+(L-o.x-(o.w||0)).toFixed(4)}), fi=b=>({...mapX(b, x=>L-x), x:+(L-b.x).toFixed(4)});
   return {...w, id:w.id+'~m', name:w.name+' · mirrored', mirrorOf:w.id, src:'mirror',
-    openings:(w.openings||[]).map(fo).sort((a,b)=>a.x-b.x), inside:(w.inside||[]).map(fi), outside:(w.outside||[]).map(fi)};
+    openings:(w.openings||[]).map(fo).sort((a,b)=>a.x-b.x), inside:(w.inside||[]).map(fi), outside:(w.outside||[]).map(fi),
+    ...(w.shapes?{shapes:w.shapes.map(s=>({...s, x:+(L-s.x-s.w).toFixed(4), mx:!s.mx}))}:{})};
 }
 const byId = id => {
   if(!id) return undefined;
@@ -76,7 +77,8 @@ function mirrorLayer(l, mx, mz, id){
   const L=l.len*12, W=96, fx=v=>mx?L-v:v, fz=v=>mz?W-v:v, mp=P=>P.map(([a,b])=>[+fx(a).toFixed(4), +fz(b).toFixed(4)]);
   return {...l, id, name:l.name+` · ${mx&&mz?'mirrored + flipped':mx?'mirrored':'flipped'}`, mirrorOf:l.id, src:'mirror',
     holes:(l.holes||[]).map(h=>({...h, x:+(mx?L-h.x-(h.w||0):h.x).toFixed(4), z:+(mz?W-h.z-(h.d||0):h.z).toFixed(4), ...(h.ends?{ends:mp(h.ends)}:{}), ...(h.path?{path:mp(h.path)}:{}), ...(h.tool?{tool:h.tool.map(mp)}:{})})),
-    seams:(l.seams||[]).map(s=>typeof s==='number' ? (mx?L-s:s) : s)};
+    seams:(l.seams||[]).map(s=>typeof s==='number' ? (mx?L-s:s) : s),
+    ...(l.shapes?{shapes:l.shapes.map(s=>({...s, x:+(mx?L-s.x-s.w:s.x).toFixed(4), z:+(mz?W-s.z-s.h:s.z).toFixed(4), mx:mx?!s.mx:!!s.mx, my:mz?!s.my:!!s.my}))}:{})};
 }
 const layerById = id => {
   if(!id) return undefined;

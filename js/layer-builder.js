@@ -22,14 +22,21 @@ import { slotsFor } from './layout.js';
 import { edgeSides, isDrawnLight } from './lights.js';
 import { LAYER_KINDS } from './config.js';
 import { fin } from './format.js';
+import { SHAPELIB, placeItem, regionsOf } from './shapes.js';
+import { openShapeStudio } from './shape-studio.js';
+import { flatten, bboxAll } from './geom2d.js';
 import { makeHistory, histButtons, bindHistory } from './local-history.js';
 
 const WID=96, PW=48, SPLINE=1.75;
 const clone = o => JSON.parse(JSON.stringify(o));
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const r8 = v => Math.round(v*8)/8;
-let Lr=null, view='top', sel=null, dlg=null, origin=null, forSlot=null;
-const HIST = makeHistory(()=>(Lr), v=>{ Lr=v; sel=null; });
+let Lr=null, view='top', sel=null, dlg=null, origin=null, forSlot=null, ssel=null, shapePick=false;
+/* placed shapes: screen x of the left edge of the box, and back */
+const ssx = it => view==='top' ? it.x : L()-it.x-it.w;
+const fromSsx = (it, x) => view==='top' ? x : L()-x-it.w;
+function shapeThumb(s){ const B=bboxAll(s.contours), k=44/Math.max(B.w,B.h,1); return `<svg viewBox="-2 -2 48 48" width="48" height="48" aria-hidden="true">${s.contours.filter(c=>c.kind==='circle'||c.closed).map(c=>`<path d="M${flatten(c,0.05).map(([x,y])=>`${((x-B.x0)*k).toFixed(1)} ${(44-(y-B.y0)*k).toFixed(1)}`).join('L')}Z" class="${c.cut==='thru'?'th':'pk'}"/>`).join('')}</svg>`; }
+const HIST = makeHistory(()=>(Lr), v=>{ Lr=v; sel=null; ssel=null; });
 
 function blank(len=24, kind='ceiling-int'){ const K=LAYER_KINDS[kind]; return { id:null, name:'', kind, len, t:K.t, z:K.z, seams:[], holes:[] }; }
 /* open the builder: a fresh layer, a copy of a library layer, or (from a pod's layer panel) ready to use there */
@@ -41,7 +48,7 @@ function openLayerBuilder({ from=null, slot=null, len, kind }={}){
   else { Lr=blank(len||slot?.len||24, kind||slot?.kind||'ceiling-int'); origin=null; }
   Lr.holes = (Lr.holes||[]).map(h=>{ const c={...h}; delete c._f; if(c.hand===false) delete c.hand; return c; });   // drop what the 3D view adds
   view = Lr.kind==='ceiling-int' ? 'bottom' : 'top';
-  sel=null; ensure(); HIST.reset(); render(); if(!dlg.open) dlg.showModal();
+  sel=null; ssel=null; shapePick=false; ensure(); HIST.reset(); render(); if(!dlg.open) dlg.showModal();
 }
 function ensure(){
   if(dlg) return; dlg=document.createElement('dialog'); dlg.className='cw-dlg wb-dlg'; dlg.setAttribute('aria-label','Floor, ceiling and roof builder');
@@ -73,12 +80,13 @@ function problems(){
   Lr.holes.forEach((h,i)=>{ if(isLight(h)) return;
     if(h.x<-0.01 || h.x+h.w>L()+0.01 || h.z<-0.01 || h.z+h.d>WID+0.01) out.push(`${kindName(h)} ${i+1} runs past the edge`);
     if(cutOf(h)!=='thru' && S.some(s=>s>h.x-SPLINE && s<h.x+h.w+SPLINE)) out.push(`${kindName(h)} ${i+1} is on a panel joint (spline): move it at least 1¾″ clear`); });
+  (Lr.shapes||[]).forEach((it,i)=>{ if(it.x<-0.01 || it.x+it.w>L()+0.01 || it.z<-0.01 || it.z+it.h>WID+0.01) out.push(`Shape ${it.name||i+1} runs past the edge`); });
   return out;
 }
 function autoName(){
   const ok=Lr.holes.filter(h=>!isLight(h)), n=f=>ok.filter(f).length;
   const holes=n(h=>cutOf(h)==='thru'), pk=n(h=>cutOf(h)!=='thru');
-  const bits=[holes&&`${holes} hole${holes>1?'s':''}`, pk&&`${pk} pocket${pk>1?'s':''}`].filter(Boolean);
+  const ns=(Lr.shapes||[]).length, bits=[holes&&`${holes} hole${holes>1?'s':''}`, pk&&`${pk} pocket${pk>1?'s':''}`, ns&&`${ns} shape${ns>1?'s':''}`].filter(Boolean);
   return `${Lr.len}′ ${K().label.toLowerCase()}${bits.length?' · '+bits.join(', '):' · plain'}`;
 }
 
@@ -97,6 +105,14 @@ function plan(){
     if(!light){ if(c==='thru' && h.w>=12 && h.d>=8) g+=`<text x="${x+h.w/2}" y="${h.z+h.d/2+1}" class="wb-lab">hole</text>`;
       g+=`<rect x="${x-4}" y="${h.z-4}" width="${h.w+8}" height="${h.d+8}" class="wb-hit"${at}/>`; }   // a finger-sized target
   });
+  (Lr.shapes||[]).forEach((it,i)=>{ const on=ssel===i, far=it.face!==near(); let p='';
+    regionsOf(it).forEach(r=>{ const thru=r.cut==='thru'||r.depth>=T()-0.0625;
+      p+=`<path d="M${r.pts.map(([x,y])=>{ const X=it.x+x; return `${(view==='top'?X:L()-X).toFixed(2)} ${(it.z+it.h-y).toFixed(2)}`; }).join('L')}Z" class="${thru?'wb-op lb-thru':'wb-box wb-pk'+(far?' far':'')}"/>`; });
+    const x=ssx(it); p+=`<rect x="${x-3}" y="${it.z-3}" width="${it.w+6}" height="${it.h+6}" class="wb-hit"/>`;
+    g+=`<g class="wb-shape${on?' on':''}" data-k="s" data-i="${i}">${p}</g>`; });
+  if(ssel!=null){ const it=(Lr.shapes||[])[ssel]; if(it){ const x=ssx(it), ym=it.z+it.h/2, xm=x+it.w/2;
+    g+=`<line x1="0" y1="${ym}" x2="${x}" y2="${ym}" class="wb-dim"/><text x="${x/2}" y="${ym-1.5}" class="wb-dimt">${fin(x)}</text>`;
+    g+=`<line x1="${xm}" y1="0" x2="${xm}" y2="${it.z}" class="wb-dim"/><text x="${xm+1.5}" y="${it.z/2}" class="wb-dimt" text-anchor="start">${fin(it.z)}</text>`; } }
   // the picked item's distances to the left end and the top edge
   if(sel!=null){ const h=Lr.holes[sel]; if(h){ const x=sx(h), ym=h.z+h.d/2, xm=x+h.w/2;
     g+=`<line x1="0" y1="${ym}" x2="${x}" y2="${ym}" class="wb-dim"/><text x="${x/2}" y="${ym-1.5}" class="wb-dimt">${fin(x)}</text>`;
@@ -108,6 +124,13 @@ function plan(){
     <text x="0" y="${WID+12}" class="wb-end">seen from ${view==='top'?'above':'below'} · ${Lr.len}′ × 8′ · ${fin(T())} thick</text></svg>`;
 }
 function fields(){
+  if(ssel!=null && Lr.shapes?.[ssel]){ const it=Lr.shapes[ssel], R=regionsOf(it), th=R.filter(r=>r.cut==='thru'||r.depth>=T()-0.0625), pk=R.filter(r=>!th.includes(r));
+    const f=(id,label,v)=>`<label class="cw-f"><span>${label}</span><input data-sf="${id}" inputmode="decimal" value="${Math.round(v*16)/16}"><i>″</i></label>`;
+    return `<div class="wb-sel"><div class="eyebrow">Shape · ${esc(it.name||'')}${it.ref?` · ${esc(it.ref)}`:''}</div>
+      <p class="note">${fin(it.w)} × ${fin(it.h)}${th.length?` · ${th.length} through`:''}${pk.length?` · ${pk.length} pocket${pk.length>1?'s':''} (${[...new Set(pk.map(r=>fin(r.depth)))].join(', ')} deep)`:''}</p>
+      <div class="cw-fs">${f('x','Left edge from the left end', ssx(it))}${f('z','Top edge from the top edge', it.z)}</div>
+      ${pk.length?`<div class="cw-opt"><span>Pockets cut from</span><div class="seg"><button data-sface="top" aria-pressed="${it.face!=='bottom'}">Top face</button><button data-sface="bottom" aria-pressed="${it.face==='bottom'}">Bottom face</button></div></div>`:''}
+      <div class="row"><button class="btn ghost sm" data-smir="x">Mirror</button><button class="btn ghost sm" data-smir="y">Flip</button><button class="btn ghost sm" id="lbSDup">Duplicate</button><button class="btn ghost sm" id="lbSDel">Remove</button></div></div>`; }
   if(sel==null) return `<p class="note">Tap an item to size and place it, or drag it. Measurements are from the left end and the top edge as you see it now.</p>`;
   const h=Lr.holes[sel]; if(!h) return '';
   const round=h.shape==='round', shaped=h.shape==='poly' || h.shape==='slot', c=cutOf(h);
@@ -141,6 +164,9 @@ function render(){
         <h3>Pocket in the ${view==='top'?'top':'bottom'} face</h3>
         <div class="wb-add"><button class="btn ghost sm" data-add="rpocket">Rectangular pocket</button><button class="btn ghost sm" data-add="cpocket">Round pocket</button></div>
         ${Lr.kind==='ceiling-int'?`<p class="note">Heat pump head, hatch or chase: add a rectangular hole, then make it a pocket and set its depth if it shouldn't go right through.${lights?` The ${lights/2|0} pot lights shown faintly follow the light rules (change them with Lights by hand on the ceiling).`:' Pot lights follow the light rules; change them with Lights by hand on the ceiling.'}</p>`:''}
+        <h3>Shapes</h3>
+        <div class="wb-add"><button class="btn ghost sm" id="lbShape" aria-pressed="${shapePick}">Add shape</button><button class="btn ghost sm" id="lbDraw">Draw a new shape</button></div>
+        ${shapePick?`<div class="wb-shapes">${SHAPELIB.length ? SHAPELIB.map(s=>`<button class="wb-shp" data-shape="${esc(s.id)}">${shapeThumb(s)}<span><b>${esc(s.name)}</b><small>${fin(s.w||0)} × ${fin(s.h||0)}</small></span></button>`).join('') : '<p class="note">No shapes yet: Draw a new shape.</p>'}</div>`:''}
         ${fields()}
         <h3>Save</h3>
         <label class="cw-f"><span>Name</span><input id="lbName" value="${esc(Lr.name||'')}" placeholder="${esc(autoName())}"></label>
@@ -183,9 +209,20 @@ function bind(){
   dlg.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>add(b.dataset.add));
   dlg.querySelectorAll('[data-cut]').forEach(b=>b.onclick=()=>setCut(b.dataset.cut));
   dlg.querySelectorAll('[data-f]').forEach(inp=>inp.onchange=()=>{ const s=String(inp.value).trim(), m=s.match(/^(\d+(?:\.\d+)?)?[\s-]*(?:(\d+)\/(\d+))?$/); const v=m?(m[1]?+m[1]:0)+(m[2]?(+m[2])/(+m[3]):0):NaN; setField(inp.dataset.f, v); });
+  $('#lbShape')?.addEventListener('click',()=>{ shapePick=!shapePick; render(); });
+  $('#lbDraw')?.addEventListener('click',()=>openShapeStudio());
+  dlg.querySelectorAll('[data-shape]').forEach(b=>b.onclick=()=>{ const sh=SHAPELIB.find(x=>x.id===b.dataset.shape); if(!sh) return;
+    const it=placeItem(sh); it.face=near(); if(view==='bottom') it.mx=true;   // reads as drawn from the side you're looking at
+    it.z=r8(Math.max(0, WID/2-it.h/2)); it.x=r8(fromSsx(it, L()/2-it.w/2)); (Lr.shapes ||= []).push(it); ssel=Lr.shapes.length-1; sel=null; shapePick=false; render(); });
+  dlg.querySelectorAll('[data-sface]').forEach(b=>b.onclick=()=>{ Lr.shapes[ssel].face=b.dataset.sface; render(); });
+  dlg.querySelectorAll('[data-smir]').forEach(b=>b.onclick=()=>{ const it=Lr.shapes[ssel]; if(b.dataset.smir==='x') it.mx=!it.mx; else it.my=!it.my; render(); });
+  dlg.querySelectorAll('[data-sf]').forEach(inp=>inp.onchange=()=>{ const s=String(inp.value).trim(), m=s.match(/^(\d+(?:\.\d+)?)?[\s-]*(?:(\d+)\/(\d+))?$/); const v=m?(m[1]?+m[1]:0)+(m[2]?(+m[2])/(+m[3]):0):NaN; if(!isFinite(v)) return render();
+    const it=Lr.shapes[ssel]; if(inp.dataset.sf==='x') it.x=+fromSsx(it,v).toFixed(4); else it.z=v; render(); });
+  $('#lbSDel')?.addEventListener('click',()=>{ Lr.shapes.splice(ssel,1); ssel=null; render(); });
+  $('#lbSDup')?.addEventListener('click',()=>{ const it=clone(Lr.shapes[ssel]); it.x += view==='top' ? it.w+6 : -(it.w+6); Lr.shapes.push(it); ssel=Lr.shapes.length-1; render(); });
   $('#lbDel')?.addEventListener('click',()=>{ Lr.holes.splice(sel,1); sel=null; render(); });
   $('#lbDup')?.addEventListener('click',()=>{ const h=clone(Lr.holes[sel]); h.x += view==='top' ? h.w+6 : -(h.w+6); if(h.path) h.path=h.path.map(([a,b])=>[a+(view==='top'?h.w+6:-(h.w+6)),b]); Lr.holes.push(h); sel=Lr.holes.length-1; render(); });
-  const turn=(mx,mz,msg)=>{ const m=mirrorLayer({...Lr, id:'X', name:''}, mx, mz, 'X'); Lr.holes=m.holes; Lr.seams=m.seams; sel=null; render(); toast(msg); };
+  const turn=(mx,mz,msg)=>{ const m=mirrorLayer({...Lr, id:'X', name:''}, mx, mz, 'X'); Lr.holes=m.holes; Lr.seams=m.seams; if(m.shapes) Lr.shapes=m.shapes; sel=null; ssel=null; render(); toast(msg); };
   $('#lbMir').onclick=()=>turn(true,false,'Turned end for end');
   $('#lbFlip').onclick=()=>turn(false,true,'Turned front to back');
   $('#lbName')?.addEventListener('change', e=>{ Lr.name=e.target.value.trim(); });
@@ -195,10 +232,15 @@ function bind(){
   const svg=$('.wb-svg'); let drag=null;
   const toP=e=>{ const p=svg.createSVGPoint(); p.x=e.clientX; p.y=e.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()); };
   svg.addEventListener('pointerdown', e=>{ const t=e.target.closest('[data-k]');
-    if(!t){ if(sel!=null){ sel=null; render(); } return; }
-    const i=+t.dataset.i, h=Lr.holes[i], p=toP(e);
+    if(!t){ if(sel!=null || ssel!=null){ sel=null; ssel=null; render(); } return; }
+    const i=+t.dataset.i, p=toP(e);
+    if(t.dataset.k==='s'){ const it=Lr.shapes[i]; ssel=i; sel=null; drag={s:true, i, p0:p, x0:ssx(it), z0:it.z}; svg.setPointerCapture(e.pointerId); e.preventDefault(); return; }
+    const h=Lr.holes[i]; ssel=null;
     sel=i; drag={i, p0:p, x0:sx(h), z0:h.z, px:h.x, path:h.path?clone(h.path):null}; svg.setPointerCapture(e.pointerId); e.preventDefault(); });
-  svg.addEventListener('pointermove', e=>{ if(!drag) return; const p=toP(e), h=Lr.holes[drag.i];
+  svg.addEventListener('pointermove', e=>{ if(!drag) return; const p=toP(e);
+    if(drag.s){ const it=Lr.shapes[drag.i], nx=r8(drag.x0+(p.x-drag.p0.x)), nz=r8(drag.z0+(p.y-drag.p0.y)); it.x=fromSsx(it,nx); it.z=Math.max(-it.h/2, Math.min(WID-it.h/2, nz));
+      svg.querySelector(`[data-k="s"][data-i="${drag.i}"]`)?.setAttribute('transform', `translate(${(ssx(it)-drag.x0).toFixed(2)} ${(it.z-drag.z0).toFixed(2)})`); return; }
+    const h=Lr.holes[drag.i];
     const nx=r8(drag.x0+(p.x-drag.p0.x)), nz=r8(drag.z0+(p.y-drag.p0.y));
     h.x=fromSx(h, nx); h.z=Math.max(-h.d/2, Math.min(WID-h.d/2, nz));
     if(drag.path){ const dx=h.x-drag.px, dz=h.z-drag.z0; h.path=drag.path.map(([a,b])=>[+(a+dx).toFixed(4), +(b+dz).toFixed(4)]); }
@@ -234,4 +276,5 @@ async function saveLayer(asNew){
 { const pop=document.getElementById('morePop');
   if(pop && !document.getElementById('bLayerB')){ const b=document.createElement('button'); b.setAttribute('role','menuitem'); b.id='bLayerB'; b.textContent='Floor / ceiling / roof builder';
     pop.insertBefore(b, document.getElementById('bUpload')); b.onclick=()=>{ pop.hidden=true; openLayerBuilder(); }; } }
+window.addEventListener('cubit:shapes', ()=>{ if(dlg?.open){ shapePick=true; render(); } });
 export { openLayerBuilder };

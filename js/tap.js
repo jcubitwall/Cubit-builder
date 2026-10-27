@@ -22,6 +22,7 @@ import { state } from './state.js';
 import { gcode, TOOLS, SKIN, THRU } from './gcode.js';
 import { cncSettings, zip } from './cnc.js';
 import { fin } from './format.js';
+import { bool, toolRings, area } from './geom2d.js';
 
 const BLANK = 48, R = TOOLS[13].d/2;
 const SLOT = { in:1.375, z:0.53, over:0.1875 };
@@ -67,8 +68,13 @@ function shapedOp(ops, o, U, t, z, W, warn, item=false){
   if(o.shape==='poly'){
     // any other outline: the ¾″ bit follows the paths worked out from the drawing (profile inside a through cut,
     // clearing rings for a pocket); a cut narrower than the bit can't be made with it
-    const rings=(o.tool||[]).map(r=>r.map(([x,y])=>[U(x), y]));
+    let rings=(o.tool||[]).map(r=>r.map(([x,y])=>[U(x), y]));
     if(!rings.length){ warn.push(`${what} is narrower than the ¾″ bit: not cut`); return; }
+    // drawn in the Shape studio: holes run clockwise, pockets climb (counter-clockwise), whichever face is up; arcs go back in as G2/G3
+    if(o.key && String(o.key).startsWith('shape')){ rings=rings.map(r=>(area(r)<0)===thru ? r : r.slice().reverse());
+      if(thru) rings.forEach(pts=>ops.push({tp:'shaped', kind:'loop', pts, what:o.name?`${o.name} (through)`:what, waste:null, arcs:true}));
+      else ops.push({tp:'pockets', kind:'rings', rings, z, what:o.name?`${o.name} (${fin(t-z)} pocket)`:what, arcs:true});
+      return; }
     if(thru) rings.forEach(pts=>ops.push({tp:'shaped', kind:'loop', pts, what, waste:null}));
     else ops.push({tp:'pockets', kind:'rings', rings, z, what});
     return;
@@ -114,6 +120,15 @@ function roundOverJoint(ops, o, U, W, warn){
   runs.forEach((pts,i)=>ops.push({tp:'openings', kind:'line', pts:pts.map(([x,y])=>[+x.toFixed(4),+y.toFixed(4)]), what, waste: i===0 ? waste : null}));
   const part=Math.min(cx+d/2,W)-Math.max(cx-d/2,0); if(part<TOOLS[13].d+0.0625) warn.push(`${what}: the part on this panel is narrower than the bit`);
 }
+/* a drawn outline through the panel that runs over a panel joint: on this panel, its part (out to ¾″ past the edge)
+   is cut with the bit ⅜″ inside it, so the cut reaches right to the edge and the piece drops out */
+function polyOverJoint(ops, o, U, W, warn){
+  const pts=o.path.map(([x,y])=>[U(x), y]), clip=[[-2*R,-1],[W+2*R,-1],[W+2*R,H+1],[-2*R,H+1]];
+  const parts=bool([pts],[clip],'inter'); let n=0;
+  parts.forEach(P=>toolRings(P,true).forEach(r=>{ const xs=r.map(p=>p[0]), ys=r.map(p=>p[1]);
+    ops.push({tp:'shaped', kind:'loop', pts:r, what:`${o.name||'shaped cut'} (over the panel joint)`, arcs:true, passes:[THRU], waste: n++===0 ? [Math.max(0,Math.min(...xs)), Math.min(W,Math.max(...xs)), Math.min(...ys), Math.max(...ys)] : null}); }));
+  if(!n) warn.push(`${o.name||'shaped cut'}: its part on this panel is narrower than the bit`);
+}
 function tapPlan(){
   const S=cncSettings(), plans=homePlans(), files=[], blank=[], m=MODELS[state.model];
   const boxSize = k => S.gBoxes?.[k] || BOX[k] || BOX.other;
@@ -156,6 +171,7 @@ function tapPlan(){
         if(u1<=0 || u0>=W) return;
         if(o.shape==='round' || o.shape==='slot' || o.shape==='poly'){
           if(o.shape==='round' && (u0<-0.01 || u1>W+0.01)){ roundOverJoint(I, o, u, W, warn); return; }
+          if(o.shape==='poly' && (u0<-0.01 || u1>W+0.01) && o.path && globalThis.ClipperLib){ polyOverJoint(I, o, u, W, warn); return; }
           if(o.shape==='poly' && (u0<-0.01 || u1>W+0.01)){ warn.push(`shaped cut ${fin(o.w)} × ${fin(o.h)} runs over a panel joint: not cut, check the drawing`); return; }
           shapedOp(I, o, u, t, THRU, W, warn); return; }
         if(o.kind==='vent' && u0>SNAP && u1<W-SNAP){ I.push({tp:'vents', kind:'hole', x0:u0, x1:u1, y0:v0, y1:v1, what:'vent', waste:[u0,u1,v0,v1]}); return; }

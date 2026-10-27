@@ -2,6 +2,7 @@
 import { CEIL, FLOOR, FT, H, POD, PW, T, WALL_BASE, LAYER_KINDS, NOTCH } from './config.js';
 import { MODELS } from './data.js';
 import { podOffsets, screwsFor, slotsFor, layerSlotsFor, podList, deckList, layoutOffsets, padsFor } from './layout.js';
+import { boolTree } from './geom2d.js';
 import { crossesJoint, notchedOutline, panelCells, panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall, layerHoles, isShaped, shapeOf, outlinePts, faceShape, handOf } from './panels.js';
 import { w3 } from './sheets.js';
 import { renderSide } from './sidebar.js';
@@ -177,6 +178,15 @@ function buildWallMesh(w, mat, opts={}){
         pk.forEach(c=>{ c.src.carved=true; });
         // round holes / slots running over this piece's side edge: their part comes out of the edge as a notch
         const edge=w.openings.filter(o=>crossesJoint(o) && o.x<b-1e-6 && o.x+o.w>a+1e-6 && !inside.includes(o));
+        // a drawn outline (Shape studio, STEP) over the edge: the piece minus the outlines, exactly (Clipper), holes and all
+        if(edge.some(o=>o.shape==='poly') && globalThis.ClipperLib){
+          const rect=[[a,y0],[b,y0],[b,y1],[a,y1]], parts=boolTree([rect], edge.map(o=>outlinePts(shapeOf(o)).slice(0,-1)), 'diff');
+          const extra=inside.map(o=>({P:outlinePts(shapeOf(o)), lo:0, hi:d})).concat(pk), close=P=>[...P, P[0]];
+          const within=(P,q)=>{ let c=false; for(let i=0,j=P.length-1;i<P.length;j=i++){ const u=P[i], v=P[j]; if((u[1]>q[1])!==(v[1]>q[1]) && q[0]<(v[0]-u[0])*(q[1]-u[1])/(v[1]-u[1])+u[0]) c=!c; } return c; };
+          parts.forEach(pt=>{ const mine=extra.filter(c=>within(pt.outer, c.P[0])), holes=pt.holes.map(h=>({P:close(h), lo:0, hi:d}));
+            cutSlab(a,b,y0,y1,d,holes.concat(mine),pt.outer).forEach(g=>{ const m=new THREE.Mesh(g, mat); m.position.z=-t; pg.add(m); }); });
+          continue;
+        }
         const outline = edge.length ? notchedOutline(a,b,y0,y1, edge.map(shapeOf)) || null : null;
         if(inside.length || pk.length || outline){
           const thr=inside.map(o=>({P:outlinePts(shapeOf(o)), lo:0, hi:d}));
@@ -201,7 +211,7 @@ function buildWallMesh(w, mat, opts={}){
   w.openings.filter(o=>handOf(o)).forEach(o=>{ const P=outlinePts(shapeOf(o)); [0.012, -t-0.012].forEach(z=>g.add(handLoop(P, z))); });
   // openings: the unit chosen for it (frame, glass or door leaf, and its symbol), else plain glass / door leaf
   w.openings.forEach(o=>{
-    if(o.kind==='opening'||o.kind==='vent') return;   // cased opening / vent: just a hole
+    if(o.kind==='opening'||o.kind==='vent'||o.kind==='shape') return;   // cased opening / vent / drawn shape: just a hole
     if(opts.openOnly && opts.openOnly(o)) return;      // the door between two pods is in the neighbour's wall: here it's just the opening
     const r=opts.unitOf ? opts.unitOf(o) : null, interior = w.type==='int';
     const m = r ? buildUnit(o, r, t, interior) : (()=>{ const thick = o.kind==='window'? 0.05 : 0.12;

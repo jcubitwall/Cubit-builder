@@ -24,6 +24,7 @@ import { furnSide, homeBlock, bindHomeBlock } from './casework-ui.js';
 import { draftBlock, bindDraftBlock, draftsRow } from './publish-ui.js';
 import { lightEditorHTML, bindLightEditor } from './light-edit-ui.js';
 import { openWallBuilder } from './wall-builder.js';
+import './shape-studio.js';
 import { openLayerBuilder } from './layer-builder.js';
 
 const sideH=document.getElementById('sideH'), sideB=document.getElementById('sideB');
