@@ -33,15 +33,40 @@ import { SHAPELIB, shapeById, nextShapeId, saveShape, deleteShape, sharedShapes,
 import { makeHistory } from './local-history.js';
 import { canSave } from './role.js';
 import { toast } from './sidebar.js';
-import { fin } from './format.js';
+import { fin as finInch } from './format.js';
+/* ---------------------------------------------------------------- units: inches (fractions), feet & inches, mm, cm.
+   Everything is kept in inches; only what's shown and typed changes. A typed value can also say its own unit:
+   3' 4"  ·  40"  ·  3 1/2  ·  25mm  ·  2.5cm  ·  1.2m  (a plain number is in the unit picked; feet & inches: inches) */
+const UNITS = { in:{label:'in', sign:'″'}, ft:{label:'ft-in', sign:'″'}, mm:{label:'mm', sign:'mm'}, cm:{label:'cm', sign:'cm'} };
+let unit = (()=>{ try{ return localStorage.getItem('cubit-ss-unit') || 'in'; }catch(e){ return 'in'; } })();
+const uSign = () => UNITS[unit].sign;
+function fin(v){ if(!isFinite(v)) return ''; const neg=v<0?'−':''; v=Math.abs(v);
+  if(unit==='mm') return `${neg}${Math.round(v*25.4*10)/10} mm`;
+  if(unit==='cm') return `${neg}${Math.round(v*2.54*100)/100} cm`;
+  if(unit==='ft' && v>=12-1e-9){ const ft=Math.floor((v+1e-9)/12), r=v-ft*12; return `${neg}${ft}′${r>1e-6?' '+finInch(r):''}`; }
+  return neg+finInch(v); }
+/* a length in inches → the number shown in a field (no unit sign) */
+const toU = v => unit==='mm' ? Math.round(v*25.4*100)/100 : unit==='cm' ? Math.round(v*2.54*1000)/1000 : Math.round(v*10000)/10000;
+function parseIn(s){ s=String(s).trim().replace(/″/g,'"').replace(/′/g,"'"); if(!s) return NaN; if(s.startsWith('-')||s.startsWith('−')) return -parseIn(s.slice(1));
+  let m;
+  if((m=s.match(/^([\d.]+)\s*mm$/i))) return +m[1]/25.4;
+  if((m=s.match(/^([\d.]+)\s*cm$/i))) return +m[1]/2.54;
+  if((m=s.match(/^([\d.]+)\s*m$/i))) return +m[1]/0.0254;
+  const frac = t => { const q=String(t).trim().match(/^(\d+(?:\.\d+)?)?[\s-]*(?:(\d+)\/(\d+))?$/); if(!q || (!q[1] && !q[2])) return NaN; return (q[1]?+q[1]:0)+(q[2]?(+q[2])/(+q[3]):0); };
+  if((m=s.match(/^([\d.]+)\s*'\s*(?:-?\s*(.*?)\s*"?)?$/))) return +m[1]*12 + (m[2] ? frac(m[2])||0 : 0);
+  if((m=s.match(/^(.*?)\s*"$/))) return frac(m[1]);
+  const v=frac(s); if(!isFinite(v)) return NaN;
+  return unit==='mm' ? v/25.4 : unit==='cm' ? v/2.54 : v; }
 
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const clone = o => JSON.parse(JSON.stringify(o));
 const hyp = Math.hypot;
-const GRIDS = [0.0625, 0.125, 0.25, 0.5, 1];
+const GRIDS_IN = [0.0625, 0.125, 0.25, 0.5, 1], GRIDS_MM = [1, 2, 5, 10, 25].map(v=>v/25.4);
+const GRIDS = () => unit==='mm'||unit==='cm' ? GRIDS_MM : GRIDS_IN;
 const TOOLS = [['select','Select','V'],['line','Line','L'],['rect','Rect','R'],['circle','Circle','C'],['arc','Arc','A'],['spline','Spline','S'],['fillet','Fillet','F'],['offset','Offset','O'],['trim','Trim','T'],['mirror','Mirror','M']];
 const ICON = { select:'↖', line:'╱', rect:'▭', circle:'◯', arc:'◠', spline:'∿', fillet:'◜', offset:'⧈', trim:'✂', mirror:'⇋' };
 let S=null, dlg=null, svg=null, tool='select', mode={rect:'corner', circle:'centre'}, sel=[], view={cx:12, cy:8, k:24}, snapOn=true, grid=0.125, origin=null;
+let mirrorStep=1;
 let draft=null, hover=null, typed={f:0, v:['','']}, drag=null, libOpen=false, editor=null, REG=[], regKey='', lastTap={t:0, key:''};
 const HIST = makeHistory(()=>S, v=>{ S=v; sel=[]; draft=null; regKey=''; });
 let uid=1; const newId = () => 'e'+Date.now().toString(36)+(uid++);
@@ -72,7 +97,8 @@ function ensure(){
       <div class="seg ss-tools" role="toolbar" aria-label="Tools">${TOOLS.map(([k,l,key])=>`<button data-tool="${k}" title="${l} (${key})"><span class="ic">${ICON[k]}</span><span class="lb">${l}</span></button>`).join('')}</div>
       <span class="spacer"></span>
       <button class="btn ghost sm" id="ssSnap" aria-pressed="true" title="Snap to points, lines and the grid">Snap</button>
-      <select id="ssGrid" aria-label="Grid">${GRIDS.map(g=>`<option value="${g}">${fin(g)}</option>`).join('')}</select>
+      <select id="ssUnit" aria-label="Units">${Object.entries(UNITS).map(([k,u])=>`<option value="${k}">${u.label}</option>`).join('')}</select>
+      <select id="ssGrid" aria-label="Grid"></select>
       <span class="hist-btns"><button class="btn ghost sm" id="ssUndo" aria-label="Undo" title="Undo (two-finger tap)">↶</button><button class="btn ghost sm" id="ssRedo" aria-label="Redo" title="Redo (three-finger tap)">↷</button></span>
       <button class="btn ghost sm" id="ssFit" title="Fit the sketch to the screen">Fit</button>
       <button class="btn ghost sm" id="ssLib">Library</button>
@@ -93,6 +119,8 @@ function ensure(){
   dlg.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
   $('#ssSnap').onclick=()=>{ snapOn=!snapOn; render(); };
   $('#ssGrid').onchange=e=>{ grid=+e.target.value; render(); };
+  $('#ssUnit').onchange=e=>{ unit=e.target.value; try{ localStorage.setItem('cubit-ss-unit', unit); }catch(_){}
+    const G=GRIDS(); grid=G.reduce((b,g)=>Math.abs(g-grid)<Math.abs(b-grid)?g:b, G[1]); render(); };
   $('#ssUndo').onclick=()=>doUndo(); $('#ssRedo').onclick=()=>doRedo();
   $('#ssFit').onclick=()=>{ fit(); render(); };
   $('#ssLib').onclick=()=>{ libOpen=!libOpen; render(); };
@@ -104,7 +132,7 @@ function ensure(){
 function doUndo(){ closeEditor(); if(HIST.undo()){ regKey=''; syncRegions(); render(); toast('Undo'); } }
 function doRedo(){ closeEditor(); if(HIST.redo()){ regKey=''; syncRegions(); render(); toast('Redo'); } }
 function setTool(t){ finishDraft(); tool=t; draft=null; if(['line','rect','circle','arc','spline'].includes(t)) sel=[]; typed={f:0,v:['','']}; closeEditor();
-  if(t==='mirror' && !sel.some(s=>s.t==='ent'||s.t==='seg')) toast('Mirror: pick what to mirror first (Select), then the line to mirror across');
+  if(t==='mirror'){ mirrorStep=1; sel=sel.filter(s=>s.t==='ent'||s.t==='seg').map(s=>({t:'ent', e:s.e})); }
   render(); svg?.focus({preventScroll:true}); }
 /* every change ends here: regions worked out again, a step for undo, drawn */
 function commit(){ syncRegions(); HIST.track(); render(); }
@@ -167,7 +195,7 @@ function snapPt(p, { skip=null, from=null, prevDir=null }={}){
   if(!snapOn) return { p:q, kind:null, guides };
   const pts=snapPoints(skip);
   let best=null; pts.forEach(o=>{ const d=hyp(o.p[0]-p[0], o.p[1]-p[1]); const w = o.kind==='midpoint'||o.kind==='quadrant' ? 0.8 : 1; if(d<tol*w && (!best || d<best.d)) best={...o, d}; });
-  if(draft && draft.pts?.length>=2 && (tool==='line'||tool==='spline')){ const f=draft.pts[0]; if(hyp(f[0]-p[0], f[1]-p[1])<tol) return { p:f.slice(), kind:'close', guides }; }
+  if(draft && (tool==='line'||tool==='spline')){ const f=chainStart(); if(f && hyp(f[0]-p[0], f[1]-p[1])<tol) return { p:f.slice(), kind:'close', guides }; }
   if(best) return { p:best.p.slice(), kind:best.kind, guides };
   // lined up with other points: dotted guides (horizontal / vertical)
   let gx=null, gy=null; const gt=8/view.k;
@@ -256,7 +284,20 @@ const mid = P => [P.reduce((s,q)=>s+q.x,0)/P.length, P.reduce((s,q)=>s+q.y,0)/P.
 let spaceDown=false;
 function cancelDrag(){ if(drag?.undo){ S=drag.undo; regKey=''; syncRegions(); } drag=null; }
 const lastPt = () => draft?.pts?.at(-1) || null;
-const prevDir = () => { const P=draft?.pts; if(!P || P.length<2) return null; const a=P.at(-2), b=P.at(-1); return [b[0]-a[0], b[1]-a[1]]; };
+/* the line being drawn is saved segment by segment (each one its own undo step): draft.cont = the line it adds to */
+const contEnt = () => draft?.cont ? ent(draft.cont.e) : null;
+function chainStart(){ if(!draft) return null; const c=contEnt(); if(draft.t==='line' && c){ if(c.nodes.length<2) return null; const n = draft.cont.end===1 ? c.nodes[0] : c.nodes.at(-1); return [n.x,n.y]; } return draft.pts?.length>=3 ? draft.pts[0] : null; }
+const prevDir = () => { const c=contEnt(); if(draft?.t==='line' && c && c.nodes.length>=2){ const n=c.nodes, [a,b] = draft.cont.end===1 ? [n.at(-2), n.at(-1)] : [n[1], n[0]]; return [b.x-a.x, b.y-a.y]; }
+  const P=draft?.pts; if(!P || P.length<2) return null; const a=P.at(-2), b=P.at(-1); return [b[0]-a[0], b[1]-a[1]]; };
+/* put the segment just drawn into the sketch now */
+function flushLine(quiet){
+  const P=draft.pts; if(P.length<2) return;
+  const add=P.slice(1).map(([x,y])=>({x:+x.toFixed(4), y:+y.toFixed(4)})), c=contEnt();
+  if(c){ if(draft.cont.end===1) c.nodes.push(...add); else { c.nodes.unshift(...add.slice().reverse()); const nb={}; Object.entries(c.b||{}).forEach(([k,v])=>{ nb[+k+add.length]=v; }); c.b=nb; } }
+  else { const n={ id:newId(), kind:'path', closed:false, nodes:[{x:P[0][0], y:P[0][1]}, ...add], b:{} }; S.ents.push(n); draft.cont={ e:n.id, end:1 }; }
+  draft.pts=[P.at(-1)]; if(!quiet) commit();
+}
+function closeChain(){ const c=contEnt(); if(c) closeIfEnds(c); draft=null; commit(); }
 
 function down(p, e){
   const pen = e.pointerType!=='touch';
@@ -269,7 +310,13 @@ function down(p, e){
   if(tool==='fillet'){ const h=hit(p); if(h?.t==='node' && canFillet(ent(h.e), h.n)){ drag={ t:'fillet', e:h.e, n:h.n, start:p, undo:clone(S) }; sel=[{t:'node', e:h.e, n:h.n}]; render(); } else toast('Fillet: press on a corner between two straight lines and drag'); return; }
   if(tool==='offset'){ const h=hit(p); const c=h && (h.e ? ent(h.e) : null); if(c && (c.kind==='circle'||c.closed)){ drag={ t:'offset', e:c.id, start:p }; sel=[{t:'ent', e:c.id}]; render(); } else toast('Offset: press on a closed shape and drag out or in'); return; }
   if(tool==='trim'){ const h=hit(p); if(h && (h.t==='seg'||h.t==='rim')){ trimAt(h, p); } return; }
-  if(tool==='mirror'){ const h=hit(p); if(h?.t==='seg' && segType(ent(h.e),h.s)==='line' && !ent(h.e).spline){ mirrorAcross(h); } else toast('Mirror: tap a straight line to mirror across'); return; }
+  if(tool==='mirror'){ const h=hit(p);
+    if(mirrorStep===1){   // picking what to mirror: tap lines (whole shapes) or the inside of a shape; drag a box on empty space
+      if(!h){ drag={ t:'box', a:p, b:p, add:true }; return; }
+      if(h.t==='reg'){ outlineEnts(REG[h.k]).forEach(id=>{ if(!wholeSel(id)) sel.push({t:'ent', e:id}); }); }
+      else if(h.e){ if(wholeSel(h.e)) sel=sel.filter(s=>s.e!==h.e); else sel.push({t:'ent', e:h.e}); }
+      render(); return; }
+    if(h?.t==='seg' && segType(ent(h.e),h.s)==='line' && !ent(h.e).spline){ mirrorAcross(h); } else toast('Tap a straight line to mirror across'); return; }
   if(tool==='line'){ const h=hit(p);
     const c=h?.e ? ent(h.e) : null, openEnd = h?.t==='node' && c?.kind==='path' && !c.closed && !c.spline && (h.n===0 || h.n===c.nodes.length-1);
     const onDraftEnd = draft && lastPt() && hyp(p[0]-lastPt()[0], p[1]-lastPt()[1])*view.k<12;
@@ -359,19 +406,24 @@ function drawUp(d){
     if(pts.length>=2) addEnt({ kind:'path', spline:true, closed, nodes:pts.map(([x,y])=>({x:+x.toFixed(4), y:+y.toFixed(4)})), b:{} }); else render(); return; }
   if(tool==='line' && !d.moved){
     // a tap: ends the line you're drawing (close it if the tap is on its start) and leaves its end points to drag on from
-    if(draft && sp?.kind==='close' && draft.pts.length>=2){ finishDraft(true); return; }
+    if(draft && sp?.kind==='close'){ draft.pts.push(sp.p); flushLine(true); closeChain(); return; }
     if(draft){ finishDraft(false); return; }
     sel=[]; render(); return;
   }
   if(tool==='line' || tool==='spline'){
     if(!draft){ startChain(at, sp); render(); return; }
     const P=draft.pts, last=P.at(-1);
+    if(tool==='line'){
+      const f=chainStart();
+      if(f && hyp(at[0]-f[0], at[1]-f[1])<1e-6){ P.push(at); flushLine(true); closeChain(); return; }   // back to the start: closed (one step)
+      if(hyp(at[0]-last[0], at[1]-last[1])<1e-6){ render(); return; }
+      P.push(at); typed={f:0,v:['','']};
+      // landing on the open end of another line joins them and stops (one step)
+      const j=openEndAt(at, draft.cont?.e); flushLine(!!j); if(j){ joinPaths(draft.cont.e, j); draft=null; commit(); }
+      return; }
     if(sp?.kind==='close' && P.length>=2){ finishDraft(true); return; }
-    if(tool==='line' && draft.cont){ const c=ent(draft.cont.e), o = draft.cont.end===1 ? c.nodes[0] : c.nodes.at(-1); if(hyp(at[0]-o.x, at[1]-o.y)<1e-6){ P.push(at); finishDraft(true); return; } }
     if(hyp(at[0]-last[0], at[1]-last[1])<1e-6 || hyp(d.raw[0]-last[0], d.raw[1]-last[1])*view.k<10){ finishDraft(false); return; }   // the last point again: done
     P.push(at); typed={f:0,v:['','']};
-    // landing on the open end of another line joins them and finishes
-    if(tool==='line'){ const j=openEndAt(at, draft.cont?.e); if(j){ draft.join=j; finishDraft(false); return; } }
     render(); return;
   }
   if(tool==='rect'){
@@ -509,7 +561,7 @@ function mirrorAcross(h){
   const ids=[...new Set(sel.filter(s=>s.t==='ent'||s.t==='seg').map(s=>s.e))].filter(id=>id!==h.e || sel.some(s=>s.t==='ent'&&s.e===id));
   if(!ids.length){ toast('Mirror: pick what to mirror first (Select), then the line to mirror across'); return; }
   const copies=mapAll(ids.map(id=>clone(ent(id))), f, true).map(x=>({...x, id:newId()}));
-  S.ents.push(...copies); sel=copies.map(x=>({t:'ent', e:x.id})); tool='select'; commit(); toast(`Mirrored ${copies.length} across the line`);
+  S.ents.push(...copies); sel=copies.map(x=>({t:'ent', e:x.id})); tool='select'; mirrorStep=1; commit(); toast(`Mirrored ${copies.length} across the line`);
 }
 
 /* ---------------------------------------------------------------- keys (typing dimensions, tools, delete) */
@@ -522,7 +574,7 @@ function bindKeys(){
     if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); e.shiftKey ? doRedo() : doUndo(); return; }
     if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='a'){ e.preventDefault(); sel=S.ents.map(c=>({t:'ent', e:c.id})); render(); return; }
     const typing = (tool==='line' && draft) || (tool==='rect' && draft) || (tool==='circle' && draft?.t==='circle') || ((tool==='fillet'||tool==='offset') && sel.length===1);
-    if(typing && /^[0-9./-]$/.test(e.key)){ typed.v[typed.f]+=e.key; render(); e.preventDefault(); return; }
+    if(typing && (/^[0-9./'"-]$/.test(e.key) || (/^[mc]$/i.test(e.key) && typed.v[typed.f]))){ typed.v[typed.f]+=e.key; render(); e.preventDefault(); return; }
     if(typing && e.key==='Tab'){ e.preventDefault(); typed.f=typed.f?0:1; render(); return; }
     if(typing && e.key==='Backspace' && typed.v[typed.f]){ typed.v[typed.f]=typed.v[typed.f].slice(0,-1); render(); e.preventDefault(); return; }
     if(e.key==='Enter'){ e.preventDefault(); if(typing && (typed.v[0]||typed.v[1])){ applyTyped(); return; } finishDraft(false); return; }
@@ -532,24 +584,52 @@ function bindKeys(){
   });
   dlg.addEventListener('keyup', e=>{ e.stopPropagation(); if(e.key===' ') spaceDown=false; });
 }
-function parseIn(s){ s=String(s).trim(); if(s.startsWith('-')) return -parseIn(s.slice(1)); const m=s.match(/^(\d+(?:\.\d+)?)?[\s-]*(?:(\d+)\/(\d+))?$/); if(!m || (!m[1] && !m[2])) return NaN; return (m[1]?+m[1]:0)+(m[2]?(+m[2])/(+m[3]):0); }
 function applyTyped(){
-  const v0=parseIn(typed.v[0]), v1=parseIn(typed.v[1]); typed={f:0,v:['','']};
+  const v0=parseIn(typed.v[0]), v1 = tool==='line' ? parseFloat(typed.v[1]) : parseIn(typed.v[1]); typed={f:0,v:['','']};
   if(tool==='line' && draft){ const last=lastPt(), cur=hover?.p||[last[0]+1,last[1]], ang = isFinite(v1) ? v1*Math.PI/180 : Math.atan2(cur[1]-last[1], cur[0]-last[0]), L = isFinite(v0) ? v0 : hyp(cur[0]-last[0], cur[1]-last[1]);
-    draft.pts.push([+(last[0]+L*Math.cos(ang)).toFixed(4), +(last[1]+L*Math.sin(ang)).toFixed(4)]); render(); return; }
+    draft.pts.push([+(last[0]+L*Math.cos(ang)).toFixed(4), +(last[1]+L*Math.sin(ang)).toFixed(4)]); flushLine(); return; }
   if(tool==='rect' && draft){ const a=draft.a, cur=hover?.p||[a[0]+1,a[1]+1], sx=Math.sign(cur[0]-a[0])||1, sy=Math.sign(cur[1]-a[1])||1;
     const w=isFinite(v0)?v0:Math.abs(cur[0]-a[0]), h=isFinite(v1)?v1:Math.abs(cur[1]-a[1]); addRect(a, mode.rect==='centre' ? [a[0]+w/2, a[1]+h/2] : [a[0]+sx*w, a[1]+sy*h]); return; }
   if(tool==='circle' && draft?.t==='circle' && isFinite(v0)){ const c=draft.a; draft=null; addEnt({ kind:'circle', cx:c[0], cy:c[1], rad:v0/2 }); return; }
   if(tool==='fillet' && sel[0]?.t==='node' && isFinite(v0)){ const c=ent(sel[0].e), n=c.nodes[sel[0].n]; if(canFillet(c, sel[0].n)){ if(v0>0) n.r=v0; else delete n.r; commit(); } return; }
   if(tool==='offset' && sel[0]?.t==='ent' && isFinite(v0)){ makeOffset(sel[0].e, v0); return; }
 }
+/* the lines that make the outline of a region (a tap inside picks the region; Delete takes its whole outline) */
+function outlineEnts(r){
+  const ring=r.outer, near=q=>{ for(let i=0;i<ring.length;i++){ if(distToSeg(q, ring[i], ring[(i+1)%ring.length])<0.02) return true; } return false; };
+  return S.ents.filter(c=>{ const P=entPolyline(c, 0.02), closed=c.kind==='circle'||c.closed; for(let i=0;i<P.length-(closed?0:1);i++){ const a=P[i], b=P[(i+1)%P.length]; if(near([(a[0]+b[0])/2,(a[1]+b[1])/2])) return true; } return false; }).map(c=>c.id);
+}
+function deleteShapes(){
+  const ids=new Set(sel.filter(s=>s.t==='reg').flatMap(s=>REG[s.k] ? outlineEnts(REG[s.k]) : []));
+  sel.filter(s=>s.t==='ent').forEach(s=>ids.add(s.e));
+  if(!ids.size) return;
+  S.ents=S.ents.filter(c=>!ids.has(c.id)); sel=[]; regKey=''; commit(); toast(`Deleted ${ids.size} line${ids.size>1?'s':''}`);
+}
+/* take sides out of a line: the runs of sides left over become their own lines */
+function removeSegs(c, set){
+  if(!c) return; const N=c.nodes.length, S_=segCount(c);
+  if(set.size>=S_){ S.ents=S.ents.filter(x=>x.id!==c.id); return; }
+  // walk the sides in order, starting just after a removed one (closed) or at the start (open)
+  const start = c.closed ? ([...set][0]+1)%N : 0, runs=[]; let cur=null;
+  for(let k=0;k<S_;k++){ const i=(start+k)%N;
+    if(set.has(i)){ if(cur){ runs.push(cur); cur=null; } continue; }
+    if(!cur) cur={ nodes:[{...c.nodes[i]}], b:{} };
+    if(c.b?.[i]) cur.b[cur.nodes.length-1]=c.b[i];
+    cur.nodes.push({...c.nodes[(i+1)%N]}); }
+  if(cur) runs.push(cur);
+  const pieces=runs.map(r=>{ delete r.nodes[0].r; delete r.nodes.at(-1).r; return { id:newId(), kind:'path', closed:false, nodes:r.nodes, b:r.b, ...(c.spline?{spline:true}:{}) }; });
+  const idx=S.ents.findIndex(x=>x.id===c.id); S.ents.splice(idx,1,...pieces);
+}
 function removeSel(){
+  if(sel.length && sel.every(s=>s.t==='reg' || s.t==='ent')){ deleteShapes(); return; }
   const nodes=sel.filter(s=>s.t==='node'), segs=sel.filter(s=>s.t==='seg'), whole=new Set(sel.filter(s=>s.t==='ent').map(s=>s.e));
   // a picked region: the lines round it stay (regions are areas); deleting it means Not cut
   const regs=sel.filter(s=>s.t==='reg'); regs.forEach(s=>{ const r=REG[s.k]; if(r) r.set.cut='none'; });
   S.regs=REG.map(r=>({ seed:r.seed, ...r.set }));
   nodes.forEach(s=>{ const c=ent(s.e); if(!c || whole.has(c.id)) return; if(c.nodes.length>(c.closed?3:2)){ c.nodes.splice(s.n,1); const nb={}; Object.entries(c.b||{}).forEach(([k,v])=>{ k=+k; if(k<s.n) nb[k]=v; else if(k>s.n) nb[k-1]=v; }); c.b=nb; } else whole.add(c.id); });
-  segs.forEach(s=>{ const c=ent(s.e); if(c && !whole.has(c.id)) splitPath(c, s.s, 0, 1, segPolyline(c,s.s,0.005)); });
+  // picked sides: all of them come out in one go (what's left of each line stays as pieces)
+  const bySeg={}; segs.forEach(s=>{ if(!whole.has(s.e)) (bySeg[s.e] ||= new Set()).add(s.s); });
+  Object.entries(bySeg).forEach(([id,set])=>removeSegs(ent(id), set));
   S.ents=S.ents.filter(c=>!whole.has(c.id)); sel=[]; regKey=''; commit();
 }
 
@@ -564,11 +644,14 @@ function openEditor(dim, e){
   else return;
   const box=dlg.querySelector('.ss-edit'), r=svg.getBoundingClientRect();
   box.hidden=false; box.style.left=`${Math.min(r.width-200, Math.max(8, e.clientX-r.left-90))}px`; box.style.top=`${Math.max(8, e.clientY-r.top-60)}px`;
-  box.innerHTML=`<label><span>${label}</span><input inputmode="decimal" value="${Math.round(val*10000)/10000}"><i>″</i></label>`;
-  const inp=box.querySelector('input'); editor={kind, id, idx:+idx};
+  box.innerHTML=`<label><span>${label}</span><input inputmode="decimal" enterkeyhint="done" value="${toU(val)}"><i>${uSign()}</i></label><button class="btn sm ss-ok" type="button">✓ Set</button><button class="btn ghost sm ss-no" type="button" aria-label="Cancel">✕</button>`;
+  const inp=box.querySelector('input'); editor={kind, id, idx:+idx}; let done=false;
+  const apply=()=>{ if(done) return; done=true; const v=parseIn(inp.value); closeEditor(); if(isFinite(v) && Math.abs(v-val)>1e-9) setDim(kind, id, +idx, v); };
   setTimeout(()=>{ inp.focus(); inp.select(); }, 0);
-  inp.onkeydown=ev=>{ if(ev.key==='Enter'){ ev.preventDefault(); const v=parseIn(inp.value); closeEditor(); if(isFinite(v)) setDim(kind, id, +idx, v); } else if(ev.key==='Escape'){ ev.preventDefault(); closeEditor(); } };
-  inp.onblur=()=>setTimeout(closeEditor, 150);
+  inp.onkeydown=ev=>{ if(ev.key==='Enter'){ ev.preventDefault(); apply(); } else if(ev.key==='Escape'){ ev.preventDefault(); done=true; closeEditor(); } };
+  box.querySelector('.ss-ok').onpointerdown=ev=>{ ev.preventDefault(); apply(); };
+  box.querySelector('.ss-no').onpointerdown=ev=>{ ev.preventDefault(); done=true; closeEditor(); };
+  inp.onblur=()=>setTimeout(apply, 120);   // tapping away keeps what you typed
 }
 function closeEditor(){ editor=null; const b=dlg?.querySelector('.ss-edit'); if(b){ b.hidden=true; b.innerHTML=''; } svg?.focus({preventScroll:true}); }
 function setDim(kind, id, i, v){
@@ -576,7 +659,9 @@ function setDim(kind, id, i, v){
   if(kind==='len' && v>0){ const [a,b]=segEnds(c,i), d=[b.x-a.x,b.y-a.y], L=hyp(...d); if(L>1e-9){ if(segType(c,i)==='arc'){ toast('Set an arc by its radius'); return; } const k=v/L, dx=a.x+d[0]*k-b.x, dy=a.y+d[1]*k-b.y; b.x+=dx; b.y+=dy; } }
   else if(kind==='rad'){ const [a,b]=segEnds(c,i), ch=hyp(b.x-a.x,b.y-a.y); if(v<ch/2-1e-9){ toast(`The smallest arc across ${fin(ch)} has a ${fin(ch/2)} radius`); return; } const sg=Math.sign(c.b[i]||1), big=Math.abs(c.b[i])>1, hc=Math.sqrt(Math.max(0,v*v-ch*ch/4)), s=big?v+hc:v-hc; c.b[i]=sg*2*s/ch; }
   else if(kind==='dia' && v>0) c.rad=v/2;
-  else if(kind==='fil'){ if(v>0) c.nodes[i].r=v; else delete c.nodes[i].r; }
+  else if(kind==='fil'){ // every picked corner gets it (pick all four and type it once)
+    const corners=[{e:id, n:i}, ...sel.filter(s=>s.t==='node' && !(s.e===id && s.n===i))];
+    corners.forEach(s=>{ const q=ent(s.e); if(q && canFillet(q, s.n)){ if(v>0) q.nodes[s.n].r=v; else delete q.nodes[s.n].r; } }); }
   commit();
 }
 
@@ -634,7 +719,7 @@ function render(){
     pr.forEach(q=>{ g+=`<path d="${pathD(q,true)}" class="ss-e ss-prev"/>`; }); top+=bubble(hover?.p||[0,0], `${drag.dist>0?'out':'in'} ${fin(Math.abs(drag.dist))}`, { cls:'live', dy:-20 }); }
   if(drag?.t==='box'){ const [a,b]=[toS(drag.a), toS(drag.b)]; g+=`<rect x="${Math.min(a[0],b[0])}" y="${Math.min(a[1],b[1])}" width="${Math.abs(b[0]-a[0])}" height="${Math.abs(b[1]-a[1])}" class="ss-box"/>`; }
   const cur = drag?.t==='draw' ? drag.b : hover?.p;
-  const tv = (i,def,u) => typed.v[i] ? `${typed.v[i]}${u||'″'}${typed.f===i?'▏':''}` : (typed.f===i && (typed.v[0]||typed.v[1]) ? '▏' : def);
+  const tv = (i,def,u) => typed.v[i] ? `${typed.v[i]}${u||(/[a-z'"]$/i.test(typed.v[i])?'':uSign())}${typed.f===i?'▏':''}` : (typed.f===i && (typed.v[0]||typed.v[1]) ? '▏' : def);
   if(['line','spline'].includes(tool) && draft && cur){ const P=draft.pts, last=P.at(-1), all=[...P, cur];
     const prev = tool==='spline' ? flatten({kind:'path', spline:true, closed:false, nodes:all.map(([x,y])=>({x,y}))}, tol) : all;
     g+=`<path d="${pathD(prev,false)}" class="ss-e ss-prev"/>`;
@@ -663,7 +748,8 @@ function render(){
   svg.innerHTML=g+top;
   // bars
   dlg.querySelectorAll('[data-tool]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.tool===tool));
-  dlg.querySelector('#ssSnap').setAttribute('aria-pressed', snapOn); dlg.querySelector('#ssGrid').value=String(grid);
+  dlg.querySelector('#ssSnap').setAttribute('aria-pressed', snapOn); dlg.querySelector('#ssUnit').value=unit;
+  { const gs=dlg.querySelector('#ssGrid'), G=GRIDS(); if(gs.dataset.u!==unit){ gs.innerHTML=G.map(g=>`<option value="${g}">${fin(g)}</option>`).join(''); gs.dataset.u=unit; if(!G.some(g=>Math.abs(g-grid)<1e-9)) grid=G[1]; } gs.value=String(grid); }
   const nm=dlg.querySelector('#ssName'); if(document.activeElement!==nm) nm.value=S.name||'';
   dlg.querySelector('#ssUndo').disabled=!HIST.canUndo; dlg.querySelector('#ssRedo').disabled=!HIST.canRedo;
   dlg.querySelector('#ssSave').textContent = origin ? 'Save' : 'Save to library'; dlg.querySelector('#ssSaveNew').hidden=!origin;
@@ -672,9 +758,14 @@ function render(){
 function subBar(){
   const box=dlg.querySelector('.ss-sub');
   const m = tool==='rect' ? `<div class="seg sm"><button data-mode="rect:corner" aria-pressed="${mode.rect==='corner'}">Corner to corner</button><button data-mode="rect:centre" aria-pressed="${mode.rect==='centre'}">From the centre</button></div>`
-          : tool==='circle' ? `<div class="seg sm"><button data-mode="circle:centre" aria-pressed="${mode.circle==='centre'}">Centre &amp; radius</button><button data-mode="circle:3pt" aria-pressed="${mode.circle==='3pt'}">3 points</button></div>` : '';
+          : tool==='circle' ? `<div class="seg sm"><button data-mode="circle:centre" aria-pressed="${mode.circle==='centre'}">Centre &amp; radius</button><button data-mode="circle:3pt" aria-pressed="${mode.circle==='3pt'}">3 points</button></div>`
+          : tool==='mirror' ? (mirrorStep===1
+              ? `<b class="ss-step">1</b><span>Pick what to mirror: tap lines or inside shapes, or box them · <b>${new Set(sel.filter(s=>s.t==='ent').map(s=>s.e)).size}</b> picked</span><button class="btn sm" data-mstep="2" ${sel.some(s=>s.t==='ent')?'':'disabled'}>Next: the mirror line →</button><button class="btn ghost sm" data-mclear>Clear</button>`
+              : `<b class="ss-step">2</b><span>Tap the straight line to mirror across</span><button class="btn ghost sm" data-mstep="1">← Back to picking</button>`) : '';
   box.innerHTML=m; box.hidden=!m;
   box.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{ const [t,v]=b.dataset.mode.split(':'); mode[t]=v; draft=null; render(); });
+  box.querySelectorAll('[data-mstep]').forEach(b=>b.onclick=()=>{ mirrorStep=+b.dataset.mstep; render(); });
+  box.querySelector('[data-mclear]')?.addEventListener('click',()=>{ sel=[]; render(); });
 }
 function status(tight){
   const hint = {
@@ -687,7 +778,7 @@ function status(tight){
     fillet: 'Press on a corner and drag to round it, or tap it and type the radius.',
     offset: 'Press on a closed shape and drag out or in, or tap it and type the distance (− for in).',
     trim: 'Tap the piece of a line between two crossings to take it out.',
-    mirror: 'Tap the straight line to mirror the picked lines across.' }[tool];
+    mirror: mirrorStep===1 ? 'Pick the lines to mirror, then Next.' : 'Tap the mirror line: a mirrored copy is made.' }[tool];
   const nr=REG.filter(r=>r.set.cut!=='none').length;
   dlg.querySelector('.ss-status').innerHTML=`<span>${hint}</span>${REG.length?`<span>${REG.length} region${REG.length>1?'s':''} · ${nr} cut</span>`:''}${tight?`<span class="ss-warn">${tight} inside corner${tight>1?'s':''} tighter than ⅜″: the ¾″ bit leaves ⅜″ round (dashed red)</span>`:''}`;
 }
@@ -697,17 +788,22 @@ function inspector(){
   if(!sel.length || draft){ box.hidden=true; return; }
   box.hidden=false;
   const regs=sel.filter(s=>s.t==='reg').map(s=>REG[s.k]).filter(Boolean), ents=sel.filter(s=>s.t!=='reg');
-  const f=(id,label,v)=>`<label class="cw-f"><span>${label}</span><input data-sf="${id}" inputmode="decimal" value="${Math.round(v*1000)/1000}"><i>″</i></label>`;
+  const f=(id,label,v)=>`<label class="cw-f"><span>${label}</span><input data-sf="${id}" inputmode="decimal" enterkeyhint="done" value="${toU(v)}"><i>${uSign()}</i></label>`;
   let h='';
   if(regs.length){ const r0=regs[0].set, same=k=>regs.every(r=>r.set[k]===r0[k]), cut=same('cut')?r0.cut:null;
     h+=`<div class="eyebrow">${regs.length>1?regs.length+' regions':'Region'} · ${regs.length===1?`${fin(Math.abs(regs[0].net))} sq in`:''}</div>
       <div class="seg wrap"><button data-cut="none" aria-pressed="${cut==='none'}">Not cut</button><button data-cut="thru" aria-pressed="${cut==='thru'}">Right through</button><button data-cut="pocket" aria-pressed="${cut==='pocket'}">Pocket</button></div>
       ${cut==='pocket'||(!cut&&regs.some(r=>r.set.cut==='pocket'))?`<div class="cw-fs">${f('depth','Depth', same('depth')?+r0.depth||0:+r0.depth||0)}</div><p class="note">Depth from the face it's placed on. As deep as the panel = right through.</p>`:''}
-      ${regs.length===1?`<label class="cw-f"><span>Name (optional)</span><input data-sn value="${esc(r0.name||'')}" placeholder="e.g. heat pump head"></label>`:''}`; }
+      ${regs.length===1?`<label class="cw-f"><span>Name (optional)</span><input data-sn value="${esc(r0.name||'')}" placeholder="e.g. heat pump head"></label>`:''}
+      <div class="row"><button class="btn ghost sm" data-sa="delshape">Delete ${regs.length>1?'these shapes':'this shape'}</button><button class="btn ghost sm" data-sa="pickout">Pick its lines</button></div>
+      ${regs.some(r=>r.holes.length)?`<p class="note">The shape${regs.length>1?'s':''} inside ${regs.length>1?'are':'is'} separate regions: tap inside to give ${regs.length>1?'them':'it'} its own depth. It all stays one shape for the CNC.</p>`:''}`; }
   if(ents.length){
     const one=ents.length===1?ents[0]:null, c=one?ent(one.e):null;
     if(regs.length) h+='<hr>';
-    if(one?.t==='node' && c){ const n=c.nodes[one.n];
+    const nodesPicked=ents.filter(s=>s.t==='node' && canFillet(ent(s.e), s.n));
+    if(!one && nodesPicked.length===ents.length && nodesPicked.length>1){ const r0=ent(nodesPicked[0].e).nodes[nodesPicked[0].n].r||0;
+      h+=`<div class="eyebrow">${nodesPicked.length} corners</div><div class="cw-fs">${f('nrAll','Corner radius (all)',r0)}</div><p class="note">Type it, then ✓ or tap away.</p>`; }
+    else if(one?.t==='node' && c){ const n=c.nodes[one.n];
       h+=`<div class="eyebrow">Point</div><div class="cw-fs">${f('nx','X',n.x)}${f('ny','Y',n.y)}${canFillet(c,one.n)?f('nr','Corner radius',n.r||0):''}</div>`; }
     else if(one?.t==='seg' && c && !c.spline){ const t=segType(c,one.s);
       h+=`<div class="eyebrow">${t==='arc'?'Arc':t==='curve'?'Curve':'Line'}</div><div class="seg"><button data-sa="straight" aria-pressed="${t==='line'}">Straight</button><button data-sa="arc" aria-pressed="${t==='arc'}">Arc</button></div>`; }
@@ -726,12 +822,15 @@ function setVal(k, v, regs, ents){
   const one=ents[0], c=ent(one.e);
   if(k==='nx'||k==='ny'){ const n=c.nodes[one.n], d = k==='nx' ? [v-n.x,0] : [0,v-n.y]; n.x+=d[0]; n.y+=d[1]; if(n.hi) n.hi=[n.hi[0]+d[0],n.hi[1]+d[1]]; if(n.ho) n.ho=[n.ho[0]+d[0],n.ho[1]+d[1]]; }
   else if(k==='nr'){ const n=c.nodes[one.n]; if(v>0) n.r=v; else delete n.r; }
+  else if(k==='nrAll'){ ents.forEach(s=>{ const q=ent(s.e); if(q && canFillet(q,s.n)){ if(v>0) q.nodes[s.n].r=v; else delete q.nodes[s.n].r; } }); }
   else if(k==='cd'){ if(v>0) c.rad=v/2; } else if(k==='cx') c.cx=v; else if(k==='cy') c.cy=v;
   commit();
 }
 function act(a, ents){
   const ids=[...new Set(ents.map(s=>s.e))];
   if(a==='del'){ removeSel(); return; }
+  if(a==='delshape'){ deleteShapes(); return; }
+  if(a==='pickout'){ const ids=new Set(sel.filter(s=>s.t==='reg').flatMap(s=>REG[s.k]?outlineEnts(REG[s.k]):[])); sel=[...ids].map(e=>({t:'ent', e})); render(); return; }
   if(a==='dup'){ const copies=ids.map(id=>mapAll([clone(ent(id))], ([x,y])=>[x+grid*8, y-grid*8])[0]).map(x=>({...x, id:newId()})); S.ents.push(...copies); sel=copies.map(x=>({t:'ent', e:x.id})); }
   else if(a==='mir'||a==='flip'){ const list=ids.map(id=>ent(id)), m=mirrorAll(list, a==='mir', a==='flip'); m.forEach(x=>{ const i=S.ents.findIndex(o=>o.id===x.id); S.ents[i]=x; }); }
   else if(a==='straight'||a==='arc'){ const s=ents[0], c=ent(s.e); c.b ||= {}; delete c.b[s.s]; const [p,q]=segEnds(c,s.s); delete p.ho; delete q.hi; if(a==='arc') c.b[s.s]=0.4142; }

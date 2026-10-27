@@ -257,6 +257,11 @@ See that folder's README. The scan is exact, so **only upload accurate models**:
   - **Tap a shape to pick it:** with any drawing tool, a tap (no drag) inside a shape switches to Select and picks it.
   - **Inference snapping:** end points, midpoints, centres, quadrants, crossings, onto lines, lined up with other points (dotted guides), horizontal / vertical / perpendicular / parallel from the last point, 15° steps, then the grid; a small label names it.
   - **Dimensions:** live while drawing (length + angle, W × H, ⌀, R); picked lines, arcs, circles and corners show theirs — tap one to type a new value.
+  - **Undo** steps through every action, each line segment on its own (they're saved as they're drawn).
+  - **Delete:** pick any mix of lines, sides, circles and shapes and one Delete takes them all; inside a shape, *Delete this shape* removes its whole outline (*Pick its lines* picks it). Shapes drawn inside shapes are their own regions with their own depth and stay one shape for the CNC.
+  - **Corner radius:** the R bubble or the inspector; several corners picked take one value. Number fields have a ✓ Set button and also take the value when you tap away (the iPad number pad has no Enter).
+  - **Mirror:** step 1 pick what to mirror (tap lines or inside shapes, or box them) → Next → step 2 tap the straight line to mirror across.
+  - **Units:** in / ft-in / mm / cm (remembered); everything shown and typed follows it, and a typed value can carry its own unit (3' 4", 25mm, 2.5cm).
   - **Gestures:** pinch zoom, two-finger pan, **two-finger tap = undo, three-finger tap = redo**; ⌘Z / ⇧⌘Z; Escape steps back.
   - The ¾″ bit check: inside corners tighter than ⅜″ are ringed red and the outline the bit really leaves is dashed.
   - Saved shapes keep the sketch (`sketch:{ents, regs}`) and the cut regions worked out at 0.004″ (`regs:[{outer, holes, cut, depth, name}]`). First-style drawings still open and place.

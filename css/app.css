@@ -871,3 +871,6 @@ html.standalone:not(.phone) .ss-bar{padding-top:max(54px, calc(env(safe-area-ins
 .ss-insp hr{border:0;border-top:1px solid var(--line);margin:2px 0}
 .ss-lo svg path.pk,.wb-shp svg path.pk{fill:#c8a97a;stroke:#1c211e;stroke-width:.8}.ss-lo svg path.th,.wb-shp svg path.th{fill:#fff;stroke:#2f6db5;stroke-width:.8}
 .ss-pt.end{fill:#fff;stroke:#0a84ff;stroke-width:2.2}
+.ss-edit{display:flex;align-items:center;gap:8px}.ss-edit .ss-ok{background:#0a84ff;border-color:#0a84ff;color:#fff}
+.ss-sub .ss-step{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#0a84ff;color:#fff;font-size:12px}
+.ss-sub span{font-size:13px}
