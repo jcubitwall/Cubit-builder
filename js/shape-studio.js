@@ -103,7 +103,7 @@ function ensure(){
 }
 function doUndo(){ closeEditor(); if(HIST.undo()){ regKey=''; syncRegions(); render(); toast('Undo'); } }
 function doRedo(){ closeEditor(); if(HIST.redo()){ regKey=''; syncRegions(); render(); toast('Redo'); } }
-function setTool(t){ finishDraft(); tool=t; draft=null; typed={f:0,v:['','']}; closeEditor();
+function setTool(t){ finishDraft(); tool=t; draft=null; if(['line','rect','circle','arc','spline'].includes(t)) sel=[]; typed={f:0,v:['','']}; closeEditor();
   if(t==='mirror' && !sel.some(s=>s.t==='ent'||s.t==='seg')) toast('Mirror: pick what to mirror first (Select), then the line to mirror across');
   render(); svg?.focus({preventScroll:true}); }
 /* every change ends here: regions worked out again, a step for undo, drawn */
@@ -272,7 +272,7 @@ function down(p, e){
   if(tool==='mirror'){ const h=hit(p); if(h?.t==='seg' && segType(ent(h.e),h.s)==='line' && !ent(h.e).spline){ mirrorAcross(h); } else toast('Mirror: tap a straight line to mirror across'); return; }
   // drawing tools: the point goes where the pen lifts (drag to place it exactly); rect / circle can also be dragged out
   const sp=snapPt(p, { from:lastPt(), prevDir:prevDir() });
-  drag={ t:'draw', a:sp.p, b:sp.p, snap:sp, moved:false, raw:p };
+  drag={ t:'draw', a:sp.p, b:sp.p, snap:sp, moved:false, raw:p, raw0:p, hadDraft:!!draft };
   render();
 }
 function move(p, e){
@@ -293,7 +293,14 @@ function move(p, e){
     drag.ids.forEach(id=>{ const i=S.ents.findIndex(x=>x.id===id); S.ents[i]=mapAll([drag.orig[id]], ([x,y])=>[x+dx,y+dy])[0]; }); hover={ snap:sp }; }
   else if(drag.t==='fillet'){ const c=ent(drag.e), n=c.nodes[drag.n], r=hyp(p[0]-n.x, p[1]-n.y); n.r = r<grid/2 ? 0 : +(snapOn?Math.round(r/grid)*grid:r).toFixed(4); if(!n.r) delete n.r; }
   else if(drag.t==='offset'){ const c=ent(drag.e), P=entPolyline(c,0.02); let d=Infinity; for(let i=0;i<P.length;i++) d=Math.min(d, distToSeg(p,P[i],P[(i+1)%P.length])); const outside=!inPoly(p,P); drag.dist=(outside?1:-1)*(snapOn?Math.round(d/grid)*grid:d); }
-  else if(drag.t==='draw'){ const sp=snapPt(p, { from: tool==='line'||tool==='spline' ? lastPt() : (tool==='rect'||tool==='circle') && drag.moved ? null : lastPt(), prevDir:prevDir() }); drag.b=sp.p; drag.snap=sp; drag.raw=p; if(hyp(drag.b[0]-drag.a[0], drag.b[1]-drag.a[1])*view.k>6) drag.moved=true; hover={ p:sp.p, snap:sp }; }
+  else if(drag.t==='draw'){
+    // the pencil moved: drawing starts right away from where it touched (Shapr3D)
+    if(!drag.began && hyp(p[0]-drag.raw0[0], p[1]-drag.raw0[1])*view.k>6){ drag.began=true; drag.moved=true;
+      if(tool==='line'){ if(draft && hyp(drag.a[0]-lastPt()[0], drag.a[1]-lastPt()[1])*view.k>12) finishDraft(false); if(!draft) startChain(drag.a, drag.snap); }
+      else if(tool==='arc' && !draft) draft={ t:'arc', pts:[drag.a] };
+      else if(tool==='spline'){ if(draft) finishDraft(false); drag.free=true; drag.stroke=[drag.a.slice()]; } }
+    if(drag.free){ drag.stroke.push(p); const sp=snapPt(p); drag.b=sp.p; drag.snap=sp; drag.raw=p; hover={ p, snap:null }; render(); return; }
+    const sp=snapPt(p, { from: tool==='line' ? lastPt() : (tool==='rect'||tool==='circle') ? null : lastPt(), prevDir:prevDir() }); drag.b=sp.p; drag.snap=sp; drag.raw=p; hover={ p:sp.p, snap:sp }; }
   render();
 }
 /* a press that turned into a drag: what to drag */
@@ -338,6 +345,12 @@ function boxSelect(a, b, add){
 /* ---------------------------------------------------------------- drawing tools */
 function drawUp(d){
   const at=d.b, sp=d.snap;
+  // a tap (no drag) on a shape's body, with nothing being drawn: that's picking it — over to Select
+  if(!d.moved && !d.hadDraft){ const h=hit(d.raw); if(h?.t==='reg'){ tool='select'; draft=null; sel=[h]; lastTap={t:performance.now(), key:JSON.stringify(h)}; render(); toast('Select'); return; } }
+  // a freehand spline stroke: smoothed to a few points it passes through
+  if(d.free){ const st=d.stroke; st[st.length-1]=d.b; const pts=simplify(st, 3/view.k, false);
+    const closed = pts.length>=4 && hyp(pts[0][0]-pts.at(-1)[0], pts[0][1]-pts.at(-1)[1])*view.k<14; if(closed) pts.pop();
+    if(pts.length>=2) addEnt({ kind:'path', spline:true, closed, nodes:pts.map(([x,y])=>({x:+x.toFixed(4), y:+y.toFixed(4)})), b:{} }); else render(); return; }
   if(tool==='line' || tool==='spline'){
     if(!draft){ startChain(at, sp); render(); return; }
     const P=draft.pts, last=P.at(-1);
@@ -625,9 +638,10 @@ function render(){
     top+=bubble(b, tv(0, `⌀ ${fin(2*r)}`), { cls:'live', dy:-18 }); }
   if(tool==='circle' && draft?.t==='c3' && cur){ const P=[...draft.pts, cur]; if(P.length===3){ const C=circle3(...P); if(C) g+=`<path d="${pathD(flatten({kind:'circle',cx:C[0],cy:C[1],rad:C[2]},tol),true)}" class="ss-e ss-prev"/>`; } draft.pts.forEach(p=>{ const [x,y]=toS(p); top+=`<circle cx="${x}" cy="${y}" r="4" class="ss-pt on"/>`; }); }
   if(tool==='arc' && draft?.t==='arc' && cur){ const P=draft.pts;
-    if(P.length===1){ g+=`<path d="${pathD([P[0],cur],false)}" class="ss-hl"/>`; }
+    if(P.length===1){ g+=`<path d="${pathD([P[0],cur],false)}" class="ss-e ss-prev"/>`; top+=bubble([(P[0][0]+cur[0])/2,(P[0][1]+cur[1])/2], fin(hyp(cur[0]-P[0][0], cur[1]-P[0][1])), { cls:'live', dy:-16 }); }
     if(P.length===2){ const bl=bulgeThrough(P[0],P[1],cur); if(bl!=null){ const pts=flatten({kind:'path',closed:false,nodes:[{x:P[0][0],y:P[0][1]},{x:P[1][0],y:P[1][1]}],b:{0:bl}},tol); g+=`<path d="${pathD(pts,false)}" class="ss-e ss-prev"/>`; const A=bulgeArc(P[0],P[1],bl); if(A) top+=bubble(cur, `R ${fin(A.R)}`, { cls:'live', dy:-18 }); } }
     P.forEach(p=>{ const [x,y]=toS(p); top+=`<circle cx="${x}" cy="${y}" r="4" class="ss-pt on"/>`; }); }
+  if(drag?.free){ const st=drag.stroke; g+=`<path d="${pathD(st,false)}" class="ss-e ss-prev"/>`; let L=0; for(let i=1;i<st.length;i++) L+=hyp(st[i][0]-st[i-1][0], st[i][1]-st[i-1][1]); top+=bubble(st.at(-1), `${fin(L)} long`, { cls:'live', dy:-18 }); }
   if(['fillet','offset'].includes(tool) && sel.length===1 && (typed.v[0])) top+=bubble(hover?.p || [view.cx, view.cy], `${tool==='fillet'?'R ':''}${typed.v[0]}″▏`, { cls:'live typing', dy:-22 });
   // the inference: what it snapped to, and the dotted guides
   const sp = drag?.snap || hover?.snap; if(sp && (drag || ['line','spline','rect','circle','arc'].includes(tool))){ const [x,y]=toS(sp.p);
@@ -653,11 +667,11 @@ function subBar(){
 function status(tight){
   const hint = {
     select:'Tap to pick (taps add up), double-tap a line for the whole chain. Drag a point or line to move it. Pencil / mouse on empty space = box select, finger = pan. Two-finger tap undo, three-finger tap redo.',
-    line: draft ? 'Tap the next point, or type the length (Tab = angle) and Enter. Tap the start to close, the last point again to finish.' : 'Tap where the line starts (on the end of a line to carry it on).',
+    line: draft ? 'Drag on from the end (or tap the next point); type the length, Tab = angle, Enter. Tap the start to close, the last point again to finish.' : 'Touch and drag to draw a line (or tap point to point). Tapping inside a shape picks it.',
     rect: draft ? 'Tap the opposite corner, or type W, Tab, H and Enter.' : 'Drag out a rectangle, or tap two corners.',
     circle: mode.circle==='3pt' ? 'Tap three points on the circle.' : draft ? 'Tap the radius, or type the diameter and Enter.' : 'Drag from the centre out, or tap the centre then the edge.',
-    arc: 'Tap the start, the end, then where it passes.',
-    spline: draft ? 'Tap the next point it passes through; tap the first to close, double-tap or Enter to finish.' : 'Tap the points the curve passes through.',
+    arc: draft?.pts?.length===2 ? 'Drag (or tap) to bend it through that point.' : 'Drag from the start to the end, then drag to bend it (or tap 3 points).',
+    spline: draft ? 'Tap the next point it passes through; tap the first to close, double-tap or Enter to finish.' : 'Draw it freehand with the pencil (it smooths to a few points you can drag), or tap the points it passes through.',
     fillet: 'Press on a corner and drag to round it, or tap it and type the radius.',
     offset: 'Press on a closed shape and drag out or in, or tap it and type the distance (− for in).',
     trim: 'Tap the piece of a line between two crossings to take it out.',
