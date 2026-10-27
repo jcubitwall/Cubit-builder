@@ -31,6 +31,10 @@ function download(name, text, type='text/csv'){ const a=document.createElement('
 
 /* ---------------------------------------------------------------- the window */
 let dlg=null, view={ tab:'lib', cat:'base', item:null, edit:null, explode:0, sel:null };
+import { makeHistory, histButtons, bindHistory } from './local-history.js';
+/* undo / redo of the item on screen: its sizes, options and mirror */
+const pickIt = it => it ? JSON.parse(JSON.stringify({ w:it.w, h:it.h, d:it.d, y:it.y||0, opt:it.opt||{}, mirror:!!it.mirror })) : null;
+const HIST = makeHistory(()=>pickIt(view.item), v=>{ const it=view.item; if(!it||!v) return; if(view.edit){ updateItem(it.id, v); refreshItem(it); renderSide(); } else Object.assign(it, v); });
 function ensure(){
   if(dlg) return dlg;
   dlg=document.createElement('dialog'); dlg.className='cw-dlg'; dlg.setAttribute('aria-label','Cabinet library');
@@ -50,7 +54,7 @@ async function openCaseLib(o={}){
   if(o.edit){ const it=furnById(o.edit); if(it){ view.edit=it.id; view.item=it; view.cat=itemDef(it.k).cat; } }
   else { view.edit=null; view.item=o.k ? newItem(o.k) : null; if(o.cat) view.cat=o.cat; if(o.k) view.cat=itemDef(o.k).cat; }
   view.tab=o.tab||'lib'; view.explode=0; view.sel=null;
-  render(); if(!dlg.open) dlg.showModal();
+  HIST.reset(); render(); if(!dlg.open) dlg.showModal();
 }
 function render(){
   dlg.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected', b.dataset.tab===view.tab));
@@ -62,7 +66,7 @@ function render(){
   body.innerHTML=`<nav class="cw-cats" aria-label="Categories">${CATS.map(c=>`<button data-cat="${c.k}" aria-current="${c.k===view.cat}"><span>${c.name}</span><small>${ITEMS.filter(i=>i.cat===c.k).length}</small></button>`).join('')}</nav>
     <section class="cw-grid">${items.map(d=>{ const it=newItem(d.k); return `<button class="cw-card" data-k="${d.k}"><div class="cw-thumb">${frontSVG(it)}</div><b>${esc(d.name)}</b><small>${sizeTxt(it)}${d.fixed?' · fixed size':''}</small></button>`; }).join('')}</section>`;
   body.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{ view.cat=b.dataset.cat; render(); });
-  body.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{ view.item=newItem(b.dataset.k); view.edit=null; view.explode=0; view.sel=null; render(); });
+  body.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{ view.item=newItem(b.dataset.k); view.edit=null; view.explode=0; view.sel=null; HIST.reset(); render(); });
 }
 
 /* ---------------------------------------------------------------- one item: 3D, sizes, options, parts */
@@ -81,9 +85,10 @@ function renderDetail(body){
   const it=view.item, d=itemDef(it.k), cat=catOf(d.cat), parts=partsOf(it), G=groupsOf(parts);
   const cut=G.filter(g=>!g.p.hw && !g.p.solid), solids=G.filter(g=>g.p.solid), hw=hardwareOf(it), tot=totals([it]);
   const editing=!!view.edit;
+  HIST.track();
   body.innerHTML=`<div class="cw-detail">
     <div class="cw-view">
-      <div class="cw-vh"><button class="btn ghost sm" id="cwBack">← ${editing?'Close':esc(cat.name)}</button><b>${esc(d.name)}</b><span class="spacer"></span>
+      <div class="cw-vh"><button class="btn ghost sm" id="cwBack">← ${editing?'Close':esc(cat.name)}</button><b>${esc(d.name)}</b><span class="spacer"></span>${histButtons(HIST)}
         <button class="btn ghost sm" id="cwFront">Front</button><button class="btn ghost sm" id="cwIso">3D</button></div>
       <canvas id="cwCanvas" aria-label="3D view of ${esc(d.name)}"></canvas>
       <div class="cw-ex"><label for="cwEx">Exploded</label><input type="range" id="cwEx" min="0" max="1" step="0.01" value="${view.explode}"><span class="note">Tap a part to find it in the list</span></div>
@@ -111,6 +116,7 @@ function renderDetail(body){
     </div></div>`;
   startViewer(body.querySelector('#cwCanvas'), it);
   const apply=(patch)=>{ if(editing) updateItem(it.id, patch); else Object.assign(it, patch); if(d.sized && patch.opt) Object.assign(it, d.sized(it)); if(editing){ refreshItem(it); renderSide(); } const ex=view.explode; render(); view.explode=ex; };
+  bindHistory(body, HIST, ()=>{ const ex=view.explode; render(); view.explode=ex; });
   body.querySelector('#cwBack').onclick=()=>{ if(editing){ dlg.close(); return; } view.item=null; render(); };
   body.querySelector('#cwFront').onclick=()=>V?.front(); body.querySelector('#cwIso').onclick=()=>V?.iso();
   body.querySelector('#cwEx').oninput=e=>{ view.explode=+e.target.value; V?.explode(view.explode); };

@@ -782,3 +782,18 @@ html.standalone:not(.phone) .studio.fs.build .vcube-wrap{top:max(54px, calc(env(
 .wb-wall.lb-floor-ext{fill:#d9c6a2}.wb-wall.lb-floor-int{fill:#e8d3ad}.wb-wall.lb-ceiling-int{fill:#f2ead8}.wb-wall.lb-roof{fill:#d6d2c4}
 .lb-thru{fill:#fbfaf6;stroke:#2f6db5}
 .lb-light{fill:none;stroke:#8a8f88;stroke-width:.35;stroke-dasharray:1 .8;pointer-events:none}
+/* wall rules: chases, locks */
+.wb-chase{stroke:#2f6db5;stroke-width:.25;stroke-dasharray:.6 1.4;opacity:.55;pointer-events:none}
+.wb-lock{border:0;background:none;padding:0 0 0 6px;font-size:13px;cursor:pointer;line-height:1}
+.wb-lock.open{opacity:.55}
+.cw-f.locked input{background:var(--surface-2);color:var(--ink-2)}
+.wb-rule{margin:0}
+.wb-rules{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--surface)}
+.wb-rules summary{cursor:pointer;font-weight:600;font-size:13.5px;min-height:32px;display:flex;align-items:center;gap:8px}
+.wb-rt{width:100%;border-collapse:collapse;font-size:12.5px;margin:6px 0}
+.wb-rt th,.wb-rt td{padding:4px 3px;text-align:left;vertical-align:middle;border-top:1px solid var(--line)}
+.wb-rt thead th{border-top:0;font:600 10.5px var(--mono);text-transform:uppercase;color:var(--ink-2)}
+.wb-rt tbody th{font-weight:600}.wb-rt tbody th small{display:block;font:10.5px var(--mono);color:var(--ink-2);font-weight:400}
+.wb-rc{display:inline-flex;align-items:center}.wb-rc input{width:52px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;font:inherit;background:var(--bg);color:var(--ink)}
+.wb-rt .seg.sm button{padding:4px 7px;font-size:11.5px}
+.hist-btns{display:inline-flex;gap:4px;margin-right:6px}.hist-btns .btn{min-width:36px;font-size:16px}

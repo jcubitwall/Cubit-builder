@@ -22,12 +22,14 @@ import { slotsFor } from './layout.js';
 import { edgeSides, isDrawnLight } from './lights.js';
 import { LAYER_KINDS } from './config.js';
 import { fin } from './format.js';
+import { makeHistory, histButtons, bindHistory } from './local-history.js';
 
 const WID=96, PW=48, SPLINE=1.75;
 const clone = o => JSON.parse(JSON.stringify(o));
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const r8 = v => Math.round(v*8)/8;
 let Lr=null, view='top', sel=null, dlg=null, origin=null, forSlot=null;
+const HIST = makeHistory(()=>(Lr), v=>{ Lr=v; sel=null; });
 
 function blank(len=24, kind='ceiling-int'){ const K=LAYER_KINDS[kind]; return { id:null, name:'', kind, len, t:K.t, z:K.z, seams:[], holes:[] }; }
 /* open the builder: a fresh layer, a copy of a library layer, or (from a pod's layer panel) ready to use there */
@@ -39,7 +41,7 @@ function openLayerBuilder({ from=null, slot=null, len, kind }={}){
   else { Lr=blank(len||slot?.len||24, kind||slot?.kind||'ceiling-int'); origin=null; }
   Lr.holes = (Lr.holes||[]).map(h=>{ const c={...h}; delete c._f; if(c.hand===false) delete c.hand; return c; });   // drop what the 3D view adds
   view = Lr.kind==='ceiling-int' ? 'bottom' : 'top';
-  sel=null; ensure(); render(); if(!dlg.open) dlg.showModal();
+  sel=null; ensure(); HIST.reset(); render(); if(!dlg.open) dlg.showModal();
 }
 function ensure(){
   if(dlg) return; dlg=document.createElement('dialog'); dlg.className='cw-dlg wb-dlg'; dlg.setAttribute('aria-label','Floor, ceiling and roof builder');
@@ -120,13 +122,14 @@ function fields(){
     <div class="row"><button class="btn ghost sm" id="lbDup">Duplicate</button><button class="btn ghost sm" id="lbDel">Remove</button></div></div>`;
 }
 function render(){
+  HIST.track();
   const P=problems(), libHit=!!origin, lights=Lr.holes.filter(isLight).length;
   dlg.innerHTML=`<div class="cw">
     <header class="cw-h"><h2>Floor, ceiling &amp; roof builder</h2><span class="note">${origin?`editing <b>${esc(origin)}</b>`:forSlot?`for ${esc(forSlot.label)}`:'new layer'}</span><span class="spacer"></span><button class="btn ghost cw-x" aria-label="Close">✕</button></header>
     <div class="wb-body">
       <div class="wb-view">
         <div class="cw-vh"><div class="seg"><button data-view="top" aria-pressed="${view==='top'}">From above</button><button data-view="bottom" aria-pressed="${view==='bottom'}">From below</button></div>
-          <span class="spacer"></span><button class="btn ghost sm" id="lbMir" title="Turn it end for end">Mirror</button><button class="btn ghost sm" id="lbFlip" title="Turn it front to back">Flip</button></div>
+          <span class="spacer"></span>${histButtons(HIST)}<button class="btn ghost sm" id="lbMir" title="Turn it end for end">Mirror</button><button class="btn ghost sm" id="lbFlip" title="Turn it front to back">Flip</button></div>
         <div class="wb-stage">${plan()}</div>
         ${P.length?`<ul class="wb-warn">${P.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>`:''}
       </div>
@@ -173,6 +176,7 @@ function setCut(c){
 function bind(){
   const $=s=>dlg.querySelector(s);
   $('.cw-x').onclick=()=>dlg.close();
+  bindHistory(dlg, HIST, render);
   dlg.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{ view=b.dataset.view; render(); });
   dlg.querySelectorAll('[data-kind]').forEach(b=>b.onclick=()=>{ Lr.kind=b.dataset.kind; Lr.t=K().t; Lr.z=K().z; render(); });
   dlg.querySelectorAll('[data-len]').forEach(b=>b.onclick=()=>{ Lr.len=+b.dataset.len; Lr.seams=[]; render(); });

@@ -1,4 +1,5 @@
 /* Cubit Builder — main.js : boot + toolbar toggles */
+import { loadRules } from './wall-rules.js';
 import { state, initState } from './state.js';
 import { loadData } from './data.js';
 import { loadProjects } from './projects.js';
@@ -55,7 +56,7 @@ document.getElementById('bPlan').onclick=()=>{ if(state.view==='plan'){ closePla
 document.querySelectorAll('.hint').forEach(h=>{ const host=h.parentNode; const off=()=>{ h.classList.add('gone'); host.removeEventListener('pointerdown',off); }; host.addEventListener('pointerdown',off); });
 
 (async function boot(){
-  try{ await loadRole(); await loadData(); await loadUnits(); await loadProjects(); await loadCatalog(); await loadEdits(); await loadSettings(); await loadFixtures(); }
+  try{ await loadRole(); await loadData(); await loadUnits(); await loadProjects(); await loadCatalog(); await loadEdits(); await loadSettings(); await loadFixtures(); await loadRules(); }
   catch(e){ document.getElementById('sideH').innerHTML='<h2>Could not load the wall library</h2><p>Open the app from its web address (GitHub Pages) or a local web server, not by double-clicking the file.</p>'; return; }
   initState(); try{ await loadDrafts(); }catch(e){}
   initProjectsUI(); initUpload();
