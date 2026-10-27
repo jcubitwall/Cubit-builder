@@ -15,6 +15,7 @@ import { slotsFor } from './layout.js';
 import { panelCount, panelSpans, wallLen, bodyWall } from './panels.js';
 import { pickFor, podSeg, state } from './state.js';
 import { fin } from './format.js';
+import { nameOf } from './names.js';
 
 const faceFor = slot => state.faces?.[state.model]?.[slot.id] || podSeg(slot)?.face || 'int';
 const faceName = (slot, f) => slot.type==='int' ? (f==='int' ? `side A (faces ${slot.pod.label})` : `side B (faces ${slot.other.label})`) : (f==='int' ? 'interior' : 'exterior');
@@ -42,7 +43,7 @@ function panelPlan(slot, w0, assembly = faceFor(slot)){
   // …only where the two panels actually meet (none across a full-height opening with no SIP)
   const meet = (a,b) => b && Math.abs(spans[Math.min(a.k,b.k)][1]-spans[Math.max(a.k,b.k)][0])<0.01 && Math.abs(a.k-b.k)===1;
   seq.forEach((p,i)=>{ p.splineTo = meet(p, seq[i+1]) ? seq[i+1].code : null; });
-  return { slot, w, n, assembly, panels, seq };
+  return { slot, w, n, assembly, panels, seq, name: nameOf('w:'+slot.id) };
 }
 function homePlans(){
   return slotsFor(state.model).map(s=>{ const w=pickFor(s); return w ? panelPlan(s,w) : null; }).filter(Boolean);
@@ -77,7 +78,7 @@ function labelsPDF(plans, title){
     const rows=pl.seq.length;
     if(y+38+rows*13>752){ doc.addPage(); head(); }
     doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(...ink);
-    doc.text(`${pl.slot.label} (${pl.slot.detail}) - ${pl.w.id}`, 40, y+10);
+    doc.text(`${pl.slot.label}${pl.name?' - '+pl.name:''} (${pl.slot.detail}) - ${pl.w.id}`, 40, y+10);
     doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
     doc.text(`${faceShort(pl.slot,pl.assembly)} facing the assemblers  |  assembly order: ${pl.seq.map(p=>p.num).join(', ')}`, 40, y+22);
     y+=38;
@@ -102,7 +103,7 @@ function labelsPDF(plans, title){
     const col=i%2, row=Math.floor((i%10)/2);
     const x=mx+col*(LW+gap), yy=my+row*LH;
     doc.setDrawColor(200,200,200); doc.setLineWidth(0.3); doc.roundedRect(x+4,yy+4,LW-8,LH-8,6,6);
-    doc.setTextColor(...ink); doc.setFont('helvetica','bold'); doc.setFontSize(34); doc.text(p.code, x+16, yy+46);
+    doc.setTextColor(...ink); doc.setFont('helvetica','bold'); doc.setFontSize(34); doc.text(p.code, x+16, yy+46); if(pl.name){ const cw=doc.getTextWidth(p.code); doc.setFontSize(12); doc.text(doc.splitTextToSize(pl.name, LW-48-cw)[0], x+24+cw, yy+46); }
     doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(70,70,70);
     doc.text(title, x+16, yy+62);
     doc.setTextColor(...ink); doc.setFontSize(10);

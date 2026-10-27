@@ -49,6 +49,7 @@ function register(it){
     units:it.units||{}, found:it.found, deckOC:it.deckOC, bearing:it.bearing };
   const k=keyOf(it);
   if(it.faces && !state.faces[k]) state.faces[k]=clone(it.faces);
+  if(it.names && !state.names?.[k]) (state.names ||= {})[k]=clone(it.names);
   if(it.cabinets && !state.cabinets?.[k]) (state.cabinets ||= {})[k]=clone(it.cabinets);
   if(it.lights && !state.lights?.[k]) (state.lights ||= {})[k]=clone(it.lights);
   if(it.furniture && !state.furniture?.[k]) (state.furniture ||= {})[k]=clone(it.furniture);
@@ -70,8 +71,9 @@ function registerOver(it){
   MODELS[k]={ ...cur, pods:m.pods, decks:m.decks||[], size:m.size||cur.size, picks:{...(m.picks||{}), ...(it.picks||{})}, layerPicks:{...(m.layerPicks||{}), ...(it.layerPicks||{})}, wallA,
     units:it.units||{}, found:it.found, deckOC:it.deckOC, bearing:it.bearing, overBy:it.by, overAt:it.saved };
   // the shared version wins over anything left in this browser for that model
-  ['picks','layerPicks','wallA','units','found','deckOC','bearing','cabinets','lights','faces','furniture'].forEach(f=>{ if(state[f]) delete state[f][k]; });
+  ['picks','layerPicks','wallA','units','found','deckOC','bearing','cabinets','lights','faces','names','furniture'].forEach(f=>{ if(state[f]) delete state[f][k]; });
   if(it.faces) state.faces[k]=clone(it.faces);
+  if(it.names) (state.names ||= {})[k]=clone(it.names);
   if(it.cabinets) (state.cabinets ||= {})[k]=clone(it.cabinets);
   if(it.lights) (state.lights ||= {})[k]=clone(it.lights);
   if(it.furniture) (state.furniture ||= {})[k]=clone(it.furniture);
@@ -83,7 +85,7 @@ function itemFrom(name, family, note, id){
   const snap=snapshot(name, id);
   const it = { id, family, name, note:note||'', saved:new Date().toISOString(), by:email()||'',
     model:{...snap.model, name, base:familyById(family)?.base||snap.model.base}, picks:snap.picks, layerPicks:snap.layerPicks, wallA:snap.wallA,
-    faces:snap.faces, cabinets:snap.cabinets, lights:snap.lights, furniture:snap.furniture, found:snap.found, deckOC:snap.deckOC, units:snap.units, bearing:snap.bearing };
+    faces:snap.faces, names:snap.names, cabinets:snap.cabinets, lights:snap.lights, furniture:snap.furniture, found:snap.found, deckOC:snap.deckOC, units:snap.units, bearing:snap.bearing };
   if(!it.model.base) delete it.model.base;
   it.library=libraryFor(it);
   return it;

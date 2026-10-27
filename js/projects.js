@@ -87,7 +87,7 @@ function snapshot(name, id, k=state.model){
   if(m.base) model.base=m.base;
   const own = f => clone(state[f]?.[k]||{});
   return { id, name, saved:new Date().toISOString(), from:m.project ? (MODELS[k].from||k) : k, model,
-    picks: own('picks'), layerPicks: own('layerPicks'), wallA: own('wallA'), faces: own('faces'), inset: state.inset, bearing: getBearing(k), found: foundationOf(k), deckOC: deckOCOf(k), units: own('units'), cabinets: own('cabinets'), furniture: clone(state.furniture?.[k]||[]), lights: own('lights') };
+    picks: own('picks'), layerPicks: own('layerPicks'), wallA: own('wallA'), faces: own('faces'), inset: state.inset, bearing: getBearing(k), found: foundationOf(k), deckOC: deckOCOf(k), units: own('units'), cabinets: own('cabinets'), furniture: clone(state.furniture?.[k]||[]), lights: own('lights'), names: own('names') };
 }
 /* Save: updates the open project, or makes a new one. On the team's server when there is one. */
 const newId = () => Date.now().toString(36);
@@ -128,6 +128,7 @@ function openProject(id){
   if(!state.faces[k] || fresh) state.faces[k]=clone(p.faces||{});
   if(!state.cabinets?.[k] || fresh) (state.cabinets ||= {})[k]=clone(p.cabinets||{});
   if(!state.lights?.[k] || fresh) (state.lights ||= {})[k]=clone(p.lights||{});
+  if(!state.names?.[k] || fresh) (state.names ||= {})[k]=clone(p.names||{});
   if(!state.furniture?.[k] || fresh) (state.furniture ||= {})[k]=clone(p.furniture||[]);
   if(p.inset) state.inset=p.inset;
   if(p.bearing!=null && (state.bearing?.[k]==null || fresh)) (state.bearing ||= {})[k]=p.bearing;

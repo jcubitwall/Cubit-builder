@@ -121,7 +121,7 @@ function makeDraftCopy(key){
   MODELS[nk]={ name:m.name+(n?` (draft ${n+1})`:' (draft)'), size:m.size, ...(m.scratch?{scratch:true}:{}), base:m.base||(m.sub?undefined:key), family:fam, from:key, pods:bakedPods(key), decks:clone(m.decks||[]), picks:{}, layerPicks:{}, custom:true, draft:true, created:new Date().toISOString() };
   if(!MODELS[nk].base) delete MODELS[nk].base;
   ['bearing','found','deckOC'].forEach(f=>{ const v=state[f]?.[key] ?? m[f]; if(v!=null) (state[f] ||= {})[nk]=v; });
-  ['units','furniture','cabinets','lights'].forEach(f=>{ const v=state[f]?.[key] ?? (f==='units'?m.units:null); if(v) (state[f] ||= {})[nk]=clone(v); });
+  ['units','furniture','cabinets','lights','names'].forEach(f=>{ const v=state[f]?.[key] ?? (f==='units'?m.units:null); if(v) (state[f] ||= {})[nk]=clone(v); });
   state.faces[nk]={}; state.picks[nk]={}; state.layerPicks[nk]={}; state.wallA[nk]={};
   state.model=nk; saveCustomModels(); save();
   try{ window.dispatchEvent(new CustomEvent('cubit:draft', {detail:{from:key, key:nk}})); }catch(e){}

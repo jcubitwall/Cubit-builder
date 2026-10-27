@@ -120,6 +120,7 @@ function geomOf(k, it){
   const [w,h]=sizeOf(k,it), c=drawX(k,it); return { x0:c-w/2, x1:c+w/2, y0:H-it.y-h/2, y1:H-it.y+h/2, round:it.shape==='round' };
 }
 function itemLabel(k, it, i){
+  if(k==='op' && it.name) return it.name; if((k==='inside'||k==='outside') && it.label) return it.label;
   if(k==='op') return it.shape==='round' ? (it.kind==='window'?'the round window':`round hole ${i+1}`) : it.kind==='opening' ? `cased opening ${i+1}` : `the ${it.kind} ${i+1}`.replace(/^the (window|door) /,'$1 ');
   if(k==='sh') return `shape ${it.name||i+1}`;
   return `${(it.name||'box').toLowerCase()} (${k})`;
@@ -209,6 +210,7 @@ function fields(){
   const sideNote = r?.side==='chase' ? (it.free?.x ? `<p class="note wb-rule">Placed freely, off the chases. <button class="linkbtn" data-relock="x">Snap to the chases again</button></p>` : `<p class="note wb-rule">Snaps to the centre of the nearest electrical chase. <button class="linkbtn" data-unlock="x">Place freely</button></p>`) : '';
   const yNote = r && locked(k,it,'y') && Math.abs(ruleY(k,it)-r.y)>0.01 ? `<p class="note wb-rule">The rule says ${fin(r.y)}; this one was placed before. <button class="linkbtn" data-relock="y">Move it to ${fin(r.y)}</button></p>` : '';
   return `<div class="wb-sel"><div class="eyebrow">${isOp ? (round?(it.kind==='window'?'Round window · 32″ window, 33″ R.O.':'Round hole through the wall'):it.kind==='opening'?'Cased opening':it.kind==='window'?'Window opening':'Door opening') : (it.name||(round?'Round pocket':'Box'))+` · ${sel.k} face`}</div>
+    <label class="cw-f wb-name"><span>Name <small>(optional, shown on the sheets)</small></span><input data-nm="${isOp?'name':'label'}" value="${esc(isOp?it.name||'':it.label||'')}" placeholder="${esc(isOp?(round?(it.kind==='window'?'Round window':'Round hole'):it.kind==='opening'?'Cased opening':it.kind==='window'?'Window':'Door'):(it.name||'Box'))}" maxlength="60"></label>
     <div class="cw-fs">${round && it.kind==='window' ? `<p class="note">Round window: 32″ across, so the rough opening is a fixed ⌀ 33″ circle. Set where it sits.</p>` : round ? f('d','Diameter',it.d) : f('w','Width',w)+f('h','Height',h)}
       ${f('x', isOp?'Left edge from the left end':'Centre from the left end', x-cutSeen())}
       ${centred(k,it) ? f('y','Centre from the floor', ruleY(k,it)) : f('y','Bottom from the floor', it.y)}
@@ -322,6 +324,7 @@ function bind(){
     toast(f==='x' ? 'This one can go anywhere along the wall' : `${f==='y'?'Height':f==='depth'?'Depth':'Place'} unlocked for this item only`); render(); });
   dlg.querySelectorAll('[data-relock]').forEach(b=>b.onclick=e=>{ e.preventDefault(); const it=listOf(sel.k)[sel.i]; relock(sel.k,it,b.dataset.relock); render(); });
   bindRules();
+  dlg.querySelectorAll('[data-nm]').forEach(inp=>inp.onchange=()=>{ const it=listOf(sel.k)[sel.i]; if(!it) return; const v=inp.value.trim().slice(0,60); if(v) it[inp.dataset.nm]=v; else delete it[inp.dataset.nm]; render(); });
   RF.bind(dlg);
   dlg.querySelectorAll('[data-cut]').forEach(b=>b.onclick=()=>{ const [i,v]=b.dataset.cut.split(':'); W.cutSide=[...(W.cutSide||[])]; W.cutSide[+i]=v; for(let k=0;k<W.cutSide.length;k++) W.cutSide[k] ||= 'left'; resnapAll(); render(); });
   $('#wbGap')?.addEventListener('change', e=>{ const it=listOf('op')[sel.i]; it.gap = e.target.checked ? true : false; resnapAll(); render(); });

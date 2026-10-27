@@ -20,6 +20,7 @@ import { setIsolate, setPod } from './layers.js';
 import { applyEdits } from './libedit.js';
 import { withLights, cfgOf, setLights, cabinetsOf, setCabinet, cabDepth, CAB_PRESETS } from './lights.js';
 import { askRename } from './library-ui.js';
+import { nameOf, withName, setName, askName } from './names.js';
 import { furnSide, homeBlock, bindHomeBlock } from './casework-ui.js';
 import { draftBlock, bindDraftBlock, draftsRow } from './publish-ui.js';
 import { lightEditorHTML, bindLightEditor } from './light-edit-ui.js';
@@ -69,7 +70,7 @@ function wallListHTML(slots, current){
     html+=`<details class="podgrp" ${open?'open':''}><summary class="podhead">${pod.long}<span>Wall A = ${sideWord(mine[0].pod.wallA||'')}</span></summary><div class="wl">`;
     mine.forEach(s=>{
       const w=pickFor(s);
-      html+=`<button class="${s.id===current?'on':''}" data-s="${s.id}" title="${esc(w.id+' — '+w.name)}"><span class="n">Wall ${s.letter} <em>${s.detail}</em></span><span class="l">${fmtLen(wallLen(bodyWall(s,w)))} · ${panelCount(bodyWall(s,w))} panels</span><span class="o">${esc(w.id+' — '+w.name)}${w.blank?' ⚠':''}</span></button>`;
+      html+=`<button class="${s.id===current?'on':''}" data-s="${s.id}" title="${esc(w.id+' — '+w.name)}"><span class="n">Wall ${s.letter}${nameOf('w:'+s.id)?` · ${esc(nameOf('w:'+s.id))}`:''} <em>${s.detail}</em></span><span class="l">${fmtLen(wallLen(bodyWall(s,w)))} · ${panelCount(bodyWall(s,w))} panels</span><span class="o">${esc(w.id+' — '+w.name)}${w.blank?' ⚠':''}</span></button>`;
     });
     layers.filter(l=>l.pod.i===pod.i).forEach(l=>{
       const L=pickLayer(l);
@@ -107,9 +108,10 @@ function renderSide(){
   // the pod this wall / floor belongs to: turn it or take it out, right here
   const pi = state.selected && !String(state.selected).startsWith('deck:') ? parseInt(state.selected,10) : NaN;
   if(Number.isFinite(pi) && sideB && canSave() && MODELS[state.model].pods[pi]){
-    sideB.insertAdjacentHTML('afterbegin', `<div class="pod-acts"><b>Pod ${pi+1}</b><button class="btn ghost sm" id="podTurn">Turn 90°</button><button class="btn ghost sm" id="podMir" title="End for end: left ↔ right">Mirror</button><button class="btn ghost sm" id="podFlip" title="Front ↔ back">Flip</button><button class="btn ghost sm" id="podRm">Remove pod</button></div>`);
+    sideB.insertAdjacentHTML('afterbegin', `<div class="pod-acts"><b>${esc(withName(`Pod ${pi+1}`, 'p:'+pi))}</b><button class="btn ghost sm" id="podName">Name</button><button class="btn ghost sm" id="podTurn">Turn 90°</button><button class="btn ghost sm" id="podMir" title="End for end: left ↔ right">Mirror</button><button class="btn ghost sm" id="podFlip" title="Front ↔ back">Flip</button><button class="btn ghost sm" id="podRm">Remove pod</button></div>`);
     const go=(why,msg)=>{ if(why){ toast(why); return; } state.selected=null; renderModels(); buildHome(); renderSide(); toast(msg); };
     sideB.querySelector('#podTurn').onclick=()=>go(rotatePod(pi),'Pod turned 90°');
+    bindName(sideB, 'podName', 'p:'+pi, `Name Pod ${pi+1}`, 'e.g. Bedroom pod');
     sideB.querySelector('#podMir').onclick=()=>go(mirrorPod(pi,'x'),'Pod mirrored end for end');
     sideB.querySelector('#podFlip').onclick=()=>go(mirrorPod(pi,'z'),'Pod flipped front to back');
     sideB.querySelector('#podRm').onclick=e=>{ const b=e.target; if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to remove'; return; } const why=deletePod(pi); go(why, 'Pod removed, with the cabinets and furniture in it'); if(!why) setPod(null); };
@@ -151,8 +153,9 @@ function renderSideInner(){
   } else {
     const w=pickFor(s); const opts=optionsFor(s.len, s.type||'ext', state.model);
     const isInt=s.type==='int';
-    sideH.innerHTML=`<div class="eyebrow">${isInt?'Interior wall · 4½″':'Exterior wall · 6½″'} · ${s.len}′ · ${s.len/4} panels</div><h2>${s.label}</h2><p>${s.detail} · faces ${fmtBearing(facing(s))} · now <b>${w?esc(w.id):'—'}</b> ${w?esc(w.name):''}${w&&!w.blank?' <button class="linkbtn ren-link edit-only" id="renWall">Rename</button>':''}</p>`;
+    sideH.innerHTML=`<div class="eyebrow">${isInt?'Interior wall · 4½″':'Exterior wall · 6½″'} · ${s.len}′ · ${s.len/4} panels</div><h2>${esc(withName(s.label, 'w:'+s.id))}${nameBtn('nmWall')}</h2><p>${s.detail} · faces ${fmtBearing(facing(s))} · now <b>${w?esc(w.id):'—'}</b> ${w?esc(w.name):''}${w&&!w.blank?' <button class="linkbtn ren-link edit-only" id="renWall">Rename</button>':''}</p>`;
     const rw=sideH.querySelector('#renWall'); if(rw) rw.onclick=()=>askRename('walls', w.mirrorOf||w.id);
+    bindName(sideH, 'nmWall', 'w:'+s.id, `Name ${s.label}`, 'e.g. Kitchen wall');
     sideB.innerHTML=`
       <div class="row"><button class="btn" id="toSheet">Assembly sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===s.id}">${state.isolate===s.id?'Exit isolate':'Isolate'}</button>${s.short ? `<button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button>` : ''}${w&&!w.blank?`<button class="btn ghost edit-only" id="wMir" title="The same wall the other way round (left ↔ right)">Mirror wall</button>`:''}<button class="btn ghost edit-only" id="wBuild" title="Openings, boxes, holes and shapes for this wall">Panel builder</button></div>
       ${(state.wallA?.[state.model]?.[s.pod.i] || m.pods[s.pod.i]?.a) ? `<p class="note">Wall A for ${s.pod.label} was set by hand. <button class="linkbtn" id="autoA">Go back to automatic</button></p>`:''}
@@ -259,10 +262,15 @@ function bindUnits(s, w){
   sideB.querySelectorAll('.units [data-goto]').forEach(b=>b.onclick=()=>{ state.selected=b.dataset.goto; highlight(); renderSide(); });
 }
 
+/* "Name" beside a code: Wall D · Kitchen wall (names.js) */
+const nameBtn = (id) => canSave() ? ` <button class="linkbtn ren-link edit-only" id="${id}">Name</button>` : '';
+function bindName(root, id, key, title, placeholder, after){ const b=root.querySelector('#'+id); if(!b) return;
+  b.onclick=async()=>{ const v=await askName({ title, current:nameOf(key), placeholder, note:'Shown beside its code everywhere (on the sheets and labels too). The code itself stays the same.' });
+    if(v===null) return; await setName(key, v); renderModels(); buildHome(); renderSide(); toast(v?`Named “${v}”`:'Name cleared'); }; }
 function renderDeckSide3d(k){
   const d=deckList(state.model)[k]; if(!d){ state.selected=null; renderSide(); return; }
   const L=d.L;
-  sideH.innerHTML=`<div class="eyebrow">Deck ${k+1} · ${L.w}′ × ${L.d}′ frame</div><h2>${L.w}′ × ${L.d}′ deck</h2><p><code>${esc(L.id)}</code> · double 2×8 rims · 2×8 joists ${deckOCOf(state.model)}″ o.c. from the house · 4 corner notches 1½″ · ¾″ off the house</p>`;
+  sideH.innerHTML=`<div class="eyebrow">Deck ${k+1} · ${L.w}′ × ${L.d}′ frame</div><h2>${esc(withName(`${L.w}′ × ${L.d}′ deck`, 'd:'+k))}${nameBtn('nmDeck')}</h2><p><code>${esc(L.id)}</code> · double 2×8 rims · 2×8 joists ${deckOCOf(state.model)}″ o.c. from the house · 4 corner notches 1½″ · ¾″ off the house</p>`;
   sideB.innerHTML=`<div class="row"><button class="btn" id="toSheet">Framing sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate==='deck:'+k}">${state.isolate==='deck:'+k?'Exit isolate':'Isolate'}</button><button class="btn ghost edit-only" id="dTurn" title="Turn it a quarter turn where it docks">Turn</button><button class="btn ghost danger edit-only" id="dDel">Remove deck</button></div>
     <div class="fld">Stands on<div class="seg"><button class="fsbtn" id="fScrews" aria-pressed="${d.found!=='pads'}">Ground screws</button><button class="fsbtn" id="fPads" aria-pressed="${d.found==='pads'}">Concrete pads (floating)</button></div></div>
     <div class="edit-only">${ocSeg()}</div>
@@ -274,14 +282,16 @@ function renderDeckSide3d(k){
   sideB.querySelector('#isoBtn').onclick=()=>setIsolate(state.isolate==='deck:'+k ? null : 'deck:'+k, `Deck ${k+1}`);
   sideB.querySelector('#dDel')?.addEventListener('click', e=>{ const b=e.currentTarget; if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to remove'; return; }
     const why=removeDeck(k); if(why){ toast(why); return; } state.selected=null; if(state.isolate==='deck:'+k) setIsolate(null); renderModels(); buildHome(); renderSide(); toast(`Deck ${k+1} removed · undo brings it back`); });
+  bindName(sideH, 'nmDeck', 'd:'+k, `Name Deck ${k+1}`, 'e.g. Front deck');
   sideB.querySelector('#dTurn')?.addEventListener('click', ()=>{ const why=turnDeck(k); if(why){ toast(why); return; } state.selected='deck:'+k; renderModels(); buildHome(); renderSide(); });
   
 }
 /* ============================================================ layout editor: add / remove pods */
 function renderLayerSide(ls){
   const L=pickLayer(ls), K=LAYER_KINDS[ls.kind], opts=layerOptions(ls.kind, ls.len);
-  sideH.innerHTML=`<div class="eyebrow">${K.label} · ${ls.len}′ × 8′ · ${(L.t||K.t)}″ thick</div><h2>${ls.label}</h2><p>now <b>${esc(L.id)}</b> ${esc(L.name)}${L.blank?'':' <button class="linkbtn ren-link edit-only" id="renLayer">Rename</button>'}</p>`;
+  sideH.innerHTML=`<div class="eyebrow">${K.label} · ${ls.len}′ × 8′ · ${(L.t||K.t)}″ thick</div><h2>${esc(withName(ls.label, 'l:'+ls.id))}${nameBtn('nmLayer')}</h2><p>now <b>${esc(L.id)}</b> ${esc(L.name)}${L.blank?'':' <button class="linkbtn ren-link edit-only" id="renLayer">Rename</button>'}</p>`;
   const rl=sideH.querySelector('#renLayer'); if(rl) rl.onclick=()=>askRename('layers', L.id);
+  bindName(sideH, 'nmLayer', 'l:'+ls.id, `Name ${ls.label}`, 'e.g. Bedroom ceiling');
   sideB.innerHTML=`
     <div class="row"><button class="btn" id="toSheet">Layer sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===ls.id}">${state.isolate===ls.id?'Exit isolate':'Isolate'}</button>${L.blank?'':'<button class="btn ghost edit-only" id="lMir" title="End for end">Mirror</button><button class="btn ghost edit-only" id="lFlip" title="Front to back">Flip</button>'}<button class="btn ghost" id="lBuild" title="Holes, hatches, pockets and shapes for this layer">Panel builder</button></div>
     ${(ls.kind==='ceiling-int'||ls.kind==='roof') && state.isolate!==ls.id ? '<p class="note">Turn on Ceiling or Roof under Layers (or use Exploded view) to see them in 3D, or press Isolate.</p>':''}

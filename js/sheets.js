@@ -13,6 +13,7 @@ import { takeoffHTML } from './takeoff.js';
 import { renderShop } from './shop.js';
 import { renderCncSheet } from './cncsheet.js';
 import { LAYER_KINDS } from './config.js';
+import { withName } from './names.js';
 import { panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall, layerHoles, isShaped, shapeOf, outlinePts, mapX, faceShape, handOf } from './panels.js';
 import { buildWallMesh, resize, buildHome } from './scene3d.js';
 import { setHand } from './libedit.js';
@@ -88,11 +89,11 @@ function renderSheet(){
   const faceB = isInt ? `Side B · faces ${s.other.label}` : 'Back · exterior side';
   if(!w){ el.innerHTML='<p>No wall option exists for this length yet.</p>'; return; }
   const n=panelCount(w); const face=faceFor(s); state.face=face; state.reverse=false;
-  if(!n){ el.innerHTML=`<div class="sheet-title"><div><div class="eyebrow" style="color:#555">Assembly sheet · Cubit Home</div><h3>${s.label} · ${s.detail} — ${w.id}</h3></div></div><p>No SIP panels: this wall is one full-height opening with no SIP in it.</p>`; return; }
+  if(!n){ el.innerHTML=`<div class="sheet-title"><div><div class="eyebrow" style="color:#555">Assembly sheet · Cubit Home</div><h3>${esc(withName(s.label, 'w:'+s.id))} · ${s.detail} — ${w.id}</h3></div></div><p>No SIP panels: this wall is one full-height opening with no SIP in it.</p>`; return; }
   const plan=panelPlan(s,w,face);
   el.innerHTML=`
     <div class="sheet-title">
-      <div><div class="eyebrow" style="color:#555">Assembly sheet · Cubit Home</div><h3>${s.label} · ${s.detail} — ${w.id}</h3></div>
+      <div><div class="eyebrow" style="color:#555">Assembly sheet · Cubit Home</div><h3>${esc(withName(s.label, 'w:'+s.id))} · ${s.detail} — ${w.id}</h3></div>
       <div class="meta">${MODELS[state.model].name} · ${fft(wallLen(w))} × ${fft(H)} · ${n} panels (${panelSpans(w).map(([a,b])=>fin(b-a)).reverse().join(' + ')}) · ${isInt?'Interior':'Exterior'} wall ${fin(w.t||T)}<br>${new Date().toISOString().slice(0,10)}</div>
     </div>
     <div class="sheet-tools">
@@ -126,8 +127,8 @@ function boxTable(w,face,slot){
   let h=`<table class="boxes"><thead><tr><th>Item</th><th>From left end</th><th>Height</th><th>Size</th><th>Panel</th><th>Unit</th><th>Made</th></tr></thead><tbody>`;
   const n=panelCount(w);
   const pn = vx => panelNum(n, panelAt(w, face==='ext' ? vx : L-vx), false);
-  ops.sort((a,b)=>a.vx-b.vx).forEach(o=>{ h+=`<tr><td>${o.kind==='window'?'Window opening':o.kind==='door'?'Door opening':o.kind==='opening'?'Cased opening':o.kind==='vent'?'Vent / duct hole':o.kind==='shape'?`Shape: ${o.name||'drawn'} (through)`:'Patio door opening'}</td><td>${fin(o.vx)}</td><td>sill ${fin(o.y)}</td><td>${fin(o.w)} × ${fin(o.h)}</td><td>${pn(o.vx+o.w/2)}</td><td>${(()=>{ const r=unitFor(slot,o); return r?`${r.unit.id} · ${unitLabel(r)}`:(o.kind==='window'||o.kind==='door'||o.kind==='patio'?'<i>not chosen</i>':'—'); })()}</td><td>${made(o)}</td></tr>`; });
-  items.sort((a,b)=>a.vx-b.vx).forEach(b=>{ h+=`<tr><td>${names[b.kind]||b.kind}</td><td>${fin(b.vx)} (centre)</td><td>${fin(b.y)}</td><td>${size(b)}${b.depth?` · ${fin(b.depth)} deep`:''}</td><td>${pn(b.vx)}</td><td></td><td>${made(b)}</td></tr>`; });
+  ops.sort((a,b)=>a.vx-b.vx).forEach(o=>{ h+=`<tr><td>${(()=>{ const t=o.kind==='window'?'Window opening':o.kind==='door'?'Door opening':o.kind==='opening'?'Cased opening':o.kind==='vent'?'Vent / duct hole':o.kind==='shape'?`Shape: ${o.name||'drawn'} (through)`:'Patio door opening'; return o.name && o.kind!=='shape' ? `<b>${esc(o.name)}</b> <small>(${t})</small>` : t; })()}</td><td>${fin(o.vx)}</td><td>sill ${fin(o.y)}</td><td>${fin(o.w)} × ${fin(o.h)}</td><td>${pn(o.vx+o.w/2)}</td><td>${(()=>{ const r=unitFor(slot,o); return r?`${r.unit.id} · ${unitLabel(r)}`:(o.kind==='window'||o.kind==='door'||o.kind==='patio'?'<i>not chosen</i>':'—'); })()}</td><td>${made(o)}</td></tr>`; });
+  items.sort((a,b)=>a.vx-b.vx).forEach(b=>{ h+=`<tr><td>${b.label ? `<b>${esc(b.label)}</b> <small>(${names[b.kind]||b.kind})</small>` : names[b.kind]||b.kind}</td><td>${fin(b.vx)} (centre)</td><td>${fin(b.y)}</td><td>${size(b)}${b.depth?` · ${fin(b.depth)} deep`:''}</td><td>${pn(b.vx)}</td><td></td><td>${made(b)}</td></tr>`; });
   return h+`</tbody></table>`;
 }
 /* the seal note on a wall between pods: which seal, why, and how it runs */

@@ -9,7 +9,7 @@ import { state, save, onSave } from './state.js';
 import { canSave } from './role.js';
 import { famByName } from './catalog.js';
 
-const FIELDS = ['picks','layerPicks','units','wallA','faces','cabinets','lights','furniture','found','deckOC','bearing'];
+const FIELDS = ['picks','layerPicks','units','wallA','faces','names','cabinets','lights','furniture','found','deckOC','bearing'];
 let remote=false;
 const timers={};
 const clone = o => JSON.parse(JSON.stringify(o));

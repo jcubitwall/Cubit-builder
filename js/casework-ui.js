@@ -10,6 +10,9 @@ import { homeGroup, wallGroups, highlight } from './scene3d.js';
 import { renderSide, toast } from './sidebar.js';
 import { setPanel, panelOpen } from './fullscreen.js';
 import { setIsolate } from './layers.js';
+import { askName } from './names.js';
+import { checkpoint } from './history.js';
+import { ensureDraft } from './pods.js';
 
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const U = () => settings().units;
@@ -234,8 +237,10 @@ async function commit(S, say){
 function furnSide(sideH, sideB){
   const it=furnById(state.selFurn); if(!it) return false;
   const d=itemDef(it.k), cat=catOf(d.cat), n=partsOf(it).filter(p=>!p.hw&&!p.solid).length, tot=totals([it]);
-  sideH.innerHTML=`<button class="side-x" id="sideXf" title="Back to the whole home" aria-label="Back to the whole home">✕</button><div class="eyebrow">${esc(cat.name)}</div><h2>${esc(d.name)}</h2><p>${sizeTxt(it)}${it.y?` · ${show(it.y)}${unitSign()} off the floor`:''}${n?` · ${n} parts · ${Object.entries(tot.area).map(([k,a])=>`${k}″ ${a.toFixed(1)} sq ft`).join(' · ')}`:''}</p>`;
+  sideH.innerHTML=`<button class="side-x" id="sideXf" title="Back to the whole home" aria-label="Back to the whole home">✕</button><div class="eyebrow">${esc(cat.name)}</div><h2>${esc(it.label||d.name)}${it.label?` <small class="muted">${esc(d.name)}</small>`:''}${canSave()?' <button class="linkbtn ren-link" id="fName">Name</button>':''}</h2><p>${sizeTxt(it)}${it.y?` · ${show(it.y)}${unitSign()} off the floor`:''}${n?` · ${n} parts · ${Object.entries(tot.area).map(([k,a])=>`${k}″ ${a.toFixed(1)} sq ft`).join(' · ')}`:''}</p>`;
   sideH.querySelector('#sideXf').onclick=()=>{ state.selFurn=null; applyFurniture(); renderSide(); };
+  sideH.querySelector('#fName')?.addEventListener('click', async()=>{ const v=await askName({ title:`Name this ${d.name.toLowerCase()}`, current:it.label||'', placeholder:d.name, note:'Shown instead of the catalogue name in this home; the catalogue item stays the same.' });
+    if(v===null) return; checkpoint(); ensureDraft(); const x=furnById(it.id); if(!x) return; if(v) x.label=v; else delete x.label; save(); renderSide(); toast(v?`Named “${v}”`:'Name cleared'); });
   const ed=canSave();
   const iso=state.isolate==='furn:'+it.id;
   sideB.innerHTML=`<div class="row"><button class="btn" id="fOpen">3D, exploded &amp; parts</button><button class="btn ghost" id="fIso" aria-pressed="${iso}">${iso?'Exit isolate':'Isolate'}</button></div>

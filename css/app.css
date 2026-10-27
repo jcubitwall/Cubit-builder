@@ -954,3 +954,5 @@ dialog.v3-dlg[open]{display:flex;flex-direction:column}
 .rf-dim{stroke:#ff3b30;stroke-width:.45;marker-start:none}
 .rf-guide{stroke:#ff3b30;stroke-width:.3;stroke-dasharray:1 1}
 .rf-dimt{font:700 3.6px var(--mono);fill:#ff3b30;text-anchor:middle;paint-order:stroke;stroke:#fff;stroke-width:.8px}
+.wb-name small{font-weight:400;opacity:.7}
+.ren-link{font-size:13px;font-weight:600;margin-left:6px;vertical-align:middle}

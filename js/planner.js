@@ -1,6 +1,7 @@
 /* Cubit Builder — planner.js : the plan editor. A top view of the home on the 8′ grid with a palette of
    pods (blank 8′/16′/24′ pods and the pod library). Drag a pod in, drag pods around, turn them in 90°
    steps, replace or remove them. Every drop snaps to the nearest spot where the pod docks properly. */
+import { nameOf, withName, setName } from './names.js';
 import { POD, DECK } from './config.js';
 import { deckMembers, joistCentres, deckName, deckSizes, ocSeg, bindOC } from './deckframe.js';
 import { fin } from './format.js';
@@ -399,9 +400,10 @@ function renderSide2(){
   const p=pods[sel], L=p.src&&podById(p.src);
   const others=[['L24','24′ pod · blank'],['P16','16′ pod · blank'],['P8','8′ pod · blank']].map(([t,n])=>`<option value="t:${t}">${n}</option>`).join('')
     + PODLIB.map(x=>`<option value="lib:${esc(x.id)}">${esc(x.id)} · ${esc(x.name)}</option>`).join('');
-  side.innerHTML=`<div class="side-h"><div class="eyebrow">Pod ${p.i+1} · 8′ × ${p.len}′${p.rot?` · turned ${p.rot}°`:''}</div><h2>${L?esc(L.name):`Pod ${p.i+1}`}</h2><p>${L?`from the pod library · <code>${esc(L.id)}</code>`:'not from the pod library'}</p></div>
+  side.innerHTML=`<div class="side-h"><div class="eyebrow">Pod ${p.i+1} · 8′ × ${p.len}′${p.rot?` · turned ${p.rot}°`:''}</div><h2>${nameOf('p:'+p.i)?esc(withName(`Pod ${p.i+1}`,'p:'+p.i)):L?esc(L.name):`Pod ${p.i+1}`}</h2><p>${L?`from the pod library · <code>${esc(L.id)}</code>`:'not from the pod library'}</p></div>
   <div class="side-b">
     <div class="row"><button class="btn" id="turn">Turn 90°</button><button class="btn ghost" id="del">Remove</button><button class="btn ghost" id="back">Done</button></div>
+    <label class="fld edit-only">Name in this home <small>(shown beside "Pod ${p.i+1}")</small><input id="podNm" maxlength="60" value="${esc(nameOf('p:'+p.i))}" placeholder="e.g. Bedroom pod"></label>
     <label class="fld">Replace with<select id="rep">${others}</select></label>
     <div class="row"><button class="btn ghost" id="doRep">Replace this pod</button></div>
     <label class="fld edit-only">Name in the pod library<input id="pname" value="${esc(L?.name || `${p.len}′ pod · ${m.name} · Pod ${p.i+1}`)}"></label>
@@ -409,6 +411,7 @@ function renderSide2(){
     <p class="note">The pod keeps its walls, floors and ceilings when you move or turn it. A wall that stops being a joint (or becomes one) changes to a library wall of the right type.</p>
   </div>`;
   el('turn').onclick=()=>done(rotatePod(sel),'Pod turned 90°');
+  el('podNm')?.addEventListener('change', async e=>{ await setName('p:'+p.i, e.target.value); toast(e.target.value.trim()?`Named “${e.target.value.trim()}”`:'Name cleared'); renderSide2(); });
   el('del').onclick=()=>{ const why=deletePod(sel); if(!why) sel=null; done(why,'Pod removed'); };
   el('back').onclick=()=>{ sel=null; renderPlan(); renderSide2(); };
   el('doRep').onclick=()=>{ const v=el('rep').value, item=v.startsWith('lib:')?{lib:v.slice(4)}:{t:v.slice(2)}; done(replacePod(sel,item),'Pod replaced'); };

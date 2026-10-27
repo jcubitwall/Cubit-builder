@@ -71,7 +71,7 @@ const kindName = h => `${h.shape==='round'?'Round':'Rectangular'} ${cutOf(h)==='
 const holeBox = h => { const x=sx(h); return { x0:x, x1:x+h.w, y0:h.z, y1:h.z+h.d, round:h.shape==='round' }; };
 const shapeBox = it => { const x=ssx(it); return { x0:x, x1:x+it.w, y0:it.z, y1:it.z+it.h }; };
 const RF = makeRefTool({
-  items: () => [ ...Lr.holes.map((h,i)=>i===sel ? null : { ...holeBox(h), label: isLight(h) ? 'pot light' : `${kindName(h).toLowerCase()} ${i+1}` }),
+  items: () => [ ...Lr.holes.map((h,i)=>i===sel ? null : { ...holeBox(h), label: isLight(h) ? 'pot light' : h.label || `${kindName(h).toLowerCase()} ${i+1}` }),
                  ...(Lr.shapes||[]).map((it,i)=>i===ssel ? null : { ...shapeBox(it), label:`shape ${it.name||i+1}` }) ].filter(Boolean),
   lines: () => [ ...seams().map(q=>[{x:view==='top'?q:L()-q}, 'panel joint']), [{x:0}, 'left end'], [{x:L()}, 'right end'], [{y:0}, 'top edge'], [{y:WID}, 'bottom edge'] ],
   extent: () => ({ x0:0, x1:L(), y0:0, y1:WID }),
@@ -157,6 +157,7 @@ function fields(){
   const round=h.shape==='round', shaped=h.shape==='poly' || h.shape==='slot', c=cutOf(h);
   const f=(id,label,v)=>`<label class="cw-f"><span>${label}</span><input data-f="${id}" inputmode="decimal" value="${Math.round(v*16)/16}"><i>″</i></label>`;
   return `<div class="wb-sel"><div class="eyebrow">${kindName(h)}${shaped?' · as drawn':''}</div>
+    <label class="cw-f wb-name"><span>Name <small>(optional)</small></span><input data-nm="1" value="${esc(h.label||'')}" placeholder="${esc(kindName(h))}" maxlength="60"></label>
     <div class="seg wrap" role="group" aria-label="Cut"><button data-cut="thru" aria-pressed="${c==='thru'}">Right through</button><button data-cut="top" aria-pressed="${c==='top'}">Pocket from the top</button><button data-cut="bottom" aria-pressed="${c==='bottom'}">Pocket from the bottom</button></div>
     <div class="cw-fs">${shaped ? '' : round ? f('dia','Diameter',h.dia||h.w) : f('w','Length (along the pod)',h.w)+f('d','Width (across)',h.d)}
       ${f('x','Left edge from the left end', sx(h))}
@@ -226,6 +227,7 @@ function bind(){
   $('.cw-x').onclick=()=>dlg.close();
   bindHistory(dlg, HIST, render);
   RF.bind(dlg);
+  dlg.querySelectorAll('[data-nm]').forEach(inp=>inp.onchange=()=>{ const h=Lr.holes[sel]; if(!h) return; const v=inp.value.trim().slice(0,60); if(v) h.label=v; else delete h.label; render(); });
   dlg.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{ view=b.dataset.view; render(); });
   dlg.querySelectorAll('[data-pkind]').forEach(b=>b.onclick=()=>{ const k=b.dataset.pkind; if(k==='wall'){ switchKind('wall', { len:Lr.len, close:()=>dlg.close() }); return; } Lr.kind=k; Lr.t=K().t; Lr.z=K().z; render(); });
   dlg.querySelectorAll('[data-len]').forEach(b=>b.onclick=()=>{ Lr.len=+b.dataset.len; Lr.seams=[]; render(); });
