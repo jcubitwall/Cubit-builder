@@ -9,6 +9,7 @@ import { familyOf, familyById, FAMILIES, variantsOf } from './catalog.js';
 import { renderModels, renderSide, toast } from './sidebar.js';
 import { buildHome } from './scene3d.js';
 import { canSave } from './role.js';
+import { openViewer } from './viewer3d.js';
 
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const KIND = { families:'model name', models:'home', pods:'pod', walls:'wall', layers:'layer', decks:'deck' };
@@ -78,8 +79,9 @@ function render(){
   const gone=all.filter(r=>r.it.deleted).length;
   dlg.querySelector('#libTabs').innerHTML = TABS.map(([k,l])=>`<button role="tab" data-tab="${k}" aria-selected="${tab===k}">${l}</button>`).join('');
   dlg.querySelector('#libGone').textContent = showGone ? 'Back to the library' : `Show deleted${gone?` (${gone})`:''}`;
-  body.innerHTML = list.length ? list.map(r=>`<div class="lib-row">${r.thumb?`<span class="lib-th">${r.thumb}</span>`:''}
+  body.innerHTML = list.length ? list.map(r=>`<div class="lib-row" data-view="${esc(r.id)}" title="Tap to see it in 3D">${r.thumb?`<span class="lib-th">${r.thumb}</span>`:''}
       <div class="lib-t"><b>${esc(r.it.name)}</b><small><code>${esc(r.id)}</code> · ${esc(r.sub)}</small></div>
+      <button class="btn ghost sm lib-3d" data-view="${esc(r.id)}" aria-label="See ${esc(r.it.name)} in 3D">3D</button>
       <div class="lib-a edit-only">${showGone ? `<button class="btn ghost sm" data-res="${esc(r.id)}">Restore</button>`
         : `<button class="btn ghost sm" data-ren="${esc(r.id)}">Rename</button><button class="btn ghost sm danger" data-del="${esc(r.id)}">Delete</button>`}</div></div>`).join('')
     : `<p class="note">${showGone ? 'Nothing deleted here.' : q ? 'Nothing matches.' : 'Empty.'}</p>`;
@@ -91,7 +93,7 @@ function open(){
       <div class="lib-tabs" id="libTabs" role="tablist"></div>
       <div class="lib-bar"><input type="search" id="libQ" placeholder="Search names and IDs" aria-label="Search the library"><button class="linkbtn" id="libGone"></button></div>
       <div id="libBody" class="lib-list"></div>
-      <p class="note">Renaming changes the name everywhere for the whole team. Deleting hides it from every list; homes already using it keep it.</p></div>`;
+      <p class="note">Tap a row (or 3D) to see it full screen in 3D. Renaming changes the name everywhere for the whole team. Deleting hides it from every list; homes already using it keep it.</p></div>`;
     document.body.appendChild(dlg);
     dlg.querySelector('#libClose').onclick=()=>dlg.close();
     dlg.querySelector('#libQ').oninput=e=>{ q=e.target.value; render(); };
@@ -101,6 +103,9 @@ function open(){
       const r=e.target.closest('[data-ren]'); if(r){ askRename(tab, r.dataset.ren); return; }
       const d=e.target.closest('[data-del]'); if(d){ askDelete(d, tab, d.dataset.del); return; }
       const s=e.target.closest('[data-res]'); if(s){ restore(tab, s.dataset.res); return; }
+      if(e.target.closest('button,input,a')  && !e.target.closest('.lib-3d')) return;
+      const v=e.target.closest('[data-view]'); if(v){ const id=v.dataset.view;
+        openViewer(tab, id, tab==='families' ? { modelKey: familyById(id)?.base && MODELS[familyById(id).base] ? familyById(id).base : variantsOf(id)[0] } : {}); }
     });
   }
   q=''; dlg.querySelector('#libQ').value=''; render(); dlg.showModal();

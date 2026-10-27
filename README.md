@@ -272,3 +272,10 @@ See that folder's README. The scan is exact, so **only upload accurate models**:
 - **Builders are full screen** (panel builder, cabinet library, Shape studio), with the close ✕ always top right.
 - **Layers list folds:** the switches are in groups — Shell, Inside the panels, Cabinets & furniture, Floors & foundation, View & labels (plus Focus and Pods). Tap a group's name to fold or open it (remembered on this device); its own switch turns the whole group on or off, and it shows how many are on.
 - **North (Build view)** (`js/compass-ui.js`): a small dial under the view cube shows where north is on screen and turns with the view. Tap it to set the home's bearing: type it, tap N / E / S / W, ↺ / ↻ 15°, or drag the needle to point north. Kept per home (`orient.js`), it turns the north arrow beside the home, gives each wall's facing, and prints on the foundation sheets. Changing it on a Cubit model makes your draft, like any other change.
+
+## Library 3D viewer
+Tap any row in the Library (⋯ → Library), or its 3D button, to see that home, pod, wall, floor / ceiling / roof or deck full screen in 3D (`js/viewer3d.js`). Exploded view pulls it apart (homes and pods the same way Build does; a wall's panels apart; floors and decks spread from the middle). The side cube top right turns with the view; tap a side and the view flies there and locks flat (no perspective, no turning; zoom and slide still work). Tap 🔓 3D, double-tap the cube or press Esc to turn freely again. Homes and pods are built by Build's own code and copied, and Build is put back as it was.
+
+## Panel builder: moving items
+The first tap on a window, hole, box or hatch only picks it. Drag a picked item to move it: it moves along one line only, sideways or up / down (along or across on a floor, ceiling or roof), whichever way the drag starts.
+

@@ -915,3 +915,15 @@ html.phone .compass.bc-compass{top:auto;bottom:calc(140px + env(safe-area-inset-
 .wb-layout{border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:6px}
 .wb-strow{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;font-size:13px}
 .wb-chk{display:flex;gap:8px;align-items:flex-start;font-size:13px}
+/* Library rows open the full-screen 3D viewer (viewer3d.js) */
+.lib-row[data-view]{cursor:pointer}
+.lib-row[data-view]:hover{background:color-mix(in srgb,var(--accent-soft) 45%,transparent)}
+.lib-3d{flex:none}
+dialog.v3-dlg[open]{display:flex;flex-direction:column}
+.v3-dlg .cw-h .note{margin:0;color:var(--muted)}
+.v3-dlg #v3Ex[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.v3-stage{position:relative;flex:1;min-height:0;overflow:hidden}
+.v3-stage canvas{display:block;width:100%;height:100%;touch-action:none}
+.v3-cube{position:absolute;top:12px;right:12px;z-index:2;display:flex;flex-direction:column;align-items:center;gap:8px}
+.v3-lock{background:var(--surface);white-space:nowrap}
+.v3-hint{position:absolute;left:50%;bottom:max(12px, env(safe-area-inset-bottom,0px));transform:translateX(-50%);margin:0;padding:5px 12px;border-radius:999px;background:color-mix(in srgb,var(--surface) 88%,transparent);font:600 12px var(--mono);color:var(--muted);white-space:nowrap;max-width:calc(100% - 24px);overflow:hidden;text-overflow:ellipsis;pointer-events:none}
