@@ -10,6 +10,7 @@
      slider    horizontal slider           hand = the panel that moves, L / R
      entry     man door                    hand = hinge side L / R, swing in / out
      patio     patio slider                hand = the panel that moves, L / R
+     round     round fixed window (Cubit's is 32″ across, in a 33″ round rough opening); only fits round openings
    Which unit sits in an opening: the person's choice (kept per home, per wall slot, per opening), else
    the home's own (models.json "units"), else the only library unit of the right kind that fits the
    rough opening. If several fit, it is left for the person to choose. */
@@ -29,6 +30,7 @@ const TYPES = {
   slider:   { label:'Slider',          cat:'window', hand:'Moving panel' },
   entry:    { label:'Man door',        cat:'door',   hand:'Hinge', swing:true },
   patio:    { label:'Patio slider',    cat:'patio',  hand:'Moving panel' },
+  round:    { label:'Round (fixed)',   cat:'window', round:true },
 };
 const CAT_OF = { window:'window', door:'door', patio:'patio' };   // opening kind → unit category
 const UNITLIB = [];
@@ -38,10 +40,11 @@ async function loadUnits(){
 const unitById = id => UNITLIB.find(u=>u.id===id);
 const catOf = o => CAT_OF[o.kind];
 /* a unit fits a rough opening when it is no bigger and at most 2″ smaller each way */
-const fits = (u,o) => u.w<=o.w+0.125 && u.h<=o.h+0.125 && o.w-u.w<=2 && o.h-u.h<=2;
+const isRound = o => o.shape==='round';
+const fits = (u,o) => !!TYPES[u.type]?.round===isRound(o) && u.w<=o.w+0.125 && u.h<=o.h+0.125 && o.w-u.w<=2 && o.h-u.h<=2;
 // sample units drop out of a category as soon as a real (uploaded) unit of that category exists
-const unitsFor = o => { const c=catOf(o), real=UNITLIB.some(u=>!u.sample && TYPES[u.type]?.cat===c);
-  return UNITLIB.filter(u=>TYPES[u.type]?.cat===c && !(real && u.sample))
+const unitsFor = o => { const c=catOf(o), real=UNITLIB.some(u=>!u.sample && TYPES[u.type]?.cat===c && !!TYPES[u.type]?.round===isRound(o));
+  return UNITLIB.filter(u=>TYPES[u.type]?.cat===c && !!TYPES[u.type]?.round===isRound(o) && !(real && u.sample))
   .map(u=>({u, fit:fits(u,o)})).sort((a,b)=>(b.fit-a.fit) || (a.u.name>b.u.name?1:-1)); };
 const okey = o => o.key ?? `${o.kind}@${Math.round(o.x)}`;
 
@@ -121,8 +124,9 @@ function symbol(type, hand, w, h){
   return { segs, arrows };
 }
 /* a small picture of the unit for lists */
-function unitSVG(type, hand, w=30, h=50, px=44, interior=false){
+function unitSVG(type, hand, w=30, h=50, px=44, interior=false, round=false){
   const s=px/Math.max(w,h), W=w*s, Hh=h*s, sym=symbol(type, hand, w, h), glass=type!=='entry';
+  if(round || type==='round') return `<svg viewBox="-2 -2 ${W+4} ${Hh+4}" width="${(W+4).toFixed(1)}" height="${(Hh+4).toFixed(1)}" aria-hidden="true"><circle cx="${W/2}" cy="${Hh/2}" r="${Math.min(W,Hh)/2}" fill="${type==='none'?'#e4e6e1':'#cfe6f7'}" stroke="currentColor" stroke-width="1.2"/>${type==='none'?'':`<circle cx="${W/2}" cy="${Hh/2}" r="${Math.min(W,Hh)/2-3}" fill="none" stroke="currentColor" stroke-width=".7"/>`}</svg>`;
   let g=`<svg viewBox="-2 -2 ${W+4} ${Hh+4}" width="${(W+4).toFixed(1)}" height="${(Hh+4).toFixed(1)}" aria-hidden="true"><rect x="0" y="0" width="${W}" height="${Hh}" fill="${type==='none'?'#e4e6e1':glass?'#cfe6f7':interior?'#ececea':'#c8a27e'}" stroke="currentColor" stroke-width="1.2"/>`;
   sym.segs.forEach(([a,b,c,d])=>{ g+=`<line x1="${a*s}" y1="${Hh-b*s}" x2="${c*s}" y2="${Hh-d*s}" stroke="currentColor" stroke-width=".9" stroke-dasharray="3 2"/>`; });
   sym.arrows.forEach(([a,b,c,d])=>{ const ang=Math.atan2(-(d-b),c-a), X=c*s, Y=Hh-d*s, k=4;

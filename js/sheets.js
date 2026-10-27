@@ -189,6 +189,7 @@ function elevationSVG(w,face,rev,slot){
       const hmo=handOf(o);
       g+=`<path d="${P.map((p,i)=>(i?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)).join(' ')}Z" fill="${hmo?'#f1e6f7':'#ffffff'}" stroke="${hmo?'#7d3c98':'#111'}" stroke-width="1.2" ${hmo?'stroke-dasharray="3 2"':''}/>`;
       if(hmo) g+=`<text x="${X(x+o.w/2)}" y="${Y(o.y+o.h)-3}" text-anchor="middle" font-size="8.5" fill="#7d3c98" font-weight="700">HAND</text>`;
+      if(o.shape==='round' && o.kind==='window') g+=`<text x="${X(x+o.w/2)}" y="${Y(o.y+o.h/2)+3}" text-anchor="middle" font-size="9" fill="#333">round window · R.O. ⌀ ${fin(o.d||o.w)}</text><text x="${X(x+o.w/2)}" y="${Y(o.y+o.h/2)+15}" text-anchor="middle" font-size="9" fill="#333">sill ${fin(o.y)}</text>`;
       if(o.shape==='poly' && o.w>=4) g+=`<text x="${X(x+o.w/2)}" y="${Y(o.y+o.h/2)+3}" text-anchor="middle" font-size="8.5" fill="#555">${fin(o.w)} × ${fin(o.h)}</text>`;
       return;
     }

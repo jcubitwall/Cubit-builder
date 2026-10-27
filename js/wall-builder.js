@@ -22,6 +22,7 @@ const BOX = { plug:{w:2.375, h:3.375, depth:3, y:17.44, name:'Plug box'}, switch
 const clone = o => JSON.parse(JSON.stringify(o));
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const r8 = v => Math.round(v*8)/8;
+const ROUND_RO = 33;   // Cubit's round window is exactly 32″ across, so its round rough opening is 33″
 let W=null, view='outside', sel=null, dlg=null, origin=null, forSlot=null;
 
 function blank(len=8, type='ext'){ return { id:null, name:'', len, type, t: type==='int'?4.5:6.5, fit:[0,0], openings:[], inside:[], outside:[] }; }
@@ -107,8 +108,8 @@ function fields(){
   const it=listOf(sel.k)[sel.i]; if(!it) return '';
   const [w,h]=sizeOf(sel.k,it), x=drawX(sel.k,it), isOp=sel.k==='op', round=it.shape==='round';
   const f=(id,label,v)=>`<label class="cw-f"><span>${label}</span><input data-f="${id}" inputmode="decimal" value="${Math.round(v*16)/16}"><i>″</i></label>`;
-  return `<div class="wb-sel"><div class="eyebrow">${isOp ? (round?'Round hole through the wall':it.kind==='opening'?'Cased opening':it.kind==='window'?'Window opening':'Door opening') : (round?'Round pocket':'Box')+` · ${sel.k} face`}</div>
-    <div class="cw-fs">${round ? f('d','Diameter',it.d) : f('w','Width',w)+f('h','Height',h)}
+  return `<div class="wb-sel"><div class="eyebrow">${isOp ? (round?(it.kind==='window'?'Round window · 32″ window, 33″ R.O.':'Round hole through the wall'):it.kind==='opening'?'Cased opening':it.kind==='window'?'Window opening':'Door opening') : (round?'Round pocket':'Box')+` · ${sel.k} face`}</div>
+    <div class="cw-fs">${round && it.kind==='window' ? `<p class="note">Round window: 32″ across, so the rough opening is a fixed ⌀ 33″ circle. Set where it sits.</p>` : round ? f('d','Diameter',it.d) : f('w','Width',w)+f('h','Height',h)}
       ${f('x', isOp?'Left edge from the left end':'Centre from the left end', x-cutSeen())}
       ${f('y', isOp?(it.kind==='window'||round?'Bottom from the floor':'Bottom from the floor'):'Centre from the floor', isOp ? it.y : it.y)}
       ${!isOp ? f('depth','Depth', it.depth||3) : ''}</div>
@@ -134,7 +135,7 @@ function render(){
         <h3>Add to the ${near(view)} face</h3>
         <div class="wb-add"><button class="btn ghost sm" data-add="plug">Plug box</button><button class="btn ghost sm" data-add="switch">Switch box</button><button class="btn ghost sm" data-add="double">Double switch box</button><button class="btn ghost sm" data-add="pocket">Round pocket</button></div>
         <h3>Through the wall</h3>
-        <div class="wb-add"><button class="btn ghost sm" data-add="window">Window opening</button><button class="btn ghost sm" data-add="door">Door opening</button><button class="btn ghost sm" data-add="opening">Cased opening</button><button class="btn ghost sm" data-add="vent">Round hole</button></div>
+        <div class="wb-add"><button class="btn ghost sm" data-add="window">Window opening</button><button class="btn ghost sm" data-add="door">Door opening</button><button class="btn ghost sm" data-add="opening">Cased opening</button><button class="btn ghost sm" data-add="round">Round window</button><button class="btn ghost sm" data-add="vent">Round hole</button></div>
         ${fields()}
         <h3>Save</h3>
         <label class="cw-f"><span>Name</span><input id="wbName" value="${esc(W.name||'')}" placeholder="${esc(autoName())}"></label>
@@ -148,7 +149,7 @@ function add(kind){
   const c=L()/2;
   if(BOX[kind] || kind==='pocket'){ const k=near(view), b = kind==='pocket' ? {kind:'pocket', shape:'round', d:3, depth:3, x:0, y:48, name:'Round pocket'} : {kind:'box', shape:'rect', ...BOX[kind], x:0};
     b.x=fromDrawX(k,b,c+ (W[k].length%3)*6); W[k].push(b); sel={k, i:W[k].length-1}; }
-  else { const o = kind==='window' ? {kind, x:0, y:36, w:36, h:48} : kind==='door' ? {kind, x:0, y:0, w:36.5, h:80.75} : kind==='opening' ? {kind, x:0, y:0, w:48, h:82} : {kind:'vent', shape:'round', d:4, x:0, y:84, w:4, h:4};
+  else { const o = kind==='window' ? {kind, x:0, y:36, w:36, h:48} : kind==='door' ? {kind, x:0, y:0, w:36.5, h:80.75} : kind==='opening' ? {kind, x:0, y:0, w:48, h:82} : kind==='round' ? {kind:'window', shape:'round', d:ROUND_RO, x:0, y:36, w:ROUND_RO, h:ROUND_RO} : {kind:'vent', shape:'round', d:4, x:0, y:84, w:4, h:4};
     o.x=fromDrawX('op',o,c-o.w/2); W.openings.push(o); sel={k:'op', i:W.openings.length-1}; }
   render();
 }

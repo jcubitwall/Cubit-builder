@@ -3,5 +3,6 @@
   {"id": "WN-PI-2460-S", "name": "Picture 24½ × 60½ (sample)", "type": "picture", "w": 24.5, "h": 60.5, "d": 4.5, "sample": true, "source": "Sample sized to the openings in the scanned homes; upload the real unit to replace it"},
   {"id": "WN-SH-2460-S", "name": "Single hung 24½ × 60½ (sample)", "type": "single", "w": 24.5, "h": 60.5, "d": 4.5, "sample": true, "source": "Sample sized to the openings in the scanned homes; upload the real unit to replace it"},
   {"id": "DR-EN-3680-S", "name": "Man door 36 × 80 (sample)", "type": "entry", "hand": "L", "swing": "in", "w": 36, "h": 80.25, "d": 4.5, "sample": true, "source": "Sample sized to the openings in the scanned homes; upload the real unit to replace it"},
-  {"id": "DR-PA-8396-S", "name": "Patio slider 83 × 95½ (sample)", "type": "patio", "hand": "L", "w": 83, "h": 95.5, "d": 4.5, "sample": true, "source": "Sample sized to the openings in the scanned homes; upload the real unit to replace it"}
+  {"id": "DR-PA-8396-S", "name": "Patio slider 83 × 95½ (sample)", "type": "patio", "hand": "L", "w": 83, "h": 95.5, "d": 4.5, "sample": true, "source": "Sample sized to the openings in the scanned homes; upload the real unit to replace it"},
+  {"id": "WN-RD-32", "name": "Round window 32″", "type": "round", "w": 32, "h": 32, "d": 4.5, "source": "Cubit standard round window: 32″ across, in a 33″ round rough opening"}
 ]

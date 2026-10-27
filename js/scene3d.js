@@ -64,6 +64,16 @@ function buildUnit(o, r, t, interior=false){
   const u=r.unit, g=new THREE.Group(), W=Math.min(u.w,o.w-0.1), Hh=Math.min(u.h,o.h-0.1);   // never flush with the opening's sides
   const x0=o.x+(o.w-W)/2, y0=o.y+(o.h-Hh)/2, d=Math.min(u.d||4.5, t*FT-0.5)/FT, zc=-t/2, fw=1.75;
   const box=(x,y,w,h,dd,mat)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(w/FT,h/FT,dd),mat); m.position.set((x+w/2)/FT,(y+h/2)/FT,zc); g.add(m); return m; };
+  // a round window: a ring frame and round glass, centred in the round rough opening
+  if(u.type==='round'){
+    const R=Math.min(W,Hh)/2, cx=(o.x+o.w/2)/FT, cy=(o.y+o.h/2)/FT;
+    const ring=new THREE.Shape(); ring.absarc(0,0,R/FT,0,Math.PI*2,false);
+    const hole=new THREE.Path(); hole.absarc(0,0,(R-fw)/FT,0,Math.PI*2,true); ring.holes.push(hole);
+    const fg=new THREE.ExtrudeGeometry(ring,{depth:d, bevelEnabled:false, curveSegments:40}); fg.translate(0,0,-d/2);
+    const fm=new THREE.Mesh(fg,MAT.frame); fm.position.set(cx,cy,zc); g.add(fm);
+    const gl=new THREE.Mesh(new THREE.CylinderGeometry((R-fw)/FT,(R-fw)/FT,0.05,40),MAT.glass); gl.rotation.x=Math.PI/2; gl.position.set(cx,cy,zc); g.add(gl);
+    return g;
+  }
   // frame
   box(x0,y0,fw,Hh,d,MAT.frame); box(x0+W-fw,y0,fw,Hh,d,MAT.frame);
   box(x0+fw,y0+Hh-fw,W-2*fw,fw,d,MAT.frame); box(x0+fw,y0,W-2*fw,fw,d,MAT.frame);
