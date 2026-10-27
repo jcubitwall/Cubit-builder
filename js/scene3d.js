@@ -2,7 +2,7 @@
 import { CEIL, FLOOR, FT, H, POD, PW, T, WALL_BASE, LAYER_KINDS, NOTCH } from './config.js';
 import { MODELS } from './data.js';
 import { podOffsets, screwsFor, slotsFor, layerSlotsFor, podList, deckList, layoutOffsets, padsFor } from './layout.js';
-import { panelCells, panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall, layerHoles, isShaped, shapeOf, outlinePts, faceShape, handOf } from './panels.js';
+import { crossesJoint, notchedOutline, panelCells, panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall, layerHoles, isShaped, shapeOf, outlinePts, faceShape, handOf } from './panels.js';
 import { w3 } from './sheets.js';
 import { renderSide } from './sidebar.js';
 import { pickFor, pickLayer, state } from './state.js';
@@ -133,11 +133,11 @@ const BOX_FLOOR = new THREE.MeshBasicMaterial({color:0xf4f1ea, side:THREE.Double
 /* A slab piece (inches a..b × y0..y1, d feet thick along its extrusion axis, 0..d) with every cut exactly as drawn:
    cuts = [{P:[[x,y],…] closed outline in inches, lo, hi}] — removed between lo and hi (feet along the thickness).
    Through cuts run 0..d; a pocket runs from its face to its depth. Built as one extrusion per depth band. */
-function cutSlab(a,b,y0,y1,d,cuts){
+function cutSlab(a,b,y0,y1,d,cuts,outline){
   const zs=[...new Set([0,d,...cuts.flatMap(c=>[c.lo,c.hi]).filter(z=>z>1e-4 && z<d-1e-4)])].sort((p,q)=>p-q), out=[];
   for(let i=0;i<zs.length-1;i++){
     const z0=zs[i], z1=zs[i+1]; if(z1-z0<1e-4) continue; const mid=(z0+z1)/2;
-    const sh=new THREE.Shape([[a,y0],[b,y0],[b,y1],[a,y1]].map(([x,y])=>new THREE.Vector2(x/FT,y/FT)));
+    const sh=new THREE.Shape((outline||[[a,y0],[b,y0],[b,y1],[a,y1]]).map(([x,y])=>new THREE.Vector2(x/FT,y/FT)));
     cuts.filter(c=>c.lo<=mid && c.hi>=mid).forEach(c=>sh.holes.push(new THREE.Path(c.P.slice(0,-1).map(([x,y])=>new THREE.Vector2(x/FT,y/FT)))));
     const g=new THREE.ExtrudeGeometry(sh,{depth:z1-z0, bevelEnabled:false, curveSegments:24}); g.translate(0,0,z0); out.push(g);
   }
@@ -175,9 +175,12 @@ function buildWallMesh(w, mat, opts={}){
         // pockets from either face, carved to their depth (z here: 0 = inside face, d = this piece's outer face)
         const pk=carvable(faceCuts.map(c=>({...c, lo:c.inside?0:Math.max(0,d-c.dep), hi:c.inside?Math.min(d,c.dep):d})), a,b,y0,y1);
         pk.forEach(c=>{ c.src.carved=true; });
-        if(inside.length || pk.length){
+        // round holes / slots running over this piece's side edge: their part comes out of the edge as a notch
+        const edge=w.openings.filter(o=>crossesJoint(o) && o.x<b-1e-6 && o.x+o.w>a+1e-6 && !inside.includes(o));
+        const outline = edge.length ? notchedOutline(a,b,y0,y1, edge.map(shapeOf)) || null : null;
+        if(inside.length || pk.length || outline){
           const thr=inside.map(o=>({P:outlinePts(shapeOf(o)), lo:0, hi:d}));
-          cutSlab(a,b,y0,y1,d,thr.concat(pk)).forEach(g=>{ const m=new THREE.Mesh(g, mat); m.position.z=-t; pg.add(m); });
+          cutSlab(a,b,y0,y1,d,thr.concat(pk),outline).forEach(g=>{ const m=new THREE.Mesh(g, mat); m.position.z=-t; pg.add(m); });
         } else {
           const m=new THREE.Mesh(new THREE.BoxGeometry((b-a)/FT,(y1-y0)/FT,d),mat);
           m.position.set(mid/FT,(y0+y1)/2/FT,-t+d/2); pg.add(m);

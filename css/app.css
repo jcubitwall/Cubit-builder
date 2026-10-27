@@ -770,3 +770,11 @@ html.phone .studio.build .vcube-wrap{top:8px;right:8px;transform:scale(.85);tran
 .wb-hit{fill:transparent;stroke:none;cursor:grab}
 html,body{overscroll-behavior:none}   /* no rubber-band scroll: the iPad blurs whatever slides under its top bar */
 .wb-cut{fill:url(#none);fill:rgba(28,33,30,.14);stroke:#7a1d12;stroke-width:.4;stroke-dasharray:1.5 1}.wb-ext{opacity:.55}.wb-endrow{display:flex;align-items:center;gap:8px;margin-top:4px}.wb-endrow b{width:44px;font-size:12.5px}
+
+/* home-screen app on iPad: iPadOS blurs a band about 50pt deep under its status bar, so the header and the
+   full-screen bar start below that band */
+html.standalone:not(.phone) .app{padding-top:max(54px, calc(env(safe-area-inset-top,0px) + 30px))}
+html.standalone:not(.phone) .studio.fs .fs-bar{top:max(54px, calc(env(safe-area-inset-top,0px) + 30px))}
+html.standalone:not(.phone) .studio.fs .layers-pop{top:max(96px, calc(env(safe-area-inset-top,0px) + 72px))}
+html.standalone:not(.phone) .studio.fs .pod-badge{top:max(56px, calc(env(safe-area-inset-top,0px) + 32px))}
+html.standalone:not(.phone) .studio.fs.build .vcube-wrap{top:max(54px, calc(env(safe-area-inset-top,0px) + 30px))}

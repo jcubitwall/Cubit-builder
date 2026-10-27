@@ -60,8 +60,9 @@ function extend(p, q, open, {L,Rr,B,T,W}){
    own x convention) to the face that is up. Through holes cut right through (a bridge is left in holes 4″ and up so the
    plug stays put, as in the shop's D4 vent); recesses are cleared to their depth. */
 function shapedOp(ops, o, U, t, z, W, warn, item=false){
+  if(z<=0.0625+1e-6) z=THRU;   // a pocket as deep as the wall (or within 1/16″ of it) is a hole right through
   const tool=TOOLS[13].d, thru=z<=THRU+1e-6;
-  const what = o.shape==='round' ? `${item?'recess':'hole'} ⌀ ${fin(o.d||o.dia)}` : o.shape==='slot' ? `${item?'chase':'slot'} ${fin(o.sw)} wide`
+  const what = o.shape==='round' ? `${item&&!thru?'recess':'hole'} ⌀ ${fin(o.d||o.dia)}` : o.shape==='slot' ? `${item?'chase':'slot'} ${fin(o.sw)} wide`
              : o.shape==='poly' ? `${thru?'shaped cut':'shaped pocket'} ${fin(o.w||0)} × ${fin(o.h||0)}` : `${o.kind==='box'?'box':'pocket'} ${fin(o.w)} × ${fin(o.h)}`;
   if(o.shape==='poly'){
     // any other outline: the ¾″ bit follows the paths worked out from the drawing (profile inside a through cut,
@@ -75,6 +76,7 @@ function shapedOp(ops, o, U, t, z, W, warn, item=false){
   if(o.shape==='rect' || (!o.shape && o.w && o.h)){   // a box or pocket at its drawn size (placed by its centre)
     const c=U(o.x);
     if(Math.min(o.w,o.h) < tool-0.01){ warn.push(`${what} is narrower than the ¾″ bit: not cut`); return; }
+    if(thru){ ops.push({tp:'holes', kind:'hole', x0:c-o.w/2, x1:c+o.w/2, y0:o.y-o.h/2, y1:o.y+o.h/2, z, what:what+' (right through)', waste:[c-o.w/2+0.4, c+o.w/2-0.4, o.y-o.h/2+0.4, o.y+o.h/2-0.4]}); return; }
     ops.push({tp: o.kind==='box'?'boxes':'pockets', kind:'pocket', x0:c-o.w/2, x1:c+o.w/2, y0:o.y-o.h/2, y1:o.y+o.h/2, z, what});
     return;
   }
@@ -91,6 +93,26 @@ function shapedOp(ops, o, U, t, z, W, warn, item=false){
   const ends=(o.ends||[]).map(([x,y])=>[U(x), y]); if(ends.length<2) return;
   if(Math.abs((o.sw||tool)-tool)>0.07) warn.push(`${what}: only ¾″ slots are cut as drawn so far; this one is cut ¾″`);
   ops.push({tp: z<=THRU+1e-6?'holes':'chases', kind:'line', pts:ends, z, what});
+}
+/* a round opening that runs over a panel joint: on this panel the bit follows its part of the circle (tool inside the
+   hole, clockwise like any hole) and carries on past the panel edge by its own radius, so the curve is cut right to
+   the edge and the piece drops out. One pass right through, like the openings. */
+function roundOverJoint(ops, o, U, W, warn){
+  const d=o.d||o.dia||o.w, cx=U(o.x+o.w/2), cy=o.y+o.h/2, rr=d/2-R, lo=-R, hi=W+R, N=192;
+  const at = t => [cx+rr*Math.cos(t), cy+rr*Math.sin(t)], ok = p => p[0]>=lo-1e-9 && p[0]<=hi+1e-9;
+  // walk the circle clockwise; keep the runs inside lo..hi, ending exactly on lo / hi
+  const runs=[]; let cur=null;
+  const edgeX = (p,q) => { const X = (p[0]<lo||q[0]<lo) ? lo : hi, t=(X-p[0])/(q[0]-p[0]); return [X, p[1]+t*(q[1]-p[1])]; };
+  // start where the circle is off this panel, so every run is whole
+  let t0=0; for(let i=0;i<N;i++){ if(!ok(at(-i/N*Math.PI*2))){ t0=-i/N*Math.PI*2; break; } }
+  for(let i=0;i<=N;i++){ const p=at(t0-i/N*Math.PI*2);
+    if(ok(p)){ if(!cur){ const q=at(t0-(i-1)/N*Math.PI*2); cur=[i?edgeX(q,p):p]; } cur.push(p); }
+    else if(cur){ cur.push(edgeX(cur[cur.length-1], p)); runs.push(cur); cur=null; } }
+  if(cur) runs.push(cur);
+  const what=`round ${o.kind==='window'?'window opening':'hole'} ⌀ ${fin(d)} (over the panel joint)`;
+  const waste=[Math.max(cx-d/2,0), Math.min(cx+d/2,W), cy-d/2, cy+d/2];
+  runs.forEach((pts,i)=>ops.push({tp:'openings', kind:'line', pts:pts.map(([x,y])=>[+x.toFixed(4),+y.toFixed(4)]), what, waste: i===0 ? waste : null}));
+  const part=Math.min(cx+d/2,W)-Math.max(cx-d/2,0); if(part<TOOLS[13].d+0.0625) warn.push(`${what}: the part on this panel is narrower than the bit`);
 }
 function tapPlan(){
   const S=cncSettings(), plans=homePlans(), files=[], blank=[], m=MODELS[state.model];
@@ -114,7 +136,9 @@ function tapPlan(){
       byHand.forEach(b=>warn.push(`BY HAND: ${b}`));
       // boxes, interior face (b.x measured from the inside-left)
       p.intCuts.filter(b=>b.shape).forEach(b=>shapedOp(I, b, xo=>u(L-xo), t, t-(b.depth||DEPTH), W, warn, true));
-      p.extCuts.filter(b=>b.shape).forEach(b=>shapedOp(E, b, xo=>BLANK-u(xo), t, t-(b.depth||DEPTH), W, warn, true));
+      // a pocket on the outside face that goes the whole way through is cut with the other holes, room face up
+      p.extCuts.filter(b=>b.shape).forEach(b=>{ const z=t-(b.depth||DEPTH);
+        if(z<=0.0625+1e-6) shapedOp(I, b, xo=>u(xo), t, z, W, warn, true); else shapedOp(E, b, xo=>BLANK-u(xo), t, z, W, warn, true); });
       p.intCuts.filter(b=>!b.shape).forEach(b=>{ const s=boxSize(b.kind), c=u(L-b.x);
         I.push({tp:'boxes', kind:'pocket', x0:c-s.w/2, x1:c+s.w/2, y0:b.y-s.h/2, y1:b.y+s.h/2, z:t-DEPTH, what:b.kind}); });
       // boxes, exterior face (mirror across the blank)
@@ -131,6 +155,7 @@ function tapPlan(){
         const a=u(o.x+o.w), b=u(o.x), u0=Math.min(a,b), u1=Math.max(a,b), v0=o.y, v1=o.y+o.h;
         if(u1<=0 || u0>=W) return;
         if(o.shape==='round' || o.shape==='slot' || o.shape==='poly'){
+          if(o.shape==='round' && (u0<-0.01 || u1>W+0.01)){ roundOverJoint(I, o, u, W, warn); return; }
           if(o.shape==='poly' && (u0<-0.01 || u1>W+0.01)){ warn.push(`shaped cut ${fin(o.w)} × ${fin(o.h)} runs over a panel joint: not cut, check the drawing`); return; }
           shapedOp(I, o, u, t, THRU, W, warn); return; }
         if(o.kind==='vent' && u0>SNAP && u1<W-SNAP){ I.push({tp:'vents', kind:'hole', x0:u0, x1:u1, y0:v0, y1:v1, what:'vent', waste:[u0,u1,v0,v1]}); return; }

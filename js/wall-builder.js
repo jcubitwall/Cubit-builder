@@ -113,6 +113,7 @@ function fields(){
       ${f('x', isOp?'Left edge from the left end':'Centre from the left end', x-cutSeen())}
       ${f('y', isOp?(it.kind==='window'||round?'Bottom from the floor':'Bottom from the floor'):'Centre from the floor', isOp ? it.y : it.y)}
       ${!isOp ? f('depth','Depth', it.depth||3) : ''}</div>
+    ${!isOp && (it.depth||3) >= W.t-0.0625 ? `<p class="note">As deep as the wall: it goes right through. The CNC cuts it as a hole through the panel, the same as a round hole.</p>` : ''}
     <div class="row"><button class="btn ghost sm" id="wbDup">Duplicate</button><button class="btn ghost sm" id="wbDel">Remove</button></div></div>`;
 }
 function render(){

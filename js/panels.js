@@ -67,10 +67,42 @@ function faceShape(b, toX){
   if(b.w && b.h){ const x=toX(b.x), a=b.w/2, c=b.h/2; return [[x-a,b.y-c],[x+a,b.y-c],[x+a,b.y+c],[x-a,b.y+c],[x-a,b.y-c]]; }
   return null;
 }
+/* A round hole / slot that runs over a panel joint is cut exactly on both panels: each panel gets its part of the
+   curve as a notch in its edge, never a square. clipStrip keeps the part of a closed outline between x=a and x=b. */
+const crossesJoint = o => (o.shape==='round' || o.shape==='slot');
+function clipStrip(P, a, b){
+  const clip=(pts, inside, cut)=>{ const out=[]; for(let i=0;i<pts.length;i++){ const p=pts[i], q=pts[(i+1)%pts.length], pi=inside(p), qi=inside(q);
+      if(pi) out.push(p); if(pi!==qi) out.push(cut(p,q)); } return out; };
+  const atX = X => (p,q)=>{ const t=(X-p[0])/(q[0]-p[0]); return [X, p[1]+t*(q[1]-p[1])]; };
+  let Q=P.slice(0,-1); Q=clip(Q, p=>p[0]>=a, atX(a)); if(Q.length) Q=clip(Q, p=>p[0]<=b, atX(b)); return Q;
+}
+/* the outline of a panel piece a..b × y0..y1 with the parts of joint-crossing shapes taken out of its side edges.
+   null when a shape can't be notched this way (it reaches across the whole piece, or past its top or bottom). */
+function notchedOutline(a, b, y0, y1, shapes){
+  const E=1e-6, L=[], R=[];
+  for(const S of shapes){
+    const C=clipStrip(outlinePts(S, 96), a, b); if(C.length<3) continue;
+    const onL=p=>Math.abs(p[0]-a)<E, onR=p=>Math.abs(p[0]-b)<E;
+    const l=C.filter(onL).length>=2, r=C.filter(onR).length>=2;
+    if(l && r) return null; if(!l && !r) continue;
+    if(C.some(p=>p[1]<y0-E || p[1]>y1+E)) return null;
+    const on = l ? onL : onR, n=C.length, i0=C.findIndex((p,i)=>on(p) && !on(C[(i+1)%n])); if(i0<0) continue;
+    let chain=[], j=(i0+1)%n; while(!on(C[j])){ chain.push(C[j]); j=(j+1)%n; }
+    let e0=C[i0], e1=C[j];
+    if(l ? e0[1]<e1[1] : e0[1]>e1[1]){ chain.reverse(); [e0,e1]=[e1,e0]; }   // left: top → bottom · right: bottom → top
+    (l?L:R).push({ e0, e1, chain });
+  }
+  if(!L.length && !R.length) return false;
+  const out=[[a,y0],[b,y0]];
+  R.sort((p,q)=>p.e0[1]-q.e0[1]).forEach(d=>out.push(d.e0, ...d.chain, d.e1));
+  out.push([b,y1],[a,y1]);
+  L.sort((p,q)=>q.e0[1]-p.e0[1]).forEach(d=>out.push(d.e0, ...d.chain, d.e1));
+  return out;
+}
 function panelCells(w, k){
   const [X0,X1]=panelSpans(w)[k], xs=new Set([X0,X1]), ys=new Set([0,H]);
   // round holes and slots inside one panel are cut out of the cell exactly (scene3d); the rest split the cells
-  const ops = w.openings.filter(o=>o.x<X1 && o.x+o.w>X0 && !(isShaped(o) && o.x>=X0 && o.x+o.w<=X1));
+  const ops = w.openings.filter(o=>o.x<X1 && o.x+o.w>X0 && !(isShaped(o) && o.x>=X0 && o.x+o.w<=X1) && !crossesJoint(o));
   ops.forEach(o=>{ xs.add(Math.max(X0,o.x)); xs.add(Math.min(X1,o.x+o.w)); ys.add(o.y); ys.add(Math.min(H,o.y+o.h)); });
   const X=[...xs].sort((a,b)=>a-b), Y=[...ys].sort((a,b)=>a-b), out=[];
   for(let i=0;i<X.length-1;i++){
@@ -118,4 +150,4 @@ function handOf(f){
   if((!f.shape || f.shape==='rect') && f.w && (f.h??f.d) && Math.min(f.w, f.h??f.d) < bit) return 'auto';
   return null;
 }
-export { handOf, isShaped, shapeOf, outlinePts, mapX, faceShape, layerHoles, panelCells, panelCount, panelNum, thumbSVG, wallLen, panelSpans, panelAt, bodyWall };
+export { crossesJoint, clipStrip, notchedOutline, handOf, isShaped, shapeOf, outlinePts, mapX, faceShape, layerHoles, panelCells, panelCount, panelNum, thumbSVG, wallLen, panelSpans, panelAt, bodyWall };
