@@ -768,3 +768,4 @@ html.phone .studio.build .vcube-wrap{top:8px;right:8px;transform:scale(.85);tran
 .wb-sel .cw-fs{grid-template-columns:1fr 1fr}
 @media (max-width:820px){ .wb-body{grid-template-columns:1fr;grid-template-rows:minmax(240px,45%) 1fr;overflow:hidden} .wb-view{border-right:0;border-bottom:1px solid var(--line)} }
 .wb-hit{fill:transparent;stroke:none;cursor:grab}
+html,body{overscroll-behavior:none}   /* no rubber-band scroll: the iPad blurs whatever slides under its top bar */
