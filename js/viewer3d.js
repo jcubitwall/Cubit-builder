@@ -15,6 +15,10 @@ const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>
 const DIRS={ top:[0,1,0], bottom:[0,-1,0], front:[0,0,-1], back:[0,0,1], right:[1,0,0], left:[-1,0,0] };
 const NAMES={ top:'Top', bottom:'Bottom', front:'Front', back:'Back', right:'Right', left:'Left' };
 
+const HINT='drag to turn · pinch to zoom · two fingers to slide · spread three fingers to explode · tap a side of the cube to lock to it';
+/* labels on or off (wall letters; panel numbers and the other numbered circles), remembered in this browser */
+const LKEY='cubit-viewer-labels';
+let labs={ letters:true, nums:true }; try{ Object.assign(labs, JSON.parse(localStorage.getItem(LKEY)||'{}')); }catch(e){}
 let dlg=null, R=null, scene=null, persp=null, ortho=null, cam=null, ctl=null, content=null, raf=0;
 let explode=0, goal=0, parts=[], lock=null, span=20, centre=new THREE.Vector3();
 
@@ -22,13 +26,14 @@ function ensure(){
   if(dlg) return;
   dlg=document.createElement('dialog'); dlg.className='cw-dlg v3-dlg'; dlg.id='v3Dlg'; dlg.setAttribute('aria-labelledby','v3T');
   dlg.innerHTML=`<header class="cw-h"><h2 id="v3T">3D</h2><span class="note" id="v3Sub"></span><span class="spacer"></span>
+      <span class="seg v3-labs" role="group" aria-label="Labels"><button id="v3Let" aria-pressed="true">Letters</button><button id="v3Num" aria-pressed="true">Numbers</button></span>
       <button class="btn ghost" id="v3Ex" aria-pressed="false">Exploded view</button>
       <button class="btn ghost cw-x" aria-label="Close">✕</button></header>
     <div class="v3-stage" id="v3Stage">
       <div class="v3-cube"><div class="vcube" role="group" aria-label="Side cube: tap a side to lock the view to it, double-tap to turn freely">
         <div class="vc-cube">${Object.keys(NAMES).map(k=>`<button class="vc-f vc-${k}" data-v="${k}" aria-label="${NAMES[k]} side">${NAMES[k]}</button>`).join('')}</div></div>
         <button class="btn ghost sm v3-lock" id="v3Lock" hidden></button></div>
-      <p class="v3-hint" id="v3Hint">drag to turn · pinch to zoom · two fingers to slide · tap a side of the cube to lock to it</p>
+      <p class="v3-hint" id="v3Hint">${HINT}</p>
     </div>`;
   document.body.appendChild(dlg);
   R=new THREE.WebGLRenderer({antialias:true}); R.setPixelRatio(Math.min(2, devicePixelRatio||1));
@@ -42,7 +47,17 @@ function ensure(){
   dlg.querySelector('.cw-x').onclick=()=>dlg.close();
   dlg.addEventListener('close', stop);
   dlg.addEventListener('cancel', e=>{ if(lock){ e.preventDefault(); unlock(); } });   // Esc: unlock first, then close
-  dlg.querySelector('#v3Ex').onclick=()=>{ goal = goal ? 0 : 1; dlg.querySelector('#v3Ex').setAttribute('aria-pressed', !!goal); };
+  dlg.querySelector('#v3Ex').onclick=()=>setGoal(goal>0.5 ? 0 : 1);
+  const labBtn=(id,k)=>{ const b=dlg.querySelector(id); b.onclick=()=>{ labs[k]=!labs[k]; try{ localStorage.setItem(LKEY, JSON.stringify(labs)); }catch(e){} applyLabels(); }; };
+  labBtn('#v3Let','letters'); labBtn('#v3Num','nums');
+  // iPad: spread three fingers to pull it apart (the wider, the further), pinch three fingers to put it back
+  const stg=dlg.querySelector('#v3Stage'); let g3=null;
+  const spr=t=>{ const n=t.length; let cx=0,cy=0; for(const p of t){ cx+=p.clientX; cy+=p.clientY; } cx/=n; cy/=n; let d=0; for(const p of t) d+=Math.hypot(p.clientX-cx,p.clientY-cy); return d/n; };
+  stg.addEventListener('touchstart', e=>{ if(e.touches.length===3){ g3={d0:spr(e.touches), e0:goal}; ctl.enabled=false; e.preventDefault(); } }, {passive:false});
+  stg.addEventListener('touchmove', e=>{ if(!g3 || e.touches.length!==3) return; e.preventDefault();
+    const r=spr(e.touches)/Math.max(1,g3.d0); setGoal(Math.max(0, Math.min(1, g3.e0 + (r-1)*1.6))); }, {passive:false});
+  const end3=e=>{ if(g3 && (!e.touches || e.touches.length<3)){ g3=null; ctl.enabled=true; } };
+  stg.addEventListener('touchend', end3); stg.addEventListener('touchcancel', end3);
   dlg.querySelector('#v3Lock').onclick=()=>unlock();
   let last=0;
   dlg.querySelector('.vcube').addEventListener('click', e=>{
@@ -52,6 +67,13 @@ function ensure(){
   new ResizeObserver(size).observe(dlg.querySelector('#v3Stage'));
 }
 
+function setGoal(v){ goal=v; dlg.querySelector('#v3Ex').setAttribute('aria-pressed', goal>0.5); }
+function applyLabels(){
+  dlg.querySelector('#v3Let').setAttribute('aria-pressed', labs.letters); dlg.querySelector('#v3Num').setAttribute('aria-pressed', labs.nums);
+  let any=false;
+  content?.traverse(o=>{ if(!o.isSprite || o.userData.north) return; any=true; o.visible = o.userData.letter ? labs.letters : labs.nums; });
+  dlg.querySelector('.v3-labs').hidden=!any;
+}
 /* ---------- what's shown */
 function clear(){ if(content){ scene.remove(content); content=null; } parts=[]; }
 function frame(){   // centre the content and fit the camera round it
@@ -80,9 +102,9 @@ function showLayer(L){
 function showDeck(D){ const g=buildDeckMesh(D, DECK_MAT); content=new THREE.Group(); content.add(g); radial(g, 0.6); }
 /* a home (or one pod on its own): built by Build, copied with its exploded positions, then Build is put back */
 function showHome(modelKey){
-  const keep={ model:state.model, focusPod:state.focusPod, selected:state.selected, iso:state.isolate };
+  const keep={ model:state.model, focusPod:state.focusPod, selected:state.selected, iso:state.isolate, letters:state.letters, nums:state.nums };
   try{
-    state.model=modelKey; state.focusPod=null; state.selected=null; if('isolate' in state) state.isolate=null;
+    state.model=modelKey; state.focusPod=null; state.selected=null; state.letters=true; state.nums=true; if('isolate' in state) state.isolate=null;
     buildHome(); explodeAt(0);
     const src=S3.homeGroup, at0=[]; src.traverse(o=>at0.push(o.position.clone()));
     explodeAt(1); const at1=[]; src.traverse(o=>at1.push(o.position.clone()));
@@ -91,7 +113,7 @@ function showHome(modelKey){
     copy.traverse(o=>{ const a=at0[i], b=at1[i]; i++; if(a && b && a.distanceToSquared(b)>1e-8) parts.push({o, p0:a.clone(), p1:b.clone()}); });
     content=new THREE.Group(); content.add(copy);
   } finally {
-    state.model=keep.model; state.focusPod=keep.focusPod; state.selected=keep.selected; if('isolate' in state) state.isolate=keep.iso;
+    state.model=keep.model; state.focusPod=keep.focusPod; state.selected=keep.selected; state.letters=keep.letters; state.nums=keep.nums; if('isolate' in state) state.isolate=keep.iso;
     buildHome();
   }
 }
@@ -118,7 +140,7 @@ function unlock(reset){
     if(Math.abs(d.y)>0.999) d.add(new THREE.Vector3(0,0,-0.02)).normalize();
     persp.up.set(0,1,0); persp.position.copy(t).add(d.multiplyScalar(span*1.45)); setCam(persp); persp.lookAt(t); }
   lock=null; ctl.enableRotate=true; dlg.querySelector('#v3Lock').hidden=true;
-  dlg.querySelector('#v3Hint').textContent='drag to turn · pinch to zoom · two fingers to slide · tap a side of the cube to lock to it';
+  dlg.querySelector('#v3Hint').textContent=HINT;
   if(reset){ frame(); }
   ctl.update();
 }
@@ -141,7 +163,7 @@ function stop(){ cancelAnimationFrame(raf); raf=0; clear(); }
 /* ---------- open: kind is the Library tab ('models','families','pods','walls','layers','decks') */
 const LAYER_NAME = {'floor-ext':'Exterior floor','floor-int':'Interior floor','ceiling-int':'Interior ceiling','roof':'Roof'};
 function openViewer(kind, id, opts={}){
-  ensure(); clear(); if(lock) unlock(); explode=0; goal=0; dlg.querySelector('#v3Ex').setAttribute('aria-pressed','false');
+  ensure(); clear(); if(lock) unlock(); explode=0; setGoal(0);
   let title='', sub='';
   try{
     if(kind==='models'){ const m=MODELS[id]; if(!m) return; title=m.name; sub=`home · ${m.size||''}`; showHome(id); }
@@ -154,7 +176,7 @@ function openViewer(kind, id, opts={}){
   if(!content){ return; }
   scene.add(content); scene.background=new THREE.Color(themeColors().bg);
   dlg.querySelector('#v3T').textContent=title||'3D'; dlg.querySelector('#v3Sub').textContent=sub;
-  dlg.querySelector('#v3Ex').hidden=!parts.length;
+  dlg.querySelector('#v3Ex').hidden=!parts.length; applyLabels();
   if(!dlg.open) dlg.showModal();
   size(); frame(); ctl.update();
   if(!raf) tick();

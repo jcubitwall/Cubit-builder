@@ -256,7 +256,7 @@ function buildWallMesh(w, mat, opts={}){
   if(opts.nums){
     for(let k=0;k<n;k++){
       const sp=numberSprite(String(panelNum(n,k,opts.reverse)), opts.numSize||1.1);
-      sp.position.set((spans[k][0]+spans[k][1])/2/FT, H/FT+0.75, opts.numZ!==undefined?opts.numZ:0.3);
+      sp.userData.num=true; sp.position.set((spans[k][0]+spans[k][1])/2/FT, H/FT+0.75, opts.numZ!==undefined?opts.numZ:0.3);
       panels[k].add(sp);
     }
   }
@@ -420,7 +420,7 @@ function buildHome(){
     const arrow=new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshBasicMaterial({color:0xc0392b, side:THREE.DoubleSide}));
     arrow.rotation.x=-Math.PI/2;
     const ng=new THREE.Group(); ng.add(arrow);
-    const lab=letterSprite('N',1.1); lab.position.set(0,0.8,-3.2); ng.add(lab);
+    const lab=letterSprite('N',1.1); lab.userData.north=true; lab.position.set(0,0.8,-3.2); ng.add(lab);
     ng.scale.setScalar(1.6); ng.rotation.y=B; ng.position.set(minx-9, -FLOOR-0.01, maxz+12); homeGroup.add(ng); northGroup=ng; }
   slots.forEach(s=>{
     const w=bodyWall(s, pickFor(s)); if(!w) return;
