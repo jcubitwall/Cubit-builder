@@ -129,7 +129,16 @@ function thumbSVG(w){
   const L=wallLen(w), s=150/Math.max(L,96*1.6), Wd=L*s, Hd=H*s;
   let g=`<svg viewBox="-2 -2 ${Wd+4} ${Hd+4}" aria-hidden="true"><rect x="0" y="0" width="${Wd}" height="${Hd}" fill="#e8d3ad" stroke="#5b4a33" stroke-width=".8"/>`;
   panelSpans(w).slice(1).forEach(([a])=>{ g+=`<line x1="${a*s}" y1="0" x2="${a*s}" y2="${Hd}" stroke="#5b4a33" stroke-width=".4" stroke-dasharray="2 2"/>`; });
-  w.openings.forEach(o=>{ g+=`<rect x="${o.x*s}" y="${(H-o.y-o.h)*s}" width="${o.w*s}" height="${o.h*s}" fill="${o.kind==='window'?'#8fc3ea':o.kind==='patio'?'#a9d4f2':o.kind==='opening'?'#ffffff':o.kind==='vent'?'#555':'#6b4a2f'}" stroke="#2c2c2c" stroke-width=".6"/>`; });
+  const X=w.shapes?.length ? expandWallShapes(w) : {openings:[], outside:[], inside:[]};
+  const fill=o=>o.kind==='window'?'#8fc3ea':o.kind==='patio'?'#a9d4f2':o.kind==='opening'||o.kind==='shape'?'#ffffff':o.kind==='vent'?'#555':'#6b4a2f';
+  const path=(P,cls)=>`<path d="M${P.map(([x,y])=>`${(x*s).toFixed(2)} ${((H-y)*s).toFixed(2)}`).join('L')}Z" ${cls}/>`;
+  // openings exactly as drawn: round windows round, drawn shapes their own outline (islands left standing)
+  [...w.openings, ...X.openings].forEach(o=>{ const st=`fill="${fill(o)}" stroke="#2c2c2c" stroke-width=".6"`;
+    if(isShaped(o)){ const P=outlinePts(shapeOf(o)); g+= o.islands?.length ? `<path d="${[P,...o.islands].map(Q=>'M'+Q.map(([x,y])=>`${(x*s).toFixed(2)} ${((H-y)*s).toFixed(2)}`).join('L')+'Z').join(' ')}" fill-rule="evenodd" ${st}/>` : path(P, st); }
+    else g+=`<rect x="${o.x*s}" y="${(H-o.y-o.h)*s}" width="${o.w*s}" height="${o.h*s}" ${st}/>`; });
+  // boxes and pockets on the outside face (as seen in the drawing, from outside), lighter for the inside face
+  [[[...(w.outside||[]), ...X.outside], x=>x, '#3b3f42'], [[...(w.inside||[]), ...X.inside], x=>L-x, 'none']].forEach(([items, toX, col])=>items.forEach(b=>{
+    const P=faceShape(b, toX); if(!P) return; g+=path(P, `fill="${col}" stroke="#3b3f42" stroke-width=".4" ${col==='none'?'stroke-dasharray="1.5 1"':''}`); }));
   return g+'</svg>';
 }
 

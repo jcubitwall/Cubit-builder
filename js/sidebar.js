@@ -3,7 +3,7 @@ import { FT, POD, PW, T, TI } from './config.js';
 import { LIB, MODELS, optionsFor, saveCustomModels, layerOptions, mirrorId, layerMirrorId } from './data.js';
 import { LAYER_KINDS } from './config.js';
 import { screwsFor, slotsFor, podList, CW, layerSlotsFor, partnerOf, deckList } from './layout.js';
-import { panelCount, thumbSVG, bodyWall, wallLen } from './panels.js';
+import { panelCount, thumbSVG, bodyWall, wallLen, layerHoles, outlinePts, shapeOf } from './panels.js';
 import { buildHome, highlight } from './scene3d.js';
 import { facing, fmtBearing } from './orient.js';
 import { setDeckFoundation, rotatePod, deletePod, ensureDraft, mirrorPod } from './pods.js';
@@ -89,7 +89,10 @@ function layerThumb(L){
   const len=L.len*12, s=150/len, W=len*s, H=96*s;
   let g=`<svg viewBox="-2 -2 ${W+4} ${H+4}" aria-hidden="true"><rect width="${W}" height="${H}" fill="#e7e2d6" stroke="#5b4a33" stroke-width=".8"/>`;
   (L.seams||[]).forEach(x=>{ g+=`<line x1="${x*s}" y1="0" x2="${x*s}" y2="${H}" stroke="#5b4a33" stroke-width=".4" stroke-dasharray="2 2"/>`; });
-  (L.holes||[]).forEach(h=>{ g+=`<rect x="${h.x*s}" y="${h.z*s}" width="${h.w*s}" height="${h.d*s}" fill="#fff" stroke="#c0392b" stroke-width=".7"/>`; });
+  // holes exactly as drawn (round ones round, drawn shapes their outline); pockets darker by depth
+  layerHoles(L).filter(h=>!h.notch).forEach(h=>{ const st = h.depth ? `fill="#8a6a3e" fill-opacity="${Math.min(.85,.25+h.depth*.12).toFixed(2)}" stroke="#5b4a33" stroke-width=".5"` : `fill="#fff" stroke="#c0392b" stroke-width=".7"`;
+    if(h.shape==='round'||h.shape==='slot'||h.shape==='poly'){ const P=outlinePts(shapeOf({...h, y:h.z, h:h.d, d:h.dia})); g+=`<path d="${[P,...(h.islands||[])].map(Q=>'M'+Q.map(([x,z])=>`${(x*s).toFixed(2)} ${(z*s).toFixed(2)}`).join('L')+'Z').join(' ')}" fill-rule="evenodd" ${st}/>`; }
+    else g+=`<rect x="${h.x*s}" y="${h.z*s}" width="${h.w*s}" height="${h.d*s}" ${st}/>`; });
   return g+'</svg>';
 }
 const fmtLen = inch => { const ft=Math.floor((inch+0.01)/12), r=Math.round((inch-ft*12)*8)/8; return r? `${ft}′-${r}″` : `${ft}′`; };
