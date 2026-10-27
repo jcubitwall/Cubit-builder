@@ -9,7 +9,8 @@
    them, everyone sees them). Opened from a file or a local server they're kept in this browser instead.
    A sub-model carries everything a project does (layout, wall choices, Wall A, faces, foundation, windows and
    doors) plus any library items it uses that aren't in the shared library files. */
-import { MODELS, LIB, LAYERLIB, PODLIB, DECKLIB } from './data.js';
+import { MODELS, LIB, LAYERLIB, PODLIB, DECKLIB, saveCustomModels } from './data.js';
+import { syncSave } from './sync.js';
 import { state, save } from './state.js';
 import { snapshot, libraryFor } from './projects.js';
 import { email } from './role.js';
@@ -76,6 +77,8 @@ function registerOver(it){
   if(it.furniture) (state.furniture ||= {})[k]=clone(it.furniture);
 }
 const OVERS = {};
+let lastMerged=null;
+const takeMerged = () => { const m=lastMerged; lastMerged=null; return m; };
 function itemFrom(name, family, note, id){
   const snap=snapshot(name, id);
   const it = { id, family, name, note:note||'', saved:new Date().toISOString(), by:email()||'',
@@ -90,9 +93,10 @@ async function saveOver(key){
   const cur=MODELS[key]; if(!cur || cur.sub || cur.custom || cur.project) throw new Error('Not a Cubit model.');
   const it={ ...itemFrom(cur.name, cur.family||familyOf(key), cur.note, 'over-'+key), over:key };
   it.model.name=cur.name; delete it.model.base;
-  await store('upsert', {item:it});
-  registerOver(it); state.model=key; state.selected=null; save();
-  return key;
+  const res=await upsertSynced(it, OVERS[key], state.model, cur.name);
+  const saved={ ...res.item, over:key, id:'over-'+key };
+  registerOver(saved); state.model=key; state.selected=null; save();
+  lastMerged=res.merged; return key;
 }
 /* back to the shop files' version of a Cubit model (removes the shared override) */
 async function removeOver(key){
@@ -124,19 +128,42 @@ async function store(op, payload){
   if(remote){
     const r=await fetch('api/catalog',{method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({op, ...payload})});
     const out=await r.json().catch(()=>({}));
+    if(r.status===409 && out.changed) return out;          // someone saved it since: merged by syncSave
     if(!r.ok) throw new Error(out.error || `Server said ${r.status}`);
-    return;
+    return out;
   }
   try{ localStorage.setItem(LOCAL_KEY, JSON.stringify(Object.values(SUBS))); }catch(e){}
+  return {};
+}
+/* a draft remembers what it was copied from (version and contents), so publishing it back over that home can be
+   combined with anyone else's save in the meantime (sync.js) */
+const sharedItemOf = key => { const m=MODELS[key]; return !m ? null : m.sub ? SUBS[m.sub] : OVERS[key] || null; };
+window.addEventListener('cubit:draft', e=>{ try{
+  const { from, key }=e.detail||{}; const m=MODELS[key]; if(!m || !MODELS[from] || MODELS[from].project || MODELS[from].custom) return;
+  const src=sharedItemOf(from), fam=m.family||familyOf(from);
+  m.syncBase={ rev:src?.rev||0, item:itemFrom(MODELS[from].name, fam, MODELS[from].note, 'base') };
+  saveCustomModels();
+}catch(err){ console.warn('draft base', err); } });
+/* upsert with the version check; mine = the item to save, base = the draft's starting point */
+async function upsertSynced(mine, existing, draftKey, what){
+  const sb=MODELS[draftKey]?.syncBase;
+  const res=await syncSave({ what, mine, base: existing ? (sb?.item||null) : null, baseRev: existing ? (sb ? sb.rev : undefined) : undefined,
+    send: async (item, baseRev, info)=>{ const it={...item}; it.library=libraryFor(it);
+      const out=await store('upsert', {item:it, ...(baseRev!=null?{baseRev}:{}), ...(info?{merged:info}:{})});
+      if(out.changed){ const L=out.current.library||{}; (L.walls||[]).forEach(w=>{ if(!LIB.find(x=>x.id===w.id)) LIB.push({...w, src:'catalog'}); }); (L.layers||[]).forEach(l=>{ if(!LAYERLIB.find(x=>x.id===l.id)) LAYERLIB.push({...l, src:'catalog'}); }); (L.pods||[]).forEach(q=>{ if(!PODLIB.find(x=>x.id===q.id)) PODLIB.push({...q, src:'catalog'}); }); return out; }
+      return { item: out.item || it }; } });
+  return res;
 }
 const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,28) || 'model';
 /* add what's on screen to a model name, or save it back over the sub-model it is */
 async function saveSub({family, name, note, id}){
   const from=state.model, snap=snapshot(name, id||'x');
   const nid = id || `${slug(name)}-${Date.now().toString(36).slice(-4)}`;
-  const it = itemFrom(name, family, note, nid);
-  const prev=SUBS[nid]; SUBS[nid]=it;
-  try{ await store('upsert', {item:it}); }catch(e){ if(prev) SUBS[nid]=prev; else delete SUBS[nid]; throw e; }
+  const mine = itemFrom(name, family, note, nid);
+  const prev=SUBS[nid];
+  const res=await upsertSynced(mine, id ? prev : null, from, name);
+  const it={ ...res.item, id:nid }; SUBS[nid]=it; if(!remote) await store('upsert', {item:it});
+  lastMerged=res.merged;
   register(it);
   // the catalog now holds these choices: clear this browser's overrides for it
   const k=keyOf(it); ['picks','layerPicks','wallA','units','found','deckOC','bearing','cabinets','lights','furniture'].forEach(f=>{ if(state[f]) delete state[f][k]; });
@@ -152,9 +179,12 @@ async function removeSub(id){
   if(state.model==='sub-'+id){ state.model=familyById(it.family)?.base || 'life'; save(); }
 }
 async function editSub(id, changes){
-  const it={...SUBS[id], ...changes};
+  let it={...SUBS[id], ...changes};
   const prev=SUBS[id]; SUBS[id]=it;
-  try{ await store('upsert', {item:it}); }catch(e){ SUBS[id]=prev; throw e; }
+  try{ let out=await store('upsert', {item:it, baseRev:prev?.rev||0});
+    if(out.changed){ it={...out.current, ...changes}; out=await store('upsert', {item:it, baseRev:out.current.rev||0}); if(out.changed) throw new Error('Someone else is saving it right now. Try again.'); }
+    if(out.item) it=out.item; SUBS[id]=it;
+  }catch(e){ SUBS[id]=prev; throw e; }
   register(it);
 }
-export { famByName, saveOver, removeOver, OVERS, FAMILIES, SUBS, loadCatalog, familyOf, familyById, variantsOf, saveSub, removeSub, editSub };
+export { takeMerged, famByName, saveOver, removeOver, OVERS, FAMILIES, SUBS, loadCatalog, familyOf, familyById, variantsOf, saveSub, removeSub, editSub };

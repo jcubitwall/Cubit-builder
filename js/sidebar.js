@@ -354,6 +354,6 @@ document.getElementById('fileIn').addEventListener('change',e=>{
     }catch(err){ toast('That file is not valid JSON.'); } };
   rd.readAsText(f); e.target.value='';
 });
-let toastT; function toast(msg){ let t=document.querySelector('.toast'); if(!t){t=document.createElement('div');t.className='toast';document.body.appendChild(t);} t.textContent=msg; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true,2400); }
+let toastT; function toast(msg, ms=2400){ let t=document.querySelector('.toast'); if(!t){t=document.createElement('div');t.className='toast';document.body.appendChild(t);} t.textContent=msg; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true,ms||2400); }
 
 export { sideH, renderModels, wallListHTML, renderSide, importBlock, toast, sideB, layerThumb };

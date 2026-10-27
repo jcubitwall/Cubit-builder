@@ -3,6 +3,7 @@
         {op:'delete', id}
    Kept in the R2 bucket (binding STEPS): layers/index.json, earlier versions under layers/history/<id>/. */
 import { whoIs, json } from '../_auth.js';
+import { atomic } from '../_store.js';
 const KEY='layers/index.json';
 const KINDS=['floor-ext','floor-int','ceiling-int','roof'];
 async function read(env){ const o=await env.STEPS.get(KEY); if(!o) return []; try{ const v=await o.json(); return Array.isArray(v)?v:[]; }catch(e){ return []; } }
@@ -16,14 +17,17 @@ export async function onRequestPost({ request, env }){
   if(!env.STEPS) return json({ error:'Storage is not set up (R2 binding STEPS).' }, 500);
   const b=await request.json().catch(()=>null);
   if(!b || !['save','delete'].includes(b.op)) return json({ error:'Bad request.' }, 400);
-  let L=await read(env);
-  const id = b.op==='save' ? b.layer?.id : b.id;
-  if(typeof id!=='string' || !/^[A-Z]{1,3}\d{2}-[A-Z0-9]{1,8}$/.test(id)) return json({ error:'Bad layer id.' }, 400);
-  const was=L.find(l=>l.id===id); if(was) await put(env, `layers/history/${id}/${(was.saved||new Date().toISOString()).replace(/[:.]/g,'-')}.json`, was);
-  if(b.op==='save'){
-    const l=b.layer; if(![8,16,24].includes(l.len) || !KINDS.includes(l.kind) || !Array.isArray(l.holes) || JSON.stringify(l).length>400000) return json({ error:'Bad layer.' }, 400);
-    l.by=me.email; l.saved=new Date().toISOString(); L=[l, ...L.filter(x=>x.id!==id)];
-  } else L=L.filter(x=>x.id!==id);
-  await put(env, KEY, L);
-  return json({ ok:true, layers:L });
+  const r=await atomic(env, KEY, ()=>[], async L=>{
+    if(!Array.isArray(L)) L=[];
+    const id = b.op==='save' ? b.layer?.id : b.id;
+    if(typeof id!=='string' || !/^[A-Z]{1,3}\d{2}-[A-Z0-9]{1,8}$/.test(id)) return json({ error:'Bad layer id.' }, 400);
+    const was=L.find(l=>l.id===id); if(was) await put(env, `layers/history/${id}/${(was.saved||new Date().toISOString()).replace(/[:.]/g,'-')}.json`, was);
+    if(b.op==='save'){
+      const l=b.layer; if(![8,16,24].includes(l.len) || !KINDS.includes(l.kind) || !Array.isArray(l.holes) || JSON.stringify(l).length>400000) return json({ error:'Bad layer.' }, 400);
+      l.by=me.email; l.saved=new Date().toISOString(); L=[l, ...L.filter(x=>x.id!==id)];
+    } else L=L.filter(x=>x.id!==id);
+    return { value:L };
+  });
+  if(r.response) return r.response;
+  return json({ ok:true, layers:r.value });
 }

@@ -6,7 +6,8 @@
      model it was copied from. Every replaced version is kept on the server. */
 import { MODELS } from './data.js';
 import { state, save } from './state.js';
-import { FAMILIES, familyById, familyOf, saveSub, saveOver, removeOver, OVERS, removeSub, editSub } from './catalog.js';
+import { FAMILIES, familyById, familyOf, saveSub, saveOver, removeOver, OVERS, removeSub, editSub, takeMerged } from './catalog.js';
+import { mergedText } from './sync.js';
 import { newHome, renameDraft, setDraftFamily, deleteDraft, myDrafts, isDraft } from './drafts.js';
 import { canSave } from './role.js';
 import { renderModels, renderSide, toast } from './sidebar.js';
@@ -99,8 +100,8 @@ function openPublish(){
         <div class="row"><button class="btn" id="pbGo">Publish</button></div>`;
       body.querySelector('#pbGo').onclick=async()=>{ const name=body.querySelector('#pbName').value.trim(); if(!name){ toast('Give it a name.'); return; }
         const fam=body.querySelector('#pbFam').value, note=body.querySelector('#pbNote').value.trim(); body.querySelector('#pbGo').disabled=true;
-        try{ await saveSub({family:fam, name, note}); await deleteDraft(k); state.model=Object.keys(MODELS).find(x=>MODELS[x].sub && MODELS[x].name===name && MODELS[x].family===fam)||state.model; save(); d.close(); refresh(); toast(`Published “${name}” under ${familyById(fam)?.name}`); }
-        catch(e){ toast('Not published: '+e.message); body.querySelector('#pbGo').disabled=false; } };
+        try{ await saveSub({family:fam, name, note}); await deleteDraft(k); state.model=Object.keys(MODELS).find(x=>MODELS[x].sub && MODELS[x].name===name && MODELS[x].family===fam)||state.model; save(); d.close(); refresh(); toast(`Published “${name}” under ${familyById(fam)?.name}`); takeMerged(); }
+        catch(e){ toast(e.cancelled ? 'Not published. Nothing was changed.' : 'Not published: '+e.message); body.querySelector('#pbGo').disabled=false; } };
       return;
     }
     // saving over a Cubit model: three warnings
@@ -116,8 +117,8 @@ function openPublish(){
       if(cf){ cf.oninput=()=>{ nx.disabled = cf.value.trim().toLowerCase()!==fromM.name.trim().toLowerCase(); }; cf.focus(); }
       nx.onclick=async()=>{ if(step<2){ step++; show(); return; } nx.disabled=true;
         try{ if(fromM.sub) await saveSub({family:fromM.family, name:fromM.name, note:fromM.note, id:fromM.sub}); else await saveOver(from);
-          await deleteDraft(k); state.model=from; save(); d.close(); refresh(); toast(`${fromM.name} saved over for everyone`); }
-        catch(e){ toast('Not saved: '+e.message); nx.disabled=false; } }; };
+          await deleteDraft(k); state.model=from; save(); d.close(); refresh(); const mg=takeMerged(); toast(`${fromM.name} saved over for everyone. ${mergedText(mg)}`, mg?8000:undefined); }
+        catch(e){ toast(e.cancelled ? 'Not saved. Nothing was changed.' : 'Not saved: '+e.message); nx.disabled=false; } }; };
     show();
   };
   view('sub'); d.showModal();

@@ -12,6 +12,7 @@ import { state, save, foundationOf, deckOCOf } from './state.js';
 import { saveToLibraries } from './pods.js';
 import { getBearing } from './orient.js';
 import { canSave, isAdmin } from './role.js';
+import { syncSave } from './sync.js';
 
 const KEY='cubit-projects';
 const PROJECTS={};          // id -> project (own, from this browser)
@@ -26,6 +27,9 @@ async function loadProjects(){
   try{ const r=await fetch('data/projects.json'); if(r.ok){ const list=await r.json(); (Array.isArray(list)?list:Object.values(list)).forEach(p=>{ SHARED[p.id]={...p, shared:true}; }); } }catch(e){}
   try{ const r=await fetch('api/projects',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ (await r.json()).forEach(p=>{ TEAM[p.id]=p; }); remote=true; } }catch(e){}
   Object.values(SHARED).forEach(register); Object.values(PROJECTS).forEach(register); Object.values(TEAM).forEach(register);
+  // the project on screen: measure later changes from the version on the server now (unless already known)
+  const open=String(state.model||'').startsWith('proj-') ? state.model.slice(5) : null;
+  if(open && TEAM[open] && !BASE[open]) setBase(open, TEAM[open].rev, TEAM[open]);
   if(remote && isAdmin()) migrate().catch(()=>{});
 }
 /* the team's project carries the library items it uses that aren't in the library files: add them for everyone */
@@ -39,6 +43,7 @@ function addLibrary(lib){
 async function post(body){
   const r=await fetch('api/projects',{method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(body)});
   const out=await r.json().catch(()=>({}));
+  if(r.status===409 && out.changed) return out;          // someone saved it since: merged by syncSave
   if(!r.ok) throw new Error(out.error || `Server said ${r.status}`);
   Object.keys(TEAM).forEach(k=>delete TEAM[k]); (out.projects||[]).forEach(p=>{ TEAM[p.id]=p; register(p); });
   return out;
@@ -61,6 +66,12 @@ async function migrate(){
   try{ localStorage.setItem(UP_KEY, JSON.stringify([...done])); }catch(e){}
   if(n) window.dispatchEvent(new CustomEvent('cubit-projects-moved', {detail:n}));
 }
+/* what each project was when you opened it (or last saved it): what your changes are measured from (sync.js) */
+const BASE_KEY='cubit-proj-base';
+let BASE={}; try{ BASE=JSON.parse(localStorage.getItem(BASE_KEY)||'{}'); }catch(e){}
+function setBase(id, rev, item){ BASE[id]={ rev:rev||0, item:clone(item), at:Date.now() };
+  const ids=Object.keys(BASE).sort((a,b)=>BASE[b].at-BASE[a].at); ids.slice(12).forEach(k=>delete BASE[k]);
+  try{ localStorage.setItem(BASE_KEY, JSON.stringify(BASE)); }catch(e){ BASE={[id]:BASE[id]}; try{ localStorage.setItem(BASE_KEY, JSON.stringify(BASE)); }catch(e2){} } }
 const keyOf = p => 'proj-'+p.id;
 function register(p, force=false){
   if(!force && TEAM[p.id] && TEAM[p.id]!==p) return;          // the team's copy wins over a browser's or the repo's
@@ -93,10 +104,19 @@ async function saveProject(name, asNew=false){
   // new walls, floors, ceilings and pods of this home go into their libraries; the project then refers to them
   const counts = saveToLibraries(name);
   const q = snapshot(name, id, k);
-  if(remote) await post({op:'save', item:{...q, library:libraryFor(q)}});
+  let merged=null;
+  if(remote){
+    const had=!!TEAM[id], b=BASE[id];
+    const res=await syncSave({ what:'this project', mine:q, base: had ? (b?.item || TEAM[id]) : null, baseRev: had ? (b ? b.rev : (TEAM[id].rev||0)) : undefined,
+      send: async (item, baseRev, info)=>{ const out=await post({op:'save', item:{...item, library:libraryFor(item)}, ...(baseRev!=null?{baseRev}:{}), ...(info?{merged:info}:{})});
+        if(out.changed){ addLibrary(out.current.library); return out; } return { item:TEAM[id] }; } });
+    merged=res.merged;
+  }
   else { PROJECTS[id]=q; persist(); register(q); }
   state.picks[k]={}; state.layerPicks[k]={}; state.wallA[k]={}; state.faces[k]={}; save();
-  return {project:TEAM[id]||PROJECTS[id], counts};
+  if(merged) openProject(id);                        // show the combined home (yours + theirs)
+  if(remote && TEAM[id]) setBase(id, TEAM[id].rev, snapshot(TEAM[id].name, id, k));
+  return {project:TEAM[id]||PROJECTS[id], counts, merged};
 }
 function openProject(id){
   const p = TEAM[id] || PROJECTS[id] || SHARED[id]; if(!p) return;
@@ -115,7 +135,10 @@ function openProject(id){
   if(p.deckOC && (state.deckOC?.[k]==null || fresh)) (state.deckOC ||= {})[k]=p.deckOC;
   if(p.units && (state.units?.[k]==null || fresh)) (state.units ||= {})[k]=clone(p.units);
   state.model=k; state.selected=null; save();
+  if(fresh) setBase(id, p.rev, snapshot(p.name, id, k));
 }
+/* the open project's starting point, when the app opens on it (no Open tapped) */
+function baseFor(id){ return BASE[id] || (TEAM[id] ? { rev:TEAM[id].rev||0, item:TEAM[id] } : null); }
 async function deleteProject(id){
   if(TEAM[id]) await post({op:'delete', id});
   delete PROJECTS[id]; persist(); delete MODELS['proj-'+id];
@@ -155,4 +178,4 @@ function importJSON(text){
   persist(); return n;
 }
 
-export { snapshot, libraryFor, loadProjects, saveProject, openProject, deleteProject, renameProject, exportJSON, importJSON, versions, restoreVersion, isTeam, PROJECTS, SHARED, TEAM };
+export { baseFor, snapshot, libraryFor, loadProjects, saveProject, openProject, deleteProject, renameProject, exportJSON, importJSON, versions, restoreVersion, isTeam, PROJECTS, SHARED, TEAM };

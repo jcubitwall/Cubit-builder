@@ -6,6 +6,7 @@ import { state } from './state.js';
 import { buildHome } from './scene3d.js';
 import { renderModels, renderSide, toast } from './sidebar.js';
 import { openSheets } from './sheets.js';
+import { mergedText } from './sync.js';
 
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const when = iso => { try{ return new Date(iso).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'}); }catch(e){ return iso; } };
@@ -13,7 +14,7 @@ const when = iso => { try{ return new Date(iso).toLocaleString(undefined,{dateSt
 function refreshAll(){ renderModels(); buildHome(); renderSide(); if(state.view==='sheets') openSheets(); }
 
 const who = e => e ? String(e).split('@')[0].replace(/^./,c=>c.toUpperCase()) : '';
-const fail = e => toast(`Couldn't save: ${e.message||e}`);
+const fail = e => toast(e?.cancelled ? 'Not saved. Nothing was changed.' : `Couldn't save: ${e.message||e}`);
 function rows(list, openId, own){
   return `<div class="projlist">${list.map(p=>`<div class="projrow ${p.id===openId?'on':''}" data-row="${esc(p.id)}"><b>${esc(p.name)}</b>
     <small>${esc(p.model.pods.length)} pod${p.model.pods.length===1?'':'s'}${p.saved?` · saved ${esc(when(p.saved))}`:''}${p.by?` by ${esc(who(p.by))}`:''}</small>
@@ -50,7 +51,7 @@ function render(){
   const name=body.querySelector('#projName');
   const busy=(b,on)=>{ if(b){ b.disabled=on; } };
   body.querySelector('#projSave').onclick=async e=>{ const n=name.value.trim(); if(!n){ name.focus(); toast('Give the project a name first.'); return; }
-    busy(e.target,true); try{ const r=await saveProject(n,false); refreshAll(); render(); toast(`Saved “${n}”${team?' for the team':''}. ${countsText(r.counts)}`); }catch(err){ fail(err); busy(e.target,false); } };
+    busy(e.target,true); try{ const r=await saveProject(n,false); refreshAll(); render(); toast(`Saved “${n}”${team?' for the team':''}. ${mergedText(r.merged)} ${countsText(r.counts)}`, r.merged?8000:undefined); }catch(err){ fail(err); busy(e.target,false); } };
   const sn=body.querySelector('#projSaveNew'); if(sn) sn.onclick=async e=>{ const n=name.value.trim()||'Copy'; busy(e.target,true);
     try{ const r=await saveProject(n,true); refreshAll(); render(); toast(`Saved “${n}” as a new project. ${countsText(r.counts)}`); }catch(err){ fail(err); busy(e.target,false); } };
   body.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{ openProject(b.dataset.open); refreshAll(); document.getElementById('projDlg').close(); toast('Project opened'); });

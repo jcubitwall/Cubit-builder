@@ -6,6 +6,7 @@
    files when the app loads. A deleted item is hidden from every list; homes already using it keep working, and
    it can be brought back. */
 import { whoIs, json } from '../_auth.js';
+import { atomic } from '../_store.js';
 const KEY = 'catalog/library-edits.json';
 const KINDS = ['families','models','pods','walls','layers','decks'];
 async function read(env){
@@ -25,18 +26,22 @@ export async function onRequestPost({ request, env }){
   if(!env.STEPS) return json({ error:'Storage is not set up (R2 binding STEPS).' }, 500);
   const b = await request.json().catch(()=>null);
   if(!b || !['rename','delete','restore','hand'].includes(b.op) || !KINDS.includes(b.kind) || typeof b.id !== 'string' || !b.id || b.id.length > 80) return json({ error:'Bad request.' }, 400);
-  const key = `${b.kind}:${b.id}`, ed = await read(env);
-  if(b.op === 'rename'){
-    const name = typeof b.name === 'string' ? b.name.trim().slice(0, 80) : '';
-    if(!name) return json({ error:'A name is needed.' }, 400);
-    ed.names[key] = name;
-  } else if(b.op === 'delete') ed.gone[key] = { by: me.email, at: new Date().toISOString() };
-  else if(b.op === 'hand'){   // a feature made by hand, not by the CNC: feat = "<list>:<index>"
-    if(typeof b.feat !== 'string' || !/^[a-z]:\d{1,4}$/.test(b.feat)) return json({ error:'Bad feature.' }, 400);
-    const set = new Set(ed.hand[key]||[]); if(b.on) set.add(b.feat); else set.delete(b.feat);
-    if(set.size) ed.hand[key] = [...set]; else delete ed.hand[key];
-  }
-  else delete ed.gone[key];
-  await env.STEPS.put(KEY, JSON.stringify(ed), { httpMetadata:{ contentType:'application/json' } });
-  return json({ ok:true, ...ed });
+  const key = `${b.kind}:${b.id}`;
+  const r = await atomic(env, KEY, ()=>({ names:{}, gone:{}, hand:{} }), async v=>{
+    const ed = { names:v.names||{}, gone:v.gone||{}, hand:v.hand||{} };
+    if(b.op === 'rename'){
+      const name = typeof b.name === 'string' ? b.name.trim().slice(0, 80) : '';
+      if(!name) return json({ error:'A name is needed.' }, 400);
+      ed.names[key] = name;
+    } else if(b.op === 'delete') ed.gone[key] = { by: me.email, at: new Date().toISOString() };
+    else if(b.op === 'hand'){   // a feature made by hand, not by the CNC: feat = "<list>:<index>"
+      if(typeof b.feat !== 'string' || !/^[a-z]:\d{1,4}$/.test(b.feat)) return json({ error:'Bad feature.' }, 400);
+      const set = new Set(ed.hand[key]||[]); if(b.on) set.add(b.feat); else set.delete(b.feat);
+      if(set.size) ed.hand[key] = [...set]; else delete ed.hand[key];
+    }
+    else delete ed.gone[key];
+    return { value:ed };
+  });
+  if(r.response) return r.response;
+  return json({ ok:true, ...r.value });
 }

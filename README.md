@@ -282,3 +282,7 @@ The first tap on a window, hole, box or hatch only picks it. Drag a picked item 
 
 ## Back arrow between windows
 Any window opened from another window gets a ← top left (`js/dialog-back.js`). Opened on top (Library → 3D viewer, Panel builder → Shape studio): ← closes it and you're back on the first. Opened in place (Homes → Library): ← reopens the window you came from. It applies to every window automatically; small question windows such as Rename keep their own Cancel.
+
+## Two people saving the same home
+Every shared save (a team project, a home saved over, a variation saved back) carries the version it started from. If someone else saved in the meantime, the server saves nothing and hands their version back, and the app combines the two (`js/sync.js`): what only you changed is kept, what only they changed is kept (Heinrich's plumbing and your walls both end up in the home). Only when you both changed the same thing (the same wall, the same cabinet, the north direction) does a window ask which to keep. The one not kept stays in the earlier versions. A project measures your changes from when you opened (or last saved) it; a draft from when it was copied.
+On the server every shared list (projects, sub-models, walls, floors and roofs, shapes, library edits) is written only if it hasn't changed since it was read (`functions/_store.js`), so two saves at the same moment can't wipe each other out.

@@ -931,3 +931,9 @@ dialog.v3-dlg[open]{display:flex;flex-direction:column}
 .dlg-back{flex:none;min-width:40px;padding:6px 10px;font-size:18px;line-height:1;margin-right:4px}
 .dlg-h:has(.dlg-back:not([hidden])){justify-content:flex-start;gap:10px}
 .dlg-h:has(.dlg-back:not([hidden])) > :last-child{margin-left:auto}
+/* both changed the same thing (sync.js) */
+.sync-dlg .dlg{max-width:680px}
+.sync-list{display:flex;flex-direction:column;gap:8px;margin:10px 0;max-height:50vh;overflow:auto}
+.sync-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line)}
+.sync-row .seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.sync-row small{opacity:.75;margin-left:4px}
