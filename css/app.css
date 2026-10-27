@@ -927,3 +927,7 @@ dialog.v3-dlg[open]{display:flex;flex-direction:column}
 .v3-cube{position:absolute;top:12px;right:12px;z-index:2;display:flex;flex-direction:column;align-items:center;gap:8px}
 .v3-lock{background:var(--surface);white-space:nowrap}
 .v3-hint{position:absolute;left:50%;bottom:max(12px, env(safe-area-inset-bottom,0px));transform:translateX(-50%);margin:0;padding:5px 12px;border-radius:999px;background:color-mix(in srgb,var(--surface) 88%,transparent);font:600 12px var(--mono);color:var(--muted);white-space:nowrap;max-width:calc(100% - 24px);overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+/* ← back to the window this one was opened from (dialog-back.js) */
+.dlg-back{flex:none;min-width:40px;padding:6px 10px;font-size:18px;line-height:1;margin-right:4px}
+.dlg-h:has(.dlg-back:not([hidden])){justify-content:flex-start;gap:10px}
+.dlg-h:has(.dlg-back:not([hidden])) > :last-child{margin-left:auto}

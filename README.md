@@ -279,3 +279,6 @@ Tap any row in the Library (⋯ → Library), or its 3D button, to see that home
 ## Panel builder: moving items
 The first tap on a window, hole, box or hatch only picks it. Drag a picked item to move it: it moves along one line only, sideways or up / down (along or across on a floor, ceiling or roof), whichever way the drag starts.
 
+
+## Back arrow between windows
+Any window opened from another window gets a ← top left (`js/dialog-back.js`). Opened on top (Library → 3D viewer, Panel builder → Shape studio): ← closes it and you're back on the first. Opened in place (Homes → Library): ← reopens the window you came from. It applies to every window automatically; small question windows such as Rename keep their own Cancel.
