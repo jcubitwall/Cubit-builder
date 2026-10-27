@@ -769,3 +769,4 @@ html.phone .studio.build .vcube-wrap{top:8px;right:8px;transform:scale(.85);tran
 @media (max-width:820px){ .wb-body{grid-template-columns:1fr;grid-template-rows:minmax(240px,45%) 1fr;overflow:hidden} .wb-view{border-right:0;border-bottom:1px solid var(--line)} }
 .wb-hit{fill:transparent;stroke:none;cursor:grab}
 html,body{overscroll-behavior:none}   /* no rubber-band scroll: the iPad blurs whatever slides under its top bar */
+.wb-cut{fill:url(#none);fill:rgba(28,33,30,.14);stroke:#7a1d12;stroke-width:.4;stroke-dasharray:1.5 1}.wb-ext{opacity:.55}.wb-endrow{display:flex;align-items:center;gap:8px;margin-top:4px}.wb-endrow b{width:44px;font-size:12.5px}

@@ -24,13 +24,15 @@ const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>
 const r8 = v => Math.round(v*8)/8;
 let W=null, view='outside', sel=null, dlg=null, origin=null, forSlot=null;
 
-function blank(len=8, type='ext'){ return { id:null, name:'', len, type, t: type==='int'?4.5:6.5, openings:[], inside:[], outside:[] }; }
+function blank(len=8, type='ext'){ return { id:null, name:'', len, type, t: type==='int'?4.5:6.5, fit:[0,0], openings:[], inside:[], outside:[] }; }
 /* open the builder: a fresh wall, a copy of a library wall, or (from a wall's panel) ready to use on that wall */
 function openWallBuilder({ from=null, slot=null, len, type }={}){
   forSlot=slot||null;
   if(from){ const src=byId(from); W=clone(src); delete W.src; delete W.mirrorOf; origin = src?.src==='team' && !String(from).endsWith('~m') ? src.id : null; if(!origin){ W.id=null; W.name=(src?.name||'')+' (copy)'; } }
   else { W=blank(len||slot?.len||8, type||slot?.type||'ext'); origin=null; }
   W.openings ||= []; W.inside ||= []; W.outside ||= [];
+  // how its ends meet the walls beside it: the home's own fit for that wall when opened from one
+  W.fit = slot?.trim ? slot.trim.map(v=>+v||0) : (W.fit || [0,0]);
   view='outside'; sel=null; ensure(); render(); if(!dlg.open) dlg.showModal();
 }
 function ensure(){
@@ -38,6 +40,13 @@ function ensure(){
   document.body.appendChild(dlg);
 }
 const L = () => W.len*12;
+/* how much comes off each end (inches, left / right seen from outside): 0 full length, 6½ or 4½ where it butts
+   between the walls at its ends (a negative amount: it runs on past the end, see the 6½″ join rule) */
+const fitL = () => W.fit?.[0]||0, fitR = () => W.fit?.[1]||0;
+const cutSeen = () => view==='outside' ? fitL() : fitR();          // what's cut off the end on the left as seen now
+const netL = () => L()-fitL()-fitR();
+/* the panel joints: 4′ panels counted from the right-hand end seen from outside, the short one at the left */
+function seamsOut(){ const out=[], n=Math.ceil(netL()/PW-1e-6); for(let j=1;j<n;j++) out.push(L()-fitR()-j*PW); return out; }
 /* screen x of an item seen from the current side */
 const listOf = k => k==='op' ? W.openings : W[k];
 function drawX(k, it){                       // left edge (openings) / centre (face items) as seen now
@@ -51,10 +60,11 @@ function sizeOf(k, it){ if(it.shape==='round') return [it.d, it.d]; return [it.w
 
 /* checks: inside the wall, clear of the panel joints (the OSB splines), boxes not in an opening */
 function problems(){
-  const out=[], seams=[]; for(let s=PW; s<L(); s+=PW) seams.push(s);
-  W.openings.forEach((o,i)=>{ if(o.x<0||o.x+o.w>L()||o.y<0||o.y+o.h>H) out.push(`Opening ${i+1} runs past the wall`); });
+  const out=[], seams=seamsOut(), lo=Math.max(0,fitL()), hi=L()-Math.max(0,fitR());
+  W.openings.forEach((o,i)=>{ if(o.x<lo-0.01||o.x+o.w>hi+0.01||o.y<0||o.y+o.h>H) out.push(`Opening ${i+1} runs past the ${o.x<lo-0.01||o.x+o.w>hi+0.01?'cut end':'wall'}`); });
   ['inside','outside'].forEach(k=>W[k].forEach((b,i)=>{ const [w,h]=sizeOf(k,b), x0=b.x-w/2, x1=b.x+w/2;
-    if(x0<0||x1>L()||b.y-h/2<0||b.y+h/2>H) out.push(`${b.name||'Box'} on the ${k} runs past the wall`);
+    const a = k==='inside' ? L()-hi : lo, z = k==='inside' ? L()-lo : hi;
+    if(x0<a||x1>z||b.y-h/2<0||b.y+h/2>H) out.push(`${b.name||'Box'} on the ${k} runs past the ${x0<a||x1>z?'cut end':'wall'}`);
     const sx = k==='inside' ? seams.map(s=>L()-s) : seams;
     if(sx.some(s=>s>x0-1.75 && s<x1+1.75)) out.push(`${b.name||'Box'} on the ${k} is on a panel joint (spline): move it at least 1¾″ clear`); }));
   return out;
@@ -69,7 +79,13 @@ function autoName(){
 function elevation(){
   const len=L(), pad=10;
   let g=`<rect x="0" y="0" width="${len}" height="${H}" class="wb-wall ${W.type}"/>`;
-  for(let s=PW; s<len; s+=PW){ const x = view==='inside' ? len-s : s; g+=`<line x1="${x}" y1="0" x2="${x}" y2="${H}" class="wb-seam"/>`; }
+  seamsOut().forEach(s=>{ const x = view==='inside' ? len-s : s; g+=`<line x1="${x}" y1="0" x2="${x}" y2="${H}" class="wb-seam"/>`; });
+  // the ends that come off where the wall butts between others: hatched; and a strip where it runs on past its end
+  const cl = view==='outside' ? fitL() : fitR(), cr = view==='outside' ? fitR() : fitL();
+  if(cl>0) g+=`<rect x="0" y="0" width="${cl}" height="${H}" class="wb-cut"/>`;
+  if(cr>0) g+=`<rect x="${len-cr}" y="0" width="${cr}" height="${H}" class="wb-cut"/>`;
+  if(cl<0) g+=`<rect x="${cl}" y="0" width="${-cl}" height="${H}" class="wb-wall ${W.type} wb-ext"/>`;
+  if(cr<0) g+=`<rect x="${len}" y="0" width="${-cr}" height="${H}" class="wb-wall ${W.type} wb-ext"/>`;
   W.openings.forEach((o,i)=>{ const x=drawX('op',o), on=sel&&sel.k==='op'&&sel.i===i;
     if(o.shape==='round') g+=`<circle cx="${x+o.w/2}" cy="${H-o.y-o.h/2}" r="${o.d/2}" class="wb-op${on?' on':''}" data-k="op" data-i="${i}"/>`;
     else g+=`<rect x="${x}" y="${H-o.y-o.h}" width="${o.w}" height="${o.h}" class="wb-op ${o.kind}${on?' on':''}" data-k="op" data-i="${i}"/><text x="${x+o.w/2}" y="${H-o.y-o.h/2}" class="wb-lab">${o.kind==='opening'?'cased':o.kind}</text>`; });
@@ -79,20 +95,21 @@ function elevation(){
     else g+=`<rect x="${x-b.w/2}" y="${H-b.y-b.h/2}" width="${b.w}" height="${b.h}" class="${cls}" data-k="${k}" data-i="${i}"/>`;
     const [bw,bh]=sizeOf(k,b); g+=`<rect x="${x-bw/2-4}" y="${H-b.y-bh/2-4}" width="${bw+8}" height="${bh+8}" class="wb-hit" data-k="${k}" data-i="${i}"/>`; }));   // a finger-sized target
   // dimensions of the picked item to the left end and the floor
-  if(sel){ const it=listOf(sel.k)[sel.i]; if(it){ const [w,h]=sizeOf(sel.k,it), x=drawX(sel.k,it), xl = sel.k==='op' ? x : x-w/2, yb = sel.k==='op' ? it.y : it.y-h/2;
-    g+=`<line x1="0" y1="${H-yb-h/2}" x2="${xl}" y2="${H-yb-h/2}" class="wb-dim"/><text x="${xl/2}" y="${H-yb-h/2-1.5}" class="wb-dimt">${fin(xl)}</text>`;
+  // openings to their left edge and bottom, boxes and pockets to their centre (as the fields read)
+  if(sel){ const it=listOf(sel.k)[sel.i]; if(it){ const op=sel.k==='op', [w0,h0]=sizeOf(sel.k,it), w=op?w0:0, h=op?h0:0, x=drawX(sel.k,it), xl = x, yb = it.y;
+    const c0=cutSeen(); g+=`<line x1="${c0}" y1="${H-yb-h/2}" x2="${xl}" y2="${H-yb-h/2}" class="wb-dim"/><text x="${(c0+xl)/2}" y="${H-yb-h/2-1.5}" class="wb-dimt">${fin(xl-c0)}</text>`;
     g+=`<line x1="${xl+w/2}" y1="${H}" x2="${xl+w/2}" y2="${H-yb}" class="wb-dim"/><text x="${xl+w/2+1.5}" y="${H-yb/2}" class="wb-dimt" text-anchor="start">${fin(yb)}</text>`; } }
-  return `<svg class="wb-svg" viewBox="${-pad} ${-pad} ${len+2*pad} ${H+2*pad+6}" role="img" aria-label="The wall seen from ${view}">${g}
-    <text x="0" y="${H+8}" class="wb-end">◀ left end seen from ${view}</text><text x="${len}" y="${H+8}" class="wb-end" text-anchor="end">${W.len}′ · ${W.t}″</text></svg>`;
+  return `<svg class="wb-svg" viewBox="${-pad} ${-pad} ${len+2*pad} ${H+2*pad+8}" role="img" aria-label="The wall seen from ${view}">${g}
+    <text x="0" y="${H+7}" class="wb-end">◀ left end seen from ${view}</text><text x="0" y="${H+12}" class="wb-end">${fitL()||fitR() ? `${fin(netL())} long (${W.len}′ less its ends)` : `${W.len}′ full length`} · ${W.t}″ thick · 96″ high</text></svg>`;
 }
 function fields(){
   if(!sel) return `<p class="note">Tap an item on the wall to size and place it, or drag it. Measurements are from the left end seen from ${view} and from the floor.</p>`;
   const it=listOf(sel.k)[sel.i]; if(!it) return '';
   const [w,h]=sizeOf(sel.k,it), x=drawX(sel.k,it), isOp=sel.k==='op', round=it.shape==='round';
-  const f=(id,label,v)=>`<label class="cw-f"><span>${label}</span><input data-f="${id}" inputmode="decimal" value="${r8(v)}"><i>″</i></label>`;
+  const f=(id,label,v)=>`<label class="cw-f"><span>${label}</span><input data-f="${id}" inputmode="decimal" value="${Math.round(v*16)/16}"><i>″</i></label>`;
   return `<div class="wb-sel"><div class="eyebrow">${isOp ? (round?'Round hole through the wall':it.kind==='opening'?'Cased opening':it.kind==='window'?'Window opening':'Door opening') : (round?'Round pocket':'Box')+` · ${sel.k} face`}</div>
     <div class="cw-fs">${round ? f('d','Diameter',it.d) : f('w','Width',w)+f('h','Height',h)}
-      ${f('x', isOp?'Left edge from the left end':'Centre from the left end', isOp ? x : x)}
+      ${f('x', isOp?'Left edge from the left end':'Centre from the left end', x-cutSeen())}
       ${f('y', isOp?(it.kind==='window'||round?'Bottom from the floor':'Bottom from the floor'):'Centre from the floor', isOp ? it.y : it.y)}
       ${!isOp ? f('depth','Depth', it.depth||3) : ''}</div>
     <div class="row"><button class="btn ghost sm" id="wbDup">Duplicate</button><button class="btn ghost sm" id="wbDel">Remove</button></div></div>`;
@@ -111,6 +128,9 @@ function render(){
       <div class="cw-side">
         <div class="cw-opt"><span>Wall</span><div class="seg"><button data-type="ext" aria-pressed="${W.type==='ext'}">Exterior 6½″</button><button data-type="int" aria-pressed="${W.type==='int'}">Interior 4½″</button></div></div>
         <div class="cw-opt"><span>Length (8′ high)</span><div class="seg wrap">${[4,8,12,16,20,24].map(n=>`<button data-len="${n}" aria-pressed="${W.len===n}">${n}′</button>`).join('')}</div></div>
+        <div class="cw-opt"><span>Ends (seen from outside)</span>
+          ${['Left','Right'].map((nm,e)=>`<div class="wb-endrow"><b>${nm}</b><div class="seg wrap">${[[0,'Full length'],[6.5,'Between 6½″'],[4.5,'Between 4½″']].map(([v,l])=>`<button data-fit="${e}" data-v="${v}" aria-pressed="${Math.abs((W.fit?.[e]||0)-v)<1e-6}">${l}</button>`).join('')}${(W.fit?.[e]||0)<0?`<button aria-pressed="true" disabled>Runs on ${fin(-(W.fit[e]))}</button>`:''}</div></div>`).join('')}
+          <p class="note">${fitL()||fitR() ? `Cut length ${fin(netL())}: ${fitL()?`${fin(fitL())} off the left`:''}${fitL()&&fitR()?', ':''}${fitR()?`${fin(fitR())} off the right`:''} where it butts the wall${fitL()&&fitR()?'s':''} beside it. Measurements are from the cut ends.` : 'Full length: it runs the whole way, corner to corner.'}</p></div>
         <h3>Add to the ${near(view)} face</h3>
         <div class="wb-add"><button class="btn ghost sm" data-add="plug">Plug box</button><button class="btn ghost sm" data-add="switch">Switch box</button><button class="btn ghost sm" data-add="double">Double switch box</button><button class="btn ghost sm" data-add="pocket">Round pocket</button></div>
         <h3>Through the wall</h3>
@@ -135,7 +155,7 @@ function add(kind){
 function setField(f, v){
   const it=listOf(sel.k)[sel.i]; if(!it || !isFinite(v)) return;
   if(f==='d'){ const cx = sel.k==='op' ? it.x+it.w/2 : it.x, cy = sel.k==='op' ? it.y+it.h/2 : it.y; it.d=v; it.w=it.h=v; if(sel.k==='op'){ it.x=cx-v/2; it.y=cy-v/2; } }
-  else if(f==='x') { if(sel.k==='op') it.x=fromDrawX('op',it,v); else it.x=fromDrawX(sel.k,it,v); }
+  else if(f==='x') { v+=cutSeen(); if(sel.k==='op') it.x=fromDrawX('op',it,v); else it.x=fromDrawX(sel.k,it,v); }
   else it[f]=v;
   if(sel.k==='op' && f==='w' && view==='inside'){ /* keep the left edge seen from inside */ }
   ['x','y','w','h','d','depth'].forEach(k=>{ if(it[k]!=null) it[k]=Math.round(it[k]*10000)/10000; });
@@ -149,6 +169,7 @@ function bind(){
   dlg.querySelectorAll('[data-len]').forEach(b=>b.onclick=()=>{ const old=L(); W.len=+b.dataset.len;
     // keep everything where it was from the left end seen from outside (inside items keep their distance from the outside-left end too)
     W.inside.forEach(it=>{ it.x += L()-old; }); render(); });
+  dlg.querySelectorAll('[data-fit]').forEach(b=>b.onclick=()=>{ W.fit=[fitL(), fitR()]; W.fit[+b.dataset.fit]=+b.dataset.v; render(); });
   dlg.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>add(b.dataset.add));
   dlg.querySelectorAll('[data-f]').forEach(inp=>inp.onchange=()=>{ const s=String(inp.value).trim(), m=s.match(/^(\d+(?:\.\d+)?)?[\s-]*(?:(\d+)\/(\d+))?$/); const v=m?(m[1]?+m[1]:0)+(m[2]?(+m[2])/(+m[3]):0):NaN; setField(inp.dataset.f, v); });
   $('#wbDel')?.addEventListener('click',()=>{ listOf(sel.k).splice(sel.i,1); sel=null; render(); });
