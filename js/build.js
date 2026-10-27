@@ -296,11 +296,10 @@ function renderTray(){
       + `<button class="tray-it more" data-open="lib"><b>Library…</b><small>sizes, 3D, parts</small></button>`;
     return;
   }
-  const lib=PODLIB.filter(p=>!p.deleted).sort((a,b)=>b.len-a.len || a.name.localeCompare(b.name));
+  // just the three pod sizes: every wall, floor, ceiling and roof can be changed once it's placed
   const dk=DECKLIB.filter(d=>!d.deleted);
   tray.innerHTML = tabs + `
-    ${[['L24',24],['P16',16],['P8',8]].map(([t,len])=>`<button class="tray-it" data-t="${t}">${podMini(len)}<b>${len}′ pod</b><small>blank</small></button>`).join('')}
-    ${lib.map(L=>{ const parts=L.name.replace(/^\d+′ pod · /,'').split(' · '), last=parts.length>1?parts.pop():''; return `<button class="tray-it" data-lib="${L.id}" title="${L.name.replace(/"/g,'&quot;')}">${podMini(L.len)}<b>${last||parts.join(' · ')}</b><small>${L.len}′ · ${last?parts.join(' · '):'library'}</small></button>`; }).join('')}
+    ${[['P8',8],['P16',16],['L24',24]].map(([t,len])=>`<button class="tray-it" data-t="${t}">${podMini(len)}<b>8′ × ${len}′</b><small>pod</small></button>`).join('')}
     ${dk.map(L=>`<button class="tray-it deck" data-deck="${L.id}"><svg viewBox="0 0 22 12" aria-hidden="true"><rect x="1" y="1" width="20" height="10" fill="#d9c49b" stroke="#6b5530" stroke-width=".6"/><line x1="1" y1="1" x2="21" y2="1" stroke="#3b2a12" stroke-width="1.4"/></svg><b>${deckName(L)}</b><small>deck</small></button>`).join('')}`;
 }
 tray.addEventListener('pointerdown', e=>{
