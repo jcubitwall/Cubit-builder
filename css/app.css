@@ -743,3 +743,28 @@ html.phone .studio.build .vcube-wrap{top:8px;right:8px;transform:scale(.85);tran
 .fam-it b{font-weight:600;font-size:14px}
 .fam-it small{font:11px var(--mono);color:var(--ink-2);white-space:nowrap}
 .fam-it.draft b::before{content:"✎ ";color:var(--accent)}
+/* wall builder */
+.wb-body{flex:1;display:grid;grid-template-columns:minmax(0,1.6fr) minmax(300px,1fr);min-height:0}
+.wb-view{display:flex;flex-direction:column;min-height:0;background:var(--stage);border-right:1px solid var(--line)}
+.wb-stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:12px}
+.wb-svg{width:100%;height:100%;max-height:100%;touch-action:none;user-select:none;-webkit-user-select:none}
+.wb-wall{fill:#e8d3ad;stroke:#5b4a33;stroke-width:.6}
+.wb-wall.int{fill:#f0e6d0}
+.wb-seam{stroke:#5b4a33;stroke-width:.35;stroke-dasharray:2 2}
+.wb-op{fill:#dfeaf3;stroke:#2f6db5;stroke-width:.6;cursor:grab}
+.wb-op.door{fill:#eef3f8}
+.wb-op.on,.wb-box.on{stroke:#d0661f;stroke-width:1.1}
+.wb-op.on{fill:#fde3cf}
+.wb-box{fill:#3b3f42;stroke:#1c211e;stroke-width:.3;cursor:grab}
+.wb-box.far{fill:none;stroke:#3b3f42;stroke-dasharray:1 .8}
+.wb-box.on{fill:#d0661f}
+.wb-lab{font:600 3.2px var(--mono);text-anchor:middle;fill:#2f6db5;pointer-events:none;text-transform:uppercase;letter-spacing:.1px}
+.wb-dim{stroke:#d0661f;stroke-width:.35;stroke-dasharray:1.2 .8}
+.wb-dimt{font:700 3px var(--mono);fill:#d0661f;text-anchor:middle}
+.wb-end{font:600 3px var(--mono);fill:#56605a}
+.wb-warn{margin:0;padding:8px 14px 12px 30px;font-size:12.5px;color:#7a1d12;background:#fdecea;border-top:1px solid #f2b8b0}
+.wb-add{display:flex;flex-wrap:wrap;gap:6px}
+.wb-sel{border:1px solid color-mix(in srgb,var(--accent) 45%,var(--line));background:var(--accent-soft);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.wb-sel .cw-fs{grid-template-columns:1fr 1fr}
+@media (max-width:820px){ .wb-body{grid-template-columns:1fr;grid-template-rows:minmax(240px,45%) 1fr;overflow:hidden} .wb-view{border-right:0;border-bottom:1px solid var(--line)} }
+.wb-hit{fill:transparent;stroke:none;cursor:grab}

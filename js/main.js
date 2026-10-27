@@ -18,6 +18,7 @@ import { startBuild } from './build.js';
 import './library-ui.js';
 import { loadSettings, loadFixtures } from './casework.js';
 import './casework-ui.js';
+import './wall-builder.js';
 import { loadDrafts } from './drafts.js';
 import { setCabExplode, cabExploded } from './furniture.js';
 import './publish-ui.js';
