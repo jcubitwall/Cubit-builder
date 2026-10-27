@@ -270,6 +270,12 @@ function down(p, e){
   if(tool==='offset'){ const h=hit(p); const c=h && (h.e ? ent(h.e) : null); if(c && (c.kind==='circle'||c.closed)){ drag={ t:'offset', e:c.id, start:p }; sel=[{t:'ent', e:c.id}]; render(); } else toast('Offset: press on a closed shape and drag out or in'); return; }
   if(tool==='trim'){ const h=hit(p); if(h && (h.t==='seg'||h.t==='rim')){ trimAt(h, p); } return; }
   if(tool==='mirror'){ const h=hit(p); if(h?.t==='seg' && segType(ent(h.e),h.s)==='line' && !ent(h.e).spline){ mirrorAcross(h); } else toast('Mirror: tap a straight line to mirror across'); return; }
+  if(tool==='line'){ const h=hit(p);
+    const c=h?.e ? ent(h.e) : null, openEnd = h?.t==='node' && c?.kind==='path' && !c.closed && !c.spline && (h.n===0 || h.n===c.nodes.length-1);
+    const onDraftEnd = draft && lastPt() && hyp(p[0]-lastPt()[0], p[1]-lastPt()[1])*view.k<12;
+    if(h && !openEnd && !onDraftEnd && (h.t==='node' || h.t==='seg' || h.t==='rim' || h.t==='centre' || h.t==='handle')){
+      if(draft) finishDraft(false);
+      const hh = hit(p) || h; drag={ t:'press', h:hh, start:p, undo:clone(S), moved:false, pen, s:[e.clientX,e.clientY], v:{...view}, inLine:true }; return; } }
   // drawing tools: the point goes where the pen lifts (drag to place it exactly); rect / circle can also be dragged out
   const sp=snapPt(p, { from:lastPt(), prevDir:prevDir() });
   drag={ t:'draw', a:sp.p, b:sp.p, snap:sp, moved:false, raw:p, raw0:p, hadDraft:!!draft };
@@ -324,7 +330,7 @@ function startMoveSel(start){
 function up(p, e){
   const d=drag; drag=null; if(!d){ return; }
   if(d.t==='box'){ boxSelect(d.a, d.b, d.add); render(); return; }
-  if(d.t==='press'){ tapSelect(d.h, e); return; }
+  if(d.t==='press'){ tapSelect(d.h, e); return; }   // (in the line tool too: it picks what was tapped)
   if(['node','handle','seg','bulge','rim','moveSel','fillet'].includes(d.t)){ hover=null; commit(); return; }
   if(d.t==='offset'){ if(Math.abs(d.dist||0)>1e-6) makeOffset(d.e, d.dist); else render(); return; }
   if(d.t==='draw'){ drawUp(d); return; }
@@ -351,6 +357,12 @@ function drawUp(d){
   if(d.free){ const st=d.stroke; st[st.length-1]=d.b; const pts=simplify(st, 3/view.k, false);
     const closed = pts.length>=4 && hyp(pts[0][0]-pts.at(-1)[0], pts[0][1]-pts.at(-1)[1])*view.k<14; if(closed) pts.pop();
     if(pts.length>=2) addEnt({ kind:'path', spline:true, closed, nodes:pts.map(([x,y])=>({x:+x.toFixed(4), y:+y.toFixed(4)})), b:{} }); else render(); return; }
+  if(tool==='line' && !d.moved){
+    // a tap: ends the line you're drawing (close it if the tap is on its start) and leaves its end points to drag on from
+    if(draft && sp?.kind==='close' && draft.pts.length>=2){ finishDraft(true); return; }
+    if(draft){ finishDraft(false); return; }
+    sel=[]; render(); return;
+  }
   if(tool==='line' || tool==='spline'){
     if(!draft){ startChain(at, sp); render(); return; }
     const P=draft.pts, last=P.at(-1);
@@ -604,8 +616,8 @@ function render(){
   S.ents.forEach(c=>{ const whole=wholeSel(c.id);
     if(c.kind==='circle'){ const [x,y]=toS([c.cx,c.cy]); top+=`<circle cx="${x}" cy="${y}" r="3.5" class="ss-pt${whole?' on':''}"/>`;
       if(whole) top+=bubble([c.cx, c.cy+c.rad], `⌀ ${fin(2*c.rad)}`, { dim:`dia:${c.id}:0`, dy:-16 }); return; }
-    c.nodes.forEach((n,ni)=>{ const [x,y]=toS([n.x,n.y]), on=isSel({t:'node', e:c.id, n:ni});
-      top+=`<circle cx="${x}" cy="${y}" r="${on?5:3.5}" class="ss-pt${on?' on':''}${n.r>0?' fil':''}"/>`;
+    c.nodes.forEach((n,ni)=>{ const [x,y]=toS([n.x,n.y]), on=isSel({t:'node', e:c.id, n:ni}), end = tool==='line' && !c.closed && !c.spline && (ni===0 || ni===c.nodes.length-1);
+      top+=`<circle cx="${x}" cy="${y}" r="${on?5:end?6.5:3.5}" class="ss-pt${on?' on':''}${end?' end':''}${n.r>0?' fil':''}"/>`;
       if(on && canFillet(c,ni)) top+=bubble([n.x,n.y], `R ${fin(n.r||0)}`, { dim:`fil:${c.id}:${ni}`, dy:-18 });
       if(on) ['hi','ho'].forEach(h=>{ if(n[h]){ const b=toS(n[h]); top+=`<line x1="${x}" y1="${y}" x2="${b[0]}" y2="${b[1]}" class="ss-hl"/><circle cx="${b[0]}" cy="${b[1]}" r="5" class="ss-hd"/>`; } }); });
     if(!c.spline) for(let i=0;i<segCount(c);i++){ if(!(whole || isSel({t:'seg', e:c.id, s:i}))) continue; const t=segType(c,i);
@@ -667,7 +679,7 @@ function subBar(){
 function status(tight){
   const hint = {
     select:'Tap to pick (taps add up), double-tap a line for the whole chain. Drag a point or line to move it. Pencil / mouse on empty space = box select, finger = pan. Two-finger tap undo, three-finger tap redo.',
-    line: draft ? 'Drag on from the end (or tap the next point); type the length, Tab = angle, Enter. Tap the start to close, the last point again to finish.' : 'Touch and drag to draw a line (or tap point to point). Tapping inside a shape picks it.',
+    line: draft ? 'Drag on from the end to keep going; type the length, Tab = angle, Enter. Tap anywhere to stop (on the start to close it).' : 'Touch and drag to draw. Drag from an end bullet to add on; drag a corner or a line to move it. Tapping inside a shape picks it.',
     rect: draft ? 'Tap the opposite corner, or type W, Tab, H and Enter.' : 'Drag out a rectangle, or tap two corners.',
     circle: mode.circle==='3pt' ? 'Tap three points on the circle.' : draft ? 'Tap the radius, or type the diameter and Enter.' : 'Drag from the centre out, or tap the centre then the edge.',
     arc: draft?.pts?.length===2 ? 'Drag (or tap) to bend it through that point.' : 'Drag from the start to the end, then drag to bend it (or tap 3 points).',
