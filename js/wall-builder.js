@@ -21,6 +21,7 @@ import { kindChooser, switchKind } from './panel-builder.js';
 import { SHAPELIB, placeItem, regionsOf, shapeThumb } from './shapes.js';
 import { openShapeStudio } from './shape-studio.js';
 import { flatten, bboxAll } from './geom2d.js';
+import { makeRefTool } from './refmeasure.js';
 import { makeHistory, histButtons, bindHistory } from './local-history.js';
 import { rules, ruleFor, saveRules, sharedRules, nearest } from './wall-rules.js';
 
@@ -113,6 +114,31 @@ function drawX(k, it){                       // left edge (openings, shapes) / c
 function fromDrawX(k, it, x){ const flip=(k==='op'||k==='outside'||k==='sh') ? view==='inside' : view==='outside'; if(k==='op'||k==='sh') return flip ? L()-x-it.w : x; return flip ? L()-x : x; }
 const near = view => view==='outside' ? 'outside' : 'inside';
 function sizeOf(k, it){ if(it.shape==='round') return [it.d, it.d]; return [it.w, it.h]; }
+/* where an item sits in the drawing (SVG: x right, y down from the top of the wall), for measuring from it */
+function geomOf(k, it){
+  if(k==='op' || k==='sh'){ const [w,h]= k==='sh' ? [it.w,it.h] : sizeOf(k,it), x0=drawX(k,it); return { x0, x1:x0+w, y0:H-it.y-h, y1:H-it.y, round:it.shape==='round' }; }
+  const [w,h]=sizeOf(k,it), c=drawX(k,it); return { x0:c-w/2, x1:c+w/2, y0:H-it.y-h/2, y1:H-it.y+h/2, round:it.shape==='round' };
+}
+function itemLabel(k, it, i){
+  if(k==='op') return it.shape==='round' ? (it.kind==='window'?'the round window':`round hole ${i+1}`) : it.kind==='opening' ? `cased opening ${i+1}` : `the ${it.kind} ${i+1}`.replace(/^the (window|door) /,'$1 ');
+  if(k==='sh') return `shape ${it.name||i+1}`;
+  return `${(it.name||'box').toLowerCase()} (${k})`;
+}
+const RF = makeRefTool({
+  items: () => ['op','sh','inside','outside'].flatMap(k=>listOf(k).map((it,i)=>(sel && sel.k===k && sel.i===i) ? null : { ...geomOf(k,it), label:itemLabel(k,it,i) })).filter(Boolean),
+  lines: () => { const flip=x=>view==='inside'?L()-x:x;
+    return [ ...seamsOut().map(s=>[{x:flip(s)}, 'panel joint']), ...chaseList().map(c=>[{x:flip(c)}, 'chase']),
+      [{x:cutSeen()}, 'left end'], [{x:L()-(view==='outside'?fitR():fitL())}, 'right end'], [{y:H}, 'floor'], [{y:0}, 'top of the wall'] ]; },
+  extent: () => ({ x0:0, x1:L(), y0:0, y1:H }),
+  box: () => geomOf(sel.k, listOf(sel.k)[sel.i]),
+  moveBy: (dx, dy) => { const k=sel.k, it=listOf(k)[sel.i], g=geomOf(k,it), no=[];
+    if(Math.abs(dx)>1e-9){ if(locked(k,it,'x')) no.push('sideways (🔒 locked by the wall rules)');
+      else { it.x=+fromDrawX(k,it,(k==='op'||k==='sh') ? g.x0+dx : (g.x0+g.x1)/2+dx).toFixed(4); if(snaps(k,it)) unlock(k,it,'x'); } }
+    if(Math.abs(dy)>1e-9){ if(locked(k,it,'y')) no.push('up / down (🔒 locked by the wall rules)'); else it.y=+(it.y-dy).toFixed(4); }
+    return no.length ? `Not moved ${no.join(' or ')}. Tap 🔒 to unlock it for this item.` : ''; },
+  rerender: () => render(), toast: m => toast(m),
+});
+let lastSel='';
 
 /* checks: inside the wall, clear of the panel joints (the OSB splines), boxes not in an opening */
 function problems(){
@@ -166,7 +192,7 @@ function elevation(){
   if(sel){ const it=listOf(sel.k)[sel.i]; if(it){ const op=sel.k==='op'||sel.k==='sh', [w0,h0]=sizeOf(sel.k,it), w=op?w0:0, h=op?h0:0, x=drawX(sel.k,it), xl = x, yb = it.y;
     const c0=cutSeen(); g+=`<line x1="${c0}" y1="${H-yb-h/2}" x2="${xl}" y2="${H-yb-h/2}" class="wb-dim"/><text x="${(c0+xl)/2}" y="${H-yb-h/2-1.5}" class="wb-dimt">${fin(xl-c0)}</text>`;
     g+=`<line x1="${xl+w/2}" y1="${H}" x2="${xl+w/2}" y2="${H-yb}" class="wb-dim"/><text x="${xl+w/2+1.5}" y="${H-yb/2}" class="wb-dimt" text-anchor="start">${fin(yb)}</text>`; } }
-  return `<svg class="wb-svg" viewBox="${-pad} ${-pad} ${len+2*pad} ${H+2*pad+8}" role="img" aria-label="The wall seen from ${view}">${g}
+  return `<svg class="wb-svg" viewBox="${-pad} ${-pad} ${len+2*pad} ${H+2*pad+8}" role="img" aria-label="The wall seen from ${view}">${g}${RF.overlay()}
     <text x="0" y="${H+7}" class="wb-end">◀ left end seen from ${view}</text><text x="0" y="${H+12}" class="wb-end">${fitL()||fitR() ? `${fin(netL())} long (${W.len}′ less its ends)` : `${W.len}′ full length`} · ${W.t}″ thick · 96″ high</text></svg>`;
 }
 function fields(){
@@ -187,6 +213,7 @@ function fields(){
       ${f('x', isOp?'Left edge from the left end':'Centre from the left end', x-cutSeen())}
       ${centred(k,it) ? f('y','Centre from the floor', ruleY(k,it)) : f('y','Bottom from the floor', it.y)}
       ${!isOp ? f('depth','Depth', it.depth||3) : ''}</div>
+    <div class="rf-wrap">${RF.panel()}</div>
     ${!isOp && (it.depth||3) >= W.t-0.0625 ? `<p class="note">As deep as the wall: it goes right through. The CNC cuts it as a hole through the panel, the same as a round hole.</p>` : ''}
     ${sel.k==='op' && !it.shape && it.y<=0.5 && it.y+it.h>=H-0.5 ? `<label class="wb-chk"><input type="checkbox" id="wbGap" ${isGapOpening(it)?'checked':''}> No SIP in this opening — panels laid out round it (full panels, one cut panel per side)</label>` : ''}
     ${sideNote}${yNote}
@@ -199,6 +226,7 @@ function shapeFields(it){
   return `<div class="wb-sel"><div class="eyebrow">Shape · ${esc(it.name||'')}${it.ref?` · ${esc(it.ref)}`:''}</div>
     <p class="note">${fin(it.w)} × ${fin(it.h)}${thru.length?` · ${thru.length} through`:''}${pk.length?` · ${pk.length} pocket${pk.length>1?'s':''} (${[...new Set(pk.map(r=>fin(r.depth)))].join(', ')} deep)`:''}</p>
     <div class="cw-fs">${f('x','Left edge from the left end', drawX('sh',it)-cutSeen())}${f('y','Bottom from the floor', it.y)}</div>
+    <div class="rf-wrap">${RF.panel()}</div>
     ${pk.length?`<div class="cw-opt"><span>Pockets cut from</span><div class="seg"><button data-sface="outside" aria-pressed="${it.face!=='inside'}">Outside face</button><button data-sface="inside" aria-pressed="${it.face==='inside'}">Inside face</button></div></div>`:''}
     <div class="row"><button class="btn ghost sm" data-smir="x">Mirror</button><button class="btn ghost sm" data-smir="y">Flip</button><button class="btn ghost sm" id="wbDup">Duplicate</button><button class="btn ghost sm" id="wbDel">Remove</button></div></div>`;
 }
@@ -213,6 +241,7 @@ function layoutPanel(){
 }
 function render(){
   HIST.track();
+  const sk = sel ? sel.k+':'+sel.i : ''; if(sk!==lastSel){ RF.reset(); lastSel=sk; }
   const P=problems(), libHit=!!origin;
   dlg.innerHTML=`<div class="cw">
     <header class="cw-h"><h2>Panel builder</h2>${kindChooser('wall')}<span class="note">${origin?`editing <b>${esc(origin)}</b>`:forSlot?`for ${esc(forSlot.label)}`:'new wall'}</span><span class="spacer"></span><button class="btn ghost cw-x" aria-label="Close">✕</button></header>
@@ -293,6 +322,7 @@ function bind(){
     toast(f==='x' ? 'This one can go anywhere along the wall' : `${f==='y'?'Height':f==='depth'?'Depth':'Place'} unlocked for this item only`); render(); });
   dlg.querySelectorAll('[data-relock]').forEach(b=>b.onclick=e=>{ e.preventDefault(); const it=listOf(sel.k)[sel.i]; relock(sel.k,it,b.dataset.relock); render(); });
   bindRules();
+  RF.bind(dlg);
   dlg.querySelectorAll('[data-cut]').forEach(b=>b.onclick=()=>{ const [i,v]=b.dataset.cut.split(':'); W.cutSide=[...(W.cutSide||[])]; W.cutSide[+i]=v; for(let k=0;k<W.cutSide.length;k++) W.cutSide[k] ||= 'left'; resnapAll(); render(); });
   $('#wbGap')?.addEventListener('change', e=>{ const it=listOf('op')[sel.i]; it.gap = e.target.checked ? true : false; resnapAll(); render(); });
   $('#wbShape')?.addEventListener('click',()=>{ shapePick=!shapePick; render(); });
@@ -310,7 +340,10 @@ function bind(){
   // pick and drag on the drawing
   const svg=$('.wb-svg'); let drag=null;
   const toWall=e=>{ const p=svg.createSVGPoint(); p.x=e.clientX; p.y=e.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()); };
-  svg.addEventListener('pointerdown', e=>{ const t=e.target.closest('[data-k]');
+  svg.addEventListener('pointerdown', e=>{
+    if(RF.handle(e)) return;
+    if(RF.mode()==='pick'){ e.preventDefault(); return; }       // measuring: only the reference points answer
+    const t=e.target.closest('[data-k]');
     if(!t){ if(sel){ sel=null; render(); } return; }
     const k=t.dataset.k, i=+t.dataset.i, it=listOf(k)[i], p=toWall(e);
     e.preventDefault();

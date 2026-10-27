@@ -27,6 +27,7 @@ import { SHAPELIB, placeItem, regionsOf, shapeThumb } from './shapes.js';
 import { openShapeStudio } from './shape-studio.js';
 import { flatten, bboxAll } from './geom2d.js';
 import { makeHistory, histButtons, bindHistory } from './local-history.js';
+import { makeRefTool } from './refmeasure.js';
 
 const WID=96, PW=48, SPLINE=1.75;
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -66,6 +67,23 @@ const sx = h => view==='top' ? h.x : L()-h.x-h.w;
 const fromSx = (h, x) => view==='top' ? x : L()-x-h.w;
 const cutOf = h => !h.depth || h.depth>=T()-0.0625 ? 'thru' : h.face==='bottom' ? 'bottom' : 'top';
 const kindName = h => `${h.shape==='round'?'Round':'Rectangular'} ${cutOf(h)==='thru'?'hole':'pocket'}`;
+/* measuring from a point of reference (refmeasure.js): drawing coords, x right, y down = z */
+const holeBox = h => { const x=sx(h); return { x0:x, x1:x+h.w, y0:h.z, y1:h.z+h.d, round:h.shape==='round' }; };
+const shapeBox = it => { const x=ssx(it); return { x0:x, x1:x+it.w, y0:it.z, y1:it.z+it.h }; };
+const RF = makeRefTool({
+  items: () => [ ...Lr.holes.map((h,i)=>i===sel ? null : { ...holeBox(h), label: isLight(h) ? 'pot light' : `${kindName(h).toLowerCase()} ${i+1}` }),
+                 ...(Lr.shapes||[]).map((it,i)=>i===ssel ? null : { ...shapeBox(it), label:`shape ${it.name||i+1}` }) ].filter(Boolean),
+  lines: () => [ ...seams().map(q=>[{x:view==='top'?q:L()-q}, 'panel joint']), [{x:0}, 'left end'], [{x:L()}, 'right end'], [{y:0}, 'top edge'], [{y:WID}, 'bottom edge'] ],
+  extent: () => ({ x0:0, x1:L(), y0:0, y1:WID }),
+  box: () => ssel!=null ? shapeBox(Lr.shapes[ssel]) : holeBox(Lr.holes[sel]),
+  moveBy: (dx, dy) => {
+    if(ssel!=null){ const it=Lr.shapes[ssel]; it.x=+fromSsx(it, ssx(it)+dx).toFixed(4); it.z=+(it.z+dy).toFixed(4); return ''; }
+    const h=Lr.holes[sel], ox=h.x; h.x=+fromSx(h, sx(h)+dx).toFixed(4); h.z=+(h.z+dy).toFixed(4);
+    if(h.path){ const mx=h.x-ox; h.path=h.path.map(([a,b])=>[+(a+mx).toFixed(4), +(b+dy).toFixed(4)]); }
+    return ''; },
+  rerender: () => render(), toast: m => toast(m),
+});
+let lastSel='';
 
 /* the wall on each edge, when opened from a pod: { z0, z1, x0, x1 } → "Wall A" … */
 function edgeNames(){
@@ -122,7 +140,7 @@ function plan(){
   const lx = view==='top' ? E.x0 : E.x1, rx = view==='top' ? E.x1 : E.x0;
   g+=`<text x="${len/2}" y="-3" class="wb-end" text-anchor="middle">${esc(E.z0||'this edge')}</text><text x="${len/2}" y="${WID+6}" class="wb-end" text-anchor="middle">${esc(E.z1||'')}</text>`;
   g+=`<text x="-3" y="${WID/2}" class="wb-end" text-anchor="middle" transform="rotate(-90 -3 ${WID/2})">${esc(lx)}</text><text x="${len+3}" y="${WID/2}" class="wb-end" text-anchor="middle" transform="rotate(90 ${len+3} ${WID/2})">${esc(rx)}</text>`;
-  return `<svg class="wb-svg" viewBox="${-pad} ${-pad} ${len+2*pad} ${WID+2*pad+8}" role="img" aria-label="The ${esc(K().label.toLowerCase())} seen from ${view==='top'?'above':'below'}">${g}
+  return `<svg class="wb-svg" viewBox="${-pad} ${-pad} ${len+2*pad} ${WID+2*pad+8}" role="img" aria-label="The ${esc(K().label.toLowerCase())} seen from ${view==='top'?'above':'below'}">${g}${RF.overlay()}
     <text x="0" y="${WID+12}" class="wb-end">seen from ${view==='top'?'above':'below'} · ${Lr.len}′ × 8′ · ${fin(T())} thick</text></svg>`;
 }
 function fields(){
@@ -131,6 +149,7 @@ function fields(){
     return `<div class="wb-sel"><div class="eyebrow">Shape · ${esc(it.name||'')}${it.ref?` · ${esc(it.ref)}`:''}</div>
       <p class="note">${fin(it.w)} × ${fin(it.h)}${th.length?` · ${th.length} through`:''}${pk.length?` · ${pk.length} pocket${pk.length>1?'s':''} (${[...new Set(pk.map(r=>fin(r.depth)))].join(', ')} deep)`:''}</p>
       <div class="cw-fs">${f('x','Left edge from the left end', ssx(it))}${f('z','Top edge from the top edge', it.z)}</div>
+      <div class="rf-wrap">${RF.panel()}</div>
       ${pk.length?`<div class="cw-opt"><span>Pockets cut from</span><div class="seg"><button data-sface="top" aria-pressed="${it.face!=='bottom'}">Top face</button><button data-sface="bottom" aria-pressed="${it.face==='bottom'}">Bottom face</button></div></div>`:''}
       <div class="row"><button class="btn ghost sm" data-smir="x">Mirror</button><button class="btn ghost sm" data-smir="y">Flip</button><button class="btn ghost sm" id="lbSDup">Duplicate</button><button class="btn ghost sm" id="lbSDel">Remove</button></div></div>`; }
   if(sel==null) return `<p class="note">Tap an item to pick it, then drag it to move it along or across (one at a time), or type its size and place. Measurements are from the left end and the top edge as you see it now.</p>`;
@@ -143,11 +162,13 @@ function fields(){
       ${f('x','Left edge from the left end', sx(h))}
       ${f('z','Top edge from the top edge', h.z)}
       ${c!=='thru' ? f('depth','Depth', h.depth) : ''}</div>
+    <div class="rf-wrap">${RF.panel()}</div>
     ${c!=='thru' ? `<p class="note">${fin(T()-h.depth)} of the panel left at the ${h.face==='bottom'?'top':'bottom'}. As deep as the panel (${fin(T())}) = right through.</p>` : ''}
     <div class="row"><button class="btn ghost sm" id="lbDup">Duplicate</button><button class="btn ghost sm" id="lbDel">Remove</button></div></div>`;
 }
 function render(){
   HIST.track();
+  const sk = ssel!=null ? 's'+ssel : sel!=null ? 'h'+sel : ''; if(sk!==lastSel){ RF.reset(); lastSel=sk; }
   const P=problems(), libHit=!!origin, lights=Lr.holes.filter(isLight).length;
   dlg.innerHTML=`<div class="cw">
     <header class="cw-h"><h2>Panel builder</h2>${kindChooser(Lr.kind)}<span class="note">${origin?`editing <b>${esc(origin)}</b>`:forSlot?`for ${esc(forSlot.label)}`:'new layer'}</span><span class="spacer"></span><button class="btn ghost cw-x" aria-label="Close">✕</button></header>
@@ -204,6 +225,7 @@ function bind(){
   const $=s=>dlg.querySelector(s);
   $('.cw-x').onclick=()=>dlg.close();
   bindHistory(dlg, HIST, render);
+  RF.bind(dlg);
   dlg.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{ view=b.dataset.view; render(); });
   dlg.querySelectorAll('[data-pkind]').forEach(b=>b.onclick=()=>{ const k=b.dataset.pkind; if(k==='wall'){ switchKind('wall', { len:Lr.len, close:()=>dlg.close() }); return; } Lr.kind=k; Lr.t=K().t; Lr.z=K().z; render(); });
   dlg.querySelectorAll('[data-len]').forEach(b=>b.onclick=()=>{ Lr.len=+b.dataset.len; Lr.seams=[]; render(); });
@@ -232,7 +254,10 @@ function bind(){
   // pick and drag on the drawing
   const svg=$('.wb-svg'); let drag=null;
   const toP=e=>{ const p=svg.createSVGPoint(); p.x=e.clientX; p.y=e.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()); };
-  svg.addEventListener('pointerdown', e=>{ const t=e.target.closest('[data-k]');
+  svg.addEventListener('pointerdown', e=>{
+    if(RF.handle(e)) return;
+    if(RF.mode()==='pick'){ e.preventDefault(); return; }       // measuring: only the reference points answer
+    const t=e.target.closest('[data-k]');
     if(!t){ if(sel!=null || ssel!=null){ sel=null; ssel=null; render(); } return; }
     const i=+t.dataset.i, p=toP(e);
     e.preventDefault();

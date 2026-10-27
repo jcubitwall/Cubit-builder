@@ -937,3 +937,20 @@ dialog.v3-dlg[open]{display:flex;flex-direction:column}
 .sync-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line)}
 .sync-row .seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
 .sync-row small{opacity:.75;margin-left:4px}
+/* panel builder: measure from a point of reference (refmeasure.js) */
+.rf-wrap{margin:8px 0}
+.rf-box{border:1px solid var(--accent);border-radius:10px;padding:10px;background:color-mix(in srgb,var(--accent-soft) 40%,transparent)}
+.rf-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0}
+.rf-row > span:first-child{min-width:92px;font-size:13px}
+.rf-row .cw-f{width:110px;margin:0}
+.rf-row .seg button[aria-pressed="true"],.rf-box .seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.rf-pt{fill:#fff;stroke:#0a84ff;stroke-width:.6;cursor:pointer}
+.rf-pt.big{fill:#0a84ff;stroke:#fff}
+.rf-pt:hover{fill:#ff9f0a}
+.rf-ln{stroke:#0a84ff;stroke-width:3;stroke-opacity:.18;cursor:pointer}
+.rf-ln:hover{stroke-opacity:.5}
+.rf-ref{fill:#ff3b30;stroke:#fff;stroke-width:.5}
+.rf-refln{stroke:#ff3b30;stroke-width:.6;stroke-dasharray:2 1.2}
+.rf-dim{stroke:#ff3b30;stroke-width:.45;marker-start:none}
+.rf-guide{stroke:#ff3b30;stroke-width:.3;stroke-dasharray:1 1}
+.rf-dimt{font:700 3.6px var(--mono);fill:#ff3b30;text-anchor:middle;paint-order:stroke;stroke:#fff;stroke-width:.8px}
