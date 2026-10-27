@@ -16,6 +16,7 @@ import { buildHome } from './scene3d.js';
 import { renderSide, toast } from './sidebar.js';
 import { choose } from './state.js';
 import { fin } from './format.js';
+import { kindChooser, switchKind } from './panel-builder.js';
 import { SHAPELIB, placeItem, regionsOf, shapeThumb } from './shapes.js';
 import { openShapeStudio } from './shape-studio.js';
 import { flatten, bboxAll } from './geom2d.js';
@@ -79,7 +80,7 @@ function openWallBuilder({ from=null, slot=null, len, type }={}){
   view='outside'; sel=null; RD=null; shapePick=false; ensure(); HIST.reset(); render(); if(!dlg.open) dlg.showModal();
 }
 function ensure(){
-  if(dlg) return; dlg=document.createElement('dialog'); dlg.className='cw-dlg wb-dlg'; dlg.setAttribute('aria-label','Wall builder');
+  if(dlg) return; dlg=document.createElement('dialog'); dlg.className='cw-dlg wb-dlg'; dlg.setAttribute('aria-label','Panel builder: wall');
   document.body.appendChild(dlg);
 }
 const L = () => W.len*12;
@@ -191,7 +192,7 @@ function render(){
   HIST.track();
   const P=problems(), libHit=!!origin;
   dlg.innerHTML=`<div class="cw">
-    <header class="cw-h"><h2>Wall builder</h2><span class="note">${origin?`editing <b>${esc(origin)}</b>`:forSlot?`for ${esc(forSlot.label)}`:'new wall'}</span><span class="spacer"></span><button class="btn ghost cw-x" aria-label="Close">✕</button></header>
+    <header class="cw-h"><h2>Panel builder</h2>${kindChooser('wall')}<span class="note">${origin?`editing <b>${esc(origin)}</b>`:forSlot?`for ${esc(forSlot.label)}`:'new wall'}</span><span class="spacer"></span><button class="btn ghost cw-x" aria-label="Close">✕</button></header>
     <div class="wb-body">
       <div class="wb-view">
         <div class="cw-vh"><div class="seg"><button data-view="outside" aria-pressed="${view==='outside'}">Outside</button><button data-view="inside" aria-pressed="${view==='inside'}">Inside</button></div>
@@ -254,6 +255,7 @@ function setField(f, v){
 function bind(){
   const $=s=>dlg.querySelector(s);
   $('.cw-x').onclick=()=>dlg.close();
+  dlg.querySelectorAll('[data-pkind]').forEach(b=>b.onclick=()=>{ if(b.dataset.pkind!=='wall') switchKind(b.dataset.pkind, { len:W.len, close:()=>dlg.close() }); });
   bindHistory(dlg, HIST, render);
   dlg.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{ view=b.dataset.view; render(); });
   dlg.querySelectorAll('[data-type]').forEach(b=>b.onclick=()=>{ W.type=b.dataset.type; W.t=W.type==='int'?4.5:6.5; render(); });
@@ -346,9 +348,4 @@ async function saveWall(asNew){
   buildHome(); renderSide(); render();
   toast(`${w.id} saved to the wall library${shared?' (for the whole team)':' (in this browser)'}${forSlot?` · on ${forSlot.label}`:''}`);
 }
-/* ⋯ menu → Wall builder */
-{ const pop=document.getElementById('morePop');
-  if(pop && !document.getElementById('bWallB')){ const b=document.createElement('button'); b.setAttribute('role','menuitem'); b.id='bWallB'; b.textContent='Wall builder';
-    pop.insertBefore(b, document.getElementById('bUpload')); b.onclick=()=>{ pop.hidden=true; openWallBuilder(); }; } }
-window.addEventListener('cubit:shapes', ()=>{ if(dlg?.open){ shapePick=true; render(); } });
 export { openWallBuilder };

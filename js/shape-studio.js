@@ -92,7 +92,7 @@ function ensure(){
   dlg=document.createElement('dialog'); dlg.className='ss-dlg'; dlg.setAttribute('aria-label','Shape studio');
   dlg.innerHTML=`<div class="ss">
     <header class="ss-bar">
-      <button class="btn ghost sm" id="ssClose" aria-label="Close">✕</button>
+      <button class="btn ghost" id="ssClose" aria-label="Close">✕</button>
       <input id="ssName" class="ss-name" placeholder="Name this shape" aria-label="Shape name">
       <div class="seg ss-tools" role="toolbar" aria-label="Tools">${TOOLS.map(([k,l,key])=>`<button data-tool="${k}" title="${l} (${key})"><span class="ic">${ICON[k]}</span><span class="lb">${l}</span></button>`).join('')}</div>
       <span class="spacer"></span>

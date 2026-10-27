@@ -874,3 +874,16 @@ html.standalone:not(.phone) .ss-bar{padding-top:max(54px, calc(env(safe-area-ins
 .ss-edit{display:flex;align-items:center;gap:8px}.ss-edit .ss-ok{background:#0a84ff;border-color:#0a84ff;color:#fff}
 .ss-sub .ss-step{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#0a84ff;color:#fff;font-size:12px}
 .ss-sub span{font-size:13px}
+.pb-kinds{margin-left:12px}.pb-kinds button{white-space:nowrap}
+@media (max-width:900px){ .cw-h .pb-kinds{order:5;width:100%;margin:6px 0 0;overflow-x:auto;display:flex} .cw-h{flex-wrap:wrap} }
+/* builders (panel builder, cabinet library) always full screen; close ✕ top right */
+dialog.cw-dlg{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;max-width:none;max-height:none;margin:0;border-radius:0;box-shadow:none}
+dialog.cw-dlg::backdrop{background:var(--bg)}
+.cw-dlg .cw-h{padding-top:max(10px, calc(env(safe-area-inset-top,0px) + 6px))}
+html.standalone:not(.phone) .cw-dlg .cw-h{padding-top:max(54px, calc(env(safe-area-inset-top,0px) + 30px))}
+.cw-dlg .cw-h{position:relative;padding-right:64px}
+.cw-dlg .cw-h .cw-x{position:absolute;right:12px;top:max(10px, calc(env(safe-area-inset-top,0px) + 6px))}
+html.standalone:not(.phone) .cw-dlg .cw-h .cw-x{top:max(54px, calc(env(safe-area-inset-top,0px) + 30px))}
+.ss-bar{position:relative;padding-right:60px}
+.ss-bar #ssClose{position:absolute;right:12px;top:max(8px, calc(env(safe-area-inset-top,0px) + 6px))}
+html.standalone:not(.phone) .ss-bar #ssClose{top:max(54px, calc(env(safe-area-inset-top,0px) + 30px))}

@@ -26,6 +26,7 @@ import { lightEditorHTML, bindLightEditor } from './light-edit-ui.js';
 import { openWallBuilder } from './wall-builder.js';
 import './shape-studio.js';
 import { openLayerBuilder } from './layer-builder.js';
+import './panel-builder.js';
 
 const sideH=document.getElementById('sideH'), sideB=document.getElementById('sideB');
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -149,7 +150,7 @@ function renderSideInner(){
     sideH.innerHTML=`<div class="eyebrow">${isInt?'Interior wall · 4½″':'Exterior wall · 6½″'} · ${s.len}′ · ${s.len/4} panels</div><h2>${s.label}</h2><p>${s.detail} · faces ${fmtBearing(facing(s))} · now <b>${w?esc(w.id):'—'}</b> ${w?esc(w.name):''}${w&&!w.blank?' <button class="linkbtn ren-link edit-only" id="renWall">Rename</button>':''}</p>`;
     const rw=sideH.querySelector('#renWall'); if(rw) rw.onclick=()=>askRename('walls', w.mirrorOf||w.id);
     sideB.innerHTML=`
-      <div class="row"><button class="btn" id="toSheet">Assembly sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===s.id}">${state.isolate===s.id?'Exit isolate':'Isolate'}</button>${s.short ? `<button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button>` : ''}${w&&!w.blank?`<button class="btn ghost edit-only" id="wMir" title="The same wall the other way round (left ↔ right)">Mirror wall</button>`:''}<button class="btn ghost edit-only" id="wBuild" title="Draw this wall's openings and boxes yourself">Wall builder</button></div>
+      <div class="row"><button class="btn" id="toSheet">Assembly sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===s.id}">${state.isolate===s.id?'Exit isolate':'Isolate'}</button>${s.short ? `<button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button>` : ''}${w&&!w.blank?`<button class="btn ghost edit-only" id="wMir" title="The same wall the other way round (left ↔ right)">Mirror wall</button>`:''}<button class="btn ghost edit-only" id="wBuild" title="Openings, boxes, holes and shapes for this wall">Panel builder</button></div>
       ${(state.wallA?.[state.model]?.[s.pod.i] || m.pods[s.pod.i]?.a) ? `<p class="note">Wall A for ${s.pod.label} was set by hand. <button class="linkbtn" id="autoA">Go back to automatic</button></p>`:''}
       ${isInt&&partnerOf(s,slots)?`<p class="note">Joins ${s.other.label} (${esc(partnerOf(s,slots).label)}). Picking a wall here gives that wall the same one, mirrored, so openings line up.</p>`:''}
       ${unitsBlock(s, bodyWall(s,w))}
@@ -276,7 +277,7 @@ function renderLayerSide(ls){
   sideH.innerHTML=`<div class="eyebrow">${K.label} · ${ls.len}′ × 8′ · ${(L.t||K.t)}″ thick</div><h2>${ls.label}</h2><p>now <b>${esc(L.id)}</b> ${esc(L.name)}${L.blank?'':' <button class="linkbtn ren-link edit-only" id="renLayer">Rename</button>'}</p>`;
   const rl=sideH.querySelector('#renLayer'); if(rl) rl.onclick=()=>askRename('layers', L.id);
   sideB.innerHTML=`
-    <div class="row"><button class="btn" id="toSheet">Layer sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===ls.id}">${state.isolate===ls.id?'Exit isolate':'Isolate'}</button>${L.blank?'':'<button class="btn ghost edit-only" id="lMir" title="End for end">Mirror</button><button class="btn ghost edit-only" id="lFlip" title="Front to back">Flip</button>'}<button class="btn ghost" id="lBuild" title="Holes, hatches and pockets, typed in inches">Layer builder</button></div>
+    <div class="row"><button class="btn" id="toSheet">Layer sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===ls.id}">${state.isolate===ls.id?'Exit isolate':'Isolate'}</button>${L.blank?'':'<button class="btn ghost edit-only" id="lMir" title="End for end">Mirror</button><button class="btn ghost edit-only" id="lFlip" title="Front to back">Flip</button>'}<button class="btn ghost" id="lBuild" title="Holes, hatches, pockets and shapes for this layer">Panel builder</button></div>
     ${(ls.kind==='ceiling-int'||ls.kind==='roof') && state.isolate!==ls.id ? '<p class="note">Turn on Ceiling or Roof under Layers (or use Exploded view) to see them in 3D, or press Isolate.</p>':''}
     ${ls.kind==='ceiling-int' ? (()=>{ const c=cfgOf(state.model), LL=withLights(L, ls);
       return `<div class="lights-box"><div class="eyebrow">Pot lights · 4″, ${LL.lights??0} in this pod</div>

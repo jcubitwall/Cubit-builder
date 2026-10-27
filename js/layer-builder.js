@@ -22,6 +22,7 @@ import { slotsFor } from './layout.js';
 import { edgeSides, isDrawnLight } from './lights.js';
 import { LAYER_KINDS } from './config.js';
 import { fin } from './format.js';
+import { kindChooser, switchKind } from './panel-builder.js';
 import { SHAPELIB, placeItem, regionsOf, shapeThumb } from './shapes.js';
 import { openShapeStudio } from './shape-studio.js';
 import { flatten, bboxAll } from './geom2d.js';
@@ -51,7 +52,7 @@ function openLayerBuilder({ from=null, slot=null, len, kind }={}){
   sel=null; ssel=null; shapePick=false; ensure(); HIST.reset(); render(); if(!dlg.open) dlg.showModal();
 }
 function ensure(){
-  if(dlg) return; dlg=document.createElement('dialog'); dlg.className='cw-dlg wb-dlg'; dlg.setAttribute('aria-label','Floor, ceiling and roof builder');
+  if(dlg) return; dlg=document.createElement('dialog'); dlg.className='cw-dlg wb-dlg'; dlg.setAttribute('aria-label','Panel builder: floor, ceiling or roof');
   document.body.appendChild(dlg);
 }
 const L = () => Lr.len*12;
@@ -149,7 +150,7 @@ function render(){
   HIST.track();
   const P=problems(), libHit=!!origin, lights=Lr.holes.filter(isLight).length;
   dlg.innerHTML=`<div class="cw">
-    <header class="cw-h"><h2>Floor, ceiling &amp; roof builder</h2><span class="note">${origin?`editing <b>${esc(origin)}</b>`:forSlot?`for ${esc(forSlot.label)}`:'new layer'}</span><span class="spacer"></span><button class="btn ghost cw-x" aria-label="Close">✕</button></header>
+    <header class="cw-h"><h2>Panel builder</h2>${kindChooser(Lr.kind)}<span class="note">${origin?`editing <b>${esc(origin)}</b>`:forSlot?`for ${esc(forSlot.label)}`:'new layer'}</span><span class="spacer"></span><button class="btn ghost cw-x" aria-label="Close">✕</button></header>
     <div class="wb-body">
       <div class="wb-view">
         <div class="cw-vh"><div class="seg"><button data-view="top" aria-pressed="${view==='top'}">From above</button><button data-view="bottom" aria-pressed="${view==='bottom'}">From below</button></div>
@@ -158,7 +159,6 @@ function render(){
         ${P.length?`<ul class="wb-warn">${P.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>`:''}
       </div>
       <div class="cw-side">
-        <div class="cw-opt"><span>Layer</span><div class="seg wrap">${Object.entries(LAYER_KINDS).map(([k,v])=>`<button data-kind="${k}" aria-pressed="${Lr.kind===k}">${v.label}</button>`).join('')}</div></div>
         <div class="cw-opt"><span>Length (8′ across)</span><div class="seg wrap">${[8,16,24].map(n=>`<button data-len="${n}" aria-pressed="${Lr.len===n}">${n}′</button>`).join('')}</div></div>
         <h3>Right through</h3>
         <div class="wb-add"><button class="btn ghost sm" data-add="rect">Rectangular hole</button><button class="btn ghost sm" data-add="hatch">Hatch 22 × 30</button><button class="btn ghost sm" data-add="round">Round hole</button></div>
@@ -205,7 +205,7 @@ function bind(){
   $('.cw-x').onclick=()=>dlg.close();
   bindHistory(dlg, HIST, render);
   dlg.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{ view=b.dataset.view; render(); });
-  dlg.querySelectorAll('[data-kind]').forEach(b=>b.onclick=()=>{ Lr.kind=b.dataset.kind; Lr.t=K().t; Lr.z=K().z; render(); });
+  dlg.querySelectorAll('[data-pkind]').forEach(b=>b.onclick=()=>{ const k=b.dataset.pkind; if(k==='wall'){ switchKind('wall', { len:Lr.len, close:()=>dlg.close() }); return; } Lr.kind=k; Lr.t=K().t; Lr.z=K().z; render(); });
   dlg.querySelectorAll('[data-len]').forEach(b=>b.onclick=()=>{ Lr.len=+b.dataset.len; Lr.seams=[]; render(); });
   dlg.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>add(b.dataset.add));
   dlg.querySelectorAll('[data-cut]').forEach(b=>b.onclick=()=>setCut(b.dataset.cut));
@@ -273,9 +273,5 @@ async function saveLayer(asNew){
   buildHome(); renderSide(); render();
   toast(`${l.id} saved to the layer library${shared?' (for the whole team)':' (in this browser)'}${forSlot && forSlot.kind===l.kind && forSlot.len===l.len?` · on ${forSlot.label}`:''}`);
 }
-/* ⋯ menu → Floor / ceiling / roof builder */
-{ const pop=document.getElementById('morePop');
-  if(pop && !document.getElementById('bLayerB')){ const b=document.createElement('button'); b.setAttribute('role','menuitem'); b.id='bLayerB'; b.textContent='Floor / ceiling / roof builder';
-    pop.insertBefore(b, document.getElementById('bUpload')); b.onclick=()=>{ pop.hidden=true; openLayerBuilder(); }; } }
 window.addEventListener('cubit:shapes', ()=>{ if(dlg?.open){ shapePick=true; render(); } });
 export { openLayerBuilder };
