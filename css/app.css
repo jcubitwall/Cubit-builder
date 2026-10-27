@@ -956,3 +956,23 @@ dialog.v3-dlg[open]{display:flex;flex-direction:column}
 .rf-dimt{font:700 3.6px var(--mono);fill:#ff3b30;text-anchor:middle;paint-order:stroke;stroke:#fff;stroke-width:.8px}
 .wb-name small{font-weight:400;opacity:.7}
 .ren-link{font-size:13px;font-weight:600;margin-left:6px;vertical-align:middle}
+/* cabinet parts: how each is cut (casework-parts.js) */
+.pt-body{padding:6px 2px 12px}
+.pt-svg{display:block;max-width:100%;height:auto;background:#fff;border:1px solid var(--line);border-radius:8px;margin:6px 0}
+.pt-out{fill:#f3ead7;stroke:#1c211e;stroke-width:1.4}
+.pt-edge{font:600 10px var(--mono);fill:#56605a;text-transform:uppercase;letter-spacing:.04em}
+.pt-dim{stroke:#2f6db5;stroke-width:.8}
+.pt-dim.big{stroke:#1c211e}
+.pt-dimt{font:600 9.5px var(--mono);fill:#2f6db5}
+.pt-tab{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px}
+.pt-tab th,.pt-tab td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:left;vertical-align:top}
+.pt-tab th{font:600 11px var(--mono);text-transform:uppercase;color:var(--muted)}
+.pt-tab td hr{border:0;border-top:1px dashed var(--line);margin:3px 0}
+.pt-tab small{color:var(--muted)}
+.pt-tab .pt-last td{background:color-mix(in srgb,var(--accent-soft) 35%,transparent)}
+.pt-plan .pt-list{overflow:auto;padding:14px 18px 40px;display:flex;flex-direction:column;gap:18px}
+.pt-plan .pt-sheet{border:1px solid var(--line);border-radius:12px;padding:12px 14px;break-inside:avoid}
+.pt-plan .pt-sheet h3 small{font-weight:400;color:var(--muted);margin-left:8px}
+.pt-plan .pt-intro ul{margin:6px 0 0 18px;padding:0;font-size:13.5px;line-height:1.45}
+dialog.pt-plan[open]{display:flex;flex-direction:column}
+@media print{ html.print-plan body > *:not(.pt-plan){display:none!important} html.print-plan .pt-plan{position:static;display:block;width:auto;height:auto;border:0} html.print-plan .pt-plan .cw-h button{display:none} html.print-plan .pt-list{overflow:visible} }

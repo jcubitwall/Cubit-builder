@@ -2,6 +2,9 @@
 
 Source: `tools/mozaik/test-kitchen/` (Brad's Mozaik output, 27 Oct 2026). It holds 10 ShopSabre programs (`.TAP`), the cut list (`.csv`) and the nesting report (`.pdf`).
 Everything below was measured from those files with `tools/mozaik/parse.py` and `parts.py`. Measurements are in inches unless marked mm.
+
+> **Update.** Mozaik's material thickness is **0.600″**, not 0.630. The box sizes only add up at 0.600: inside width + 2T = box width, and the toe board is the inside width. With 0.600 every depth comes out round: dados 0.26 deep, shelf pins 10 mm, runner holes 13 mm, plate marks 0.8 mm, hinge cups 0.41″. The depths quoted further down were worked out at 0.630; take 0.03 off each.
+> `js/casework.js` now builds cabinets with these rules. `node tools/mozaik/compare.mjs` rebuilds the door base, the wall cabinet and the pantry, and checks every part against Mozaik's cut list. All of them match within 0.006″.
 Where a number is my reading rather than something the files state outright, it says so.
 
 ## The job

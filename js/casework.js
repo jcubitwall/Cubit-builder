@@ -1,44 +1,64 @@
 /* Cubit Builder — casework.js : the cabinet & furniture library engine.
 
-   Every cabinet is generated from rules (frameless, full overlay) at any size, from the shop's own materials:
-   plywood in two thicknesses only, ½″ and ⅝″ (their exact measured thickness is a setting), edge banded.
-   Joinery is mortise and tenon that is cut on the CNC from ONE side, so no part is flipped:
-     · tenons are part of a panel's outline (cut with the profile, face up),
-     · mortises are pockets on the inside face of the mating panel (blind, nothing shows outside), their ends
-       overcut by the bit so the square tenon corners seat,
-     · the back sits in a groove (pocket) on the inside face of the sides,
-     · shelf-pin rows, hinge cups and pull holes are all on the same face that is up for that part
-       (inside face of sides, back face of doors and drawer fronts).
-   Cut sizes come out short of the finished size by the edge band on every banded edge.
+   Cabinets are built the way Cubit has built them for years in Mozaik (read from Brad's test kitchen, see
+   docs/mozaik-cabinet-rules.md): frameless, full overlay, ONE sheet material (16 mm PET, measured thickness),
+   and DADO construction:
+     · bottoms, tops, fixed shelves and stretchers sit in ½″-bit dados in the ends, 0.26″ deep; a panel goes
+       0.25″ into each dado. Dados stop 1¼″ short of the front so nothing shows; the panel's corners are notched
+       to pass the stop (and ¼″ more, the bit's round end).
+     · the back is a full 16 mm panel in its own dado 3 mm in from the back edge of the ends, and in a groove in
+       the bottom; it runs to the top of the ends.
+     · shelf pins Ø5 × 10 mm, 32 mm apart: a row 37 mm from the front and a row 64 mm from the back, 7 holes per
+       adjustable shelf centred on where the shelf sits.
+     · hinge plates: two 0.8 mm marks 32 mm apart on the ends; hinge cups Ø35 and two Ø8 dowel holes on the doors.
+     · drawer runner holes on the ends.
+   Every part carries its exact machining (part.cnc): its outline with notches, every dado, groove and hole, which
+   face is up and in which program (side A = the last program, with the cut-throughs; side B = first, only if a part
+   needs machining on its other face). The library draws and dimensions all of it before any G-code is made.
+   Cut sizes are Mozaik's sizes (the edge band is allowed for in the reveals); a setting can take the band off instead.
 
    Units: inches inside. Items: { k, w, h, d, y, opt } (w/h/d finished overall, y = height off the floor).
    An item's own coordinates: x 0→w left to right seen from the front, y up, z 0 at the back → d at the front. */
 
 const MM = 1/25.4;
 const r16 = v => Math.round(v*16)/16;
+const r4 = v => Math.round(v*10000)/10000;
 
 /* ---------------------------------------------------------------- shop settings (shared by the team) */
+const SETTINGS_V = 2;              // 2 = Mozaik rules (older saved settings were the mortise-and-tenon ones)
 const DEFAULTS = {
+  v:SETTINGS_V,
   units:'in',
-  thick:{ '1/2':0.469, '5/8':0.594 },          // measured plywood thickness, inches (15/32″, 19/32″)
-  use:{ carcass:'5/8', back:'1/2', door:'5/8', shelf:'5/8', drawer:'1/2', bottom:'1/2', kick:'5/8' },
-  ply:{ name:'Baltic birch / prefinished maple plywood', sheet:[48,96] },
-  band:{ t:1*MM, w:22*MM, name:'PVC edge band 1 mm × 22 mm' },
-  kick:{ h:4.5, set:3 },                         // toe kick height and setback
-  reveal:3*MM,                                   // gap between doors / drawer fronts
-  tenon:{ len:0.375, w:2, every:10, fit:0.008 }, // tenon length (= mortise depth), width, max spacing, clearance
-  bit:0.25,                                      // cutter diameter (mortise ends are overcut by it)
-  groove:{ depth:0.25, inset:0.5 },              // back groove depth, and its distance in from the back edge
-  pins:{ dia:5*MM, pitch:32*MM, edge:37*MM },
-  hinge:{ name:'Blum CLIP top BLUMOTION 110° full overlay', cup:35*MM, depth:13*MM, edge:22.5*MM, end:3.5 },
-  glide:'blum-tandem',
-  glides:{
-    'blum-tandem':{ name:'Blum TANDEM 563H undermount, full extension, soft close', clear:10*MM, lens:[12,15,18,21], under:true, prep:'Rear notches + hook hole per Blum template; locking devices at the front' },
-    'dtc-under':  { name:'DTC soft-close undermount', clear:10*MM, lens:[12,14,16,18,20,22], under:true, prep:'Rear notches + hook hole per DTC template' },
-    'side-ball':  { name:'Side-mount ball bearing, full extension', clear:1, lens:[12,14,16,18,20,22], under:false, prep:'' },
-  },
-  pull:{ name:'Bar pull, brushed black', cc:128*MM, hole:5*MM, edge:2, end:3 },
-  screw:{ name:'Glue + #8 × 1¼″ screws', every:8 },
+  mat:{ name:'PET Matt White 16 mm', t:0.600, sheet:[48,96] },        // t: what the sheets measure (Mozaik uses 0.600″); measured again before every G-code
+  band:{ t:1*MM, w:22*MM, name:'PVC edge band 1 mm', deduct:false },  // deduct: take the band off the cut sizes (Mozaik's sizes already allow for it)
+  dado:{ depth:0.26, engage:0.25, fit:0.01, stop:1.25, clear:0.25, bit:0.5 },
+  back:{ inset:0.116 },                                               // back dado in from the back edge of the ends (3 mm)
+  kick:{ h:4, set:3, rearW:0.5, rearBelow:0.25 },                     // toe kick; small notch at the back-bottom of the ends
+  stretcher:{ w:4 },
+  shelf:{ side:1/16, back:1/8, group:7 },
+  fronts:{ side:1/16, gap:1/8, pairOver:21,          // a door wider than pairOver becomes a pair
+    base:{ below:1/8, top:3/8 },        // base doors / drawer fronts: from 1/8 below the bottom to 3/8 under the top of the box
+    upper:{ below:5/8, top:1/4 },       // uppers: 5/8 below the box (finger pull), 1/4 under the top
+    tall:{ below:0, top:1/4 } },
+  pins:{ dia:5*MM, depth:10*MM, pitch:32*MM, front:37*MM, back:64*MM },
+  mark:{ dia:5*MM, depth:0.8*MM },
+  hinge:'blum',
+  hinges:{
+    blum:{ name:'Blum CLIP top BLUMOTION 110°, press-in', cup:35*MM, depth:0.41, edge:23.5*MM, dowel:8*MM, dowelApart:45*MM, dowelBack:9.5*MM, bottom:3.511, top:3.26, plateX:1.40, plateApart:32*MM },
+    dtc: { name:'DTC soft-close 110°, press-in', cup:35*MM, depth:0.41, edge:23.5*MM, dowel:8*MM, dowelApart:45*MM, dowelBack:9.5*MM, bottom:3.511, top:3.26, plateX:1.40, plateApart:32*MM } },
+  runner:'blum-tandem',
+  runners:{
+    'blum-tandem':{ name:'Blum TANDEM 563H, full extension, soft close', clear:10*MM, lens:[12,15,18,21], front:[8,34,65], rear:[293,274,242], holeDepth:13*MM, rowAbove:0.35, boxPlus:0.25 },
+    'dtc-under':  { name:'DTC soft-close undermount', clear:10*MM, lens:[12,14,16,18,20,22], front:[8,34,65], rear:[293,274,242], holeDepth:13*MM, rowAbove:0.35, boxPlus:0.25 } },
+  drawer:{ groove:0.5, grooveDepth:0.25, dadoIn:0.345, dadoW:0.255, dadoDepth:0.385, tongue:0.25, topDrop:0.125, sides:[3.5,4.75,6.75,8.75,10.75] },
+  handle:'later',
+  handles:[
+    { id:'bar128', name:'Bar pull, 128 mm c-c', cc:128*MM, dia:5*MM },
+    { id:'bar160', name:'Bar pull, 160 mm c-c', cc:160*MM, dia:5*MM },
+    { id:'bar96',  name:'Bar pull, 96 mm c-c',  cc:96*MM,  dia:5*MM },
+    { id:'knob',   name:'Knob, one hole',       cc:0,      dia:5*MM } ],
+  pullAt:{ edge:2, end:3 },                                          // door handle: in from the opening edge, from the end
+  screw:{ name:'Confirmat / #8 screws through the ends', every:8 },
   rod:{ name:'Oval closet rod 1″ with end flanges' },
   counter:{ name:'Quartz', t:1.25, over:1 },
 };
@@ -46,165 +66,240 @@ const KEY='cubit-casework-settings';
 let S = clone(DEFAULTS), remote=false;
 function clone(o){ return JSON.parse(JSON.stringify(o)); }
 function merge(base, over){ for(const k in over){ if(over[k] && typeof over[k]==='object' && !Array.isArray(over[k]) && base[k] && typeof base[k]==='object') merge(base[k], over[k]); else base[k]=over[k]; } return base; }
+/* settings saved before the Mozaik rules are dropped (only the units are kept) */
+const upgrade = o => (o && o.v===SETTINGS_V) ? o : { units:o?.units||'in' };
 async function loadSettings(){
-  try{ const r=await fetch('api/casework',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ S=merge(clone(DEFAULTS), await r.json()); remote=true; return S; } }catch(e){}
-  try{ S=merge(clone(DEFAULTS), JSON.parse(localStorage.getItem(KEY)||'{}')); }catch(e){}
+  try{ const r=await fetch('api/casework',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ S=merge(clone(DEFAULTS), upgrade(await r.json())); remote=true; return S; } }catch(e){}
+  try{ S=merge(clone(DEFAULTS), upgrade(JSON.parse(localStorage.getItem(KEY)||'{}'))); }catch(e){}
   return S;
 }
 async function saveSettings(next){
-  S=merge(clone(DEFAULTS), next);
+  S=merge(clone(DEFAULTS), {...next, v:SETTINGS_V});
   if(remote){ const r=await fetch('api/casework',{method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({settings:S})}); const o=await r.json().catch(()=>({})); if(!r.ok) throw new Error(o.error||`Server said ${r.status}`); }
   else { try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
   return S;
 }
 const settings = () => S;
-const th = role => S.thick[S.use[role]] ?? 0.594;
-const nomOf = role => S.use[role];
+const T_ = () => S.mat.t;
+const th = () => S.mat.t;                 // one material: every part is the sheet thickness
+const nomOf = () => S.mat.name;
+const hingeSpec = () => S.hinges[S.hinge] || Object.values(S.hinges)[0];
+const runnerSpec = () => S.runners[S.runner] || Object.values(S.runners)[0];
+const handleById = id => (S.handles||[]).find(h=>h.id===id);
 
 /* ---------------------------------------------------------------- display */
 function fmt(v, units=S.units){
-  if(units==='mm') return `${Math.round(v/MM)}`;
+  if(units==='mm') return `${Math.round(v/MM*10)/10}`;
   const neg=v<0; v=Math.abs(v); let w=Math.floor(v+1e-9), f=Math.round((v-w)*16);
   if(f===16){ w++; f=0; }
   let s = f ? (()=>{ let n=f, d=16; while(n%2===0){ n/=2; d/=2; } return `${w?w+' ':''}${n}/${d}`; })() : `${w}`;
   return (neg?'-':'')+s;
 }
 const fmtU = (v,u=S.units) => fmt(v,u)+(u==='mm'?' mm':'″');
+/* exact, for machining (3 decimals in inches, 0.1 mm) */
+const fx3 = (v,u=S.units) => u==='mm' ? `${Math.round(v/MM*10)/10} mm` : `${(Math.round(v*1000)/1000).toFixed(3)}″`;
 
 /* ---------------------------------------------------------------- parts */
-/* part(name, role, matRole|label, box[x,y,z,sx,sy,sz], thickness axis 'x'|'y'|'z', opts) */
+/* part(name, role, matRole|label, box[x,y,z,sx,sy,sz], thickness axis 'x'|'y'|'z', opts)
+   opts.cnc = the part as it's cut: { U, V, u:[edge at u=0, edge at u=U], v:[edge at v=0, edge at v=V], up:'face that is up',
+     outline:[[u,v]…] (with notches), ops:[ {k:'dado'|'groove'|'rabbet'|'slot', u0,u1,v0,v1, depth, tool, side, what},
+     {k:'hole'|'cup'|'mark', u,v, d, depth, side, what} ] } — u,v in inches on the part, side 'A' (last program) | 'B' (first) */
 function part(name, role, mat, box, axis, o={}){
   const [x,y,z,sx,sy,sz]=box, T={x:sx,y:sy,z:sz}[axis];
-  const faces = axis==='x' ? [sy,sz] : axis==='y' ? [sx,sz] : [sy,sx];       // [L,W]: vertical first for upright parts
+  const faces = axis==='x' ? [sy,sz] : axis==='y' ? [sx,sz] : [sy,sx];
   let L=Math.max(...faces), W=Math.min(...faces);
-  if(o.grain==='v' && axis!=='y'){ L=sy; W=axis==='x'?sz:sx; }
-  return { name, role, mat, T, L, W, box, axis, ex:o.ex||[0,0,0], band:o.band||{long:0,short:0}, ten:o.ten||0, ops:o.ops||[], hw:!!o.hw, qty:1, tenonGeo:o.tenonGeo||[], note:o.note||'' };
+  if(o.cnc){ L=Math.max(o.cnc.U,o.cnc.V); W=Math.min(o.cnc.U,o.cnc.V); }
+  return { name, role, mat, T, L, W, box, axis, ex:o.ex||[0,0,0], band:o.band||{long:0,short:0}, ops:o.ops||[], hw:!!o.hw, qty:1, tenonGeo:[], note:o.note||'', cnc:o.cnc||null, notch:o.notch||null, hole:o.hole||null };
 }
-const tenonCount = len => Math.max(2, Math.ceil((len-2*1.5)/S.tenon.every)+1);
-/* tenons along an edge of length `len`: their centres (from one end) */
-function tenonAt(len){ const n=tenonCount(len), a=Math.min(1.5+S.tenon.w/2, len/4), b=len-a; return [...Array(n)].map((_,i)=>n===1?len/2:a+(b-a)*i/(n-1)); }
-/* a horizontal panel between two sides (bottom, top, fixed shelf, kick, stretcher) with tenons into both sides */
-function tenoned(name, role, mat, box, axis, o={}){
-  const p=part(name, role, mat, box, axis, o), tl=S.tenon.len;
-  const [x,y,z,sx,sy,sz]=box, deep = axis==='y' ? sz : sy;      // the edge along which the tenons sit (panel depth)
-  const at=tenonAt(deep), tw=S.tenon.w;
-  p.ten=at.length; p.tenonLen=tl;
-  p.tenonGeo = [-1,1].flatMap(sd=>at.map(c=> axis==='y'
-    ? [sd<0 ? x-tl : x+sx, y, z+c-tw/2, tl, sy, tw]
-    : [sd<0 ? x-tl : x+sx, y+c-tw/2, z, tl, tw, sz]));
-  p.ops = [`${at.length} tenons ${fmtU(tw)} × ${fmtU(tl)} each end (in the outline)`, ...(o.ops||[])];
-  return p;
+/* a rectangle outline, and one with notched corners: n = { fl, fr, bl, br } = [length along v, depth along u] */
+const rectO = (U,V) => [[0,0],[U,0],[U,V],[0,V]];
+/* a panel that sits in dados along both u-ends (u=0 and u=U): corners notched where the dados stop.
+   front notch (v from 0) and back notch (v from V), each `len` long and `e` deep */
+function notchedO(U,V,e,front,back){
+  const P=[];
+  if(front){ P.push([e,0],[U-e,0],[U-e,front],[U,front]); } else P.push([0,0],[U,0]);
+  if(back){ P.push([U,V-back],[U-e,V-back],[U-e,V],[e,V],[e,V-back],[0,V-back]); } else P.push([U,V],[0,V]);
+  if(front) P.push([0,front],[e,front]);
+  return P;
 }
 function finishPart(p){
-  const bt=S.band.t, tl=p.tenonLen||0;
-  p.cutL = r16(p.L - p.band.short*bt + (p.ten ? 2*tl : 0));
-  p.cutW = r16(p.W - p.band.long*bt);
+  const bt = S.band.deduct ? S.band.t : 0;
+  p.cutL = r4(p.L - p.band.short*bt);
+  p.cutW = r4(p.W - p.band.long*bt);
   p.bandLen = p.band.long*p.L + p.band.short*p.W;
+  if(p.cnc && !p.ops.length) p.ops = opsText(p);
   return p;
 }
-
-/* ---------------------------------------------------------------- building blocks */
-/* the carcass: two sides, bottom, top (full or two stretchers), back in a groove, optional toe kick,
-   fixed shelves (tenoned), adjustable shelves (on pins), partitions. Returns {parts, t, dc, ix0, ix1, y0, y1}. */
-function carcass(it, c){
-  const W=it.w, H=it.h, t=th('carcass'), tb=th('back'), gd=S.groove.depth, gi=S.groove.inset;
-  const dc = it.d - (c.doors===false ? 0 : th('door'));             // carcass depth (doors in front)
-  const kh = c.kick ? S.kick.h : 0, ks=S.kick.set;
-  const zb = gi+tb;                                                    // front face of the back
-  const P=[], sideOps=[];
-  const y0 = kh, y1 = H - t;                                           // inside: top of bottom → underside of top
-  const fixed=[...(c.fixed||[])];
-  const sideMort = n => `${n} mortise pockets ${fmtU(S.tenon.len)} deep, ends overcut ${fmtU(S.bit)}`;
-  let mort=0;
-  const bot=tenoned('Bottom','carcass','carcass',[t,kh,zb,W-2*t,t,dc-zb],'y',{ex:[0,-1,0], band:{long:1,short:0}}); mort+=bot.ten; P.push(bot);
-  if(c.top==='stretchers'){
-    const sw=4;
-    const fs=tenoned('Top stretcher, front','carcass','carcass',[t,H-t,dc-sw,W-2*t,t,sw],'y',{ex:[0,1,.4], band:{long:1,short:0}});
-    const bs=tenoned('Top stretcher, back','carcass','carcass',[t,H-t,zb,W-2*t,t,sw],'y',{ex:[0,1,-.4]});
-    mort+=fs.ten+bs.ten; P.push(fs,bs);
-  } else { const tp=tenoned('Top','carcass','carcass',[t,H-t,zb,W-2*t,t,dc-zb],'y',{ex:[0,1,0], band:{long:1,short:0}}); mort+=tp.ten; P.push(tp); }
-  if(kh){ const kb=tenoned('Toe kick','carcass','kick',[t,0,dc-ks-th('kick'),W-2*t,kh,th('kick')],'z',{ex:[0,-.6,1]}); mort+=kb.ten; P.push(kb); }
-  fixed.forEach((fy,i)=>{ const f=tenoned(fixed.length>1?`Fixed shelf ${i+1}`:'Fixed shelf','shelf','carcass',[t,fy,zb,W-2*t,t,dc-zb],'y',{ex:[0,0,.5], band:{long:1,short:0}}); mort+=f.ten; P.push(f); });
-  // partitions: vertical dividers between bottom and top, tenoned into both (mortises on the bottom's top face and the top's underside)
-  (c.parts||[]).forEach((px,i)=>{ const p=part(`Partition ${i+1}`,'carcass','carcass',[px-t/2,y0+t,zb,t,y1-y0-t,dc-zb],'x',{ex:[0,0,.3], band:{long:1,short:0}, grain:'v'});
-    const at=tenonAt(dc-zb); p.ten=at.length; p.tenonLen=S.tenon.len; p.ops=[`${at.length} tenons each end (top and bottom edges)`]; p.vten=true;
-    p.tenonGeo=[-1,1].flatMap(sd=>at.map(cz=>[px-t/2, sd<0 ? y0+t-S.tenon.len : y1, zb+cz-S.tenon.w/2, t, S.tenon.len, S.tenon.w])); P.push(p); });
-  // back in grooves on the inside faces of the sides
-  const back=part('Back','back','back',[t-gd,kh,gi,W-2*t+2*gd,H-kh,tb],'z',{ex:[0,0,-1], grain:'v', ops:[`Sits in ${fmtU(gd)} grooves in both sides`]}); P.push(back);
-  // adjustable shelves between the fixed ones
-  const zones=[y0+t, ...fixed.flatMap(f=>[f, f+t]), y1].reduce((a,v,i,arr)=>i%2? a : a.concat([[arr[i],arr[i+1]]]), []);
-  let adj=c.adj||0;
-  if(typeof adj==='number' && adj>0){
-    // spread the shelves over the zones by height
-    const tot=zones.reduce((s,[a,b])=>s+(b-a),0);
-    zones.forEach(([a,b])=>{ const n=Math.round(adj*(b-a)/tot); for(let k=1;k<=n;k++){ const sy=a+(b-a)*k/(n+1)-t/2;
-      P.push(part('Adjustable shelf','shelf','shelf',[t+1/32,sy,zb+1/16,W-2*t-1/16,th('shelf'),dc-zb-0.25],'y',{ex:[0,0,.6], band:{long:1,short:0}})); } });
-  }
-  const pinRows = adj ? 2 : 0;
-  sideOps.push(sideMort(mort), `Back groove ${fmtU(tb+0.01)} wide × ${fmtU(gd)} deep, ${fmtU(gi)} in from the back`);
-  if(pinRows) sideOps.push(`2 rows of ${fmtU(S.pins.dia)} shelf-pin holes at ${Math.round(S.pins.pitch/MM)} mm, ${Math.round(S.pins.edge/MM)} mm in`);
-  if(kh) sideOps.push(`Toe-kick notch ${fmtU(ks)} × ${fmtU(kh)} (in the outline)`);
-  const sides=[['Left side',0,[-1,0,0]],['Right side',W-t,[1,0,0]]].map(([n,x,ex])=>part(n,'carcass','carcass',[x,0,0,t,H,dc],'x',{ex, band:{long:1,short:0}, grain:'v', ops:[...sideOps, 'Cut inside face up']}));
-  if(kh) sides.forEach(s=>s.notch=[ks,kh,dc]);
-  P.unshift(...sides);
-  return { parts:P, t, dc, kh, ix0:t, ix1:W-t, y0, y1, zb };
+/* plain words for a part's machining (the list under each part; the drawing shows the same with dimensions) */
+function opsText(p){
+  const c=p.cnc, out=[], by=new Map();
+  c.ops.forEach(o=>{ const k=`${o.side}|${o.what}`; by.set(k,[...(by.get(k)||[]),o]); });
+  by.forEach((os,k)=>{ const o=os[0], side=o.side==='B'?' (side B, cut first)':'';
+    if(o.k==='hole'||o.k==='cup'||o.k==='mark') out.push(`${os.length}× ${o.what}: Ø${Math.round(o.d/MM*10)/10} mm × ${fx3(o.depth)} deep${side}`);
+    else out.push(`${o.what}: ${o.tool} bit, ${fx3(Math.abs(o.u1-o.u0)<Math.abs(o.v1-o.v0)?o.u1-o.u0:o.v1-o.v0)} wide × ${fx3(o.depth)} deep${side}`); });
+  if(c.outline.length>4) out.push(`Outline with ${(c.outline.length-4)/2|0} notch${c.outline.length>6?'es':''} (cut with the outline)`);
+  return out;
 }
+
+/* ---------------------------------------------------------------- the carcass (Mozaik dado construction) */
+/* c: { kick, top:'stretchers'|'full', adj:n, fixed:[underside heights], doors:false (no doors in front), parts:[partition x],
+        hinges:[{side:'L'|'R', ys:[cup heights on the cabinet]}] (filled in by the fronts), runners:[{y,len}] } */
+function carcass(it, c){
+  const W=it.w, H=it.h, T=T_(), e=S.dado.engage, dd=S.dado.depth, dw=T+S.dado.fit, stop=S.dado.stop, cl=S.dado.clear, bi=S.back.inset;
+  const D = it.d - (c.doors===false ? 0 : T);                         // box depth (fronts in front of it)
+  const kh = c.kick ? (it.opt?.kick ?? S.kick.h) : 0, ks=S.kick.set;
+  const zbF = D - bi - dw;                                            // the back dado's front face, from the front
+  const yb = kh;                                                      // underside of the bottom
+  const backY = yb + (T - dd) + 0.01;                                 // the back's lower edge (in the bottom's groove)
+  const iw = W - 2*T, pw = iw + 2*e;                                  // inside width; a panel between the ends
+  const P=[], endOps=[];
+  const zOf = u => it.d - (c.doors===false?0:T) - u;                 // depth from the front → item z
+  const dado = (what, u0,u1, v0,v1) => endOps.push({ k:'dado', u0:r4(u0), u1:r4(u1), v0:r4(v0), v1:r4(v1), depth:dd, tool:'½″', side:'A', what });
+  // bottom: full depth, in dados in the ends, the back in a groove on its top face
+  dado('Bottom dado', stop, D-cl, yb, yb+dw);
+  const bn = (D-(D-cl))+cl;                                           // back notch: past the dado's end + the bit's round end
+  P.push(part('Bottom','carcass','carcass',[T-e,yb,zOf(D),pw,T,D],'y',{ex:[0,-1,0],
+    cnc:{ U:pw, V:D, u:['left end','right end'], v:['front','back'], up:'top face (inside)', outline:notchedO(pw,D,e,stop+cl,bn),
+      ops:[{ k:'groove', u0:0, u1:pw, v0:r4(D-bi-dw), v1:r4(D-bi), depth:dd, tool:'½″', side:'A', what:'Back groove' }] } }));
+  // top: full (uppers, talls) or two flat stretchers (bases)
+  if(c.top==='stretchers'){
+    const sw=S.stretcher.w;
+    dado('Front stretcher dado', stop, sw+cl, H-dw, H);
+    dado('Rear stretcher dado', zbF-cl-sw, zbF-cl, H-dw, H);
+    P.push(part('Front stretcher','carcass','carcass',[T-e,H-T,zOf(sw),pw,T,sw],'y',{ex:[0,1,.4],
+      cnc:{ U:pw, V:sw, u:['left end','right end'], v:['front','back'], up:'underside', outline:notchedO(pw,sw,e,stop+cl,0), ops:[] } }));
+    P.push(part('Rear stretcher','carcass','carcass',[T-e,H-T,zOf(zbF-cl),pw,T,sw],'y',{ex:[0,1,-.4],
+      cnc:{ U:pw, V:sw, u:['left end','right end'], v:['front','back'], up:'underside', outline:rectO(pw,sw), ops:[] } }));
+  } else {
+    dado('Top dado', stop, zbF-cl, H-dw, H);
+    P.push(part('Top','carcass','carcass',[T-e,H-T,zOf(zbF),pw,T,zbF],'y',{ex:[0,1,0],
+      cnc:{ U:pw, V:zbF, u:['left end','right end'], v:['front','back'], up:'underside (inside)', outline:notchedO(pw,zbF,e,stop+cl,2*cl), ops:[] } }));
+  }
+  // fixed shelves: same as a top, at their underside height
+  (c.fixed||[]).forEach((fy,i,arr)=>{ dado(arr.length>1?`Fixed shelf ${i+1} dado`:'Fixed shelf dado', stop, zbF-cl, fy, fy+dw);
+    P.push(part(arr.length>1?`Fixed shelf ${i+1}`:'Fixed shelf','shelf','carcass',[T-e,fy,zOf(zbF),pw,T,zbF],'y',{ex:[0,0,.5],
+      cnc:{ U:pw, V:zbF, u:['left end','right end'], v:['front','back'], up:'top face', outline:notchedO(pw,zbF,e,stop+cl,2*cl), ops:[] } })); });
+  // the back: in the ends' back dados and the bottom's groove, up to the top of the ends
+  const bh = H - backY;
+  endOps.push({ k:'dado', u0:r4(D-bi-dw), u1:r4(D-bi), v0: kh ? 0 : r4(backY), v1:H, depth:dd, tool:'½″', side:'A', what:'Back dado' });
+  P.push(part('Back','back','carcass',[T-e,backY,bi,pw,bh,T],'z',{ex:[0,0,-1],
+    cnc:{ U:pw, V:bh, u:['left end','right end'], v:['bottom','top'], up:'either face', outline:rectO(pw,bh), ops:[] } }));
+  // toe kick board: between the ends (butt joint), set back
+  if(kh) P.push(part('Toe kick','carcass','carcass',[T,0,zOf(ks+T),iw,kh,T],'z',{ex:[0,-.6,1],
+    cnc:{ U:iw, V:kh, u:['left','right'], v:['bottom','top'], up:'either face', outline:rectO(iw,kh), ops:[] }, note:'Screwed between the ends, behind the toe notch' }));
+  // partitions (benches): stand on the bottom, under the top, in dados in both
+  (c.parts||[]).forEach((px,i)=>{ const v0=yb+T-e, v1=H-T+e, ph=v1-v0;
+    const bot=P.find(p=>p.name==='Bottom'), top=P.find(p=>p.name==='Top');
+    [bot,top].forEach(q=>q && q.cnc.ops.push({ k:'dado', u0:r4(px-T/2-(T-e)-S.dado.fit/2), u1:r4(px+T/2-(T-e)+S.dado.fit/2), v0:stop, v1:r4(q.cnc.V-cl), depth:dd, tool:'½″', side:'A', what:`Partition ${i+1} dado` }));
+    P.push(part(`Partition ${i+1}`,'carcass','carcass',[px-T/2,v0,zOf(zbF),T,ph,zbF],'x',{ex:[0,0,.3],
+      cnc:{ U:zbF, V:ph, u:['front','back'], v:['bottom','top'], up:'either face', outline:notchedO(ph,zbF,e,stop+cl,2*cl).map(([a,b])=>[b,a]), ops:[] } })); });
+  // adjustable shelves: spread over the open heights, each on 4 pins; 7 holes per pin row centred on it
+  const opening = (a,b) => [a,b];
+  const zones=[]; { let lo=yb+T; [...(c.fixed||[])].sort((a,b)=>a-b).forEach(fy=>{ zones.push(opening(lo,fy)); lo=fy+T; }); zones.push(opening(lo, c.top==='stretchers' ? H-T : H-T)); }
+  const adj = typeof c.adj==='number' ? c.adj : 0, shelfY=[];
+  if(adj>0){ const tot=zones.reduce((s,[a,b])=>s+(b-a),0);
+    let left=adj; zones.forEach(([a,b],zi)=>{ const n = zi===zones.length-1 ? left : Math.round(adj*(b-a)/tot); left-=n;
+      const gap=(b-a-n*T)/(n+1); for(let k=0;k<n;k++){ const sy=a+gap*(k+1)+T*k; shelfY.push(sy);
+        const su=iw-2*S.shelf.side, sv=zbF-S.shelf.back;
+        P.push(part('Adjustable shelf','shelf','carcass',[T+S.shelf.side,sy,zOf(zbF-S.shelf.back),su,T,sv],'y',{ex:[0,0,.6], band:{long:1,short:0},
+          cnc:{ U:su, V:sv, u:['left','right'], v:['front','back'], up:'either face', outline:rectO(su,sv), ops:[] } })); } }); }
+  const pinU=[S.pins.front, D-S.pins.back], g=S.shelf.group, half=(g-1)/2;
+  shelfY.forEach((sy,si)=>pinU.forEach(u=>{ for(let k=-half;k<=half;k++){ const v=sy+k*S.pins.pitch; if(v>yb+T+0.4 && v<H-T-0.4) endOps.push({ k:'hole', u:r4(u), v:r4(v), d:S.pins.dia, depth:S.pins.depth, side:'A', what:'Shelf pin holes' }); } }));
+  // the ends (left and right), inside face up; toe notch at the front-bottom, small notch at the back-bottom
+  const endO = kh ? [[ks,0],[D-S.kick.rearW,0],[D-S.kick.rearW,kh-S.kick.rearBelow],[D,kh-S.kick.rearBelow],[D,H],[0,H],[0,kh],[ks,kh]] : rectO(D,H);
+  const mkEnd=(nm,x,ex)=>part(nm,'carcass','carcass',[x,0,zOf(D),T,H,D],'x',{ex, band:{long:1,short:0}, notch: kh?[ks,kh,D]:null,
+    cnc:{ U:D, V:H, u:['front','back'], v:['bottom','top'], up:'inside face', outline:endO, ops:endOps.map(o=>({...o})) } });
+  const L=mkEnd('Left end',0,[-1,0,0]), R=mkEnd('Right end',W-T,[1,0,0]);
+  P.unshift(L,R);
+  return { parts:P, t:T, dc:D, kh, ix0:T, ix1:W-T, y0:yb+T, y1:H-T, zb:bi+T, ends:{L,R}, shelfY, D, zbF, front:it.d };
+}
+/* hinge plates and runner holes go on the end at the hinge / runner side */
+const endAt = (c, side) => side==='L' ? c.ends.L : c.ends.R;
 const hingeCount = h => h<=40 ? 2 : h<=60 ? 3 : h<=80 ? 4 : 5;
-/* a door (full overlay) covering x0..x1, y0..y1 of the front; side 'L'|'R' = the hinge side; pull at 'top'|'bottom'|'mid' */
-function door(name, x0,x1,y0,y1, dc, side, pullAt='top'){
-  const r=S.reveal, w=x1-x0-r, h=y1-y0-r, td=th('door'), nh=hingeCount(h);
-  const p=part(name,'front','door',[x0+r/2,y0+r/2,dc,w,h,td],'z',{ex:[0,0,2.2], band:{long:2,short:2}, grain:'v',
-    ops:[`${nh} hinge cups Ø${Math.round(S.hinge.cup/MM)} mm × ${Math.round(S.hinge.depth/MM)} mm deep, ${(S.hinge.edge/MM).toFixed(1)} mm from the ${side==='L'?'left':'right'} edge, first ${fmtU(S.hinge.end)} from the ends`,
-         `Pull: 2 holes Ø${Math.round(S.pull.hole/MM)} mm through, ${Math.round(S.pull.cc/MM)} mm apart`, 'Cut back face up']});
-  const hw=[], hx = side==='L' ? x0+r/2+0.9 : x1-r/2-0.9;
-  for(let i=0;i<nh;i++){ const hy = y0+r/2 + S.hinge.end + (h-2*S.hinge.end)*(nh>1?i/(nh-1):0.5) - 0.9;
-    hw.push(part('Hinge','hw','buy',[hx-0.9,hy,dc-0.6,1.8,1.8,0.6],'z',{ex:[0,0,1.6], hw:true})); }
-  // pull: vertical bar near the opening edge
-  const px = side==='L' ? x1-r/2-S.pull.edge : x0+r/2+S.pull.edge, cc=S.pull.cc;
-  const py = pullAt==='bottom' ? y0+r/2+S.pull.end : pullAt==='mid' ? (y0+y1)/2-cc/2 : y1-r/2-S.pull.end-cc;
-  hw.push(part('Pull','hw','buy',[px-0.25,py-0.4,dc+td,0.5,cc+0.8,0.9],'z',{ex:[0,0,2.8], hw:true}));
+
+/* ---------------------------------------------------------------- fronts */
+/* the vertical extent of a front on a cabinet of this kind (Mozaik's door rules) */
+function frontSpan(kind, c, H){
+  const F=S.fronts[kind]||S.fronts.base;
+  if(kind==='upper') return [ -F.below, H-F.top ];
+  if(kind==='tall') return [ c.kh-F.below, H-F.top ];
+  return [ c.kh-F.below, H-F.top ];
+}
+/* handle holes on a front (only when a handle is picked; the default is "drill later") */
+function handleOps(U,V,hid,where,hingeEdgeU){
+  const h=handleById(hid); if(!h) return [];
+  let cu, cv, vert;
+  if(where==='drawer'){ cu=U/2; cv=V-Math.min(V/2, 2.5); vert=false; }
+  else { cu = hingeEdgeU===0 ? U-S.pullAt.edge : S.pullAt.edge; vert=true; cv = where==='bottom' ? S.pullAt.end+h.cc/2 : where==='mid' ? V/2 : V-S.pullAt.end-h.cc/2; }
+  const pts = h.cc ? (vert ? [[cu,cv-h.cc/2],[cu,cv+h.cc/2]] : [[cu-h.cc/2,cv],[cu+h.cc/2,cv]]) : [[cu,cv]];
+  return pts.map(([u,v])=>({ k:'hole', u:r4(u), v:r4(v), d:h.dia, depth:T_()+0.02, thru:true, side:'A', what:`${h.name} holes (through)` }));
+}
+/* a door: covers x0..x1 (cabinet x) × y0..y1 (cabinet y); side 'L'|'R' = hinge side; drawn from the BACK face (cups up) */
+function door(c, name, x0,x1,y0,y1, side, pullAt='top', hid){
+  const T=T_(), hs=hingeSpec(), U=x1-x0, V=y1-y0, nh=hingeCount(V);
+  // seen from the back, a left-hinged door's hinge edge is on the right: u=U
+  const hu = side==='L' ? U-hs.edge : hs.edge, dir = side==='L' ? -1 : 1;
+  const cupsV = [...Array(nh)].map((_,i)=>{ const a=hs.bottom, b=V-hs.top; return nh===1?(a+b)/2 : a+(b-a)*i/(nh-1); });
+  const ops=[];
+  cupsV.forEach(v=>{ ops.push({ k:'cup', u:r4(hu), v:r4(v), d:hs.cup, depth:hs.depth, side:'A', what:'Hinge cup' });
+    [-1,1].forEach(s=>ops.push({ k:'hole', u:r4(hu+dir*hs.dowelBack), v:r4(v+s*hs.dowelApart/2), d:hs.dowel, depth:hs.depth, side:'A', what:'Hinge dowel holes' })); });
+  ops.push(...handleOps(U,V,hid,pullAt, side==='L'?U:0));
+  const p=part(name,'front','carcass',[x0,y0,c.front-T,U,V,T],'z',{ex:[0,0,2.2], band:{long:2,short:2},
+    cnc:{ U, V, u:[side==='L'?'opening edge':'hinge edge', side==='L'?'hinge edge':'opening edge'], v:['bottom','top'], up:'back face (inside)', outline:rectO(U,V), ops } });
+  // hinge plate marks on the end, ±16 mm round each cup's height
+  const end=endAt(c, side), hy=cupsV.map(v=>y0+v);
+  hy.forEach(y=>[-1,1].forEach(s=>end.cnc.ops.push({ k:'mark', u:hs.plateX, v:r4(y+s*hs.plateApart/2), d:S.mark.dia, depth:S.mark.depth, side:'A', what:'Hinge plate marks' })));
+  const hw=cupsV.map(v=>part('Hinge','hw','buy',[side==='L'?x0+0.2:x1-2,y0+v-0.9,c.front-T-0.6,1.8,1.8,0.6],'z',{ex:[0,0,1.6], hw:true}));
+  if(hid && handleById(hid)) hw.push(part('Handle','hw','buy',[side==='L'?x1-S.pullAt.edge-0.25:x0+S.pullAt.edge-0.25, y1-S.pullAt.end-4, c.front, 0.5, 4, 0.9],'z',{ex:[0,0,2.8], hw:true, note:handleById(hid).name}));
   return [p, ...hw];
 }
-/* doors across a bay: one if narrow, else a pair */
-function doors(x0,x1,y0,y1,dc,pullAt='top', name='Door'){
-  const n = (x1-x0) > 24.01 ? 2 : 1;
-  if(n===1) return door(name, x0,x1,y0,y1,dc,'L',pullAt);
-  const m=(x0+x1)/2;
-  return [...door(`${name}, left`, x0,m,y0,y1,dc,'L',pullAt), ...door(`${name}, right`, m,x1,y0,y1,dc,'R',pullAt)];
+/* doors across the front of the box between the cabinet's ends (x 0..W): one, or a pair when wider than 24″ */
+function doors(c, W, y0, y1, pullAt='top', name='Door', hid){
+  const s=S.fronts.side, g=S.fronts.gap, n = W > (S.fronts.pairOver||21)+0.01 ? 2 : 1;
+  if(n===1) return door(c, name, s, W-s, y0, y1, 'L', pullAt, hid);
+  const w=(W-2*s-g)/2;
+  return [...door(c, `${name}, left`, s, s+w, y0, y1, 'L', pullAt, hid), ...door(c, `${name}, right`, W-s-w, W-s, y0, y1, 'R', pullAt, hid)];
 }
-/* a drawer: front over x0..x1 × y0..y1, box on glides in the opening ox0..ox1 */
-function drawer(name, x0,x1,y0,y1, ox0,ox1, dc, zb, fixedFront=false){
-  const r=S.reveal, w=x1-x0-r, h=y1-y0-r, td=th('door');
-  const out=[];
-  const fr=part(fixedFront?`${name} (false front)`:`${name} front`,'front','door',[x0+r/2,y0+r/2,dc,w,h,td],'z',{ex:[0,0,fixedFront?2.2:3], band:{long:2,short:2},
-    ops: fixedFront ? ['Fixed to the carcass, no box'] : [`Pull: 2 holes Ø${Math.round(S.pull.hole/MM)} mm through, ${Math.round(S.pull.cc/MM)} mm apart, centred`, 'Cut back face up']});
-  out.push(fr);
-  if(fixedFront) return out;
-  const cc=S.pull.cc, py=y0+r/2+Math.min(h/2, 2.5)-0.25;
-  out.push(part('Pull','hw','buy',[(x0+x1)/2-cc/2-0.4,py,dc+td,cc+0.8,0.5,0.9],'z',{ex:[0,0,3.6], hw:true}));
-  const G=S.glides[S.glide]||Object.values(S.glides)[0], ts=th('drawer'), tbt=th('bottom'), gd=S.groove.depth;
-  const avail = dc - zb - 0.5, len = [...G.lens].sort((a,b)=>b-a).find(l=>l<=avail) || Math.min(...G.lens);
-  const bw = ox1-ox0-G.clear, bh = Math.max(2.5, Math.min(h-1.25, h-0.75)), bz=dc-len, by=y0+r/2+(G.under?0.6:0.5), bx=ox0+G.clear/2;
-  const ex=[0,0,1.6], up=G.under?0.5:0.25;
-  const ins=bw-2*ts;
-  const pr=[`${tenonCount(bh)} mortise pockets ${fmtU(S.tenon.len)} deep for the front and back`, `Bottom groove ${fmtU(tbt+0.01)} × ${fmtU(gd)} deep, ${fmtU(up)} up`, 'Cut inside face up'];
-  out.push(part(`${name} box side`,'drawer','drawer',[bx,by,bz,ts,bh,len],'x',{ex:[-.5,0,1.6], band:{long:1,short:0}, ops:pr}));
-  out.push(part(`${name} box side`,'drawer','drawer',[bx+bw-ts,by,bz,ts,bh,len],'x',{ex:[.5,0,1.6], band:{long:1,short:0}, ops:pr}));
-  const fb=(nm,z,e)=>{ const p=part(nm,'drawer','drawer',[bx+ts,by,z,ins,bh,ts],'z',{ex:e, band:{long:1,short:0}});
-    const at=tenonAt(bh); p.ten=at.length; p.tenonLen=S.tenon.len; p.ops=[`${at.length} tenons each end (in the outline)`, `Bottom groove ${fmtU(gd)} deep, ${fmtU(up)} up`, ...(nm.includes('back')&&G.prep?[G.prep]:[])];
-    p.tenonGeo=[-1,1].flatMap(sd=>at.map(c=>[sd<0?bx+ts-S.tenon.len:bx+ts+ins, by+c-S.tenon.w/2, z, S.tenon.len, S.tenon.w, ts])); return p; };
-  out.push(fb(`${name} box front`, dc-ts, [0,0,2.1]), fb(`${name} box back`, bz, [0,0,1.1]));
-  out.push(part(`${name} box bottom`,'drawer','bottom',[bx+ts-gd,by+up,bz+ts-gd,ins+2*gd,tbt,len-2*ts+2*gd],'y',{ex:[0,-.6,1.6], ops:[`Sits in the ${fmtU(gd)} grooves all round`]}));
-  [ox0, ox1-0.5].forEach(gx=>out.push(part('Glide','hw','buy',[gx,by-(G.under?0.5:-1),bz,0.5,0.5,len],'x',{ex:[gx<ox0+1?-.3:.3,0,1.2], hw:true, note:`${G.name}, ${len}″`})));
+/* a drawer: front over x0..x1 × y0..y1; box on runners in the opening between the ends */
+function drawer(c, name, x0,x1,y0,y1, fixedFront=false, hid, bay){
+  const T=T_(), U=x1-x0, V=y1-y0, out=[];
+  const fr=part(fixedFront?`${name} (false front)`:`${name} front`,'front','carcass',[x0,y0,c.front-T,U,V,T],'z',{ex:[0,0,fixedFront?2.2:3], band:{long:2,short:2},
+    cnc:{ U, V, u:['left','right'], v:['bottom','top'], up:'back face (inside)', outline:rectO(U,V), ops: fixedFront ? [] : handleOps(U,V,hid,'drawer') }, note: fixedFront?'Screwed to the front stretcher, no box':'' });
+  out.push(fr); if(fixedFront) return out;
+  if(hid && handleById(hid)) out.push(part('Handle','hw','buy',[x0+U/2-2,y1-2.75,c.front,4,0.5,0.9],'z',{ex:[0,0,3.6], hw:true, note:handleById(hid).name}));
+  const R=runnerSpec(), Dr=S.drawer, avail=c.zbF-0.5, len=[...R.lens].sort((a,b)=>b-a).find(l=>l<=avail) || Math.min(...R.lens);
+  const ox0=bay?bay[0]:c.ix0, ox1=bay?bay[1]:c.ix1, ow=ox1-ox0, bw=ow-R.clear, L=len+R.boxPlus;
+  const sh=[...Dr.sides].sort((a,b)=>b-a).find(h=>h<=V-1.75) || Math.min(...Dr.sides);
+  const by=Math.max(y0, c.y0)+0.5, bx=ox0+R.clear/2, bz=c.front-T-L;
+  const fbU=bw-2*T+2*Dr.tongue, fbV=sh-Dr.groove-T-Dr.topDrop, botU=bw-2*T+2*Dr.grooveDepth;
+  const sideOps = s => [
+    { k:'groove', u0:0, u1:r4(L), v0:Dr.groove, v1:r4(Dr.groove+T+S.dado.fit), depth:Dr.grooveDepth, tool:'½″', side:'A', what:'Bottom groove' },
+    { k:'dado', u0:Dr.dadoIn, u1:r4(Dr.dadoIn+Dr.dadoW), v0:Dr.groove, v1:r4(sh-Dr.topDrop), depth:Dr.dadoDepth, tool:'¼″', side:'A', what:'Front dado' },
+    { k:'dado', u0:r4(L-Dr.dadoIn-Dr.dadoW), u1:r4(L-Dr.dadoIn), v0:Dr.groove, v1:r4(sh-Dr.topDrop), depth:Dr.dadoDepth, tool:'¼″', side:'A', what:'Back dado' } ];
+  [['left',bx],['right',bx+bw-T]].forEach(([s,x])=>out.push(part(`${name} box side, ${s}`,'drawer','carcass',[x,by,bz,T,sh,L],'x',{ex:[s==='left'?-.5:.5,0,1.6], band:{long:1,short:0},
+    cnc:{ U:L, V:sh, u:['back','front'], v:['bottom','top'], up:'inside face', outline:rectO(L,sh), ops:sideOps(s) } })));
+  const fb = (nm, z) => part(nm,'drawer','carcass',[bx+T-Dr.tongue,by+Dr.groove+T,z,fbU,fbV,T],'z',{ex:[0,0,nm.includes('front')?2.1:1.1], band:{long:1,short:0},
+    cnc:{ U:fbU, V:fbV, u:['left','right'], v:['bottom','top'], up:'inside face', outline:rectO(fbU,fbV),
+      ops:[ { k:'rabbet', u0:0, u1:Dr.dadoIn+Dr.dadoW-0.01, v0:0, v1:r4(fbV), depth:r4(T-Dr.tongue), tool:'¼″', side:'A', what:'Tongue rabbet, left end' },
+            { k:'rabbet', u0:r4(fbU-(Dr.dadoIn+Dr.dadoW-0.01)), u1:r4(fbU), v0:0, v1:r4(fbV), depth:r4(T-Dr.tongue), tool:'¼″', side:'A', what:'Tongue rabbet, right end' } ] }, note:'Sits on the drawer bottom' });
+  out.push(fb(`${name} box front`, c.front-T-T-0.0), fb(`${name} box back`, bz));
+  out.push(part(`${name} box bottom`,'drawer','carcass',[bx+T-Dr.grooveDepth,by+Dr.groove,bz,botU,T,L],'y',{ex:[0,-.6,1.6],
+    cnc:{ U:botU, V:L, u:['left','right'], v:['back','front'], up:'underside', outline:rectO(botU,L), ops:[] }, note:'Slides into the side grooves, full length' }));
+  // runner holes on both ends, one row per drawer
+  const rowY = by + R.rowAbove, us=[...R.front.map(m=>m*MM), ...R.rear.map(m=>len*25.4 - m).map(m=>m*MM)];
+  [c.ends.L, c.ends.R].forEach(end=>us.forEach(u=>end.cnc.ops.push({ k:'hole', u:r4(u), v:r4(rowY), d:5*MM, depth:R.holeDepth, side:'A', what:`Runner holes (${len}″ runner)` })));
+  [ox0, ox1-0.5].forEach(gx=>out.push(part('Runner','hw','buy',[gx,by-0.5,bz,0.5,0.5,len],'x',{ex:[gx<ox0+1?-.3:.3,0,1.2], hw:true, note:`${R.name}, ${len}″`})));
   return out;
 }
-/* drawer fronts stacked from the top down: heights[] of the fronts, top first; fills y0..y1 */
-function drawerStack(x0,x1,y0,y1, heights, ox0,ox1, dc, zb){
-  const out=[]; let y=y1;
-  heights.forEach((hh,i)=>{ out.push(...drawer(`Drawer ${i+1}`, x0,x1,y-hh,y, ox0,ox1, dc, zb)); y-=hh; });
+/* drawer fronts stacked from the top down: heights[] top first; fills y0..y1 with the front gap between */
+function drawerStack(c, x0, x1, y0, y1, heights, hid){
+  const s=S.fronts.side, g=S.fronts.gap, out=[]; let y=y1;
+  heights.forEach((hh,i)=>{ out.push(...drawer(c, `Drawer ${i+1}`, x0+s, x1-s, y-hh, y, false, hid)); y-=hh+g; });
   return out;
 }
-const split = (total, n, first) => first ? [first, ...Array(n-1).fill((total-first)/(n-1))] : Array(n).fill(total/n);
+/* split the height of a stack of n fronts (gaps between them), the top one `first` high if given */
+const split = (total, n, first, g=S.fronts.gap) => { const net=total-(n-1)*g; return first ? [first, ...Array(n-1).fill((net-first)/(n-1))] : Array(n).fill(net/n); };
+
 
 /* ---------------------------------------------------------------- simple solids (appliances, furniture, tops) */
 const solid = (name, role, box, ex=[0,0,0], note='') => ({ ...part(name, role, role==='top'?'counter':'buy', box, 'y', {ex}), solid:true, note });
@@ -231,13 +326,14 @@ const ITEMS = [];
 const def = o => { ITEMS.push({ wR:[6,48], hR:[6,108], dR:[6,30], opts:[], ...o }); };
 
 /* base cabinets: 34½″ box + countertop = 36″; 24″ deep with the doors */
+const hidOf = it => it.opt?.handle ?? S.handle;
 const baseBuild = kind => it => {
   const c=carcass(it,{kick:true, top:'stretchers', adj: kind==='door'||kind==='doordrawer' ? (it.opt.shelves??1) : 0});
-  const { parts:P, t, dc, kh, ix0, ix1, zb } = c, H=it.h, W=it.w;
-  if(kind==='door') P.push(...doors(0,W,kh,H,dc,'top'));
-  if(kind==='doordrawer'){ const dh=it.opt.top??6; P.push(...drawer('Drawer', 0,W,H-dh,H, ix0,ix1, dc, zb), ...doors(0,W,kh,H-dh,dc,'top')); }
-  if(kind==='drawers'){ const n=it.opt.drawers??3; P.push(...drawerStack(0,W,kh,H, split(H-kh, n, n>2?6:0), ix0,ix1, dc, zb)); }
-  if(kind==='sink'){ P.push(...drawer('Top', 0,W,H-6,H, ix0,ix1, dc, zb, true), ...doors(0,W,kh,H-6,dc,'top')); }
+  const P=c.parts, H=it.h, W=it.w, [f0,f1]=frontSpan('base',c,H), g=S.fronts.gap, s=S.fronts.side, hid=hidOf(it);
+  if(kind==='door') P.push(...doors(c,W,f0,f1,'top','Door',hid));
+  if(kind==='doordrawer'){ const dh=it.opt.top??6; P.push(...drawer(c,'Drawer', s,W-s, f1-dh,f1, false, hid), ...doors(c,W,f0,f1-dh-g,'top','Door',hid)); }
+  if(kind==='drawers'){ const n=it.opt.drawers??3; P.push(...drawerStack(c, 0,W, f0,f1, split(f1-f0, n, n>2?6.75:0), hid)); }
+  if(kind==='sink'){ P.push(...drawer(c,'Top', s,W-s, f1-6,f1, true), ...doors(c,W,f0,f1-6-g,'top','Door',hid)); }
   return P;
 };
 def({ k:'B',   cat:'base', name:'Base, doors',           w:18, h:34.5, d:24, sizes:W_STD, opts:[['shelves','Shelves',[0,1,2]]], opt:{shelves:1}, build:baseBuild('door') });
@@ -249,8 +345,8 @@ def({ k:'BS',  cat:'base', name:'Sink base',             w:30, h:34.5, d:24, siz
 const upperBuild = open => it => {
   const n = it.opt.shelves ?? Math.max(0, Math.round((it.h-12)/12));
   const c=carcass(it,{kick:false, top:'full', adj:n, doors:!open});
-  const { parts:P, dc } = c;
-  if(!open) P.push(...doors(0,it.w,0,it.h,dc,'bottom'));
+  const P=c.parts, [f0,f1]=frontSpan('upper',c,it.h);
+  if(!open) P.push(...doors(c,it.w,f0,f1,'bottom','Door',hidOf(it)));
   return P;
 };
 def({ k:'W',  cat:'upper', name:'Upper, doors',     w:30, h:30, d:12, sizes:W_STD, hSizes:[12,15,18,24,30,36,42], opts:[['shelves','Shelves',[0,1,2,3]]], opt:{shelves:2}, build:upperBuild(false) });
@@ -258,34 +354,34 @@ def({ k:'WO', cat:'upper', name:'Upper, open',      w:30, h:30, d:12, sizes:W_ST
 def({ k:'WF', cat:'upper', name:'Over the fridge',  w:30, h:15, d:24, sizes:[24,30,33,36], hSizes:[12,15,18,24], opt:{shelves:0}, build:upperBuild(false) });
 
 /* pantries: 84 / 90 / 96″, 24″ deep; a fixed shelf where the doors split */
-def({ k:'P', cat:'tall', name:'Pantry, doors', w:24, h:84, d:24, sizes:[18,24,30,36], hSizes:[84,90,96], opts:[['shelves','Shelves',[3,4,5,6]]], opt:{shelves:4},
-  build: it => { const split=Math.min(it.h-24, 48); const c=carcass(it,{kick:true, top:'full', fixed:[split-th('carcass')/2], adj:it.opt.shelves??4});
-    const { parts:P, kh, dc } = c; P.push(...doors(0,it.w,kh,split,dc,'top','Lower door'), ...doors(0,it.w,split,it.h,dc,'bottom','Upper door')); return P; } });
+def({ k:'P', cat:'tall', name:'Pantry, doors', w:24, h:84, d:24, sizes:[18,20,24,30,36], hSizes:[74,84,90,96], opts:[['shelves','Shelves',[3,4,5,6]],['split','Door split at',[35.4,48]]], opt:{shelves:4, split:35.4},
+  build: it => { const sp=Math.min(it.opt.split ?? 35.4, it.h-12), T=th(), g=S.fronts.gap; const c=carcass(it,{kick:true, top:'full', fixed:[sp-0.17], adj:it.opt.shelves??4});
+    const P=c.parts, [f0,f1]=frontSpan('tall',c,it.h), hid=hidOf(it); P.push(...doors(c,it.w,f0,sp-g/2,'top','Lower door',hid), ...doors(c,it.w,sp+g/2,f1,'bottom','Upper door',hid)); return P; } });
 def({ k:'PD', cat:'tall', name:'Pantry, drawers + doors', w:24, h:84, d:24, sizes:[18,24,30,36], hSizes:[84,90,96], opts:[['drawers','Drawers',[2,3,4]]], opt:{drawers:3},
-  build: it => { const top=36; const c=carcass(it,{kick:true, top:'full', fixed:[top-th('carcass')], adj:3});
-    const { parts:P, kh, dc, ix0, ix1, zb } = c; const n=it.opt.drawers??3;
-    P.push(...drawerStack(0,it.w,kh,top, split(top-kh,n), ix0,ix1, dc, zb), ...doors(0,it.w,top,it.h,dc,'bottom','Upper door')); return P; } });
+  build: it => { const top=36, g=S.fronts.gap; const c=carcass(it,{kick:true, top:'full', fixed:[top-th()], adj:3});
+    const P=c.parts, [f0,f1]=frontSpan('tall',c,it.h), n=it.opt.drawers??3, hid=hidOf(it);
+    P.push(...drawerStack(c, 0,it.w, f0,top-g/2, split(top-g/2-f0,n), hid), ...doors(c,it.w,top+g/2,f1,'bottom','Upper door',hid)); return P; } });
 
 /* linen towers: 18 / 24″ wide, 84″, 21″ deep */
 def({ k:'L', cat:'linen', name:'Linen tower', w:18, h:84, d:21, sizes:[15,18,21,24], hSizes:[72,84,90,96], opts:[['base','Lower part',['drawers','doors']]], opt:{base:'drawers'},
-  build: it => { const top=34.5; const c=carcass(it,{kick:true, top:'full', fixed:[top-th('carcass')], adj:3});
-    const { parts:P, kh, dc, ix0, ix1, zb } = c;
-    if(it.opt.base==='doors') P.push(...doors(0,it.w,kh,top,dc,'top','Lower door')); else P.push(...drawerStack(0,it.w,kh,top, split(top-kh,3), ix0,ix1, dc, zb));
-    P.push(...doors(0,it.w,top,it.h,dc,'bottom','Upper door')); return P; } });
+  build: it => { const top=34.5, g=S.fronts.gap; const c=carcass(it,{kick:true, top:'full', fixed:[top-th()], adj:3});
+    const P=c.parts, [f0,f1]=frontSpan('tall',c,it.h), hid=hidOf(it);
+    if(it.opt.base==='doors') P.push(...doors(c,it.w,f0,top-g/2,'top','Lower door',hid)); else P.push(...drawerStack(c, 0,it.w, f0,top-g/2, split(top-g/2-f0,3), hid));
+    P.push(...doors(c,it.w,top+g/2,f1,'bottom','Upper door',hid)); return P; } });
 
 /* wardrobes: 24″ deep, 84 / 96″ tall */
 def({ k:'WD', cat:'wardrobe', name:'Wardrobe', w:36, h:84, d:24, wR:[18,48], sizes:[18,24,30,36,42,48], hSizes:[84,90,96],
   opts:[['inside','Inside',['hang','double','drawers','shelves']]], opt:{inside:'hang'},
   build: it => {
-    const ins=it.opt.inside||'hang', H=it.h, W=it.w, t=th('carcass'), shelfY=H-14;
+    const ins=it.opt.inside||'hang', H=it.h, W=it.w, t=th(), shelfY=H-14;
     const fixed = ins==='shelves' ? [] : ins==='drawers' ? [S.kick.h+28, shelfY] : ins==='double' ? [ (H-S.kick.h)/2+S.kick.h, shelfY ] : [shelfY];
     const c=carcass(it,{kick:true, top:'full', fixed, adj: ins==='shelves' ? Math.round((H-S.kick.h)/12)-1 : 0});
-    const { parts:P, kh, dc, ix0, ix1, zb } = c;
+    const { parts:P, kh, dc, ix0, ix1, zb } = c, hid=hidOf(it);
     const rod = (y, nm='Closet rod') => P.push({...part(nm,'hw','buy',[ix0,y-1,zb+(dc-zb)/2-0.5,ix1-ix0,1,1],'y',{ex:[0,0,.8], hw:true, note:`${S.rod.name}, ${fmtU(ix1-ix0)}`})});
     if(ins==='hang') rod(shelfY-2);
     if(ins==='double'){ rod(fixed[0]-2,'Closet rod, lower'); rod(shelfY-2,'Closet rod, upper'); }
-    if(ins==='drawers'){ P.push(...drawerStack(ix0,ix1,kh,kh+28, split(28,3), ix0,ix1, dc-th('door'), zb).map(p=>{ if(p.role==='front'){ p.name=p.name.replace('front','inside front'); } return p; })); rod(shelfY-2); }
-    P.push(...doors(0,W,kh,H,dc,'mid'));
+    if(ins==='drawers'){ P.push(...drawerStack({...c, front:c.front-t-1}, ix0,ix1, kh+t,kh+28, split(28-t,3), hid).map(p=>{ if(p.role==='front'){ p.name=p.name.replace('front','inside front'); } return p; })); rod(shelfY-2); }
+    const [f0,f1]=frontSpan('tall',c,H); P.push(...doors(c,W,f0,f1,'mid','Door',hid));
     return P; } });
 
 /* vanities: 21″ deep, 34½″ (or 32½″) */
@@ -294,24 +390,24 @@ def({ k:'VDR', cat:'vanity', name:'Vanity, drawers',        w:18, h:34.5, d:21, 
 
 /* window benches: 18″ seat (with cushion on top), 18–20″ deep */
 def({ k:'WB', cat:'bench', name:'Window bench, drawers', w:48, h:17, d:18, wR:[24,120], sizes:[36,48,60,72,84,96], hSizes:[16,17,18], dSizes:[16,18,20], opts:[['bays','Drawers across',[1,2,3,4]]], opt:{bays:2},
-  build: it => { const n=it.opt.bays??2, W=it.w, t=th('carcass'); const xs=[...Array(n-1)].map((_,i)=>t+(W-2*t)*(i+1)/n);
-    const c=carcass(it,{kick:true, top:'full', parts:xs}); const { parts:P, kh, dc, zb } = c;
-    const edges=[0, ...xs, W], inner=[t, ...xs, W-t];
-    for(let i=0;i<n;i++){ const ox0=i===0?t:xs[i-1]+t/2, ox1=i===n-1?W-t:xs[i]-t/2; P.push(...drawer(`Drawer ${i+1}`, edges[i], edges[i+1], kh, it.h, ox0, ox1, dc, zb)); }
+  build: it => { const n=it.opt.bays??2, W=it.w, t=th(), s=S.fronts.side, g=S.fronts.gap; const xs=[...Array(n-1)].map((_,i)=>t+(W-2*t)*(i+1)/n);
+    const c=carcass(it,{kick:true, top:'full', parts:xs}); const P=c.parts, [f0,f1]=frontSpan('base',c,it.h), hid=hidOf(it);
+    const edges=[s, ...xs.flatMap(x=>[x-g/2,x+g/2]), W-s];
+    for(let i=0;i<n;i++){ const ox0=i===0?t:xs[i-1]+t/2, ox1=i===n-1?W-t:xs[i]-t/2; P.push(...drawer(c, `Drawer ${i+1}`, edges[2*i], edges[2*i+1], f0, f1, false, hid, [ox0,ox1])); }
     return P; } });
 def({ k:'WBL', cat:'bench', name:'Window bench, lift top', w:48, h:17, d:18, wR:[24,120], sizes:[36,48,60,72,84,96], hSizes:[16,17,18], dSizes:[16,18,20],
   build: it => { const c=carcass(it,{kick:true, top:'stretchers', doors:false}); const { parts:P, kh, dc, t } = c; const W=it.w, H=it.h;
-    P.push(part('Front panel','front','door',[t,kh,dc-th('door'),W-2*t,H-kh-t,th('door')],'z',{ex:[0,0,1.5], band:{long:1,short:0}, ops:['Tenons into the sides like a fixed panel']}));
-    P.push(part('Lid','front','door',[0,H,0,W,th('door'),dc],'y',{ex:[0,1.8,0], band:{long:2,short:2}, ops:['Piano hinge along the back, lid stay at one end']}));
+    P.push(part('Front panel','front','carcass',[t,kh,dc-th(),W-2*t,H-kh-t,th()],'z',{ex:[0,0,1.5], band:{long:1,short:0}, ops:['Screwed between the ends behind the front stretcher']}));
+    P.push(part('Lid','front','carcass',[0,H,0,W,th(),dc],'y',{ex:[0,1.8,0], band:{long:2,short:2}, ops:['Piano hinge along the back, lid stay at one end']}));
     P.push(part('Piano hinge','hw','buy',[t,H-0.1,0.4,W-2*t,0.2,1],'y',{ex:[0,1.2,0], hw:true}));
     return P; } });
 
 /* shelves */
 def({ k:'SO', cat:'shelf', name:'Open shelving / bookcase', w:30, h:72, d:12, wR:[12,48], sizes:[18,24,30,36,42,48], hSizes:[30,36,48,60,72,84,96], dSizes:[10,12,14,16], opts:[['shelves','Shelves',[2,3,4,5,6]]], opt:{shelves:4},
-  build: it => { const n=it.opt.shelves??4, kh=S.kick.h, t=th('carcass'); const fixed=[...Array(n)].map((_,i)=>kh+t+(it.h-kh-2*t)*(i+1)/(n+1)-t/2);
+  build: it => { const n=it.opt.shelves??4, kh=S.kick.h, t=th(); const fixed=[...Array(n)].map((_,i)=>kh+t+(it.h-kh-2*t)*(i+1)/(n+1)-t/2);
     const c=carcass(it,{kick:true, top:'full', fixed, doors:false}); return c.parts; } });
 def({ k:'SF', cat:'shelf', name:'Floating shelf', w:48, h:2, d:10, y:60, wR:[12,120], sizes:[24,36,48,60,72,96], hSizes:[1.75,2,2.5,3], dSizes:[8,10,12],
-  build: it => { const t=th('back'), W=it.w, H=it.h, D=it.d;
+  build: it => { const t=th(), W=it.w, H=it.h, D=it.d;
     return [ part('Top skin','shelf','back',[0,H-t,0,W,t,D],'y',{ex:[0,1,0], band:{long:1,short:2}}),
       part('Bottom skin','shelf','back',[0,0,0,W,t,D],'y',{ex:[0,-1,0], band:{long:1,short:2}}),
       part('Front edge','shelf','back',[0,t,D-t,W,H-2*t,t],'z',{ex:[0,0,1]}),
@@ -321,11 +417,11 @@ def({ k:'SF', cat:'shelf', name:'Floating shelf', w:48, h:2, d:10, y:60, wR:[12,
 const INSERTS = { 50:{w:50, h:16.5, d:5.75}, 60:{w:60, h:16.5, d:5.75}, 72:{w:72, h:16.5, d:5.75} };
 def({ k:'FP', cat:'fire', name:'Fireplace surround, linear electric', w:72, h:40, d:16, wR:[48,120], sizes:[60,72,84,96], hSizes:[30,36,40,48,84,96], dSizes:[14,16,18],
   opts:[['insert','Insert',['50','60','72']]], opt:{insert:'60'},
-  build: it => { const I=INSERTS[it.opt.insert]||INSERTS[60]; const W=it.w, H=it.h, t=th('carcass');
+  build: it => { const I=INSERTS[it.opt.insert]||INSERTS[60]; const W=it.w, H=it.h, t=th();
     const iy=Math.min(18, H-I.h-4), fy=iy-t;
     const c=carcass(it,{kick:true, top:'full', fixed:[fy]}); const { parts:P, dc } = c;
     const fw=Math.min(I.w, W-2*t-2), fx=(W-fw)/2;
-    const face=part('Face panel','front','door',[0,S.kick.h,dc,W,H-S.kick.h,th('door')],'z',{ex:[0,0,2], band:{long:2,short:2}, grain:'v', ops:[`Cut-out for the insert ${fmtU(fw)} × ${fmtU(I.h)} (check the insert's own cut-out size)`, 'Cut back face up']});
+    const face=part('Face panel','front','carcass',[0,S.kick.h,dc,W,H-S.kick.h,th()],'z',{ex:[0,0,2], band:{long:2,short:2}, ops:[`Cut-out for the insert ${fmtU(fw)} × ${fmtU(I.h)} (check the insert's own cut-out size)`, 'Cut back face up']});
     face.hole=[fx, iy, fw, I.h]; P.push(face);
     P.push({ ...solid(`Electric insert ${I.w}″`, 'appliance', [fx, iy, dc-I.d+0.75, fw, I.h, I.d], [0,0,3.2]), note:'Generic linear electric insert, check the model’s size and clearances' });
     return P; } });
@@ -454,23 +550,28 @@ function newItem(k){
   if(d.sized) Object.assign(it, d.sized(it));
   return it;
 }
-/* every part of an item, with its cut size, edge band and machining notes */
+/* every part of an item, with its cut size, edge band and machining */
+const mirU = c => { if(!c) return c; const U=c.U, swap=w=>({left:'right',right:'left','left end':'right end','right end':'left end','hinge edge':'hinge edge','opening edge':'opening edge'}[w]||w);
+  return { ...c, u:[swap(c.u[1]), swap(c.u[0])], outline:c.outline.map(([u,v])=>[r4(U-u),v]).reverse(),
+    ops:c.ops.map(o=>o.u!=null ? {...o, u:r4(U-o.u)} : {...o, u0:r4(U-o.u1), u1:r4(U-o.u0)}) }; };
 function partsOf(it){
   const d=itemDef(it.k); if(!d) return [];
   const P=d.build({ ...it, opt:{...(d.opt||{}), ...(it.opt||{})} }).filter(Boolean).map(finishPart);
   if(!!it.mirror !== !!d.mirrored){   // mirrored left ↔ right: hinges, drawers, partitions and names change sides
     const W=it.w, sw=s=>String(s).replace(/\b(left|right|Left|Right)\b/g, w=>({left:'right',right:'left',Left:'Right',Right:'Left'}[w]));
-    P.forEach(p=>{ p.box=[W-p.box[0]-p.box[3], ...p.box.slice(1)]; p.tenonGeo=(p.tenonGeo||[]).map(b=>[W-b[0]-b[3], ...b.slice(1)]);
-      if(p.hole) p.hole=[W-p.hole[0]-p.hole[2], ...p.hole.slice(1)]; if(p.mesh) p.mirrorW=W; p.ex=[-p.ex[0], p.ex[1], p.ex[2]]; p.name=sw(p.name); p.ops=p.ops.map(sw); });
+    P.forEach(p=>{ p.box=[W-p.box[0]-p.box[3], ...p.box.slice(1)];
+      if(p.hole) p.hole=[W-p.hole[0]-p.hole[2], ...p.hole.slice(1)]; if(p.mesh) p.mirrorW=W; p.ex=[-p.ex[0], p.ex[1], p.ex[2]]; p.name=sw(p.name); p.ops=p.ops.map(sw);
+      if(p.cnc && /left|right|hinge|opening/.test(p.cnc.u.join(' ')) && !/end$/.test(p.name)) p.cnc=mirU(p.cnc); });
   }
   return P;
 }
-/* the cut list: parts grouped by material and size */
+/* the cut list: parts grouped by name and size (left/right pairs together when they're cut the same) */
+const sigOf = p => p.cnc ? JSON.stringify([p.cnc.outline, p.cnc.ops.map(o=>[o.k,o.u,o.v,o.u0,o.u1,o.v0,o.v1,o.depth])]) : '';
 function cutList(it){
   const rows=new Map();
   partsOf(it).filter(p=>!p.hw && !p.solid).forEach(p=>{
-    const nom=S.use[p.mat]||p.mat, key=[p.name.replace(/, (left|right)$/,'').replace(/ \d+( |$)/,' # '),nom,p.cutL,p.cutW,p.band.long,p.band.short].join('|');
-    const r=rows.get(key); if(r) r.qty++; else rows.set(key,{ name:p.name, nom, T:p.T, L:p.cutL, W:p.cutW, fL:p.L, fW:p.W, band:p.band, ten:p.ten, ops:p.ops, qty:1 });
+    const key=[p.name.replace(/, (left|right)$/,'').replace(/^(Left|Right) end$/,'End').replace(/ \d+( |$)/,' # '),p.cutL,p.cutW,p.band.long,p.band.short,sigOf(p)].join('|');
+    const r=rows.get(key); if(r){ r.qty++; r.parts.push(p); } else rows.set(key,{ name:p.name, nom:nomOf(), T:p.T, L:p.cutL, W:p.cutW, fL:p.L, fW:p.W, band:p.band, ops:p.ops, qty:1, parts:[p] });
   });
   return [...rows.values()];
 }
@@ -478,26 +579,23 @@ function cutList(it){
 function hardwareOf(it){
   const m=new Map();
   partsOf(it).filter(p=>p.hw).forEach(p=>{
-    const nm = p.name==='Hinge' ? S.hinge.name : p.name==='Pull' ? `${S.pull.name}, ${Math.round(S.pull.cc/MM)} mm c-c` : p.note || p.name;
+    const nm = p.name==='Hinge' ? hingeSpec().name : p.note || p.name;
     m.set(nm,(m.get(nm)||0)+1);
   });
-  const P=partsOf(it).filter(p=>!p.hw && !p.solid);
-  const joints=P.reduce((s,p)=>s+(p.ten||0)*2,0);
-  if(joints) m.set(`${S.screw.name} (at the joints, every ${fmtU(S.screw.every)})`, Math.ceil(joints/2));
   return [...m.entries()].map(([name,qty])=>({name,qty}));
 }
-/* totals for a list of placed items: plywood area per thickness, banding length */
+/* totals for a list of placed items: sheet area, banding length */
 function totals(items){
   const area={}, band={len:0};
-  items.forEach(it=>partsOf(it).filter(p=>!p.hw && !p.solid).forEach(p=>{ const n=S.use[p.mat]||p.mat; area[n]=(area[n]||0)+p.cutL*p.cutW/144; band.len+=p.bandLen; }));
-  const sheet=S.ply.sheet[0]*S.ply.sheet[1]/144;
-  return { area, sheets:Object.fromEntries(Object.entries(area).map(([n,a])=>[n, Math.ceil(a*1.2/sheet)])), bandFt:Math.ceil(band.len/12*1.1) };
+  items.forEach(it=>partsOf(it).filter(p=>!p.hw && !p.solid).forEach(p=>{ const n=nomOf(); area[n]=(area[n]||0)+p.cutL*p.cutW/144; band.len+=p.bandLen; }));
+  const sheet=S.mat.sheet[0]*S.mat.sheet[1]/144;
+  return { area, sheets:Object.fromEntries(Object.entries(area).map(([n,a])=>[n, Math.ceil(a*1.12/sheet)])), bandFt:Math.ceil(band.len/12*1.1) };
 }
 function csv(it, name){
-  const rows=[['Part','Qty','Ply','Cut length','Cut width','Finished L','Finished W','Band long edges','Band short edges','Tenons/end','Machining']];
-  cutList(it).forEach(r=>rows.push([r.name,r.qty,r.nom,fmt(r.L),fmt(r.W),fmt(r.fL),fmt(r.fW),r.band.long,r.band.short,r.ten||'',r.ops.join('; ')]));
+  const rows=[['Part','Qty','Material','Cut length','Cut width','Thickness','Band long edges','Band short edges','Machining']];
+  cutList(it).forEach(r=>rows.push([r.name,r.qty,r.nom,fx3(r.L,'in'),fx3(r.W,'in'),fx3(r.T,'in'),r.band.long,r.band.short,r.ops.join('; ')]));
   rows.push([]); rows.push(['Hardware','Qty']); hardwareOf(it).forEach(h=>rows.push([h.name,h.qty]));
-  rows.unshift([`${name} — ${fmt(it.w)} W × ${fmt(it.h)} H × ${fmt(it.d)} D (${S.units==='mm'?'mm':'inches'})`]);
+  rows.unshift([`${name} — ${fmt(it.w)} W × ${fmt(it.h)} H × ${fmt(it.d)} D (inches)`]);
   return rows.map(r=>r.map(v=>/[",\n]/.test(String(v))?`"${String(v).replace(/"/g,'""')}"`:v).join(',')).join('\n');
 }
-export { loadFixtures, DEFAULTS, MM, CATS, ITEMS, itemDef, catOf, newItem, partsOf, cutList, hardwareOf, totals, csv, fmt, fmtU, settings, loadSettings, saveSettings, th, nomOf };
+export { fx3, hingeSpec, runnerSpec, handleById, SETTINGS_V, loadFixtures, DEFAULTS, MM, CATS, ITEMS, itemDef, catOf, newItem, partsOf, cutList, hardwareOf, totals, csv, fmt, fmtU, settings, loadSettings, saveSettings, th, nomOf };

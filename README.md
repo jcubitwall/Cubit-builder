@@ -292,3 +292,18 @@ Pick an item, tap 📏 Measure from…, then tap any point of reference on the d
 
 ## Names beside codes
 Walls, floors / ceilings / roofs, pods and decks in a home can be given a name (Name button in the side panel; a pod's name also in Plan). The code stays (Wall D, panels 1D-1 …) and the name shows beside it: "Wall D · Kitchen wall", on the sheets and the labels too (`js/names.js`, kept per home in projects, drafts and published homes). Openings, boxes and layer holes get an optional name in the panel builder (shown on the sheets); cabinets and fixtures a name in their side panel. Library items are renamed in the Library.
+
+## Cabinets: Mozaik's construction
+The cabinet library builds cabinets the way Cubit has for years in Mozaik (`docs/mozaik-cabinet-rules.md`, read from Brad's test kitchen):
+- One sheet material at its measured thickness.
+- Dado construction with stopped dados and notched panels. The back sits in a dado and a groove in the bottom.
+- System 32 shelf pins, 37 mm from the front and 64 mm from the back, 7 holes per shelf.
+- Blum or DTC press-in hinges: cup, dowels and plate marks.
+- Runner holes for each drawer.
+- 16 mm drawer boxes with tongues in ¼″ dados.
+
+Every part carries its exact machining (`part.cnc`). In the library, opening a part draws it as it lies on the CNC: outline, notches, dados, holes and dimension chains, plus a table of every cut, its bit, its position from the edges and its depth. **Cutting plan** shows every part of a cabinet and prints as a booklet.
+- Side A is the last program, the one with the cut-throughs.
+- Side B is cut first, and only if a part has cuts on its other face.
+
+Handles are picked per cabinet, or left to drill later (the default). `node tools/mozaik/compare.mjs` checks the rules against Mozaik's cut list.
