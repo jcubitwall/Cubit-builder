@@ -6,7 +6,7 @@
      · round holes right through
      · rectangular and round pockets from the top or the bottom face, to any depth
    Every item can be switched between "right through" and a pocket from either face, with its depth.
-   Tap an item to pick it and type its size and place (inches); drag it to move it. View from above or from below
+   Tap an item to pick it and type its size and place (inches); drag a picked item to move it, along or across only. View from above or from below
    (from below, left and right swap, as when you look up at it). Mirror turns it end for end, Flip front to back.
    Save puts it in the layer library (shared by the team, functions/api/layers.js), ready to pick for any pod of
    that length; opened from a pod's layer, saving also puts it on that pod.
@@ -133,7 +133,7 @@ function fields(){
       <div class="cw-fs">${f('x','Left edge from the left end', ssx(it))}${f('z','Top edge from the top edge', it.z)}</div>
       ${pk.length?`<div class="cw-opt"><span>Pockets cut from</span><div class="seg"><button data-sface="top" aria-pressed="${it.face!=='bottom'}">Top face</button><button data-sface="bottom" aria-pressed="${it.face==='bottom'}">Bottom face</button></div></div>`:''}
       <div class="row"><button class="btn ghost sm" data-smir="x">Mirror</button><button class="btn ghost sm" data-smir="y">Flip</button><button class="btn ghost sm" id="lbSDup">Duplicate</button><button class="btn ghost sm" id="lbSDel">Remove</button></div></div>`; }
-  if(sel==null) return `<p class="note">Tap an item to size and place it, or drag it. Measurements are from the left end and the top edge as you see it now.</p>`;
+  if(sel==null) return `<p class="note">Tap an item to pick it, then drag it to move it along or across (one at a time), or type its size and place. Measurements are from the left end and the top edge as you see it now.</p>`;
   const h=Lr.holes[sel]; if(!h) return '';
   const round=h.shape==='round', shaped=h.shape==='poly' || h.shape==='slot', c=cutOf(h);
   const f=(id,label,v)=>`<label class="cw-f"><span>${label}</span><input data-f="${id}" inputmode="decimal" value="${Math.round(v*16)/16}"><i>″</i></label>`;
@@ -235,10 +235,16 @@ function bind(){
   svg.addEventListener('pointerdown', e=>{ const t=e.target.closest('[data-k]');
     if(!t){ if(sel!=null || ssel!=null){ sel=null; ssel=null; render(); } return; }
     const i=+t.dataset.i, p=toP(e);
-    if(t.dataset.k==='s'){ const it=Lr.shapes[i]; ssel=i; sel=null; drag={s:true, i, p0:p, x0:ssx(it), z0:it.z}; svg.setPointerCapture(e.pointerId); e.preventDefault(); return; }
-    const h=Lr.holes[i]; ssel=null;
-    sel=i; drag={i, p0:p, x0:sx(h), z0:h.z, px:h.x, path:h.path?clone(h.path):null}; svg.setPointerCapture(e.pointerId); e.preventDefault(); });
-  svg.addEventListener('pointermove', e=>{ if(!drag) return; const p=toP(e);
+    e.preventDefault();
+    // first tap only picks it; once picked, a drag moves it along one line only (along or across)
+    const c0=[e.clientX,e.clientY];
+    if(t.dataset.k==='s'){ if(ssel!==i){ ssel=i; sel=null; render(); return; } const it=Lr.shapes[i]; drag={s:true, i, p0:p, c0, x0:ssx(it), z0:it.z}; svg.setPointerCapture(e.pointerId); return; }
+    if(sel!==i){ sel=i; ssel=null; render(); return; }
+    const h=Lr.holes[i];
+    drag={i, p0:p, c0, x0:sx(h), z0:h.z, px:h.x, path:h.path?clone(h.path):null}; svg.setPointerCapture(e.pointerId); });
+  svg.addEventListener('pointermove', e=>{ if(!drag) return; let p=toP(e);
+    if(!drag.axis){ const dx=e.clientX-drag.c0[0], dy=e.clientY-drag.c0[1]; if(Math.hypot(dx,dy)<8) return; drag.axis=Math.abs(dx)>=Math.abs(dy)?'x':'y'; }
+    drag.moved=true; p = drag.axis==='x' ? {x:p.x, y:drag.p0.y} : {x:drag.p0.x, y:p.y};
     if(drag.s){ const it=Lr.shapes[drag.i], nx=r8(drag.x0+(p.x-drag.p0.x)), nz=r8(drag.z0+(p.y-drag.p0.y)); it.x=fromSsx(it,nx); it.z=Math.max(-it.h/2, Math.min(WID-it.h/2, nz));
       svg.querySelector(`[data-k="s"][data-i="${drag.i}"]`)?.setAttribute('transform', `translate(${(ssx(it)-drag.x0).toFixed(2)} ${(it.z-drag.z0).toFixed(2)})`); return; }
     const h=Lr.holes[drag.i];
@@ -248,7 +254,7 @@ function bind(){
     const el=svg.querySelector(`[data-i="${drag.i}"]:not(.wb-hit)`), x=sx(h);
     if(el.tagName==='circle'){ el.setAttribute('cx', x+h.w/2); el.setAttribute('cy', h.z+h.d/2); }
     else if(el.tagName==='rect'){ el.setAttribute('x', x); el.setAttribute('y', h.z); } });
-  svg.addEventListener('pointerup', ()=>{ if(!drag) return; drag=null; render(); });
+  svg.addEventListener('pointerup', ()=>{ if(!drag) return; const m=drag.moved; drag=null; if(m) render(); });
 }
 const nextId=prefix=>{ let n=1; while(LAYERLIB.some(x=>x.id===`${prefix}-${String(n).padStart(2,'0')}`)) n++; return `${prefix}-${String(n).padStart(2,'0')}`; };
 async function saveLayer(asNew){

@@ -4,7 +4,7 @@
      · electrical boxes (single plug / switch 2⅜ × 3⅜, double switch 4⅛ × 3⅝, 3″ deep) on either face
      · round holes: through the wall (a vent, any size) or a blind round pocket on one face
      · openings: window (custom size and sill), door, cased opening
-   Tap an item to pick it and type its size and place (inches); drag it to move it. Flip turns the wall around
+   Tap an item to pick it and type its size and place (inches); drag a picked item to move it, sideways or up / down only. Flip turns the wall around
    (outside becomes inside), Mirror swaps left and right, the view shows it from outside or inside. Save puts it
    in the wall library (shared by the team), ready to pick for any wall of that length and type.
    Same data as the scanned walls: openings + outside items measured from the left end seen from OUTSIDE,
@@ -170,7 +170,7 @@ function elevation(){
     <text x="0" y="${H+7}" class="wb-end">◀ left end seen from ${view}</text><text x="0" y="${H+12}" class="wb-end">${fitL()||fitR() ? `${fin(netL())} long (${W.len}′ less its ends)` : `${W.len}′ full length`} · ${W.t}″ thick · 96″ high</text></svg>`;
 }
 function fields(){
-  if(!sel) return `<p class="note">Tap an item on the wall to size and place it, or drag it. Measurements are from the left end seen from ${view} and from the floor.</p>`;
+  if(!sel) return `<p class="note">Tap an item on the wall to pick it, then drag it to move it sideways or up / down (one at a time), or type its size and place. Measurements are from the left end seen from ${view} and from the floor.</p>`;
   const it=listOf(sel.k)[sel.i]; if(!it) return '';
   if(sel.k==='sh') return shapeFields(it);
   const [w,h]=sizeOf(sel.k,it), x=drawX(sel.k,it), isOp=sel.k==='op', round=it.shape==='round';
@@ -313,17 +313,21 @@ function bind(){
   svg.addEventListener('pointerdown', e=>{ const t=e.target.closest('[data-k]');
     if(!t){ if(sel){ sel=null; render(); } return; }
     const k=t.dataset.k, i=+t.dataset.i, it=listOf(k)[i], p=toWall(e);
-    sel={k,i}; drag={k,i,p0:p, x0:drawX(k,it), y0:it.y, moved:false}; svg.setPointerCapture(e.pointerId); e.preventDefault();
-    dlg.querySelectorAll('.on').forEach(n=>n.classList.remove('on')); t.classList.add('on'); });
-  svg.addEventListener('pointermove', e=>{ if(!drag) return; const p=toWall(e), it=listOf(drag.k)[drag.i]; drag.moved=true;
-    const nx=r8(drag.x0 + (p.x-drag.p0.x)), ny=r8(drag.y0 - (p.y-drag.p0.y));
+    e.preventDefault();
+    // first tap only picks it; once picked, a drag moves it along one line only (sideways or up / down)
+    if(!(sel && sel.k===k && sel.i===i)){ sel={k,i}; render(); return; }
+    drag={k,i,p0:p, c0:[e.clientX,e.clientY], x0:drawX(k,it), y0:it.y, moved:false, axis:null}; svg.setPointerCapture(e.pointerId); });
+  svg.addEventListener('pointermove', e=>{ if(!drag) return; const p=toWall(e), it=listOf(drag.k)[drag.i];
+    if(!drag.axis){ const dx=e.clientX-drag.c0[0], dy=e.clientY-drag.c0[1]; if(Math.hypot(dx,dy)<8) return; drag.axis=Math.abs(dx)>=Math.abs(dy)?'x':'y'; }
+    drag.moved=true;
+    const nx=r8(drag.x0 + (drag.axis==='x' ? p.x-drag.p0.x : 0)), ny=r8(drag.y0 - (drag.axis==='y' ? p.y-drag.p0.y : 0));
     if(!locked(drag.k,it,'x')){ it.x=fromDrawX(drag.k,it,nx); snapToChase(drag.k,it); }
     if(!locked(drag.k,it,'y')) it.y=Math.max(0, Math.min(H, ny));
     const el=svg.querySelector(`[data-k="${drag.k}"][data-i="${drag.i}"]:not(.wb-hit)`), x=drawX(drag.k,it), [w,h]=sizeOf(drag.k,it);
     if(drag.k==='sh'){ el.setAttribute('transform', `translate(${(drawX('sh',it)-drag.x0).toFixed(2)} ${(-(it.y-drag.y0)).toFixed(2)})`); }
     else if(el.tagName==='circle'){ el.setAttribute('cx', drag.k==='op' ? x+it.w/2 : x); el.setAttribute('cy', drag.k==='op' ? H-it.y-it.h/2 : H-it.y); }
     else if(drag.k==='op'){ el.setAttribute('x',x); el.setAttribute('y',H-it.y-it.h); } else { el.setAttribute('x',x-w/2); el.setAttribute('y',H-it.y-h/2); } });
-  svg.addEventListener('pointerup', ()=>{ if(!drag) return; drag=null; render(); });
+  svg.addEventListener('pointerup', ()=>{ if(!drag) return; const m=drag.moved; drag=null; if(m) render(); });
 }
 /* after the panels move (length, ends, mirror, flip): everything on the chases goes to its nearest chase again */
 function resnapAll(){ W.openings.forEach(o=>snapToChase('op',o)); ['inside','outside'].forEach(k=>W[k].forEach(b=>snapToChase(k,b))); }
