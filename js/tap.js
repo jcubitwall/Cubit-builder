@@ -130,6 +130,12 @@ function polyOverJoint(ops, o, U, W, warn){
     ops.push({tp:'shaped', kind:'loop', pts:r, what:`${o.name||'shaped cut'} (over the panel joint)`, arcs:true, passes:[THRU], waste: n++===0 ? [Math.max(0,Math.min(...xs)), Math.min(W,Math.max(...xs)), Math.min(...ys), Math.max(...ys)] : null}); }));
   if(!n) warn.push(`${o.name||'shaped cut'}: its part on this panel is narrower than the bit`);
 }
+/* move every op of a file sideways (inches along X) */
+function shiftOps(ops, dx){
+  const P=q=>[q[0]+dx, q[1]];
+  ops.forEach(o=>{ if(o.pts) o.pts=o.pts.map(P); if(o.rings) o.rings=o.rings.map(r=>r.map(P));
+    if(o.x0!=null){ o.x0+=dx; o.x1+=dx; } if(o.cx!=null) o.cx+=dx; if(o.waste) o.waste=[o.waste[0]+dx, o.waste[1]+dx, o.waste[2], o.waste[3]]; });
+}
 function tapPlan(){
   const S=cncSettings(), plans=homePlans(), files=[], blank=[], m=MODELS[state.model];
   const boxSize = k => S.gBoxes?.[k] || BOX[k] || BOX.other;
@@ -162,7 +168,7 @@ function tapPlan(){
         E.push({tp:'boxes', kind:'pocket', x0:c-s.w/2, x1:c+s.w/2, y0:b.y-s.h/2, y1:b.y+s.h/2, z:t-DEPTH, what:b.kind}); });
       // Einspine corner slot(s), exterior face
       if(p.notch){
-        const corners=[]; if(w.notch?.[0] && p.k===0) corners.push(W); if(w.notch?.[1] && x1>=L-0.01) corners.push(0);
+        const corners=[]; if(w.notch?.[0] && x0<=0.01) corners.push(W); if(w.notch?.[1] && x1>=L-0.01) corners.push(0);
         corners.forEach(cu=>{ const us = cu===0 ? SLOT.in : W-SLOT.in, X=BLANK-us;
           E.push({tp:'einspine', kind:'line', pts:[[X,0],[X,H+SLOT.over]], z:SLOT.z, what:'Einspine slot'}); });
       }
@@ -183,7 +189,11 @@ function tapPlan(){
         if(u1<W-SNAP && W-u1<1) warn.push(`${o.kind} leaves only ${fin(W-u1)} to the right edge`);
       });
       // trim to width last (factory edge on the joint side, at u = 0)
-      if(p.cut) I.push({tp:'trim', kind:'line', pts:[[W+R,-TRIM_OVER],[W+R,H+TRIM_OVER]], what:`trim to ${fin(W)}`, waste: W+2*R<BLANK-0.1 ? [W+2*R, BLANK, 0, H] : null});
+      if(p.cut && p.cutEnd!=='right') I.push({tp:'trim', kind:'line', pts:[[W+R,-TRIM_OVER],[W+R,H+TRIM_OVER]], what:`trim to ${fin(W)}`, waste: W+2*R<BLANK-0.1 ? [W+2*R, BLANK, 0, H] : null});
+      // cut at its RIGHT end (seen from outside: the stretch's cut panel is on that side): the factory edge is the left
+      // end, so on the blank everything moves over and the trim runs on the other side
+      if(p.cut && p.cutEnd==='right'){ const off=BLANK-W; shiftOps(I, off); shiftOps(E, -off);
+        I.push({tp:'trim', kind:'line', pts:[[off-R,-TRIM_OVER],[off-R,H+TRIM_OVER]], what:`trim to ${fin(W)}`, waste: off-2*R>0.1 ? [0, off-2*R, 0, H] : null}); }
       const base=`${p.code}_Sip-${tName(t)}`;
       const sides = E.length && I.length ? [['aE',E],['bI',I]] : E.length ? [['E',E]] : [['I',I]];
       n++; const nn=String(n).padStart(2,'0');

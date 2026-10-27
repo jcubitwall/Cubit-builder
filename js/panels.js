@@ -7,14 +7,39 @@ import { expandWallShapes, expandLayerShapes } from './shapes.js';
    Panels: 4′ × 8′ SIPs. Full panels start at panel 1 — the left end seen from INSIDE, which is the
    RIGHT end seen from outside — and the last panel (leftmost from outside) is cut to fit. */
 const wallLen = w => w.L ?? w.len*FT;
-const panelCount = w => Math.max(1, Math.ceil(wallLen(w)/PW - 1e-6));
-function panelSpans(w){
-  const L=wallLen(w), n=panelCount(w);
-  return [...Array(n)].map((_,k)=>{ const j=n-k; return [Math.max(0, L-j*PW), L-(j-1)*PW]; });   // k = 0 is the leftmost from outside
+/* Panels. A full-height opening has no SIP in it at all (a gap), so the wall is laid out stretch by stretch
+   between gaps: each stretch takes as many full 48″ panels as fit and at most ONE cut panel. Which end of a
+   stretch gets the cut panel: w.cutSide[i] ('left' | 'right', stretch i counted from the left seen from outside),
+   default left — with no gaps that's the classic layout: counted from the right-hand end, the short one at the left.
+   An opening is a gap when it runs floor to top (within ½″), unless it says gap:false; gap:true forces one. */
+const isGapOpening = o => o.gap===true || (o.gap!==false && !o.shape && o.y<=0.5 && o.y+o.h>=H-0.5);
+function wallGaps(w){
+  const L=wallLen(w), iv=(w.openings||[]).filter(isGapOpening).map(o=>[Math.max(0,o.x), Math.min(L,o.x+o.w)]).filter(([a,b])=>b-a>0.5).sort((p,q)=>p[0]-q[0]);
+  const out=[]; iv.forEach(g=>{ const l=out[out.length-1]; if(l && g[0]<=l[1]+0.01) l[1]=Math.max(l[1],g[1]); else out.push(g.slice()); });
+  return out;
 }
+/* the solid stretches between gaps: [[a,b], …] */
+function wallStretches(w){
+  const L=wallLen(w), G=wallGaps(w), out=[]; let x=0;
+  G.forEach(([a,b])=>{ if(a-x>0.5) out.push([x,a]); x=Math.max(x,b); }); if(L-x>0.5) out.push([x,L]);
+  return out.length ? out : (G.length ? [] : [[0,L]]);
+}
+function panelSpans(w){
+  const spans=[];
+  wallStretches(w).forEach(([a,b],i)=>{
+    const n=Math.max(1, Math.ceil((b-a)/PW - 1e-6)), right=(w.cutSide?.[i]||'left')==='right';
+    for(let j=0;j<n;j++){
+      const s = right ? [a+j*PW, Math.min(b, a+(j+1)*PW)] : [Math.max(a, b-(j+1)*PW), b-j*PW];
+      s.stretch=i; s.cutEnd = (s[1]-s[0]<PW-0.01) ? (right?'right':'left') : null; spans.push(s); }
+  });
+  return spans.sort((p,q)=>p[0]-q[0]);   // k = 0 is the leftmost from outside
+}
+const panelCount = w => panelSpans(w).length;   // 0 when a full-height opening with no SIP fills the whole wall
 function panelAt(w, x){
   const sp=panelSpans(w); const k=sp.findIndex(([a,b])=>x>=a-1e-6 && x<b-1e-6);
-  return k>=0 ? k : (x<=0 ? 0 : sp.length-1);
+  if(k>=0 || !sp.length) return Math.max(0,k);
+  // in a full-height opening with no SIP (or past an end): the nearest panel
+  let best=0, d=Infinity; sp.forEach(([a,b],i)=>{ const e=x<a?a-x:x-b; if(e<d){ d=e; best=i; } }); return best;
 }
 /* The wall as built in its slot. Short end walls run straight through, corner to corner; long walls butt
    between them, so they lose the end walls' thickness at each pod corner (slot.trim = [left, right] in
@@ -162,4 +187,4 @@ function handOf(f){
   if((!f.shape || f.shape==='rect') && f.w && (f.h??f.d) && Math.min(f.w, f.h??f.d) < bit) return 'auto';
   return null;
 }
-export { crossesJoint, clipStrip, notchedOutline, handOf, isShaped, shapeOf, outlinePts, mapX, faceShape, layerHoles, panelCells, panelCount, panelNum, thumbSVG, wallLen, panelSpans, panelAt, bodyWall };
+export { isGapOpening, wallGaps, wallStretches, crossesJoint, clipStrip, notchedOutline, handOf, isShaped, shapeOf, outlinePts, mapX, faceShape, layerHoles, panelCells, panelCount, panelNum, thumbSVG, wallLen, panelSpans, panelAt, bodyWall };

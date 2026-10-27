@@ -93,7 +93,7 @@ function wallFraming(slot, w0){
       add('Corner stud', cx, cx+t, P, H-P, `${side} · behind the Einspine notch · rip a ${lum.name} to ${fmtIn(rip)}`, {zf:[z0,z1], rip}); }
   });
   // splines at each panel joint, between the plates, minus openings at or over the joint
-  const plan=panelPlan(slot, w0), spans=panelSpans(w), joints=spans.slice(0,-1).map(s=>s[1]);
+  const plan=panelPlan(slot, w0), spans=panelSpans(w), joints=spans.slice(0,-1).filter((s,i)=>Math.abs(s[1]-spans[i+1][0])<0.01).map(s=>s[1]);   // panels that meet (not across a gap)
   const byK=k=>plan.panels.find(p=>p.k===k);
   const splines=[];
   joints.forEach((jx,i)=>{

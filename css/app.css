@@ -911,3 +911,7 @@ html.standalone:not(.phone) .ss-bar #ssClose{top:max(54px, calc(env(safe-area-in
 .studio:not(.build) .compass.bc-compass{display:none}
 html.phone .compass.bc-compass{top:auto;bottom:calc(140px + env(safe-area-inset-bottom,0px));right:8px;left:auto}
 @media (max-width:900px){ .compass.bc-compass .cb-note{display:none} }
+.wb-gap{fill:repeating-linear-gradient(45deg,#fff,#fff 2px,#eee 2px,#eee 4px);fill:rgba(255,255,255,.85);stroke:#2f6db5;stroke-width:.4;stroke-dasharray:2 1.5;pointer-events:none}
+.wb-layout{border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:6px}
+.wb-strow{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;font-size:13px}
+.wb-chk{display:flex;gap:8px;align-items:flex-start;font-size:13px}

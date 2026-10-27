@@ -55,7 +55,9 @@ function passGeom(plan, p, face, trimmedAlready, S){
   const toU = x => face==='ext' ? x-x0 : x1-x;
   const blankW = (p.cut && isFirst) ? W : width;
   // the waste side of a trimmed panel is the wall end (x0). Seen from outside that is the left, from inside the right.
-  const off = (p.cut && isFirst && face==='ext') ? W-width : 0;
+  // (a panel cut at its right end keeps its factory edge at the left end: the waste goes the other way)
+  const wasteX1 = p.cutEnd==='right';
+  const off = (p.cut && isFirst && (face==='ext')!==wasteX1) ? W-width : 0;
   const U = u => u+off;
   // machine coords: X along the wall height, Y across (Y = blankW − U keeps it a true, unmirrored view)
   const XY = (u,v) => [v, blankW-U(u)];
@@ -67,9 +69,9 @@ function passGeom(plan, p, face, trimmedAlready, S){
   items.push({ layer:'SHEET_REF', kind:'rect', x0:0, x1:S.blank.h, y0:0, y1:blankW });
   rect('PANEL_REF', 0, width, 0, H);
   if(p.cut && isFirst){
-    const uc = face==='ext' ? 0 : width;    // the wall-end edge
+    const uc = (face==='ext')!==wasteX1 ? 0 : width;    // the cut edge
     const [X0]=XY(uc,0), Yc=blankW-U(uc);
-    items.push({ layer:'TRIM_CUT', kind:'line', x0:-S.overcut, y0:Yc, x1:S.blank.h+S.overcut, y1:Yc, waste: face==='ext' ? 'Y above the line' : 'Y below the line' });
+    items.push({ layer:'TRIM_CUT', kind:'line', x0:-S.overcut, y0:Yc, x1:S.blank.h+S.overcut, y1:Yc, waste: (face==='ext')!==wasteX1 ? 'Y above the line' : 'Y below the line' });
   }
   // through cuts: the shop's long bits cut the full panel depth in one pass from whichever face is up,
   // so trims, openings and vents all go in the first pass and never force a flip
@@ -100,7 +102,7 @@ function passGeom(plan, p, face, trimmedAlready, S){
   });
   // steel spine notch: exterior face, at a pod-corner end of an end wall
   const [nl,nr]=w.notch||[0,0];
-  const atLeft = nl && p.k===0, atRight = nr && x1>=L-0.01;
+  const atLeft = nl && x0<=0.01, atRight = nr && x1>=L-0.01;
   if(atLeft||atRight){
     if(face==='ext'){
       if(atLeft)  rect('SPINE_NOTCH', toU(0)-S.overcut, toU(nl), -S.overcut, H+S.overcut, { what:'spine notch', size:`${fin(nl)} × ${fin(nl)} deep` });

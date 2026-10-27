@@ -16,12 +16,13 @@ import { buildHome } from './scene3d.js';
 import { renderSide, toast } from './sidebar.js';
 import { choose } from './state.js';
 import { fin } from './format.js';
+import { panelSpans, wallGaps, wallStretches, isGapOpening } from './panels.js';
 import { kindChooser, switchKind } from './panel-builder.js';
 import { SHAPELIB, placeItem, regionsOf, shapeThumb } from './shapes.js';
 import { openShapeStudio } from './shape-studio.js';
 import { flatten, bboxAll } from './geom2d.js';
 import { makeHistory, histButtons, bindHistory } from './local-history.js';
-import { rules, ruleFor, saveRules, sharedRules, chases, nearest } from './wall-rules.js';
+import { rules, ruleFor, saveRules, sharedRules, nearest } from './wall-rules.js';
 
 const H=96, PW=48;
 const BOX = { plug:{w:2.375, h:3.375, name:'Plug box'}, switch:{w:2.375, h:3.375, name:'Switch box'}, double:{w:4.125, h:3.625, name:'Double switch box'} };
@@ -58,7 +59,17 @@ const snaps = (k,it) => ruleOf(k,it)?.side==='chase' && !it.free?.x;
 /* centre of an item along the wall, inches from the left end seen from outside */
 const centreOut = (k,it) => k==='op' ? it.x+it.w/2 : k==='inside' ? L()-it.x : it.x;
 const setCentreOut = (k,it,c) => { if(k==='op') it.x=c-it.w/2; else if(k==='inside') it.x=L()-c; else it.x=c; };
-const chaseList = () => chases(L(), [fitL(), fitR()]);
+/* the wall as it's built (its cut ends off), for the panel layout: panels.js lays it out stretch by stretch between
+   full-height openings (no SIP there), as many full panels as fit and one cut panel per stretch */
+const off0 = () => fitL();
+function bodyTmp(){ const o=off0(); return { len:W.len, L:netL(), cutSide:W.cutSide, openings:W.openings.filter(q=>!q.shape).map(q=>({...q, x:q.x-o})) }; }
+const spansOut = () => panelSpans(bodyTmp()).map(sp=>{ const r=[sp[0]+off0(), sp[1]+off0()]; r.cutEnd=sp.cutEnd; r.stretch=sp.stretch; return r; });
+const gapsOut = () => wallGaps(bodyTmp()).map(([a,b])=>[a+off0(), b+off0()]);
+/* electrical chases: 6″ in from each edge of the ORIGINAL panel, then every foot; a cut panel keeps them from its factory edge */
+function chaseList(){ const out=[];
+  spansOut().forEach(sp=>{ const [a,b]=sp, fromLeft = sp.cutEnd==='right';
+    for(let c=6;c<PW;c+=12){ const x = fromLeft ? a+c : b-c; if(x>a+0.5 && x<b-0.5) out.push(+x.toFixed(4)); } });
+  return out.sort((p,q)=>p-q); }
 function snapToChase(k, it){ if(!snaps(k,it)) return false; const cs=chaseList(); if(!cs.length) return false;
   const c=centreOut(k,it), n=nearest(cs,c); setCentreOut(k,it,n); return Math.abs(n-c)>0.01; }
 function unlock(k, it, f){ it.free={...(it.free||{}), [f]:true}; }
@@ -90,7 +101,8 @@ const fitL = () => W.fit?.[0]||0, fitR = () => W.fit?.[1]||0;
 const cutSeen = () => view==='outside' ? fitL() : fitR();          // what's cut off the end on the left as seen now
 const netL = () => L()-fitL()-fitR();
 /* the panel joints: 4′ panels counted from the right-hand end seen from outside, the short one at the left */
-function seamsOut(){ const out=[], n=Math.ceil(netL()/PW-1e-6); for(let j=1;j<n;j++) out.push(L()-fitR()-j*PW); return out; }
+/* panel joints (where two panels meet; not the edges of a gap) */
+function seamsOut(){ const S=spansOut(), out=[]; for(let i=0;i+1<S.length;i++) if(Math.abs(S[i][1]-S[i+1][0])<0.01) out.push(S[i][1]); return out; }
 /* screen x of an item seen from the current side */
 const listOf = k => k==='op' ? W.openings : k==='sh' ? (W.shapes ||= []) : W[k];
 function drawX(k, it){                       // left edge (openings, shapes) / centre (face items) as seen now
@@ -128,6 +140,7 @@ function elevation(){
   let g=`<rect x="0" y="0" width="${len}" height="${H}" class="wb-wall ${W.type}"/>`;
   chaseList().forEach(c=>{ const x = view==='inside' ? len-c : c; g+=`<line x1="${x}" y1="0" x2="${x}" y2="${H}" class="wb-chase"/>`; });
   seamsOut().forEach(s=>{ const x = view==='inside' ? len-s : s; g+=`<line x1="${x}" y1="0" x2="${x}" y2="${H}" class="wb-seam"/>`; });
+  gapsOut().forEach(([a,b])=>{ const x0 = view==='inside' ? len-b : a; g+=`<rect x="${x0}" y="0" width="${b-a}" height="${H}" class="wb-gap"/>`; });
   // the ends that come off where the wall butts between others: hatched; and a strip where it runs on past its end
   const cl = view==='outside' ? fitL() : fitR(), cr = view==='outside' ? fitR() : fitL();
   if(cl>0) g+=`<rect x="0" y="0" width="${cl}" height="${H}" class="wb-cut"/>`;
@@ -136,7 +149,7 @@ function elevation(){
   if(cr<0) g+=`<rect x="${len}" y="0" width="${-cr}" height="${H}" class="wb-wall ${W.type} wb-ext"/>`;
   W.openings.forEach((o,i)=>{ const x=drawX('op',o), on=sel&&sel.k==='op'&&sel.i===i;
     if(o.shape==='round') g+=`<circle cx="${x+o.w/2}" cy="${H-o.y-o.h/2}" r="${o.d/2}" class="wb-op${on?' on':''}" data-k="op" data-i="${i}"/>`;
-    else g+=`<rect x="${x}" y="${H-o.y-o.h}" width="${o.w}" height="${o.h}" class="wb-op ${o.kind}${on?' on':''}" data-k="op" data-i="${i}"/><text x="${x+o.w/2}" y="${H-o.y-o.h/2}" class="wb-lab">${o.kind==='opening'?'cased':o.kind}</text>`; });
+    else g+=`<rect x="${x}" y="${H-o.y-o.h}" width="${o.w}" height="${o.h}" class="wb-op ${o.kind}${on?' on':''}" data-k="op" data-i="${i}"/><text x="${x+o.w/2}" y="${H-o.y-o.h/2}" class="wb-lab">${o.kind==='opening'?'cased':o.kind}</text>${isGapOpening(o)?`<text x="${x+o.w/2}" y="${H-o.y-o.h/2+7}" class="wb-lab">no SIP</text>`:''}`; });
   (W.shapes||[]).forEach((it,i)=>{ const on=sel&&sel.k==='sh'&&sel.i===i, far=it.face!==near(view), t=W.t;
     let p=''; regionsOf(it).forEach(r=>{ const thru=r.cut==='thru'||r.depth>=t-0.0625;
       const ring=P=>'M'+P.map(([x,y])=>{ const X=it.x+x; return `${(view==='inside'?L()-X:X).toFixed(2)} ${(H-it.y-y).toFixed(2)}`; }).join('L')+'Z';
@@ -175,6 +188,7 @@ function fields(){
       ${centred(k,it) ? f('y','Centre from the floor', ruleY(k,it)) : f('y','Bottom from the floor', it.y)}
       ${!isOp ? f('depth','Depth', it.depth||3) : ''}</div>
     ${!isOp && (it.depth||3) >= W.t-0.0625 ? `<p class="note">As deep as the wall: it goes right through. The CNC cuts it as a hole through the panel, the same as a round hole.</p>` : ''}
+    ${sel.k==='op' && !it.shape && it.y<=0.5 && it.y+it.h>=H-0.5 ? `<label class="wb-chk"><input type="checkbox" id="wbGap" ${isGapOpening(it)?'checked':''}> No SIP in this opening — panels laid out round it (full panels, one cut panel per side)</label>` : ''}
     ${sideNote}${yNote}
     <div class="row"><button class="btn ghost sm" id="wbDup">Duplicate</button><button class="btn ghost sm" id="wbDel">Remove</button></div></div>`;
 }
@@ -187,6 +201,15 @@ function shapeFields(it){
     <div class="cw-fs">${f('x','Left edge from the left end', drawX('sh',it)-cutSeen())}${f('y','Bottom from the floor', it.y)}</div>
     ${pk.length?`<div class="cw-opt"><span>Pockets cut from</span><div class="seg"><button data-sface="outside" aria-pressed="${it.face!=='inside'}">Outside face</button><button data-sface="inside" aria-pressed="${it.face==='inside'}">Inside face</button></div></div>`:''}
     <div class="row"><button class="btn ghost sm" data-smir="x">Mirror</button><button class="btn ghost sm" data-smir="y">Flip</button><button class="btn ghost sm" id="wbDup">Duplicate</button><button class="btn ghost sm" id="wbDel">Remove</button></div></div>`;
+}
+/* panel layout: each solid stretch, its full panels and its one cut panel, and which end the cut one goes */
+function layoutPanel(){
+  const st=wallStretches(bodyTmp()), S=spansOut();
+  return `<div class="wb-layout"><div class="eyebrow">Panel layout · ${S.length} panel${S.length>1?'s':''}${gapsOut().length?` · ${gapsOut().length} opening${gapsOut().length>1?'s':''} with no SIP`:''}</div>
+    ${st.map(([a,b],i)=>{ const P=S.filter(sp=>sp.stretch===i), cut=P.find(sp=>sp.cutEnd), side=(W.cutSide?.[i]||'left');
+      return `<div class="wb-strow"><span>${st.length>1?`Stretch ${i+1} · `:''}${fin(b-a)}: ${P.filter(sp=>!sp.cutEnd).length} full${cut?` + 1 cut to ${fin(cut[1]-cut[0])}`:''}</span>
+        ${cut?`<div class="seg sm" role="group" aria-label="Cut panel at"><button data-cut="${i}:left" aria-pressed="${side==='left'}">Cut one left</button><button data-cut="${i}:right" aria-pressed="${side==='right'}">Cut one right</button></div>`:'<span class="muted">all full panels</span>'}</div>`; }).join('')}
+    <p class="note">Seen from outside. A full-height opening has no SIP in it; tick or untick that on the opening.</p></div>`;
 }
 function render(){
   HIST.track();
@@ -214,6 +237,7 @@ function render(){
         <div class="wb-add"><button class="btn ghost sm" id="wbShape" aria-pressed="${shapePick}">Add shape</button><button class="btn ghost sm" id="wbDraw">Draw a new shape</button></div>
         ${shapePick?shapePicker():''}
         ${fields()}
+        ${layoutPanel()}
         ${rulesPanel()}
         <h3>Save</h3>
         <label class="cw-f"><span>Name</span><input id="wbName" value="${esc(W.name||'')}" placeholder="${esc(autoName())}"></label>
@@ -269,6 +293,8 @@ function bind(){
     toast(f==='x' ? 'This one can go anywhere along the wall' : `${f==='y'?'Height':f==='depth'?'Depth':'Place'} unlocked for this item only`); render(); });
   dlg.querySelectorAll('[data-relock]').forEach(b=>b.onclick=e=>{ e.preventDefault(); const it=listOf(sel.k)[sel.i]; relock(sel.k,it,b.dataset.relock); render(); });
   bindRules();
+  dlg.querySelectorAll('[data-cut]').forEach(b=>b.onclick=()=>{ const [i,v]=b.dataset.cut.split(':'); W.cutSide=[...(W.cutSide||[])]; W.cutSide[+i]=v; for(let k=0;k<W.cutSide.length;k++) W.cutSide[k] ||= 'left'; resnapAll(); render(); });
+  $('#wbGap')?.addEventListener('change', e=>{ const it=listOf('op')[sel.i]; it.gap = e.target.checked ? true : false; resnapAll(); render(); });
   $('#wbShape')?.addEventListener('click',()=>{ shapePick=!shapePick; render(); });
   $('#wbDraw')?.addEventListener('click',()=>openShapeStudio());
   dlg.querySelectorAll('[data-shape]').forEach(b=>b.onclick=()=>addShape(b.dataset.shape));

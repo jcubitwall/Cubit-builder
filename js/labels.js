@@ -21,7 +21,7 @@ const faceName = (slot, f) => slot.type==='int' ? (f==='int' ? `side A (faces ${
 const faceShort = (slot, f) => slot.type==='int' ? (f==='int' ? 'SIDE A' : 'SIDE B') : (f==='int' ? 'INTERIOR' : 'EXTERIOR');
 
 function panelPlan(slot, w0, assembly = faceFor(slot)){
-  const w = bodyWall(slot, w0), n = panelCount(w), L = wallLen(w), podNo = slot.pod.i+1, spans = panelSpans(w);
+  const w = bodyWall(slot, w0), L = wallLen(w), podNo = slot.pod.i+1, spans = panelSpans(w), n = spans.length;
   const panels = [];
   for(let k=0;k<n;k++){                 // k = index from the left end seen from OUTSIDE
     const [x0,x1]=spans[k], num=n-k, width=x1-x0;
@@ -29,17 +29,19 @@ function panelPlan(slot, w0, assembly = faceFor(slot)){
     const intCuts = (w.inside||[]).filter(b=>{ const xe=L-b.x; return xe>=x0 && xe<x1; });
     const extCuts = (w.outside||[]).filter(b=>b.x>=x0 && b.x<x1);
     // steel spine notch at a pod corner: cut into the outer face of an end wall's corner panel, so it counts as an outer-face cut
-    const notch = !!((w.notch?.[0] && k===0) || (w.notch?.[1] && x1>=L-0.01));
+    const notch = !!((w.notch?.[0] && x0<=0.01) || (w.notch?.[1] && x1>=L-0.01));
     const outer = extCuts.length || notch;
     const cnc = intCuts.length && outer ? 'both' : intCuts.length ? 'int' : outer ? 'ext' : assembly;
     const flip = cnc==='both' ? 'two-sided' : (cnc!==assembly ? 'flip' : 'none');
-    panels.push({ k, num, width, cut: width < PW-0.01, code:`${podNo}${slot.letter}-${num}`, through, intCuts, extCuts, notch, cnc, flip });
+    panels.push({ k, num, width, cut: width < PW-0.01, cutEnd: spans[k].cutEnd||null, code:`${podNo}${slot.letter}-${num}`, through, intCuts, extCuts, notch, cnc, flip });
   }
   // left → right as the assemblers see it
   const seq = assembly==='int' ? panels.slice().sort((a,b)=>a.num-b.num) : panels.slice().sort((a,b)=>b.num-a.num);
   seq.forEach((p,i)=>{ p.order=i+1; p.stack=i+1; });   // stack position 1 = top of the pile
   // OSB splines: each panel carries them on the edge that meets the next panel (its right edge as assembled)
-  seq.forEach((p,i)=>{ p.splineTo = seq[i+1]?.code || null; });
+  // …only where the two panels actually meet (none across a full-height opening with no SIP)
+  const meet = (a,b) => b && Math.abs(spans[Math.min(a.k,b.k)][1]-spans[Math.max(a.k,b.k)][0])<0.01 && Math.abs(a.k-b.k)===1;
+  seq.forEach((p,i)=>{ p.splineTo = meet(p, seq[i+1]) ? seq[i+1].code : null; });
   return { slot, w, n, assembly, panels, seq };
 }
 function homePlans(){
