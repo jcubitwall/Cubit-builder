@@ -12,20 +12,18 @@ import { applyFurniture, resetCabExplode, cabExploded } from './furniture.js';
 const CW_COL={base:'#dcc39a',upper:'#e4cfa4',tall:'#cdb287',linen:'#d8bd8c',wardrobe:'#c9a978',vanity:'#e6d3ae',bench:'#b98f60',shelf:'#ead9b6',fire:'#8a8f94',counter:'#8f9493',appliance:'#c9cdd1',furniture:'#8e978a',bath:'#e9ece9',sink:'#b7bcc1'};
 const CW_ROWS = CW_CATS.map(c=>['cw-'+c.k, c.name, CW_COL[c.k]]);
 /* top down, the way the home is built: roof first, the ground screws and foundation last */
-const ROWS = [
-  ['Show'],
-  ['roof','Roof','#4b514d'], ['ceiling','Ceiling','#d9d2bf'], ['walls','Walls (SIP)','#c9a46a'], ['units','Windows & doors','#8fc3ea'],
-  ['seals','Compression seals','#e8170f'], ['framing','Lumber & LVL','#e0b36a'], ['splines','OSB splines','#b7864a'],
-  ['Cabinets & furniture'],
-  ...CW_ROWS,
-  ['-'],
-  ['floors','Floors','#8d8f86'], ['decks','Decks','#a88f5d'], ['frames','Steel frame & ACM','#3d4247'], ['screws','Ground screws & foundation','#56606b'],
-  ['-'],
-  ['glass','See-through glass & doors'],
-  ['-'],
-  ['Labels'],
-  ['letters','Wall letters'], ['nums','Panel numbers'],
+/* the switches in groups that fold away (tap a group's name); the group's own switch turns all of it on or off */
+const GROUPS = [
+  ['shell', 'Shell', [['roof','Roof','#4b514d'], ['ceiling','Ceiling','#d9d2bf'], ['walls','Walls (SIP)','#c9a46a'], ['units','Windows & doors','#8fc3ea']]],
+  ['build', 'Inside the panels', [['seals','Compression seals','#e8170f'], ['framing','Lumber & LVL','#e0b36a'], ['splines','OSB splines','#b7864a']]],
+  ['cab',   'Cabinets & furniture', CW_ROWS],
+  ['base',  'Floors & foundation', [['floors','Floors','#8d8f86'], ['decks','Decks','#a88f5d'], ['frames','Steel frame & ACM','#3d4247'], ['screws','Ground screws & foundation','#56606b']]],
+  ['view',  'View & labels', [['glass','See-through glass & doors'], ['letters','Wall letters'], ['nums','Panel numbers']]],
 ];
+const ROWS = GROUPS.flatMap(g=>g[2]);
+const FOLD_KEY='cubit-layers-folded';
+let folded = (()=>{ try{ const v=JSON.parse(localStorage.getItem(FOLD_KEY)||'null'); if(Array.isArray(v)) return new Set(v); }catch(e){} return new Set(['cab','focus']); })();
+const keepFolded = () => { try{ localStorage.setItem(FOLD_KEY, JSON.stringify([...folded])); }catch(e){} };
 /* Focus presets: what a trade wants to see. Walls go see-through whenever lumber or splines show. */
 const BASE = { roof:false, ceiling:false, walls:true, floors:true, decks:true, screws:false, frames:true, seals:true, units:true, framing:false, splines:false };
 const FOCUS = [
@@ -48,19 +46,29 @@ function activeFocus(){
 }
 function render(){
   const pods=podList(state.model), af=activeFocus();
-  let h=`<h4>Focus</h4><div class="lay-chips">${FOCUS.map(([k,l,o])=>`<button class="chip${af===k?' on':''}" data-focus="${k}" ${o?'':'disabled title="Comes with the plumbing / wiring drawings"'}>${l}</button>`).join('')}</div>`;
-  if(pods.length>1) h+=`<h4>Pods</h4><div class="lay-chips"><button class="chip${state.focusPod==null?' on':''}" data-pod="">All</button>${pods.map((p,i)=>`<button class="chip${state.focusPod===i?' on':''}" data-pod="${i}">Pod ${i+1}</button>`).join('')}</div>`;
-  h+='<div class="lay-sep"></div>'+ROWS.map(([k,label,col])=>{
-    if(k==='-') return '<div class="lay-sep"></div>';
-    if(!label) return `<h4>${k}</h4>`;
-    return `<button class="lay-row" role="switch" aria-checked="${!!val(k)}" data-k="${k}"><span>${col?`<i style="background:${col}"></i>`:''}${label}</span><span class="sw" aria-hidden="true"></span></button>`;
-  }).join('');
+  const head=(id,label,extra='',sw='')=>`<div class="lay-gh"><button class="lay-fold" data-fold="${id}" aria-expanded="${!folded.has(id)}"><span class="chev" aria-hidden="true">▸</span>${label}${extra?`<small>${extra}</small>`:''}</button>${sw}</div>`;
+  let h=head('focus','Focus', af && af!=='home' ? FOCUS.find(f=>f[0]===af)[1] : '');
+  if(!folded.has('focus')) h+=`<div class="lay-chips">${FOCUS.map(([k,l,o])=>`<button class="chip${af===k?' on':''}" data-focus="${k}" ${o?'':'disabled title="Comes with the plumbing / wiring drawings"'}>${l}</button>`).join('')}</div>`;
+  if(pods.length>1){ h+=head('pods','Pods', state.focusPod==null?'all':`pod ${state.focusPod+1}`);
+    if(!folded.has('pods')) h+=`<div class="lay-chips"><button class="chip${state.focusPod==null?' on':''}" data-pod="">All</button>${pods.map((p,i)=>`<button class="chip${state.focusPod===i?' on':''}" data-pod="${i}">Pod ${i+1}</button>`).join('')}</div>`; }
+  GROUPS.forEach(([id,label,rows])=>{
+    const on=rows.filter(([k])=>val(k)).length, all=on===rows.length;
+    h+='<div class="lay-sep"></div>'+head(id, label, `${on} of ${rows.length}`, `<button class="lay-all" role="switch" aria-checked="${all}" aria-label="All of ${label}" data-grp="${id}" title="${all?'Turn all off':'Turn all on'}"><span class="sw${on&&!all?' some':''}" aria-hidden="true"></span></button>`);
+    if(!folded.has(id)) h+=rows.map(([k,lab,col])=>`<button class="lay-row" role="switch" aria-checked="${!!val(k)}" data-k="${k}"><span>${col?`<i style="background:${col}"></i>`:''}${lab}</span><span class="sw" aria-hidden="true"></span></button>`).join('');
+  });
   pop.innerHTML=h;
 }
 function set(k, v){
   if(k.startsWith('cw-')){ state.show[k]=v; applyFurniture(); save(); render(); return; }
   if(k in state.show){ state.show[k]=v; applyLayers(); if(k==='screws') renderSide(); }
   else { state[k]=v; if(k==='glass') applyLayers(); else buildHome(); }
+  save(); render();
+}
+/* a whole group on or off in one go */
+function setMany(keys, v){
+  let furn=false, layers=false, rebuild=false, side=false;
+  keys.forEach(k=>{ if(k.startsWith('cw-')){ state.show[k]=v; furn=true; } else if(k in state.show){ state.show[k]=v; layers=true; if(k==='screws') side=true; } else { state[k]=v; if(k==='glass') layers=true; else rebuild=true; } });
+  if(rebuild) buildHome(); else if(layers) applyLayers(); if(furn) applyFurniture(); if(side) renderSide();
   save(); render();
 }
 function setFocus(k){
@@ -109,6 +117,8 @@ stage.addEventListener('pointerup', e=>{
     setPod(s.pod.i); }, 0);
 });
 pop.addEventListener('click', e=>{
+  const fo=e.target.closest('[data-fold]'); if(fo){ const id=fo.dataset.fold; if(folded.has(id)) folded.delete(id); else folded.add(id); keepFolded(); return render(); }
+  const ga=e.target.closest('[data-grp]'); if(ga){ const rows=GROUPS.find(g=>g[0]===ga.dataset.grp)[2], to=!rows.every(([k])=>val(k)); setMany(rows.map(r=>r[0]), to); return; }
   const r=e.target.closest('.lay-row'); if(r) return set(r.dataset.k, !val(r.dataset.k));
   const f=e.target.closest('[data-focus]'); if(f && !f.disabled) return setFocus(f.dataset.focus);
   const p=e.target.closest('[data-pod]'); if(p) return setPod(p.dataset.pod==='' ? null : +p.dataset.pod);
