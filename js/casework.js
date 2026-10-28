@@ -51,6 +51,7 @@ const DEFAULTS = {
     'blum-tandem':{ name:'Blum TANDEM 563H, full extension, soft close', clear:10*MM, lens:[12,15,18,21], front:[8,34,65], rear:[293,274,242], holeDepth:13*MM, rowAbove:0.35, boxPlus:0.25 },
     'dtc-under':  { name:'DTC soft-close undermount', clear:10*MM, lens:[12,14,16,18,20,22], front:[8,34,65], rear:[293,274,242], holeDepth:13*MM, rowAbove:0.35, boxPlus:0.25 } },
   drawer:{ groove:0.5, grooveDepth:0.25, dadoIn:0.345, dadoW:0.255, dadoDepth:0.385, tongue:0.25, topDrop:0.125, sides:[3.5,4.75,6.75,8.75,10.75] },
+  inside:{ set:2, side:1/8 },                                     // inside drawers: fronts set back behind the hinges
   handle:'later',
   handles:[
     { id:'bar128', name:'Bar pull, 128 mm c-c', cc:128*MM, dia:5*MM },
@@ -200,7 +201,8 @@ function carcass(it, c){
       cnc:{ U:zbF, V:ph, u:['front','back'], v:['bottom','top'], up:'right face', outline:notchedO(ph,zbF,e,stop+cl,2*cl).map(([a,b])=>[b,a]), ops:[], at:at([px+T/2,v0,zOf(0)],[0,0,-1],[0,1,0],[1,0,0]) } })); });
   // adjustable shelves: spread over the open heights, each on 4 pins; 7 holes per pin row centred on it
   const opening = (a,b) => [a,b];
-  const zones=[]; { let lo=yb+T; [...(c.fixed||[])].sort((a,b)=>a-b).forEach(fy=>{ zones.push(opening(lo,fy)); lo=fy+T; }); zones.push(opening(lo, c.top==='stretchers' ? H-T : H-T)); }
+  const zones0=[]; { let lo=yb+T; [...(c.fixed||[])].sort((a,b)=>a-b).forEach(fy=>{ zones0.push(opening(lo,fy)); lo=fy+T; }); zones0.push(opening(lo, c.top==='stretchers' ? H-T : H-T)); }
+  const zones = zones0.filter(([a])=>a >= (c.adjFrom ?? -1e9) - 1e-6);   // adjFrom: no shelves below it (drawers there)
   const adj = typeof c.adj==='number' ? c.adj : 0, shelfY=[];
   if(adj>0){ const tot=zones.reduce((s,[a,b])=>s+(b-a),0);
     let left=adj; zones.forEach(([a,b],zi)=>{ const n = zi===zones.length-1 ? left : Math.round(adj*(b-a)/tot); left-=n;
@@ -273,7 +275,7 @@ function drawer(c, name, x0,x1,y0,y1, fixedFront=false, hid, bay){
     cnc:{ U, V, u:['right','left'], v:['bottom','top'], up:'back face (inside)', outline:rectO(U,V), ops: fixedFront ? [] : handleOps(U,V,hid,'drawer'), at:at([x1,y0,c.front-T],[-1,0,0],[0,1,0],[0,0,-1]) }, note: fixedFront?'Screwed to the front stretcher, no box':'' });
   out.push(fr); if(fixedFront) return out;
   if(hid && handleById(hid)) out.push(part('Handle','hw','buy',[x0+U/2-2,y1-2.75,c.front,4,0.5,0.9],'z',{ex:[0,0,3.6], hw:true, note:handleById(hid).name}));
-  const R=runnerSpec(), Dr=S.drawer, avail=c.zbF-0.5, len=[...R.lens].sort((a,b)=>b-a).find(l=>l<=avail) || Math.min(...R.lens);
+  const R=runnerSpec(), Dr=S.drawer, avail=c.zbF-(c.inset||0)-0.5, len=[...R.lens].sort((a,b)=>b-a).find(l=>l<=avail) || Math.min(...R.lens);
   const ox0=bay?bay[0]:c.ix0, ox1=bay?bay[1]:c.ix1, ow=ox1-ox0, bw=ow-R.clear, L=len+R.boxPlus;
   const sh=[...Dr.sides].sort((a,b)=>b-a).find(h=>h<=V-1.75) || Math.min(...Dr.sides);
   const by=Math.max(y0, c.y0)+0.5, bx=ox0+R.clear/2, bz=c.front-T-L;
@@ -294,7 +296,7 @@ function drawer(c, name, x0,x1,y0,y1, fixedFront=false, hid, bay){
   out.push(part(`${name} box bottom`,'drawer','carcass',[bx+T-Dr.grooveDepth,by+Dr.groove,bz,botU,T,L],'y',{ex:[0,-.6,1.6],
     cnc:{ U:botU, V:L, u:['left','right'], v:['back','front'], up:'underside', outline:rectO(botU,L), ops:[], at:at([bx+T-Dr.grooveDepth,by+Dr.groove,bz],[1,0,0],[0,0,1],[0,-1,0]) }, note:'Slides into the side grooves, full length' }));
   // runner holes on both ends, one row per drawer
-  const rowY = by + R.rowAbove, us=[...R.front.map(m=>m*MM), ...R.rear.map(m=>len*25.4 - m).map(m=>m*MM)];
+  const rowY = by + R.rowAbove, us=[...R.front.map(m=>m*MM), ...R.rear.map(m=>len*25.4 - m).map(m=>m*MM)].map(u=>u+(c.inset||0));   // inside drawers: set back behind the doors
   [c.ends.L, c.ends.R].forEach(end=>us.forEach(u=>end.cnc.ops.push({ k:'hole', u:r4(u), v:r4(rowY), d:5*MM, depth:R.holeDepth, side:'A', what:`Runner holes (${len}″ runner)` })));
   [ox0, ox1-0.5].forEach(gx=>out.push(part('Runner','hw','buy',[gx,by-0.5,bz,0.5,0.5,len],'x',{ex:[gx<ox0+1?-.3:.3,0,1.2], hw:true, note:`${R.name}, ${len}″`})));
   return out;
@@ -305,6 +307,17 @@ function drawerStack(c, x0, x1, y0, y1, heights, hid){
   heights.forEach((hh,i)=>{ out.push(...drawer(c, `Drawer ${i+1}`, x0+s, x1-s, y-hh, y, false, hid)); y-=hh+g; });
   return out;
 }
+/* drawers INSIDE a cabinet with doors (wardrobes): fronts between the ends, set back behind the hinges
+   (S.inside.set), runners and their holes set back with them; y0..y1 = the stack, bottom to top */
+function insideDrawers(c, y0, y1, n, hid, first, set=S.inside.set){
+  const T=T_(), g=S.fronts.gap, cc={ ...c, front:c.D-set, inset:T+set };     // set 0: flush with the box front (open units)
+  const hs=split(y1-y0, n, first);
+  const out=[]; let y=y1;
+  hs.forEach((hh,i)=>{ out.push(...drawer(cc, `Inside drawer ${i+1}`, c.ix0+S.inside.side, c.ix1-S.inside.side, y-hh, y, false, hid)); y-=hh+g; });
+  return out;
+}
+/* a closet rod across the inside, under a shelf at y (its flanges screw to the ends) */
+const rod = (c, y, nm='Closet rod') => part(nm,'hw','buy',[c.ix0,y-1.75,c.zb+(c.D-c.zb)/2-0.5,c.ix1-c.ix0,1,1],'y',{ex:[0,0,.8], hw:true, note:`${S.rod.name}, ${fmtU(c.ix1-c.ix0)}`});
 /* split the height of a stack of n fronts (gaps between them), the top one `first` high if given */
 const split = (total, n, first, g=S.fronts.gap) => { const net=total-(n-1)*g; return first ? [first, ...Array(n-1).fill((net-first)/(n-1))] : Array(n).fill(net/n); };
 
@@ -388,9 +401,69 @@ def({ k:'WD', cat:'wardrobe', name:'Wardrobe', w:36, h:84, d:24, wR:[18,48], siz
     const rod = (y, nm='Closet rod') => P.push({...part(nm,'hw','buy',[ix0,y-1,zb+(dc-zb)/2-0.5,ix1-ix0,1,1],'y',{ex:[0,0,.8], hw:true, note:`${S.rod.name}, ${fmtU(ix1-ix0)}`})});
     if(ins==='hang') rod(shelfY-2);
     if(ins==='double'){ rod(fixed[0]-2,'Closet rod, lower'); rod(shelfY-2,'Closet rod, upper'); }
-    if(ins==='drawers'){ P.push(...drawerStack({...c, front:c.front-t-1}, ix0,ix1, kh+t,kh+28, split(28-t,3), hid).map(p=>{ if(p.role==='front'){ p.name=p.name.replace('front','inside front'); } return p; })); rod(shelfY-2); }
+    if(ins==='drawers'){ P.push(...insideDrawers(c, kh+t+0.25, kh+28-0.25, 3, hid)); rod(shelfY-2); }
     const [f0,f1]=frontSpan('tall',c,H); P.push(...doors(c,W,f0,f1,'mid','Door',hid));
     return P; } });
+
+/* ---------------------------------------------------------------- the wardrobe system
+   Separate boxes that stand side by side to make a wall of wardrobe (each is a complete Mozaik-built cabinet, so
+   every one cuts, drills and nests like the kitchen cabinets). 23½″ box + doors (23½ so two 84″ ends fit across
+   one 48″ sheet, which 23⅝ just misses), 84 / 90 / 96″ tall, 4″ toe kick,
+   a fixed shelf in dados near the top (and wherever a unit needs stiffening), adjustable shelves on pins, closet
+   rods under shelves, drawers inside behind the doors (set back past the hinges) or outside below them.
+   Every unit can be "Open" (no doors, as a walk-in closet). Top boxes stand on top to reach a high ceiling. */
+const WR_W=[15,18,21,24,30,33,36,42,48], WR_H=[72,84,90,96];
+const wrBase = { cat:'wardrobe', w:36, h:84, d:24.1, wR:[12,48], hR:[60,108], sizes:WR_W, hSizes:WR_H };
+const frontOpt = ['front','Front',['doors','open']];
+const isOpen = it => it.opt.front==='open';
+/* a wardrobe box: c = carcass; adds its doors (full height above `doorFrom`) unless open */
+function wrBox(it, cfg){ return carcass(it, { kick:true, top:'full', doors:!isOpen(it), ...cfg }); }
+function wrDoors(c, it, from){ if(isOpen(it)) return []; const [f0,f1]=frontSpan('tall',c,it.h); return doors(c, it.w, from ?? f0, f1, 'mid', 'Door', hidOf(it)); }
+const topShelf = it => it.h - 14;                       // the hat shelf, 14″ under the top
+def({ ...wrBase, k:'WRH', name:'Wardrobe · hanging', note:'Long hanging (dresses, coats) under a hat shelf.', opts:[frontOpt], opt:{front:'doors'},
+  build: it => { const c=wrBox(it,{ fixed:[topShelf(it)] }); return [...c.parts, rod(c, topShelf(it)), ...wrDoors(c,it)]; } });
+def({ ...wrBase, k:'WRDH', name:'Wardrobe · double hanging', note:'Shirts and jackets on two rods.', opts:[frontOpt], opt:{front:'doors'},
+  build: it => { const T=th(), mid=Math.round(((S.kick.h+T)+topShelf(it))/2), c=wrBox(it,{ fixed:[mid, topShelf(it)] });
+    return [...c.parts, rod(c, topShelf(it), 'Closet rod, upper'), rod(c, mid, 'Closet rod, lower'), ...wrDoors(c,it)]; } });
+def({ ...wrBase, k:'WRS', w:18, name:'Wardrobe · shelves', note:'Folded clothes: adjustable shelves, a fixed shelf in the middle for stiffness.', opts:[frontOpt,['shelves','Shelves',[3,4,5,6]]], opt:{front:'doors', shelves:4},
+  build: it => { const c=wrBox(it,{ fixed:[Math.round(it.h/2)], adj:it.opt.shelves??4 }); return [...c.parts, ...wrDoors(c,it)]; } });
+def({ ...wrBase, k:'WRHD', name:'Wardrobe · hanging over drawers', note:'Drawers inside, behind the doors; short hanging above.', opts:[frontOpt,['drawers','Drawers',[2,3,4]]], opt:{front:'doors', drawers:3},
+  build: it => { const T=th(), n=it.opt.drawers??3, top=S.kick.h+T+n*8.5, c=wrBox(it,{ fixed:[top, topShelf(it)] });
+    const dr = insideDrawers(c, S.kick.h+T+0.25, top-0.25, n, hidOf(it), 0, isOpen(it) ? 0 : S.inside.set);
+    return [...c.parts, ...dr, rod(c, topShelf(it)), ...wrDoors(c,it)]; } });
+def({ ...wrBase, k:'WRSD', w:24, name:'Wardrobe · shelves over drawers', note:'Drawers inside at the bottom, adjustable shelves above.', opts:[frontOpt,['drawers','Drawers',[2,3,4]],['shelves','Shelves',[2,3,4]]], opt:{front:'doors', drawers:3, shelves:3},
+  build: it => { const T=th(), n=it.opt.drawers??3, top=S.kick.h+T+n*8.5, c=wrBox(it,{ fixed:[top], adj:it.opt.shelves??3, adjFrom:top });
+    const dr = insideDrawers(c, S.kick.h+T+0.25, top-0.25, n, hidOf(it), 0, isOpen(it) ? 0 : S.inside.set);
+    return [...c.parts, ...dr, ...wrDoors(c,it)]; } });
+def({ ...wrBase, k:'WRDD', w:24, name:'Wardrobe · drawers under doors', note:'Drawer fronts outside at the bottom, doors and shelves above.', opts:[['drawers','Drawers',[2,3,4]],['shelves','Shelves',[2,3,4]]], opt:{drawers:3, shelves:3},
+  build: it => { const T=th(), g=S.fronts.gap, n=it.opt.drawers??3, top=S.kick.h+n*8.5+0.5, c=carcass(it,{ kick:true, top:'full', fixed:[top], adj:it.opt.shelves??3, adjFrom:top }), hid=hidOf(it);
+    const [f0,f1]=frontSpan('tall',c,it.h);
+    return [...c.parts, ...drawerStack(c, 0, it.w, f0, top+T/2-g/2, split(top+T/2-g/2-f0, n), hid), ...doors(c, it.w, top+T/2+g/2, f1, 'mid', 'Door', hid)]; } });
+def({ ...wrBase, k:'WRT', w:36, h:16, y:84, wR:[12,48], hR:[10,30], hSizes:[12,16,20,24], name:'Wardrobe · top box', note:'Stands on a wardrobe unit to reach the ceiling; seasonal storage.', opts:[frontOpt], opt:{front:'doors'},
+  build: it => { const c=carcass(it,{ kick:false, top:'full', doors:!isOpen(it) }); if(isOpen(it)) return c.parts; const [f0,f1]=frontSpan('upper',c,it.h); return [...c.parts, ...doors(c, it.w, 0, f1, 'bottom', 'Door', hidOf(it))]; } });
+
+/* whole wardrobe walls: units side by side (each its own box), like the inspiration photos */
+const WALLS = {
+  'Five doors': { note:'Hanging over drawers · shelves · hanging over wide drawers · shelves', units:[['WRHD',36],['WRS',18],['WRHD',36,{drawers:3}],['WRS',18]] },
+  'Walk-in, open': { front:'open', note:'Open: hanging over drawers · shelves over drawers · double hanging · double hanging · shelves', units:[['WRHD',30,{drawers:3}],['WRSD',30,{drawers:2,shelves:3}],['WRDH',24],['WRDH',36],['WRS',24,{shelves:4}]] },
+  'Floor to ceiling': { tops:true, note:'Drawers under doors · hanging · double hanging · hanging · shelves, with top boxes', units:[['WRDD',18],['WRH',30],['WRDH',30],['WRH',30],['WRS',18]] },
+  'Compact': { note:'Hanging · shelves over drawers', units:[['WRH',30],['WRSD',24]] },
+};
+const wallW = it => (WALLS[it.opt?.layout]||WALLS['Five doors']).units.reduce((a,u)=>a+u[1],0);
+def({ cat:'wardrobe', k:'WRW', name:'Wardrobe wall', w:108, h:84, d:24.1, wR:[24,240], hR:[72,96], sizes:null, hSizes:[84,90,96],
+  note:'Separate units side by side, each cut as its own box. Change the layout to try the others; build your own from the single units.',
+  opts:[['layout','Layout',Object.keys(WALLS)],['tops','Top boxes',['no','16″','24″']]], opt:{layout:'Five doors', tops:'no'},
+  sized: it => ({ w: wallW(it) }),
+  build: it => { const L=WALLS[it.opt.layout]||WALLS['Five doors'], n=L.units.length, out=[]; let x=0;
+    const tops = it.opt.tops==='no' ? (L.tops ? 16 : 0) : parseFloat(it.opt.tops)||0;
+    const H = it.h - (tops ? tops : 0);
+    L.units.forEach(([k,w,o],i)=>{ const d=itemDef(k), sub={ k, w, h:H, d:it.d, opt:{ ...(d.opt||{}), ...(L.front?{front:L.front}:{}), ...(o||{}), handle:it.opt.handle } };
+      const shift=(P, dy=0)=>P.filter(Boolean).forEach(p=>{ p.box=[p.box[0]+x, p.box[1]+dy, ...p.box.slice(2)]; if(p.cnc?.at) p.cnc.at={...p.cnc.at, o:[p.cnc.at.o[0]+x, p.cnc.at.o[1]+dy, p.cnc.at.o[2]]};
+        p.name=`U${i+1} ${p.name}`; p.ex=[p.ex[0]+(i-(n-1)/2)*0.35, p.ex[1], p.ex[2]]; out.push(p); });
+      shift(d.build(sub));
+      if(tops){ const td=itemDef('WRT'); shift(td.build({ k:'WRT', w, h:tops, d:it.d, opt:{ front:L.front||'doors', handle:it.opt.handle } }), H); }
+      x+=w; });
+    return out; } });
 
 /* vanities: 21″ deep, 34½″ (or 32½″) */
 def({ k:'VD',  cat:'vanity', name:'Vanity, sink + doors',   w:30, h:34.5, d:21, sizes:[24,30,36,48], hSizes:[32.5,34.5], build:baseBuild('sink') });

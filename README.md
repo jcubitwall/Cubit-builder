@@ -326,3 +326,21 @@ The zip holds the programs, a parts list with each part's place on its sheet, an
 
 ## Zooming the panel builder
 Pinch to zoom the drawing in either builder (wall, floor, ceiling, roof), around the point between your fingers, and slide with two fingers. Double-tap with two fingers to see the whole panel again. The − / % / + buttons in the corner do the same, as do trackpad pinch and the mouse wheel. Taps and drags still land in the drawing's own inches, so a zoomed-in drag moves the item in finer steps (`js/zoompan.js`).
+
+## Wardrobes
+The Wardrobes category in the cabinet library is a system of separate boxes that stand side by side. Each one is built with the same Mozaik rules as the kitchen cabinets, so each cuts, drills and nests the same way.
+
+The units:
+- Hanging (long hang under a hat shelf)
+- Double hanging
+- Shelves (adjustable, with a fixed shelf in the middle for stiffness)
+- Hanging over drawers
+- Shelves over drawers
+- Drawers under doors (outside fronts)
+- Top box (stands on a unit to reach the ceiling)
+
+Every unit can be Doors or Open. Drawers inside a unit with doors sit 2″ behind the box front, past the hinges, and their runner holes move back with them.
+
+**Wardrobe wall** puts ready-made walls of units in the library, taken from the inspiration photos: Five doors, Walk-in (open), Floor to ceiling (with top boxes) and Compact. Its width follows the layout, top boxes can be added, and each unit is labelled U1, U2 … in the cut list.
+
+Wardrobe boxes are 23½″ deep, so two 84″ ends fit across one 48″ sheet; 23⅝ misses by 0.06″. Nesting now tries several orders and keeps the one that uses the fewest sheets.

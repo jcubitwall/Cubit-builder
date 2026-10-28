@@ -37,16 +37,27 @@ function jobParts(items){
 }
 
 /* ---------------------------------------------------------------- nesting (max rects, best short side fit) */
+/* several orders and two ways of choosing a spot are tried; the fewest sheets wins (then the emptiest last sheet,
+   whose offcut is the most useful) */
 function nest(pieces, o=CAB_CNC){
+  const orders=[ (a,b)=>b.U*b.V-a.U*a.V, (a,b)=>Math.max(b.U,b.V)-Math.max(a.U,a.V), (a,b)=>Math.min(b.U,b.V)-Math.min(a.U,a.V), (a,b)=>(b.U+b.V)-(a.U+a.V) ];
+  let best=null;
+  for(const ord of orders) for(const rule of ['bssf','baf','bl']){ const r=nestOnce(pieces, o, ord, rule);
+    const last=r.sheets.length ? r.sheets[r.sheets.length-1].yield : 0;
+    if(!best || r.sheets.length<best.sheets.length || (r.sheets.length===best.sheets.length && last<best.last)) best={...r, last}; }
+  delete best.last; return best;
+}
+function nestOnce(pieces, o, order, rule){
   const [SW,SL]=o.sheet, g=o.gap, BW=SW-2*o.trim+g, BL=SL-2*o.trim+g;
-  const todo=pieces.map((q,i)=>({...q, i})).sort((a,b)=>b.U*b.V-a.U*a.V || Math.max(b.U,b.V)-Math.max(a.U,a.V));
+  const todo=pieces.map((q,i)=>({...q, i})).sort((a,b)=>order(a,b) || b.U*b.V-a.U*a.V);
   const sheets=[], tooBig=[];
   const newSheet=()=>{ const s={ free:[{x:0,y:0,w:BW,h:BL}], placed:[] }; sheets.push(s); return s; };
   const fits=(f,w,h)=>w<=f.w+1e-9 && h<=f.h+1e-9;
   function place(s, q){
     let best=null;
     for(const r of [0,1]){ const w=(r?q.V:q.U)+g, h=(r?q.U:q.V)+g;
-      s.free.forEach(f=>{ if(!fits(f,w,h)) return; const ss=Math.min(f.w-w,f.h-h), ls=Math.max(f.w-w,f.h-h);
+      s.free.forEach(f=>{ if(!fits(f,w,h)) return;
+        const ss = rule==='baf' ? f.w*f.h-w*h : rule==='bl' ? f.y+h : Math.min(f.w-w,f.h-h), ls = rule==='bl' ? f.x : Math.max(f.w-w,f.h-h);
         if(!best || ss<best.ss-1e-9 || (Math.abs(ss-best.ss)<1e-9 && ls<best.ls)) best={x:f.x,y:f.y,w,h,r,ss,ls}; }); }
     if(!best) return false;
     const R={x:best.x,y:best.y,w:best.w,h:best.h};
