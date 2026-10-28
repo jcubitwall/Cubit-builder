@@ -484,6 +484,21 @@ def({ k:'WBL', cat:'bench', name:'Window bench, lift top', w:48, h:17, d:18, wR:
     return P; } });
 
 /* shelves */
+/* the tallest a cabinet can be and still be stood up in the room: tipped up from lying on its back, its diagonal
+   (height × depth) must clear the ceiling. Pod ceiling: 106.6″ (underside of the interior ceiling) less the top of the
+   interior floor (6.08 + 4.48) = 96.04″ clear; 3/4″ kept spare. */
+const CEILING = 106.6 - (6.08 + 4.48), ERECT_SPARE = 0.75;
+const erectH = d => Math.floor((Math.sqrt(CEILING*CEILING - d*d) - ERECT_SPARE)*4)/4;
+/* an open, modern bookshelf for where two pod walls meet: 15″ wide covers the joint and the finished panel edges.
+   Box dados like every cabinet, evenly spaced FIXED shelves (stiff and clean), back in its dado, no doors. As tall as
+   it can be and still tip up under the ceiling (diagonal), unless set lower. */
+def({ k:'BJ', cat:'shelf', name:'Bookshelf, wall joint', w:15, d:12, h:erectH(12), wR:[9,36], hR:[30,96], dR:[8,16], sizes:[12,15,18,24], dSizes:[10,12,14],
+  hSizes:[72,84,erectH(12)], note:`15″ wide covers where two walls meet. ${erectH(12)}″ tall: the most that still tips up under the ${CEILING.toFixed(2)}″ ceiling with ${ERECT_SPARE}″ to spare.`,
+  opts:[['openings','Openings',[5,6,7,8]],['kick','Toe kick',[4,2.5,0]]], opt:{openings:6, kick:4},
+  build: it => { const T=th(), H=Math.min(it.h, erectH(it.d)), kh=it.opt.kick??4, n=it.opt.openings??6;
+    const lo=kh+T, hi=H-T, step=(hi-lo-(n-1)*T)/n, fixed=[...Array(n-1)].map((_,i)=>r4(lo+step*(i+1)+T*i));
+    const c=carcass({ ...it, h:H, opt:{ ...it.opt, kick:kh } }, { kick:kh>0, top:'full', fixed, doors:false });
+    return c.parts.map(p=>{ if(/Fixed shelf/.test(p.name)) p.band={long:1,short:0}; return p; }); } });
 def({ k:'SO', cat:'shelf', name:'Open shelving / bookcase', w:30, h:72, d:12, wR:[12,48], sizes:[18,24,30,36,42,48], hSizes:[30,36,48,60,72,84,96], dSizes:[10,12,14,16], opts:[['shelves','Shelves',[2,3,4,5,6]]], opt:{shelves:4},
   build: it => { const n=it.opt.shelves??4, kh=S.kick.h, t=th(); const fixed=[...Array(n)].map((_,i)=>kh+t+(it.h-kh-2*t)*(i+1)/(n+1)-t/2);
     const c=carcass(it,{kick:true, top:'full', fixed, doors:false}); return c.parts; } });

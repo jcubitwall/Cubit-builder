@@ -344,3 +344,8 @@ Every unit can be Doors or Open. Drawers inside a unit with doors sit 2″ behin
 **Wardrobe wall** puts ready-made walls of units in the library, taken from the inspiration photos: Five doors, Walk-in (open), Floor to ceiling (with top boxes) and Compact. Its width follows the layout, top boxes can be added, and each unit is labelled U1, U2 … in the cut list.
 
 Wardrobe boxes are 23½″ deep, so two 84″ ends fit across one 48″ sheet; 23⅝ misses by 0.06″. Nesting now tries several orders and keeps the one that uses the fewest sheets.
+
+## Bookshelf, wall joint
+The Shelves category has an open, modern bookshelf for where two pod walls meet. It is 15″ wide by default, to cover the joint and the edges of the finished panels, and 12″ deep. It's built like every cabinet: dados, evenly spaced fixed shelves (6 openings of about 14½″), a back in its dado, a 4″ toe kick (2½″ or none if wanted) and no doors.
+
+Its default height is the tallest it can be and still be tipped up into place. Its diagonal has to clear the pod ceiling: 106.6″ underside of the ceiling less 10.56″ top of the interior floor = 96.04″ clear, with ¾″ kept spare (`erectH()` in `js/casework.js`). At 12″ deep that's 94½″, leaving about 1½″ above it once standing.
