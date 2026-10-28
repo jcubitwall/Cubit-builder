@@ -200,7 +200,7 @@ function elevation(){
     <text x="0" y="${H+7}" class="wb-end">◀ left end seen from ${view}</text><text x="0" y="${H+12}" class="wb-end">${fitL()||fitR() ? `${fin(netL())} long (${W.len}′ less its ends)` : `${W.len}′ full length`} · ${W.t}″ thick · 96″ high</text></svg>`;
 }
 function fields(){
-  if(!sel) return `<p class="note">Tap an item on the wall to pick it, then drag it to move it sideways or up / down (one at a time), or type its size and place. Measurements are from the left end seen from ${view} and from the floor.</p>`;
+  if(!sel) return `<p class="wb-mini">Tap an item to pick it · drag a picked item to move it · pinch to zoom</p>`;
   const it=listOf(sel.k)[sel.i]; if(!it) return '';
   if(sel.k==='sh') return shapeFields(it);
   const [w,h]=sizeOf(sel.k,it), x=drawX(sel.k,it), isOp=sel.k==='op', round=it.shape==='round';
@@ -238,11 +238,10 @@ function shapeFields(it){
 /* panel layout: each solid stretch, its full panels and its one cut panel, and which end the cut one goes */
 function layoutPanel(){
   const st=wallStretches(bodyTmp()), S=spansOut();
-  return `<div class="wb-layout"><div class="eyebrow">Panel layout · ${S.length} panel${S.length>1?'s':''}${gapsOut().length?` · ${gapsOut().length} opening${gapsOut().length>1?'s':''} with no SIP`:''}</div>
+  return `<div class="wb-layout"><span class="wb-k">Panels · ${S.length}${gapsOut().length?` · ${gapsOut().length} no-SIP opening${gapsOut().length>1?'s':''}`:''}</span>
     ${st.map(([a,b],i)=>{ const P=S.filter(sp=>sp.stretch===i), cut=P.find(sp=>sp.cutEnd), side=(W.cutSide?.[i]||'left');
-      return `<div class="wb-strow"><span>${st.length>1?`Stretch ${i+1} · `:''}${fin(b-a)}: ${P.filter(sp=>!sp.cutEnd).length} full${cut?` + 1 cut to ${fin(cut[1]-cut[0])}`:''}</span>
-        ${cut?`<div class="seg sm" role="group" aria-label="Cut panel at"><button data-cut="${i}:left" aria-pressed="${side==='left'}">Cut one left</button><button data-cut="${i}:right" aria-pressed="${side==='right'}">Cut one right</button></div>`:'<span class="muted">all full panels</span>'}</div>`; }).join('')}
-    <p class="note">Seen from outside. A full-height opening has no SIP in it; tick or untick that on the opening.</p></div>`;
+      return `<div class="wb-strow"><span>${st.length>1?`${i+1}: `:''}${P.filter(sp=>!sp.cutEnd).length} full${cut?` + cut ${fin(cut[1]-cut[0])}`:''}</span>
+        ${cut?`<div class="seg sm" role="group" aria-label="Cut panel at" title="Which end gets the cut panel (seen from outside)"><button data-cut="${i}:left" aria-pressed="${side==='left'}">◂ cut</button><button data-cut="${i}:right" aria-pressed="${side==='right'}">cut ▸</button></div>`:''}</div>`; }).join('')}</div>`;
 }
 function render(){
   HIST.track();
@@ -257,26 +256,23 @@ function render(){
         <div class="wb-stage">${elevation()}</div>
         ${P.length?`<ul class="wb-warn">${P.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>`:''}
       </div>
-      <div class="cw-side">
-        <div class="cw-opt"><span>Wall</span><div class="seg"><button data-type="ext" aria-pressed="${W.type==='ext'}">Exterior 6½″</button><button data-type="int" aria-pressed="${W.type==='int'}">Interior 4½″</button></div></div>
-        <div class="cw-opt"><span>Length (8′ high)</span><div class="seg wrap">${[4,8,12,16,20,24].map(n=>`<button data-len="${n}" aria-pressed="${W.len===n}">${n}′</button>`).join('')}</div></div>
-        <div class="cw-opt"><span>Ends (seen from outside)</span>
-          ${['Left','Right'].map((nm,e)=>`<div class="wb-endrow"><b>${nm}</b><div class="seg wrap">${[[0,'Full length'],[6.5,'Between 6½″'],[4.5,'Between 4½″']].map(([v,l])=>`<button data-fit="${e}" data-v="${v}" aria-pressed="${Math.abs((W.fit?.[e]||0)-v)<1e-6}">${l}</button>`).join('')}${(W.fit?.[e]||0)<0?`<button aria-pressed="true" disabled>Runs on ${fin(-(W.fit[e]))}</button>`:''}</div></div>`).join('')}
-          <p class="note">${fitL()||fitR() ? `Cut length ${fin(netL())}: ${fitL()?`${fin(fitL())} off the left`:''}${fitL()&&fitR()?', ':''}${fitR()?`${fin(fitR())} off the right`:''} where it butts the wall${fitL()&&fitR()?'s':''} beside it. Measurements are from the cut ends.` : 'Full length: it runs the whole way, corner to corner.'}</p></div>
-        <h3>Add to the ${near(view)} face</h3>
-        <div class="wb-add"><button class="btn ghost sm" data-add="plug">Plug box</button><button class="btn ghost sm" data-add="switch">Switch box</button><button class="btn ghost sm" data-add="double">Double switch box</button><button class="btn ghost sm" data-add="light">Wall light box</button><button class="btn ghost sm" data-add="pocket">Round pocket</button></div>
-        <h3>Through the wall</h3>
-        <div class="wb-add"><button class="btn ghost sm" data-add="window">Window opening</button><button class="btn ghost sm" data-add="door">Door opening</button><button class="btn ghost sm" data-add="opening">Cased opening</button><button class="btn ghost sm" data-add="round">Round window</button><button class="btn ghost sm" data-add="vent">Round hole</button></div>
-        <h3>Shapes</h3>
-        <div class="wb-add"><button class="btn ghost sm" id="wbShape" aria-pressed="${shapePick}">Add shape</button><button class="btn ghost sm" id="wbDraw">Draw a new shape</button></div>
+      <div class="cw-side wb-side">
+        <div class="wb-row"><span class="wb-k">Wall</span><div class="seg sm"><button data-type="ext" aria-pressed="${W.type==='ext'}">Ext 6½″</button><button data-type="int" aria-pressed="${W.type==='int'}">Int 4½″</button></div>
+          <div class="seg sm">${[4,8,12,16,20,24].map(n=>`<button data-len="${n}" aria-pressed="${W.len===n}">${n}′</button>`).join('')}</div></div>
+        <div class="wb-row"><span class="wb-k">Ends</span>${['L','R'].map((nm,e)=>`<span class="wb-endk">${nm}</span><div class="seg sm">${[[0,'Full'],[6.5,'6½'],[4.5,'4½']].map(([v,l])=>`<button data-fit="${e}" data-v="${v}" aria-pressed="${Math.abs((W.fit?.[e]||0)-v)<1e-6}" title="${v?`Butts between ${l}″ walls`:'Full length, corner to corner'}">${l}</button>`).join('')}${(W.fit?.[e]||0)<0?`<button aria-pressed="true" disabled>+${fin(-(W.fit[e]))}</button>`:''}</div>`).join('')}
+          <span class="wb-mini">${fitL()||fitR() ? `cut ${fin(netL())}` : 'corner to corner'}</span></div>
+        <div class="wb-adds">
+          <div class="wb-addg"><span class="wb-k" title="Boxes and pockets on the ${near(view)} face">Face</span><button data-add="plug">Plug</button><button data-add="switch">Switch</button><button data-add="double">Double</button><button data-add="light">Light</button><button data-add="pocket">Round pocket</button></div>
+          <div class="wb-addg"><span class="wb-k">Through</span><button data-add="window">Window</button><button data-add="door">Door</button><button data-add="opening">Cased</button><button data-add="round">Round window</button><button data-add="vent">Round hole</button></div>
+          <div class="wb-addg"><span class="wb-k">Shape</span><button id="wbShape" aria-pressed="${shapePick}">From library</button><button id="wbDraw">Draw new</button></div>
+        </div>
         ${shapePick?shapePicker():''}
         ${fields()}
         ${layoutPanel()}
         ${rulesPanel()}
-        <h3>Save</h3>
-        <label class="cw-f"><span>Name</span><input id="wbName" value="${esc(W.name||'')}" placeholder="${esc(autoName())}"></label>
-        <div class="row">${canSave()?`<button class="btn" id="wbSave">${libHit?'Save changes':'Save to wall library'}</button>${libHit?'<button class="btn ghost" id="wbSaveNew">Save as a new wall</button>':''}`:'<span class="note">Viewers can look but not save walls.</span>'}</div>
-        ${forSlot?`<p class="note">Saving also puts it on ${esc(forSlot.label)}.</p>`:''}
+        <div class="wb-save"><input id="wbName" value="${esc(W.name||'')}" placeholder="${esc(autoName())}" aria-label="Name">
+          ${canSave()?`<button class="btn sm" id="wbSave">${libHit?'Save':'Save to library'}</button>${libHit?'<button class="btn ghost sm" id="wbSaveNew">Save as new</button>':''}`:'<span class="wb-mini">Viewers can look but not save.</span>'}</div>
+        ${forSlot?`<p class="wb-mini">Saving also puts it on ${esc(forSlot.label)}.</p>`:''}
       </div></div></div>`;
   bind();
 }

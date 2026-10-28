@@ -95,9 +95,9 @@ function renderDetail(body){
   body.innerHTML=`<div class="cw-detail">
     <div class="cw-view">
       <div class="cw-vh"><button class="btn ghost sm" id="cwBack">← ${editing?'Close':esc(cat.name)}</button><b>${esc(d.name)}</b><span class="spacer"></span>${histButtons(HIST)}
-        <button class="btn ghost sm" id="cwFront">Front</button><button class="btn ghost sm" id="cwIso">3D</button></div>
+        <button class="btn ghost sm" id="cwExB" aria-pressed="${view.explode>0.5}">Exploded</button><button class="btn ghost sm" id="cwFront">Front</button><button class="btn ghost sm" id="cwIso">3D</button></div>
       <canvas id="cwCanvas" aria-label="3D view of ${esc(d.name)}"></canvas>
-      <div class="cw-ex"><label for="cwEx">Exploded</label><input type="range" id="cwEx" min="0" max="1" step="0.01" value="${view.explode}"><span class="note">Tap a part to find it in the list</span></div>
+      <p class="cw-hint">Spread three fingers to explode · pinch three to close · tap a part to find it</p>
     </div>
     <div class="cw-side">
       ${d.note?`<p class="note">${esc(d.note)} · check the maker's current spec sheet before ordering.</p>`:''}
@@ -126,7 +126,7 @@ function renderDetail(body){
   bindHistory(body, HIST, ()=>{ const ex=view.explode; render(); view.explode=ex; });
   body.querySelector('#cwBack').onclick=()=>{ if(editing){ dlg.close(); return; } view.item=null; render(); };
   body.querySelector('#cwFront').onclick=()=>V?.front(); body.querySelector('#cwIso').onclick=()=>V?.iso();
-  body.querySelector('#cwEx').oninput=e=>{ view.explode=+e.target.value; V?.explode(view.explode); };
+  body.querySelector('#cwExB').onclick=e=>{ V?.explodeTo(view.explode>0.5?0:1); };
   const clampR=(k,v)=>{ const r={w:d.wR,h:d.hR,d:d.dR,y:[0,96]}[k]||[0,200]; return Math.min(r[1], Math.max(r[0], v)); };
   body.querySelectorAll('[data-len]').forEach(inp=>inp.onchange=()=>{ const v=parseLen(inp.value); if(!isFinite(v)){ inp.value=show(it[inp.dataset.len]||0); return; } apply({[inp.dataset.len]:clampR(inp.dataset.len, v)}); });
   body.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>{ const k=b.dataset.step, st=U()==='mm'?10*MM:(k==='y'?1:0.5); apply({[k]:clampR(k,(it[k]||0)+st*(+b.dataset.dir))}); });
@@ -228,7 +228,7 @@ function startViewer(canvas, it){
   M.explode(view.explode);
   const size=()=>{ const w=canvas.clientWidth, h=canvas.clientHeight; if(!w||!h) return; r.setSize(w,h,false); cam.aspect=w/h; cam.updateProjectionMatrix(); };
   const ro=new ResizeObserver(size); ro.observe(canvas); size();
-  let raf=0, sel=null; const loop=()=>{ raf=requestAnimationFrame(loop); ctl.update(); r.render(sc,cam); }; loop();
+  let raf=0, sel=null; const loop=()=>{ raf=requestAnimationFrame(loop); V?.tick?.(); ctl.update(); r.render(sc,cam); }; loop();
   // tap a part: open its row
   const rc=new THREE.Raycaster(), nd=new THREE.Vector2(); let down=null;
   canvas.addEventListener('pointerdown', e=>{ down=[e.clientX,e.clientY]; });
@@ -244,7 +244,17 @@ function startViewer(canvas, it){
     if(i==null){ M.select(null); return; }
     const row=rows.find(x=>x.dataset.parts.split(',').map(Number).includes(i));
     if(row){ row.open=true; row.scrollIntoView({block:'nearest', behavior:'smooth'}); } else M.select([i]); });
-  V={ explode:e=>M.explode(e), front:()=>fit(0,0.02), iso:()=>fit(0.62,0.32),
+  // explode: animated toward a goal; three fingers spread / pinch set the goal (the wider, the further)
+  let goal=view.explode, cur=view.explode;
+  const setBtn=()=>dlg.querySelector('#cwExB')?.setAttribute('aria-pressed', goal>0.5);
+  const tick=()=>{ if(Math.abs(cur-goal)>0.002){ cur+=(goal-cur)*0.18; if(Math.abs(cur-goal)<0.003) cur=goal; M.explode(cur); view.explode=cur; } };
+  const g3={ on:false };
+  const spr=t=>{ const n=t.length; let cx=0,cy=0; for(const q of t){ cx+=q.clientX; cy+=q.clientY; } cx/=n; cy/=n; let d=0; for(const q of t) d+=Math.hypot(q.clientX-cx,q.clientY-cy); return d/n; };
+  canvas.addEventListener('touchstart', e=>{ if(e.touches.length===3){ e.preventDefault(); g3.on=true; g3.d0=spr(e.touches); g3.e0=goal; ctl.enabled=false; } }, {passive:false});
+  canvas.addEventListener('touchmove', e=>{ if(!g3.on || e.touches.length!==3) return; e.preventDefault(); goal=Math.max(0, Math.min(1, g3.e0 + (spr(e.touches)/Math.max(1,g3.d0)-1)*1.6)); setBtn(); }, {passive:false});
+  const end3=e=>{ if(g3.on && e.touches.length<3){ g3.on=false; ctl.enabled=true; } };
+  canvas.addEventListener('touchend', end3); canvas.addEventListener('touchcancel', end3);
+  V={ explode:e=>{ goal=cur=e; M.explode(e); }, explodeTo:e=>{ goal=e; setBtn(); }, tick, front:()=>fit(0,0.02), iso:()=>fit(0.62,0.32),
     select:idx=>{ if(!idx){ M.select(null); return; } M.meshes.forEach(m=>{ const on=idx.includes(m.userData.part); m.material = on ? selMat : dimMat(m); }); },
     stop:()=>{ cancelAnimationFrame(raf); ro.disconnect(); ctl.dispose(); r.dispose(); } };
   const selMat=new THREE.MeshStandardMaterial({color:0xd0661f, roughness:0.6, emissive:0x4a1c04});

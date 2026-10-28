@@ -155,7 +155,7 @@ function fields(){
       <div class="rf-wrap">${RF.panel()}</div>
       ${pk.length?`<div class="cw-opt"><span>Pockets cut from</span><div class="seg"><button data-sface="top" aria-pressed="${it.face!=='bottom'}">Top face</button><button data-sface="bottom" aria-pressed="${it.face==='bottom'}">Bottom face</button></div></div>`:''}
       <div class="row"><button class="btn ghost sm" data-smir="x">Mirror</button><button class="btn ghost sm" data-smir="y">Flip</button><button class="btn ghost sm" id="lbSDup">Duplicate</button><button class="btn ghost sm" id="lbSDel">Remove</button></div></div>`; }
-  if(sel==null) return `<p class="note">Tap an item to pick it, then drag it to move it along or across (one at a time), or type its size and place. Measurements are from the left end and the top edge as you see it now.</p>`;
+  if(sel==null) return `<p class="wb-mini">Tap an item to pick it · drag a picked item to move it · pinch to zoom</p>`;
   const h=Lr.holes[sel]; if(!h) return '';
   const round=h.shape==='round', shaped=h.shape==='poly' || h.shape==='slot', c=cutOf(h);
   const f=(id,label,v)=>`<label class="cw-f"><span>${label}</span><input data-f="${id}" inputmode="decimal" value="${Math.round(v*16)/16}"><i>″</i></label>`;
@@ -183,21 +183,19 @@ function render(){
         <div class="wb-stage">${plan()}</div>
         ${P.length?`<ul class="wb-warn">${P.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>`:''}
       </div>
-      <div class="cw-side">
-        <div class="cw-opt"><span>Length (8′ across)</span><div class="seg wrap">${[8,16,24].map(n=>`<button data-len="${n}" aria-pressed="${Lr.len===n}">${n}′</button>`).join('')}</div></div>
-        <h3>Right through</h3>
-        <div class="wb-add"><button class="btn ghost sm" data-add="rect">Rectangular hole</button><button class="btn ghost sm" data-add="hatch">Hatch 22 × 30</button><button class="btn ghost sm" data-add="round">Round hole</button></div>
-        <h3>Pocket in the ${view==='top'?'top':'bottom'} face</h3>
-        <div class="wb-add"><button class="btn ghost sm" data-add="rpocket">Rectangular pocket</button><button class="btn ghost sm" data-add="cpocket">Round pocket</button></div>
-        ${Lr.kind==='ceiling-int'?`<p class="note">Heat pump head, hatch or chase: add a rectangular hole, then make it a pocket and set its depth if it shouldn't go right through.${lights?` The ${lights/2|0} pot lights shown faintly follow the light rules (change them with Lights by hand on the ceiling).`:' Pot lights follow the light rules; change them with Lights by hand on the ceiling.'}</p>`:''}
-        <h3>Shapes</h3>
-        <div class="wb-add"><button class="btn ghost sm" id="lbShape" aria-pressed="${shapePick}">Add shape</button><button class="btn ghost sm" id="lbDraw">Draw a new shape</button></div>
+      <div class="cw-side wb-side">
+        <div class="wb-row"><span class="wb-k">Length</span><div class="seg sm">${[8,16,24].map(n=>`<button data-len="${n}" aria-pressed="${Lr.len===n}">${n}′</button>`).join('')}</div><span class="wb-mini">× 8′ across</span></div>
+        <div class="wb-adds">
+          <div class="wb-addg"><span class="wb-k">Through</span><button data-add="rect">Rect hole</button><button data-add="hatch">Hatch 22×30</button><button data-add="round">Round hole</button></div>
+          <div class="wb-addg"><span class="wb-k" title="Pockets in the ${view==='top'?'top':'bottom'} face">Pocket</span><button data-add="rpocket">Rect pocket</button><button data-add="cpocket">Round pocket</button></div>
+          <div class="wb-addg"><span class="wb-k">Shape</span><button id="lbShape" aria-pressed="${shapePick}">From library</button><button id="lbDraw">Draw new</button></div>
+          ${Lr.kind==='ceiling-int'?`<span class="wb-mini" title="Heat pump head, hatch or chase: add a rectangular hole, then make it a pocket and set its depth if it shouldn't go right through.">Pot lights${lights?` (${lights/2|0})`:''} follow the light rules · change them with Lights by hand</span>`:''}
+        </div>
         ${shapePick?`<div class="wb-shapes">${SHAPELIB.length ? SHAPELIB.map(s=>`<button class="wb-shp" data-shape="${esc(s.id)}">${shapeThumb(s)}<span><b>${esc(s.name)}</b><small>${fin(s.w||0)} × ${fin(s.h||0)}</small></span></button>`).join('') : '<p class="note">No shapes yet: Draw a new shape.</p>'}</div>`:''}
         ${fields()}
-        <h3>Save</h3>
-        <label class="cw-f"><span>Name</span><input id="lbName" value="${esc(Lr.name||'')}" placeholder="${esc(autoName())}"></label>
-        <div class="row">${canSave()?`<button class="btn" id="lbSave">${libHit?'Save changes':'Save to layer library'}</button>${libHit?'<button class="btn ghost" id="lbSaveNew">Save as a new layer</button>':''}`:'<span class="note">Viewers can look but not save.</span>'}</div>
-        ${forSlot?`<p class="note">Saving also puts it on ${esc(forSlot.label)}.</p>`:''}
+        <div class="wb-save"><input id="lbName" value="${esc(Lr.name||'')}" placeholder="${esc(autoName())}" aria-label="Name">
+          ${canSave()?`<button class="btn sm" id="lbSave">${libHit?'Save':'Save to library'}</button>${libHit?'<button class="btn ghost sm" id="lbSaveNew">Save as new</button>':''}`:'<span class="wb-mini">Viewers can look but not save.</span>'}</div>
+        ${forSlot?`<p class="wb-mini">Saving also puts it on ${esc(forSlot.label)}.</p>`:''}
       </div></div></div>`;
   bind();
 }
