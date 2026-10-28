@@ -28,6 +28,8 @@ import { openShapeStudio } from './shape-studio.js';
 import { flatten, bboxAll } from './geom2d.js';
 import { makeHistory, histButtons, bindHistory } from './local-history.js';
 import { makeRefTool } from './refmeasure.js';
+import { attachZoom, pinching } from './zoompan.js';
+const ZL={ k:1, x:0, y:0 };   // pinch zoom of the drawing (kept across redraws)
 
 const WID=96, PW=48, SPLINE=1.75;
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -43,6 +45,7 @@ const HIST = makeHistory(()=>(Lr), v=>{ Lr=v; sel=null; ssel=null; });
 function blank(len=24, kind='ceiling-int'){ const K=LAYER_KINDS[kind]; return { id:null, name:'', kind, len, t:K.t, z:K.z, seams:[], holes:[] }; }
 /* open the builder: a fresh layer, a copy of a library layer, or (from a pod's layer panel) ready to use there */
 function openLayerBuilder({ from=null, slot=null, len, kind }={}){
+  ZL.k=1; ZL.x=0; ZL.y=0;
   forSlot=slot||null;
   const src = from ? layerById(from) : null;
   if(src && !src.blank){ Lr=clone(src); delete Lr.src; delete Lr.mirrorOf; delete Lr.by; delete Lr.saved;
@@ -254,13 +257,14 @@ function bind(){
   $('#lbSave')?.addEventListener('click',()=>saveLayer(false));
   $('#lbSaveNew')?.addEventListener('click',()=>saveLayer(true));
   // pick and drag on the drawing
-  const svg=$('.wb-svg'); let drag=null;
+  const svg=$('.wb-svg'); let drag=null, emptyDown=null;
+  attachZoom(svg, ZL);
   const toP=e=>{ const p=svg.createSVGPoint(); p.x=e.clientX; p.y=e.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()); };
   svg.addEventListener('pointerdown', e=>{
     if(RF.handle(e)) return;
     if(RF.mode()==='pick'){ e.preventDefault(); return; }       // measuring: only the reference points answer
     const t=e.target.closest('[data-k]');
-    if(!t){ if(sel!=null || ssel!=null){ sel=null; ssel=null; render(); } return; }
+    if(!t){ emptyDown=[e.clientX,e.clientY]; return; }
     const i=+t.dataset.i, p=toP(e);
     e.preventDefault();
     // first tap only picks it; once picked, a drag moves it along one line only (along or across)
@@ -269,7 +273,7 @@ function bind(){
     if(sel!==i){ sel=i; ssel=null; render(); return; }
     const h=Lr.holes[i];
     drag={i, p0:p, c0, x0:sx(h), z0:h.z, px:h.x, path:h.path?clone(h.path):null}; svg.setPointerCapture(e.pointerId); });
-  svg.addEventListener('pointermove', e=>{ if(!drag) return; let p=toP(e);
+  svg.addEventListener('pointermove', e=>{ if(pinching()){ if(drag) drag.moved=true; return; } if(!drag) return; let p=toP(e);
     if(!drag.axis){ const dx=e.clientX-drag.c0[0], dy=e.clientY-drag.c0[1]; if(Math.hypot(dx,dy)<8) return; drag.axis=Math.abs(dx)>=Math.abs(dy)?'x':'y'; }
     drag.moved=true; p = drag.axis==='x' ? {x:p.x, y:drag.p0.y} : {x:drag.p0.x, y:p.y};
     if(drag.s){ const it=Lr.shapes[drag.i], nx=r8(drag.x0+(p.x-drag.p0.x)), nz=r8(drag.z0+(p.y-drag.p0.y)); it.x=fromSsx(it,nx); it.z=Math.max(-it.h/2, Math.min(WID-it.h/2, nz));
@@ -281,7 +285,7 @@ function bind(){
     const el=svg.querySelector(`[data-i="${drag.i}"]:not(.wb-hit)`), x=sx(h);
     if(el.tagName==='circle'){ el.setAttribute('cx', x+h.w/2); el.setAttribute('cy', h.z+h.d/2); }
     else if(el.tagName==='rect'){ el.setAttribute('x', x); el.setAttribute('y', h.z); } });
-  svg.addEventListener('pointerup', ()=>{ if(!drag) return; const m=drag.moved; drag=null; if(m) render(); });
+  svg.addEventListener('pointerup', e=>{ if(emptyDown){ const tap=!pinching() && Math.hypot(e.clientX-emptyDown[0], e.clientY-emptyDown[1])<8; emptyDown=null; if(tap){ if(sel!=null || ssel!=null){ sel=null; ssel=null; render(); } } return; } if(!drag) return; const m=drag.moved; drag=null; if(m) render(); });
 }
 const nextId=prefix=>{ let n=1; while(LAYERLIB.some(x=>x.id===`${prefix}-${String(n).padStart(2,'0')}`)) n++; return `${prefix}-${String(n).padStart(2,'0')}`; };
 async function saveLayer(asNew){

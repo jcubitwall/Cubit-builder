@@ -22,6 +22,8 @@ import { SHAPELIB, placeItem, regionsOf, shapeThumb } from './shapes.js';
 import { openShapeStudio } from './shape-studio.js';
 import { flatten, bboxAll } from './geom2d.js';
 import { makeRefTool } from './refmeasure.js';
+import { attachZoom, pinching } from './zoompan.js';
+const ZW={ k:1, x:0, y:0 };   // pinch zoom of the drawing (kept across redraws)
 import { makeHistory, histButtons, bindHistory } from './local-history.js';
 import { rules, ruleFor, saveRules, sharedRules, nearest } from './wall-rules.js';
 
@@ -83,6 +85,7 @@ function relock(k, it, f){ if(it.free){ delete it.free[f]; if(!Object.keys(it.fr
 function blank(len=8, type='ext'){ return { id:null, name:'', len, type, t: type==='int'?4.5:6.5, fit:[0,0], openings:[], inside:[], outside:[] }; }
 /* open the builder: a fresh wall, a copy of a library wall, or (from a wall's panel) ready to use on that wall */
 function openWallBuilder({ from=null, slot=null, len, type }={}){
+  ZW.k=1; ZW.x=0; ZW.y=0;
   forSlot=slot||null;
   if(from){ const src=byId(from); W=clone(src); delete W.src; delete W.mirrorOf; origin = src?.src==='team' && !String(from).endsWith('~m') ? src.id : null; if(!origin){ W.id=null; W.name=(src?.name||'')+' (copy)'; } }
   else { W=blank(len||slot?.len||8, type||slot?.type||'ext'); origin=null; }
@@ -341,19 +344,20 @@ function bind(){
   $('#wbSave')?.addEventListener('click',()=>saveWall(false));
   $('#wbSaveNew')?.addEventListener('click',()=>saveWall(true));
   // pick and drag on the drawing
-  const svg=$('.wb-svg'); let drag=null;
+  const svg=$('.wb-svg'); let drag=null, emptyDown=null;
+  attachZoom(svg, ZW);
   const toWall=e=>{ const p=svg.createSVGPoint(); p.x=e.clientX; p.y=e.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()); };
   svg.addEventListener('pointerdown', e=>{
     if(RF.handle(e)) return;
     if(RF.mode()==='pick'){ e.preventDefault(); return; }       // measuring: only the reference points answer
     const t=e.target.closest('[data-k]');
-    if(!t){ if(sel){ sel=null; render(); } return; }
+    if(!t){ emptyDown=[e.clientX,e.clientY]; return; }
     const k=t.dataset.k, i=+t.dataset.i, it=listOf(k)[i], p=toWall(e);
     e.preventDefault();
     // first tap only picks it; once picked, a drag moves it along one line only (sideways or up / down)
     if(!(sel && sel.k===k && sel.i===i)){ sel={k,i}; render(); return; }
     drag={k,i,p0:p, c0:[e.clientX,e.clientY], x0:drawX(k,it), y0:it.y, moved:false, axis:null}; svg.setPointerCapture(e.pointerId); });
-  svg.addEventListener('pointermove', e=>{ if(!drag) return; const p=toWall(e), it=listOf(drag.k)[drag.i];
+  svg.addEventListener('pointermove', e=>{ if(pinching()){ if(drag) drag.moved=true; return; } if(!drag) return; const p=toWall(e), it=listOf(drag.k)[drag.i];
     if(!drag.axis){ const dx=e.clientX-drag.c0[0], dy=e.clientY-drag.c0[1]; if(Math.hypot(dx,dy)<8) return; drag.axis=Math.abs(dx)>=Math.abs(dy)?'x':'y'; }
     drag.moved=true;
     const nx=r8(drag.x0 + (drag.axis==='x' ? p.x-drag.p0.x : 0)), ny=r8(drag.y0 - (drag.axis==='y' ? p.y-drag.p0.y : 0));
@@ -363,7 +367,7 @@ function bind(){
     if(drag.k==='sh'){ el.setAttribute('transform', `translate(${(drawX('sh',it)-drag.x0).toFixed(2)} ${(-(it.y-drag.y0)).toFixed(2)})`); }
     else if(el.tagName==='circle'){ el.setAttribute('cx', drag.k==='op' ? x+it.w/2 : x); el.setAttribute('cy', drag.k==='op' ? H-it.y-it.h/2 : H-it.y); }
     else if(drag.k==='op'){ el.setAttribute('x',x); el.setAttribute('y',H-it.y-it.h); } else { el.setAttribute('x',x-w/2); el.setAttribute('y',H-it.y-h/2); } });
-  svg.addEventListener('pointerup', ()=>{ if(!drag) return; const m=drag.moved; drag=null; if(m) render(); });
+  svg.addEventListener('pointerup', e=>{ if(emptyDown){ const tap=!pinching() && Math.hypot(e.clientX-emptyDown[0], e.clientY-emptyDown[1])<8; emptyDown=null; if(tap){ if(sel){ sel=null; render(); } } return; } if(!drag) return; const m=drag.moved; drag=null; if(m) render(); });
 }
 /* after the panels move (length, ends, mirror, flip): everything on the chases goes to its nearest chase again */
 function resnapAll(){ W.openings.forEach(o=>snapToChase('op',o)); ['inside','outside'].forEach(k=>W[k].forEach(b=>snapToChase(k,b))); }

@@ -323,3 +323,6 @@ Open ⋯ → **Cabinet G-code** for every cabinet in the home, or **G-code…** 
    - If a part ever has cuts on its other face, its sheet gets a "-B first" program, so the cut-throughs are always in the last program.
 
 The zip holds the programs, a parts list with each part's place on its sheet, and a README.
+
+## Zooming the panel builder
+Pinch to zoom the drawing in either builder (wall, floor, ceiling, roof), around the point between your fingers, and slide with two fingers. Double-tap with two fingers to see the whole panel again. The − / % / + buttons in the corner do the same, as do trackpad pinch and the mouse wheel. Taps and drags still land in the drawing's own inches, so a zoomed-in drag moves the item in finer steps (`js/zoompan.js`).

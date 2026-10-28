@@ -990,3 +990,8 @@ dialog.cc-dlg[open]{display:flex;flex-direction:column}
 .cc-hole{fill:#2f6db5}
 .cc-dado{fill:#d0661f66}
 .cc-lab{font:600 7px var(--mono);fill:#1c211e}
+/* panel builder zoom buttons (zoompan.js) */
+.zp-bar{position:absolute;right:14px;bottom:14px;display:flex;gap:4px;z-index:3;background:color-mix(in srgb,var(--surface) 90%,transparent);border:1px solid var(--line);border-radius:10px;padding:3px}
+.zp-bar button{min-width:38px;height:34px;border:0;border-radius:8px;background:transparent;font:600 15px var(--sans,inherit);color:var(--ink);cursor:pointer}
+.zp-bar button:hover{background:var(--accent-soft)}
+.zp-bar .zp-k{font:600 12px var(--mono);min-width:54px}
