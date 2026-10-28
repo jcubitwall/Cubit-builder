@@ -306,6 +306,7 @@ Every part carries its exact machining (`part.cnc`). In the library, opening a p
 - Side A is the last program, the one with the cut-throughs.
 - Side B is cut first, and only if a part has cuts on its other face.
 
+The 3D view (library and home) builds every part from its machining (`cncGeos` in `js/casework3d.js`). You see the real outline and notches, every dado, groove, rabbet and hole, at its depth and on its face. Each part is placed by `part.cnc.at`. The right end is drawn and cut as the mirror of the left end, so its toe notch stays at the front.
 Handles are picked per cabinet, or left to drill later (the default). `node tools/mozaik/compare.mjs` checks the rules against Mozaik's cut list.
 
 ## Cabinet G-code

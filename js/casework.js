@@ -111,6 +111,9 @@ function part(name, role, mat, box, axis, o={}){
   if(o.cnc){ L=Math.max(o.cnc.U,o.cnc.V); W=Math.min(o.cnc.U,o.cnc.V); }
   return { name, role, mat, T, L, W, box, axis, ex:o.ex||[0,0,0], band:o.band||{long:0,short:0}, ops:o.ops||[], hw:!!o.hw, qty:1, tenonGeo:[], note:o.note||'', cnc:o.cnc||null, notch:o.notch||null, hole:o.hole||null };
 }
+/* where a part sits in the cabinet: at(o, eu, ev, n) = origin of (u,v)=(0,0) on the face that is up, the u and v
+   directions, and that face's outward normal (eu × ev = n, so the drawing is the face as you look at it) */
+const at = (o, eu, ev, n) => ({ o, eu, ev, n });
 /* a rectangle outline, and one with notched corners: n = { fl, fr, bl, br } = [length along v, depth along u] */
 const rectO = (U,V) => [[0,0],[U,0],[U,V],[0,V]];
 /* a panel that sits in dados along both u-ends (u=0 and u=U): corners notched where the dados stop.
@@ -123,6 +126,7 @@ function notchedO(U,V,e,front,back){
   return P;
 }
 function finishPart(p){
+  if(p.mirrorCnc && p.cnc){ p.cnc=mirU(p.cnc); delete p.mirrorCnc; }
   const bt = S.band.deduct ? S.band.t : 0;
   p.cutL = r4(p.L - p.band.short*bt);
   p.cutW = r4(p.W - p.band.long*bt);
@@ -159,7 +163,7 @@ function carcass(it, c){
   dado('Bottom dado', stop, D-cl, yb, yb+dw);
   const bn = (D-(D-cl))+cl;                                           // back notch: past the dado's end + the bit's round end
   P.push(part('Bottom','carcass','carcass',[T-e,yb,zOf(D),pw,T,D],'y',{ex:[0,-1,0],
-    cnc:{ U:pw, V:D, u:['left end','right end'], v:['front','back'], up:'top face (inside)', outline:notchedO(pw,D,e,stop+cl,bn),
+    cnc:{ U:pw, V:D, u:['left end','right end'], v:['front','back'], up:'top face (inside)', outline:notchedO(pw,D,e,stop+cl,bn), at:at([T-e,yb+T,zOf(0)],[1,0,0],[0,0,-1],[0,1,0]),
       ops:[{ k:'groove', u0:0, u1:pw, v0:r4(D-bi-dw), v1:r4(D-bi), depth:dd, tool:'½″', side:'A', what:'Back groove' }] } }));
   // top: full (uppers, talls) or two flat stretchers (bases)
   if(c.top==='stretchers'){
@@ -167,32 +171,33 @@ function carcass(it, c){
     dado('Front stretcher dado', stop, sw+cl, H-dw, H);
     dado('Rear stretcher dado', zbF-cl-sw, zbF-cl, H-dw, H);
     P.push(part('Front stretcher','carcass','carcass',[T-e,H-T,zOf(sw),pw,T,sw],'y',{ex:[0,1,.4],
-      cnc:{ U:pw, V:sw, u:['left end','right end'], v:['front','back'], up:'underside', outline:notchedO(pw,sw,e,stop+cl,0), ops:[] } }));
+      cnc:{ U:pw, V:sw, u:['right end','left end'], v:['front','back'], up:'underside', outline:notchedO(pw,sw,e,stop+cl,0), ops:[], at:at([T-e+pw,H-T,zOf(0)],[-1,0,0],[0,0,-1],[0,-1,0]) } }));
     P.push(part('Rear stretcher','carcass','carcass',[T-e,H-T,zOf(zbF-cl),pw,T,sw],'y',{ex:[0,1,-.4],
-      cnc:{ U:pw, V:sw, u:['left end','right end'], v:['front','back'], up:'underside', outline:rectO(pw,sw), ops:[] } }));
+      cnc:{ U:pw, V:sw, u:['right end','left end'], v:['front','back'], up:'underside', outline:rectO(pw,sw), ops:[], at:at([T-e+pw,H-T,zOf(zbF-cl-sw)],[-1,0,0],[0,0,-1],[0,-1,0]) } }));
   } else {
     dado('Top dado', stop, zbF-cl, H-dw, H);
     P.push(part('Top','carcass','carcass',[T-e,H-T,zOf(zbF),pw,T,zbF],'y',{ex:[0,1,0],
-      cnc:{ U:pw, V:zbF, u:['left end','right end'], v:['front','back'], up:'underside (inside)', outline:notchedO(pw,zbF,e,stop+cl,2*cl), ops:[] } }));
+      cnc:{ U:pw, V:zbF, u:['right end','left end'], v:['front','back'], up:'underside (inside)', outline:notchedO(pw,zbF,e,stop+cl,2*cl), ops:[], at:at([T-e+pw,H-T,zOf(0)],[-1,0,0],[0,0,-1],[0,-1,0]) } }));
   }
   // fixed shelves: same as a top, at their underside height
   (c.fixed||[]).forEach((fy,i,arr)=>{ dado(arr.length>1?`Fixed shelf ${i+1} dado`:'Fixed shelf dado', stop, zbF-cl, fy, fy+dw);
     P.push(part(arr.length>1?`Fixed shelf ${i+1}`:'Fixed shelf','shelf','carcass',[T-e,fy,zOf(zbF),pw,T,zbF],'y',{ex:[0,0,.5],
-      cnc:{ U:pw, V:zbF, u:['left end','right end'], v:['front','back'], up:'top face', outline:notchedO(pw,zbF,e,stop+cl,2*cl), ops:[] } })); });
+      cnc:{ U:pw, V:zbF, u:['left end','right end'], v:['front','back'], up:'top face', outline:notchedO(pw,zbF,e,stop+cl,2*cl), ops:[], at:at([T-e,fy+T,zOf(0)],[1,0,0],[0,0,-1],[0,1,0]) } })); });
   // the back: in the ends' back dados and the bottom's groove, up to the top of the ends
   const bh = H - backY;
   endOps.push({ k:'dado', u0:r4(D-bi-dw), u1:r4(D-bi), v0: kh ? 0 : r4(backY), v1:H, depth:dd, tool:'½″', side:'A', what:'Back dado' });
   P.push(part('Back','back','carcass',[T-e,backY,bi,pw,bh,T],'z',{ex:[0,0,-1],
-    cnc:{ U:pw, V:bh, u:['left end','right end'], v:['bottom','top'], up:'either face', outline:rectO(pw,bh), ops:[] } }));
+    cnc:{ U:pw, V:bh, u:['left end','right end'], v:['bottom','top'], up:'front face', outline:rectO(pw,bh), ops:[], at:at([T-e,backY,bi+T],[1,0,0],[0,1,0],[0,0,1]) } }));
   // toe kick board: between the ends (butt joint), set back
   if(kh) P.push(part('Toe kick','carcass','carcass',[T,0,zOf(ks+T),iw,kh,T],'z',{ex:[0,-.6,1],
-    cnc:{ U:iw, V:kh, u:['left','right'], v:['bottom','top'], up:'either face', outline:rectO(iw,kh), ops:[] }, note:'Screwed between the ends, behind the toe notch' }));
+    cnc:{ U:iw, V:kh, u:['left','right'], v:['bottom','top'], up:'front face', outline:rectO(iw,kh), ops:[], at:at([T,0,zOf(ks)],[1,0,0],[0,1,0],[0,0,1]) }, note:'Screwed between the ends, behind the toe notch' }));
   // partitions (benches): stand on the bottom, under the top, in dados in both
   (c.parts||[]).forEach((px,i)=>{ const v0=yb+T-e, v1=H-T+e, ph=v1-v0;
     const bot=P.find(p=>p.name==='Bottom'), top=P.find(p=>p.name==='Top');
-    [bot,top].forEach(q=>q && q.cnc.ops.push({ k:'dado', u0:r4(px-T/2-(T-e)-S.dado.fit/2), u1:r4(px+T/2-(T-e)+S.dado.fit/2), v0:stop, v1:r4(q.cnc.V-cl), depth:dd, tool:'½″', side:'A', what:`Partition ${i+1} dado` }));
+    [bot,top].forEach(q=>{ if(!q) return; let a=px-T/2-(T-e)-S.dado.fit/2, b=px+T/2-(T-e)+S.dado.fit/2; if(q===top){ [a,b]=[pw-b,pw-a]; }
+      q.cnc.ops.push({ k:'dado', u0:r4(a), u1:r4(b), v0:stop, v1:r4(q.cnc.V-cl), depth:dd, tool:'½″', side:'A', what:`Partition ${i+1} dado` }); });
     P.push(part(`Partition ${i+1}`,'carcass','carcass',[px-T/2,v0,zOf(zbF),T,ph,zbF],'x',{ex:[0,0,.3],
-      cnc:{ U:zbF, V:ph, u:['front','back'], v:['bottom','top'], up:'either face', outline:notchedO(ph,zbF,e,stop+cl,2*cl).map(([a,b])=>[b,a]), ops:[] } })); });
+      cnc:{ U:zbF, V:ph, u:['front','back'], v:['bottom','top'], up:'right face', outline:notchedO(ph,zbF,e,stop+cl,2*cl).map(([a,b])=>[b,a]), ops:[], at:at([px+T/2,v0,zOf(0)],[0,0,-1],[0,1,0],[1,0,0]) } })); });
   // adjustable shelves: spread over the open heights, each on 4 pins; 7 holes per pin row centred on it
   const opening = (a,b) => [a,b];
   const zones=[]; { let lo=yb+T; [...(c.fixed||[])].sort((a,b)=>a-b).forEach(fy=>{ zones.push(opening(lo,fy)); lo=fy+T; }); zones.push(opening(lo, c.top==='stretchers' ? H-T : H-T)); }
@@ -202,14 +207,15 @@ function carcass(it, c){
       const gap=(b-a-n*T)/(n+1); for(let k=0;k<n;k++){ const sy=a+gap*(k+1)+T*k; shelfY.push(sy);
         const su=iw-2*S.shelf.side, sv=zbF-S.shelf.back;
         P.push(part('Adjustable shelf','shelf','carcass',[T+S.shelf.side,sy,zOf(zbF-S.shelf.back),su,T,sv],'y',{ex:[0,0,.6], band:{long:1,short:0},
-          cnc:{ U:su, V:sv, u:['left','right'], v:['front','back'], up:'either face', outline:rectO(su,sv), ops:[] } })); } }); }
+          cnc:{ U:su, V:sv, u:['left','right'], v:['front','back'], up:'top face', outline:rectO(su,sv), ops:[], at:at([T+S.shelf.side,sy+T,zOf(0)],[1,0,0],[0,0,-1],[0,1,0]) } })); } }); }
   const pinU=[S.pins.front, D-S.pins.back], g=S.shelf.group, half=(g-1)/2;
   shelfY.forEach((sy,si)=>pinU.forEach(u=>{ for(let k=-half;k<=half;k++){ const v=sy+k*S.pins.pitch; if(v>yb+T+0.4 && v<H-T-0.4) endOps.push({ k:'hole', u:r4(u), v:r4(v), d:S.pins.dia, depth:S.pins.depth, side:'A', what:'Shelf pin holes' }); } }));
   // the ends (left and right), inside face up; toe notch at the front-bottom, small notch at the back-bottom
   const endO = kh ? [[ks,0],[D-S.kick.rearW,0],[D-S.kick.rearW,kh-S.kick.rearBelow],[D,kh-S.kick.rearBelow],[D,H],[0,H],[0,kh],[ks,kh]] : rectO(D,H);
-  const mkEnd=(nm,x,ex)=>part(nm,'carcass','carcass',[x,0,zOf(D),T,H,D],'x',{ex, band:{long:1,short:0}, notch: kh?[ks,kh,D]:null,
-    cnc:{ U:D, V:H, u:['front','back'], v:['bottom','top'], up:'inside face', outline:endO, ops:endOps.map(o=>({...o})) } });
-  const L=mkEnd('Left end',0,[-1,0,0]), R=mkEnd('Right end',W-T,[1,0,0]);
+  const mkEnd=(nm,x,ex,o,n)=>part(nm,'carcass','carcass',[x,0,zOf(D),T,H,D],'x',{ex, band:{long:1,short:0}, notch: kh?[ks,kh,D]:null,
+    cnc:{ U:D, V:H, u:['front','back'], v:['bottom','top'], up:'inside face', outline:endO, ops:endOps.map(o=>({...o})), at:at(o,[0,0,-1],[0,1,0],n) } });
+  const L=mkEnd('Left end',0,[-1,0,0],[T,0,zOf(0)],[1,0,0]), R=mkEnd('Right end',W-T,[1,0,0],[W-T,0,zOf(0)],[-1,0,0]);
+  R.mirrorCnc=true;   // its inside face looks the other way: drawn (and cut) as the mirror of the left end, front on the right
   P.unshift(L,R);
   return { parts:P, t:T, dc:D, kh, ix0:T, ix1:W-T, y0:yb+T, y1:H-T, zb:bi+T, ends:{L,R}, shelfY, D, zbF, front:it.d };
 }
@@ -245,7 +251,7 @@ function door(c, name, x0,x1,y0,y1, side, pullAt='top', hid){
     [-1,1].forEach(s=>ops.push({ k:'hole', u:r4(hu+dir*hs.dowelBack), v:r4(v+s*hs.dowelApart/2), d:hs.dowel, depth:hs.depth, side:'A', what:'Hinge dowel holes' })); });
   ops.push(...handleOps(U,V,hid,pullAt, side==='L'?U:0));
   const p=part(name,'front','carcass',[x0,y0,c.front-T,U,V,T],'z',{ex:[0,0,2.2], band:{long:2,short:2},
-    cnc:{ U, V, u:[side==='L'?'opening edge':'hinge edge', side==='L'?'hinge edge':'opening edge'], v:['bottom','top'], up:'back face (inside)', outline:rectO(U,V), ops } });
+    cnc:{ U, V, u:[side==='L'?'opening edge':'hinge edge', side==='L'?'hinge edge':'opening edge'], v:['bottom','top'], up:'back face (inside)', outline:rectO(U,V), ops, at:at([x1,y0,c.front-T],[-1,0,0],[0,1,0],[0,0,-1]) } });
   // hinge plate marks on the end, ±16 mm round each cup's height
   const end=endAt(c, side), hy=cupsV.map(v=>y0+v);
   hy.forEach(y=>[-1,1].forEach(s=>end.cnc.ops.push({ k:'mark', u:hs.plateX, v:r4(y+s*hs.plateApart/2), d:S.mark.dia, depth:S.mark.depth, side:'A', what:'Hinge plate marks' })));
@@ -264,7 +270,7 @@ function doors(c, W, y0, y1, pullAt='top', name='Door', hid){
 function drawer(c, name, x0,x1,y0,y1, fixedFront=false, hid, bay){
   const T=T_(), U=x1-x0, V=y1-y0, out=[];
   const fr=part(fixedFront?`${name} (false front)`:`${name} front`,'front','carcass',[x0,y0,c.front-T,U,V,T],'z',{ex:[0,0,fixedFront?2.2:3], band:{long:2,short:2},
-    cnc:{ U, V, u:['left','right'], v:['bottom','top'], up:'back face (inside)', outline:rectO(U,V), ops: fixedFront ? [] : handleOps(U,V,hid,'drawer') }, note: fixedFront?'Screwed to the front stretcher, no box':'' });
+    cnc:{ U, V, u:['right','left'], v:['bottom','top'], up:'back face (inside)', outline:rectO(U,V), ops: fixedFront ? [] : handleOps(U,V,hid,'drawer'), at:at([x1,y0,c.front-T],[-1,0,0],[0,1,0],[0,0,-1]) }, note: fixedFront?'Screwed to the front stretcher, no box':'' });
   out.push(fr); if(fixedFront) return out;
   if(hid && handleById(hid)) out.push(part('Handle','hw','buy',[x0+U/2-2,y1-2.75,c.front,4,0.5,0.9],'z',{ex:[0,0,3.6], hw:true, note:handleById(hid).name}));
   const R=runnerSpec(), Dr=S.drawer, avail=c.zbF-0.5, len=[...R.lens].sort((a,b)=>b-a).find(l=>l<=avail) || Math.min(...R.lens);
@@ -277,14 +283,16 @@ function drawer(c, name, x0,x1,y0,y1, fixedFront=false, hid, bay){
     { k:'dado', u0:Dr.dadoIn, u1:r4(Dr.dadoIn+Dr.dadoW), v0:Dr.groove, v1:r4(sh-Dr.topDrop), depth:Dr.dadoDepth, tool:'¼″', side:'A', what:'Front dado' },
     { k:'dado', u0:r4(L-Dr.dadoIn-Dr.dadoW), u1:r4(L-Dr.dadoIn), v0:Dr.groove, v1:r4(sh-Dr.topDrop), depth:Dr.dadoDepth, tool:'¼″', side:'A', what:'Back dado' } ];
   [['left',bx],['right',bx+bw-T]].forEach(([s,x])=>out.push(part(`${name} box side, ${s}`,'drawer','carcass',[x,by,bz,T,sh,L],'x',{ex:[s==='left'?-.5:.5,0,1.6], band:{long:1,short:0},
-    cnc:{ U:L, V:sh, u:['back','front'], v:['bottom','top'], up:'inside face', outline:rectO(L,sh), ops:sideOps(s) } })));
-  const fb = (nm, z) => part(nm,'drawer','carcass',[bx+T-Dr.tongue,by+Dr.groove+T,z,fbU,fbV,T],'z',{ex:[0,0,nm.includes('front')?2.1:1.1], band:{long:1,short:0},
-    cnc:{ U:fbU, V:fbV, u:['left','right'], v:['bottom','top'], up:'inside face', outline:rectO(fbU,fbV),
+    cnc:{ U:L, V:sh, u: s==='left'?['front','back']:['back','front'], v:['bottom','top'], up:'inside face', outline:rectO(L,sh), ops:sideOps(s),
+      at: s==='left' ? at([x+T,by,bz+L],[0,0,-1],[0,1,0],[1,0,0]) : at([x,by,bz],[0,0,1],[0,1,0],[-1,0,0]) } })));
+  const fb = (nm, z) => { const isF=nm.includes('front'), x0=bx+T-Dr.tongue, y0=by+Dr.groove+T; return part(nm,'drawer','carcass',[x0,y0,z,fbU,fbV,T],'z',{ex:[0,0,isF?2.1:1.1], band:{long:1,short:0},
+    cnc:{ U:fbU, V:fbV, u: isF?['right','left']:['left','right'], v:['bottom','top'], up:'inside face', outline:rectO(fbU,fbV),
+      at: isF ? at([x0+fbU,y0,z],[-1,0,0],[0,1,0],[0,0,-1]) : at([x0,y0,z+T],[1,0,0],[0,1,0],[0,0,1]),
       ops:[ { k:'rabbet', u0:0, u1:Dr.dadoIn+Dr.dadoW-0.01, v0:0, v1:r4(fbV), depth:r4(T-Dr.tongue), tool:'¼″', side:'A', what:'Tongue rabbet, left end' },
-            { k:'rabbet', u0:r4(fbU-(Dr.dadoIn+Dr.dadoW-0.01)), u1:r4(fbU), v0:0, v1:r4(fbV), depth:r4(T-Dr.tongue), tool:'¼″', side:'A', what:'Tongue rabbet, right end' } ] }, note:'Sits on the drawer bottom' });
+            { k:'rabbet', u0:r4(fbU-(Dr.dadoIn+Dr.dadoW-0.01)), u1:r4(fbU), v0:0, v1:r4(fbV), depth:r4(T-Dr.tongue), tool:'¼″', side:'A', what:'Tongue rabbet, right end' } ] }, note:'Sits on the drawer bottom' }); };
   out.push(fb(`${name} box front`, c.front-T-T-0.0), fb(`${name} box back`, bz));
   out.push(part(`${name} box bottom`,'drawer','carcass',[bx+T-Dr.grooveDepth,by+Dr.groove,bz,botU,T,L],'y',{ex:[0,-.6,1.6],
-    cnc:{ U:botU, V:L, u:['left','right'], v:['back','front'], up:'underside', outline:rectO(botU,L), ops:[] }, note:'Slides into the side grooves, full length' }));
+    cnc:{ U:botU, V:L, u:['left','right'], v:['back','front'], up:'underside', outline:rectO(botU,L), ops:[], at:at([bx+T-Dr.grooveDepth,by+Dr.groove,bz],[1,0,0],[0,0,1],[0,-1,0]) }, note:'Slides into the side grooves, full length' }));
   // runner holes on both ends, one row per drawer
   const rowY = by + R.rowAbove, us=[...R.front.map(m=>m*MM), ...R.rear.map(m=>len*25.4 - m).map(m=>m*MM)];
   [c.ends.L, c.ends.R].forEach(end=>us.forEach(u=>end.cnc.ops.push({ k:'hole', u:r4(u), v:r4(rowY), d:5*MM, depth:R.holeDepth, side:'A', what:`Runner holes (${len}″ runner)` })));
@@ -551,8 +559,12 @@ function newItem(k){
   return it;
 }
 /* every part of an item, with its cut size, edge band and machining */
-const mirU = c => { if(!c) return c; const U=c.U, swap=w=>({left:'right',right:'left','left end':'right end','right end':'left end','hinge edge':'hinge edge','opening edge':'opening edge'}[w]||w);
-  return { ...c, u:[swap(c.u[1]), swap(c.u[0])], outline:c.outline.map(([u,v])=>[r4(U-u),v]).reverse(),
+/* the mirror image of a part's machining (u → U−u); `at` moves with it so the part stays where it is.
+   wx: the item is being mirrored left ↔ right (W = its width), so the part itself moves to the other side */
+const mirU = (c, W=null) => { if(!c) return c; const U=c.U, swap=w=>({left:'right',right:'left','left end':'right end','right end':'left end','hinge edge':'hinge edge','opening edge':'opening edge'}[w]||w);
+  const fx = v => W==null ? v : [W-v[0], v[1], v[2]], fd = v => W==null ? v : [-v[0], v[1], v[2]];
+  let A=c.at; if(A){ const o=[A.o[0]+U*A.eu[0], A.o[1]+U*A.eu[1], A.o[2]+U*A.eu[2]]; A={ o:fx(o), eu:fd(A.eu.map(x=>-x)), ev:fd(A.ev), n:fd(A.n) }; }
+  return { ...c, at:A, u: W==null ? [c.u[1], c.u[0]] : [swap(c.u[1]), swap(c.u[0])], outline:c.outline.map(([u,v])=>[r4(U-u),v]).reverse(),
     ops:c.ops.map(o=>o.u!=null ? {...o, u:r4(U-o.u)} : {...o, u0:r4(U-o.u1), u1:r4(U-o.u0)}) }; };
 function partsOf(it){
   const d=itemDef(it.k); if(!d) return [];
@@ -561,7 +573,7 @@ function partsOf(it){
     const W=it.w, sw=s=>String(s).replace(/\b(left|right|Left|Right)\b/g, w=>({left:'right',right:'left',Left:'Right',Right:'Left'}[w]));
     P.forEach(p=>{ p.box=[W-p.box[0]-p.box[3], ...p.box.slice(1)];
       if(p.hole) p.hole=[W-p.hole[0]-p.hole[2], ...p.hole.slice(1)]; if(p.mesh) p.mirrorW=W; p.ex=[-p.ex[0], p.ex[1], p.ex[2]]; p.name=sw(p.name); p.ops=p.ops.map(sw);
-      if(p.cnc && /left|right|hinge|opening/.test(p.cnc.u.join(' ')) && !/end$/.test(p.name)) p.cnc=mirU(p.cnc); });
+      if(p.cnc) p.cnc=mirU(p.cnc, W); });
   }
   return P;
 }
