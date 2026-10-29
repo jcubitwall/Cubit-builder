@@ -16,7 +16,7 @@
      sees the wall) on the edge that meets the next panel; the last panel carries none.
    Floors and roofs: 1⅞″ LVL rim, 9½″ in the floor and 11⅞″ in the roof, four pieces per pod touching only at
    the inside corners, leaving a 1⅞″ square at each outside corner for the Einspine. */
-import { FRAME, H, FT, SPINE_SCREWS, FLOOR_BUILD } from './config.js';
+import { FRAME, H, FT, SPINE_SCREWS, FLOOR_BUILD, ROOF_BUILD } from './config.js';
 import { panelSpans, wallLen, bodyWall } from './panels.js';
 import { slotsFor, podList } from './layout.js';
 import { pickFor, state } from './state.js';
@@ -126,6 +126,7 @@ function framingTakeoff(walls=homeFraming(), rims=podRims()){
   // floor cassette: 2×4 joint blocks and EPS strips in the gap between the two floor layers
   floorBuilds().forEach(B=>{ put('2×4', 'Floor joint block (flat, across a panel joint)', FLOOR_BUILD.block.len, B.blocks.length); B.epsLens.forEach(l=>put(EPS_MAT, 'Floor perimeter strip', l));
     B.tubeLens.forEach(l=>put(TUBE_MAT, 'Floor frame (8′ × 8′ section)', l)); put(ACM_MAT, 'Floor underside (4 × 8 sheet)', 96, B.acp.length); });
+  roofBuilds().forEach(B=>{ put('LVL 1⅞″ blocks', 'Roof joint block (flat, across a ceiling panel joint)', ROOF_BUILD.block.len, B.blocks.length); B.epsLens.forEach(l=>put('1⅞″ EPS, 8″ strips', 'Roof gap perimeter strip', l)); });
   const out=Object.entries(groups).map(([mat,g])=>{
     const cuts=Object.values(g.cuts).sort((a,b)=>a.name.localeCompare(b.name)||b.len-a.len);
     let buy='', order=null;
@@ -179,6 +180,17 @@ function floorBuild(p){
   return { eps, blocks, epsLens:[W-2*t, W-2*t, ...lens, ...lens], frames, tubes, tubeLens:frames.flatMap(()=>[fr.size, fr.size, W-2*fr.w, W-2*fr.w]), acp };
 }
 const floorBuilds = () => podList(state.model).map(p=>({ pod:p, ...floorBuild(p) }));
+/* the same in the 1⅞″ gap between the interior ceiling and the roof: EPS strips against the rims, blocks across the joints */
+function roofBuild(p){
+  const F=ROOF_BUILD, t=FRAME.lvl.t, L=p.len*FT, W=96, e=F.eps, o=t+e.off;
+  const eps=[[o, o+e.w, t, W-t], [L-o-e.w, L-o, t, W-t]];
+  const run=L-2*(o+e.w); let left=run, u=o+e.w; const lens=[];
+  while(left>1e-6){ const pc=Math.min(e.stock, left - Math.floor((left-1e-6)/e.stock)*e.stock || e.stock); lens.push(pc); left-=pc; }
+  lens.forEach(len=>{ eps.push([u, u+len, t, t+e.w], [u, u+len, W-t-e.w, W-t]); u+=len; });
+  const blocks=[]; for(let j=48; j<L-1; j+=48) F.block.at.forEach(c=>blocks.push([j-F.block.len/2, j+F.block.len/2, c-F.block.w/2, c+F.block.w/2]));
+  return { eps, blocks, epsLens:[W-2*t, W-2*t, ...lens, ...lens] };
+}
+const roofBuilds = () => podList(state.model).map(p=>({ pod:p, ...roofBuild(p) }));
 /* where the plates go on each pod's floor (bottom plates) and ceiling (top plates), in plan feet: each plate's
    outer edge sits ½″ in from the wall's outer face (behind the ⁷⁄₁₆″ OSB, centred in the foam core) */
 function platesByPod(walls=homeFraming()){
@@ -192,4 +204,4 @@ function platesByPod(walls=homeFraming()){
     }); });
   return Object.values(by).sort((a,b)=>a.pod.i-b.pod.i);
 }
-export { floorBuild, floorBuilds, platesByPod, wallFraming, homeFraming, podRims, framingTakeoff, isFloorOpening };
+export { roofBuild, roofBuilds, floorBuild, floorBuilds, platesByPod, wallFraming, homeFraming, podRims, framingTakeoff, isFloorOpening };

@@ -6,6 +6,9 @@
    A wall with "model": "<key>" belongs to that one home (e.g. walls scanned from its STEP file).
    Openings + outside items: x in inches from the LEFT END SEEN FROM OUTSIDE. Inside items: from the left end seen from INSIDE. */
 import { canSave } from './role.js';
+import { LAYER_KINDS } from './config.js';
+/* ceilings and roofs always take the cassette's thicknesses (config.js), whatever an older scan said */
+const fixLayer = l => (l && (l.kind==='ceiling-int' || l.kind==='roof')) ? { ...l, z:LAYER_KINDS[l.kind].z, t:LAYER_KINDS[l.kind].t } : l;
 import { mapX } from './panels.js';
 const MODELS = {};
 const LIB = [];
@@ -26,13 +29,13 @@ async function loadData(){
   try{ JSON.parse(localStorage.getItem(DECK_KEY)||'[]').forEach(x=>{ if(!DECKLIB.find(y=>y.id===x.id)) DECKLIB.push({...x, src:'saved'}); }); }catch(e){}
   try{ JSON.parse(localStorage.getItem(POD_KEY)||'[]').forEach(x=>{ if(!PODLIB.find(y=>y.id===x.id)) PODLIB.push({...x, src:'saved'}); }); }catch(e){}
   try{ JSON.parse(localStorage.getItem('cubit-layers-saved')||'[]').forEach(x=>{ if(!layers.find(y=>y.id===x.id)) layers.push({...x, src:'saved'}); }); }catch(e){}
-  layers.forEach(l=>LAYERLIB.push(l));
+  layers.forEach(l=>LAYERLIB.push(fixLayer(l)));
   Object.assign(MODELS, models);
   walls.forEach(w=>LIB.push({...w, src:'library'}));
   // walls made in the wall builder, shared by the team (api/walls); opened from a local server: this browser's own
   try{ const r=await fetch('api/walls',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ (await r.json()).forEach(w=>{ const i=LIB.findIndex(x=>x.id===w.id); if(i>=0) LIB[i]={...w, src:'team'}; else LIB.push({...w, src:'team'}); }); } }catch(e){}
   // floors / ceilings / roofs made in the layer builder, shared by the team (api/layers)
-  try{ const r=await fetch('api/layers',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ (await r.json()).forEach(l=>{ const i=LAYERLIB.findIndex(x=>x.id===l.id); if(i>=0) LAYERLIB[i]={...l, src:'team'}; else LAYERLIB.push({...l, src:'team'}); }); } }catch(e){}
+  try{ const r=await fetch('api/layers',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ (await r.json()).forEach(l0=>{ const l=fixLayer(l0); const i=LAYERLIB.findIndex(x=>x.id===l.id); if(i>=0) LAYERLIB[i]={...l, src:'team'}; else LAYERLIB.push({...l, src:'team'}); }); } }catch(e){}
   try{ const saved = JSON.parse(localStorage.getItem('cubit-walls-imported')||'[]'); saved.forEach(w=>{ if(!LIB.find(x=>x.id===w.id)) LIB.push(w); }); }catch(e){}
   try{ const custom = JSON.parse(localStorage.getItem(CUSTOM_KEY)||'{}'); Object.entries(custom).forEach(([k,m])=>{ MODELS[k]={...m, custom:true}; }); }catch(e){}
 }

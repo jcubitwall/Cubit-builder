@@ -367,3 +367,19 @@ Sheets → Whole home → **Blueprints · drawing set**, or ⋯ → Blueprints. 
 - **Title block, on every sheet:** notes, six revisions, the Cubit logo (`brand/cubit-logo.png`, taken from the drafter's set) with the company lines, client, site, model, pods, floor area, project, drawing title, date, scale, drawn and checked by, and the drawing number.
 - **Details:** edits the title block and notes. The company lines and notes are kept for every home in this browser (`localStorage` `cubit-blueprints`). Project, client, site, drawn and checked by, date, revisions and which sheets are in the set are kept per home. In the notes, `{T}`, `{TI}`, `{GAP}` and `{FOUNDATION}` fill in from the home.
 - **PDF:** vector, one page per sheet, through svg2pdf (`js/vendor/svg2pdf.umd.min.js`, MIT), with Oswald embedded (`fonts/`, SIL Open Font License). Text is ASCII only so the font has every glyph.
+
+## Ceiling / roof cassette
+From the shop, Oct 2026. Heights are measured from the bottom of the floor.
+
+| Layer | Build | Height |
+|---|---|---|
+| Interior ceiling SIP | 6½″ (½″ OSB + 5½″ EPS + ½″ OSB) | 106.6–113.1 |
+| Gap | 1⅞″, wiring runs here | 113.1–114.975 |
+| Roof SIP | 4½″ (½″ OSB + 3½″ core + ½″ OSB) | 114.975–119.475 |
+
+- **Overall:** 12⅞″, made up of the roof's top ½″ OSB, the 11⅞″ LVL rim and the ceiling's bottom ½″ OSB. The rim runs from 107.1 to 118.975.
+- **The gap is built like the floor** (`ROOF_BUILD` in config.js, `roofBuild` in framing.js):
+  - 8″ EPS strips, 1⅞″ thick, all round against the rims.
+  - 16″ wood blocks laid flat across every panel joint, at 32″ and 64″ across. They are 1⅞″ thick so they fill the gap; LVL offcuts ripped 3½″ wide are exactly that.
+- **Where it shows:** 3D (with the framing switch), the framing cut list and the take-off.
+- **Scanned layers:** older scanned ceilings and roofs (6.47″ / 6.48″) take these thicknesses when they load (`fixLayer` in data.js).

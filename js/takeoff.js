@@ -7,7 +7,7 @@ import { fin, fft } from './format.js';
 import { state, foundationOf } from './state.js';
 import { screwPlan, padsFor, deckList, slotsFor, podList } from './layout.js';
 import { concretePlan } from './concrete.js';
-import { homeFraming, podRims, framingTakeoff, floorBuilds } from './framing.js';
+import { homeFraming, podRims, framingTakeoff, floorBuilds, roofBuilds } from './framing.js';
 import { deckTakeoff, deckName } from './deckframe.js';
 import { homePlans } from './labels.js';
 import { bodyWall } from './panels.js';
@@ -60,6 +60,8 @@ function homeTakeoff(){
   add('roof','Roof & ceiling',[
     {n:Math.ceil(SB.total*1.1), what:'sq ft SilverBack butyl skin', note:`2 layers · roof ${SB.roof} sq ft + down the LVL rim where pods meet ${SB.wrap.toFixed(0)} sq ft · +10%`},
     ...groupRims(rims,'Roof rim LVL','LVL 1⅞″ × 11⅞″'),
+    ...(()=>{ const B=roofBuilds(), eps={}; let blocks=0; B.forEach(b=>{ blocks+=b.blocks.length; b.epsLens.forEach(l=>{ const k=l.toFixed(2); (eps[k] ||= {n:0, what:'EPS strip 8″ × 1⅞″', len:l, note:'ceiling–roof gap, against the rims'}).n++; }); });
+      return [...Object.values(eps).sort((a,b)=>b.len-a.len), ...(blocks?[{n:blocks, what:'LVL block 1⅞″ × 3½″', len:16, note:'roof joint block · flat across each ceiling panel joint, at 32″ and 64″ · LVL offcuts'}]:[])]; })(),
     ...byKind(p=>p.kind==='Top plate').map(x=>({...x, note:'top plate · on the ceiling · bevel 2 bottom corners ¾″'}))]);
   // Decks
   { const ds=deckList(state.model);

@@ -13,8 +13,8 @@ import { getBearing } from './orient.js';
 import { symbol, unitFor, pairOf, doorOwner } from './units.js';
 import { concretePlan } from './concrete.js';
 import { deckMembers } from './deckframe.js';
-import { wallFraming, floorBuild } from './framing.js';
-import { FRAME, FLOOR_BUILD } from './config.js';
+import { wallFraming, floorBuild, roofBuild } from './framing.js';
+import { FRAME, FLOOR_BUILD, ROOF_BUILD } from './config.js';
 import { DECK } from './config.js';
 import { foundationOf } from './state.js';
 import { pickLightAt, selectedLights, onMarkers, lightsOfSlot } from './light-edit-ui.js';
@@ -470,7 +470,7 @@ function buildHome(){
   rimGroup=new THREE.Group(); homeGroup.add(rimGroup);
   { const t=FRAME.lvl.t/FT, e=0.004;   // ~1/20″ proud so the rim's outside face isn't drawn on top of the slab's
     pods.forEach((p,pi)=>{ p.i=pi; });
-    pods.forEach(p=>[[FLOOR_BUILD.rimZ, FRAME.lvl.floor, 'floor-int'], [CEIL_Z, FRAME.lvl.roof, 'ceiling-int']].forEach(([z0,h,lay])=>{
+    pods.forEach(p=>[[FLOOR_BUILD.rimZ, FRAME.lvl.floor, 'floor-int'], [ROOF_BUILD.rimZ, FRAME.lvl.roof, 'ceiling-int']].forEach(([z0,h,lay])=>{
       const y=(z0-WALL_BASE)/FT, hh=h/FT, box=(x0,z0_,x1,z1)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(x1-x0,hh,z1-z0_),FRAME_MAT.lvl); m.position.set((x0+x1)/2, y+hh/2, (z0_+z1)/2); m.userData={pod:p.i, lay, base:m.position.clone()}; rimGroup.add(m); };
       box(p.x+t, p.z-e, p.x+p.w-t, p.z+t); box(p.x+t, p.z+p.d-t, p.x+p.w-t, p.z+p.d+e);
       box(p.x-e, p.z+t, p.x+t, p.z+p.d-t); box(p.x+p.w-t, p.z+t, p.x+p.w+e, p.z+p.d-t); }));
@@ -487,7 +487,13 @@ function buildHome(){
         const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT, h/FT, (z1-z0)/FT), mat);
         m.position.set(p.x+(x0+x1)/2/FT, (y0-WALL_BASE)/FT+h/2/FT, p.z+(z0+z1)/2/FT); m.userData={pod:p.i, lay:'frame', base:m.position.clone(), build:kind, always:true}; rimGroup.add(m); };
       B.acp.forEach(r=>under([r[0]+0.05,r[1]-0.05,r[2],r[3]], -ac.t, ac.t, FRAME_MAT.acp, 'acp'));
-      B.tubes.forEach(r=>under(r, -ac.t-fr.h, fr.h, FRAME_MAT.steel, 'tube')); });
+      B.tubes.forEach(r=>under(r, -ac.t-fr.h, fr.h, FRAME_MAT.steel, 'tube'));
+      // ceiling–roof cassette: the same EPS strips and joint blocks in the 1⅞″ gap, built on the ceiling
+      const R=roofBuild(p), [r0,r1]=ROOF_BUILD.gap, ry=(r0-WALL_BASE)/FT, rh=(r1-r0)/FT;
+      const putR=([u0,u1,v0,v1],mat,kind)=>{ const [x0,x1,z0,z1] = along ? [u0,u1,v0,v1] : [v0,v1,u0,u1];
+        const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT, rh*0.98, (z1-z0)/FT), mat);
+        m.position.set(p.x+(x0+x1)/2/FT, ry+rh/2, p.z+(z0+z1)/2/FT); m.userData={pod:p.i, lay:'ceiling-int', base:m.position.clone(), build:kind}; rimGroup.add(m); };
+      R.eps.forEach(r=>putR(r, FRAME_MAT.eps, 'eps')); R.blocks.forEach(r=>putR(r, FRAME_MAT.lvl, 'block')); });
   }
   unitMeshes=[]; wallGroups.forEach(g=>g.traverse(o=>{ if(o.userData.unit) unitMeshes.push(o); }));
   // cabinets, appliances and furniture, each standing in its pod

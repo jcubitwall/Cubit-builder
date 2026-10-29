@@ -9,7 +9,7 @@
    real architectural scale, the largest of 1/2, 3/8, 1/4, 3/16, 1/8″ = 1′-0″ that fits.
    The same SVGs are previewed on screen and turned into the PDF (blueprint-ui.js, with svg2pdf). Text is set in
    Oswald (fonts/), a condensed drafting face; only ASCII quotes are used so the PDF font has every glyph. */
-import { FT, H, T, TI, GAP, POD, SIDE_NAME, LAYER_KINDS, FLOOR_BUILD, FRAME, WALL_BASE, ICF, SCREW_MAX } from './config.js';
+import { FT, H, T, TI, GAP, POD, SIDE_NAME, LAYER_KINDS, FLOOR_BUILD, ROOF_BUILD, FRAME, WALL_BASE, ICF, SCREW_MAX } from './config.js';
 import { MODELS } from './data.js';
 import { state, pickFor, pickLayer, foundationOf } from './state.js';
 import { slotsFor, podList, layerSlotsFor, layoutOffsets, deckList } from './layout.js';
@@ -82,9 +82,11 @@ CONTRACTORS ARE RESPONSIBLE FOR CLEANUP OF THE JOB SITE.`,
 `CUBIT AND ITS REPRESENTATIVES SHALL NOT BE LIABLE TO THE CUSTOMER OR ANY THIRD PARTY FOR ANY INDIRECT, INCIDENTAL, CONSEQUENTIAL, SPECIAL, EXEMPLARY OR PUNITIVE DAMAGES, OR ANY LOSS, ARISING OUT OF OR RELATING TO THE CONSTRUCTION OR LATER PERFORMANCE OF THE BUILDING. IN ANY EVENT, CUBIT'S TOTAL LIABILITY, IF ANY, SHALL NOT EXCEED THE AMOUNT PAID BY THE CUSTOMER UNDER THIS CONTRACT, AS AMENDED.`,
   roof:
 `ROOFING MEMBRANE / FINISH AS SPECIFIED
-ROOF SIP {RF} (OSB / FOAM CORE / OSB)
+ROOF SIP {RF} (1/2" OSB / 3 1/2" CORE / 1/2" OSB)
+{RG} SERVICE GAP (WIRING), EPS STRIPS AT THE RIMS
+1 7/8" LVL BLOCKS FLAT AT EVERY PANEL JOINT
 1 7/8" x 11 7/8" LVL RIM ALL ROUND
-INTERIOR CEILING SIP {CI} (OSB / FOAM CORE / OSB)
+INTERIOR CEILING SIP {CI} (1/2" OSB / 5 1/2" EPS / 1/2" OSB)
 CEILING FINISH AS SPECIFIED`,
   wall:
 `EXTERIOR CLADDING AS SPECIFIED
@@ -113,7 +115,7 @@ function homeInfo(bp, k=state.model){
 const fillVars = (s, F) => s.replace(/\{(\w+)\}/g, (_,k)=>F[k] ?? '');
 function noteVars(k=state.model){
   const conc = foundationOf(k)==='concrete';
-  return { T:fin(T), TI:fin(TI), GAP:fin(GAP*FT), RF:fin(LAYER_KINDS.roof.t), CI:fin(LAYER_KINDS['ceiling-int'].t), FI:fin(LAYER_KINDS['floor-int'].t), FE:fin(LAYER_KINDS['floor-ext'].t),
+  return { T:fin(T), TI:fin(TI), GAP:fin(GAP*FT), RF:fin(LAYER_KINDS.roof.t), RG:fin(ROOF_BUILD.gap[1]-ROOF_BUILD.gap[0]), CI:fin(LAYER_KINDS['ceiling-int'].t), FI:fin(LAYER_KINDS['floor-int'].t), FE:fin(LAYER_KINDS['floor-ext'].t),
     FOUNDATION: conc ? `FOUNDATION: ${ICF.footW}" x ${ICF.footT}" CONCRETE FOOTING UNDER ONE COURSE OF ICF, ${ICF.core}" CORE (${ICF.coreShared}" UNDER POD JOINTS). FOOTING DEPTH, BEARING AND REINFORCING TO BE CONFIRMED BY AN ENGINEER.`
       : `FOUNDATION: GROUND SCREWS NO MORE THAN ${SCREW_MAX}'-0" APART, CORNERS ALWAYS. SCREW SIZE, DEPTH AND LOADING TO BE DETERMINED BY THE SUPPLIER.` };
 }
@@ -604,7 +606,13 @@ function sSection(ctx, sh){
   g+=rect(X(7/16), Y(wb+FRAME.plate), (wT-7/8)*ki, FRAME.plate*ki, {fill:'#e8c88f', stroke:INK, sw:0.3})+rect(X(podW-wT+7/16), Y(wb+FRAME.plate), (wT-7/8)*ki, FRAME.plate*ki, {fill:'#e8c88f', stroke:INK, sw:0.3});
   // ceiling + roof
   g+=sip(X(0), Y(fb+L['ceiling-int'].z+L['ceiling-int'].t), podW*ki, L['ceiling-int'].t*ki, false)+sip(X(0), Y(fb+L.roof.z+L.roof.t), podW*ki, L.roof.t*ki, false);
-  g+=rect(X(0), Y(fb+L.roof.z+L.roof.t-0.3), FRAME.lvl.t*ki, FRAME.lvl.roof*ki, {fill:'#d9a85f', stroke:INK, sw:0.5})+rect(X(podW)-FRAME.lvl.t*ki, Y(fb+L.roof.z+L.roof.t-0.3), FRAME.lvl.t*ki, FRAME.lvl.roof*ki, {fill:'#d9a85f', stroke:INK, sw:0.5});
+  const rz=fb+ROOF_BUILD.rimZ+FRAME.lvl.roof; g+=rect(X(0), Y(rz), FRAME.lvl.t*ki, FRAME.lvl.roof*ki, {fill:'#d9a85f', stroke:INK, sw:0.5})+rect(X(podW)-FRAME.lvl.t*ki, Y(rz), FRAME.lvl.t*ki, FRAME.lvl.roof*ki, {fill:'#d9a85f', stroke:INK, sw:0.5});
+  // the gaps: EPS strips against the rims, wood blocks at the panel joints (drawn where a joint is cut)
+  const gapFill=(g0,g1,F,blockFill)=>{ const lt=FRAME.lvl.t, e=F.eps; let s='';
+    [[lt+e.off, lt+e.off+e.w],[podW-lt-e.off-e.w, podW-lt-e.off]].forEach(([a,b])=>{ s+=rect(X(a), Y(fb+g1), (b-a)*ki, (g1-g0)*ki, {fill:'#f4f6f8', stroke:INK, sw:0.4}); });
+    F.block.at.forEach(c=>{ s+=rect(X(c-F.block.w/2), Y(fb+g1), F.block.w*ki, (g1-g0)*ki, {fill:blockFill, stroke:INK, sw:0.4, dash:'2 1.5'}); }); return s; };
+  g+=gapFill(ROOF_BUILD.gap[0], ROOF_BUILD.gap[1], ROOF_BUILD, '#d9a85f')+gapFill(FLOOR_BUILD.gap[0], FLOOR_BUILD.gap[1], FLOOR_BUILD, '#e8c88f');
+  g+=tx(X(podW/2), Y(fb+(ROOF_BUILD.gap[0]+ROOF_BUILD.gap[1])/2)+2.5, `${fin(ROOF_BUILD.gap[1]-ROOF_BUILD.gap[0])} WIRING GAP`, {size:6.5, anchor:'middle'});
   // grade
   g+=line(X(-6), Y(0), X(podW+14), Y(0), 1.2)+tx(X(podW+16), Y(0)+3, 'GRADE', {size:7.5, fill:BLUE});
   // dimensions on the right

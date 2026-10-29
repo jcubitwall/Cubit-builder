@@ -46,10 +46,16 @@ const WALL_BASE = 10.56;
    Under the floor: 2 mm ACM in 4 × 8 sheets right under the exterior floor, then the steel frame of 2″ × 3″ tube in
    8′ × 8′ sections (one per 8′ of pod) at the very bottom, on the foundation. */
 const FLOOR_BUILD = { frame:{w:2, h:3, size:96, stick:24}, acp:{t:0.079, sheet:[48,96]}, rimZ:0.5, gap:[4.5,6], eps:{w:8, t:1.5, off:0.25, stock:96}, block:{len:16, w:3.5, t:1.5, at:[32,64]} };
+/* ceiling / roof cassette (Oct 2026, from the shop): 12⅞″ overall = roof's top ½″ OSB + 11⅞″ LVL rim + ceiling's bottom ½″ OSB.
+   Ceiling SIP 6½″ (106.6–113.1), a 1⅞″ gap (113.1–114.975), roof SIP 4½″ (114.975–119.475). The gap carries the
+   wiring; like the floor it has 8″ EPS strips all round against the rims, and wood blocks flat across every panel
+   joint (at 32″ and 64″) to carry the roof down onto the ceiling: 1⅞″ thick so they fill the gap (LVL offcuts
+   ripped 3½″ wide are exactly 1⅞″). */
+const ROOF_BUILD = { rimZ:106.6+0.5, gap:[113.1,114.975], eps:{w:8, t:1.875, off:0.25, stock:96}, block:{len:16, w:3.5, t:1.875, at:[32,64], mat:'LVL 1⅞″ offcut, ripped 3½″ wide'} };
 const LAYER_KINDS = {
   'floor-ext':   { label:'Exterior floor',   short:'Ext. floor',  code:'FE', z:0,      t:4.6 },
   'floor-int':   { label:'Interior floor',   short:'Int. floor',  code:'FI', z:6.08,   t:4.48 },
-  'ceiling-int': { label:'Interior ceiling', short:'Ceiling',     code:'CI', z:106.6,  t:6.47 },
-  'roof':        { label:'Roof',             short:'Roof',        code:'RF', z:113.07, t:6.48 },
+  'ceiling-int': { label:'Interior ceiling', short:'Ceiling',     code:'CI', z:106.6,  t:6.5 },   // ½″ OSB + 5½″ EPS + ½″ OSB
+  'roof':        { label:'Roof',             short:'Roof',        code:'RF', z:114.975, t:4.5 },  // ½″ OSB + 3½″ core + ½″ OSB
 };
-export { FLOOR_BUILD, SPINE_SCREWS, SPINE, FRAME, DECK, ICF, PAD_MAX, SCREW_MAX, NOTCH, H, T, TI, FLOOR, GAP, CEIL, PW, FT, POD, SIDE_NAME, WALL_BASE, LAYER_KINDS };
+export { ROOF_BUILD, FLOOR_BUILD, SPINE_SCREWS, SPINE, FRAME, DECK, ICF, PAD_MAX, SCREW_MAX, NOTCH, H, T, TI, FLOOR, GAP, CEIL, PW, FT, POD, SIDE_NAME, WALL_BASE, LAYER_KINDS };
