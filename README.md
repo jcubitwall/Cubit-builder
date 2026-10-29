@@ -349,3 +349,21 @@ Wardrobe boxes are 23½″ deep, so two 84″ ends fit across one 48″ sheet; 2
 The Shelves category has an open, modern bookshelf for where two pod walls meet. It is 15″ wide by default, to cover the joint and the edges of the finished panels, and 12″ deep. It's built like every cabinet: dados, evenly spaced fixed shelves (6 openings of about 14½″), a back in its dado, a 4″ toe kick (2½″ or none if wanted) and no doors.
 
 Its default height is the tallest it can be and still be tipped up into place. Its diagonal has to clear the pod ceiling: 106.6″ underside of the ceiling less 10.56″ top of the interior floor = 96.04″ clear, with ¾″ kept spare (`erectH()` in `js/casework.js`). At 12″ deep that's 94½″, leaving about 1½″ above it once standing.
+
+## Blueprints (drawing set)
+Sheets → Whole home → **Blueprints · drawing set**, or ⋯ → Blueprints. This makes a Cubit-branded drawing set for any home (`js/blueprint.js` draws it, `js/blueprint-ui.js` shows it and makes the PDF). It's modelled on the Tidal Drafting set for Cubit Pod 5 (Quadlux 2).
+- **Sheets:**
+  - A01 Cover & general notes (sheet list, project data, liability)
+  - A11 Foundation plan (screws numbered and dimensioned, or the ICF footing)
+  - A12 Floor plan (walls, doors with swings, windows, fixtures and furniture, room names with inside sizes, three dimension chains each side, elevation and section markers, north arrow, scale bar)
+  - A13 Pod & wall key plan (the wall codes and a wall schedule)
+  - E11 Electrical (pot lights, plugs, switches, data, outside lights; legend with counts)
+  - P11 Plumbing (fixtures with drain sizes)
+  - A21 Exterior elevations (front, right, back, left, with unit symbols and level marks)
+  - A31 Section (every layer at its build thickness, with construction notes)
+  - A61 Window, exterior door and interior door schedules
+  - A91 3D views (three outside, one with the roof off)
+- **Page:** 24″ × 18″ (ARCH C). Plans are at the largest of ½, ⅜, ¼, 3/16 or ⅛″ = 1′-0″ that fits.
+- **Title block, on every sheet:** notes, six revisions, the Cubit logo (`brand/cubit-logo.png`, taken from the drafter's set) with the company lines, client, site, model, pods, floor area, project, drawing title, date, scale, drawn and checked by, and the drawing number.
+- **Details:** edits the title block and notes. The company lines and notes are kept for every home in this browser (`localStorage` `cubit-blueprints`). Project, client, site, drawn and checked by, date, revisions and which sheets are in the set are kept per home. In the notes, `{T}`, `{TI}`, `{GAP}` and `{FOUNDATION}` fill in from the home.
+- **PDF:** vector, one page per sheet, through svg2pdf (`js/vendor/svg2pdf.umd.min.js`, MIT), with Oswald embedded (`fonts/`, SIL Open Font License). Text is ASCII only so the font has every glyph.

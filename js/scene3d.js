@@ -728,4 +728,4 @@ function setExplodeGoal(v){ explodeGoal=v; }
 function explodeAt(v){ explodeT=v; explodeGoal=v; applyExplode(); }
 
 
-export { explodeAt, buildLayerMesh, buildDeckMesh, DECK_MAT, LAYER_COLOR, applyGhost, focusIsolated, isoTarget, stage, renderer, scene, camera, controls, sun, grid, homeGroup, wallGroups, themeColors, applyTheme, MAT, lineMat, numberSprite, buildWallMesh, buildHome, explodeT, applyExplode, highlight, resize, ray, loop, setExplodeGoal, applyLayers, focusCamera, podCentres, roofGroup, floorGroup, screwGroup, pickables, explodeGoal, mouse };
+export { northGroup, explodeAt, buildLayerMesh, buildDeckMesh, DECK_MAT, LAYER_COLOR, applyGhost, focusIsolated, isoTarget, stage, renderer, scene, camera, controls, sun, grid, homeGroup, wallGroups, themeColors, applyTheme, MAT, lineMat, numberSprite, buildWallMesh, buildHome, explodeT, applyExplode, highlight, resize, ray, loop, setExplodeGoal, applyLayers, focusCamera, podCentres, roofGroup, floorGroup, screwGroup, pickables, explodeGoal, mouse };
