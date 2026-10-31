@@ -238,7 +238,9 @@ const hideFurnGhost = () => { if(fg) fg.visible=false; };
 const setHolderVisible = (id, v) => { const m=models.get(id); if(m) m.holder.visible = v && shownCat(m.holder.userData.cat); };
 
 /* ---------------------------------------------------------------- edits */
-function addItem(k, at){ checkpoint(); ensureDraft(); const it={ id:newId(), ...newItem(k), ...at }; delete it.free; list().push(it); save(); return it; }
+function addItem(k, at){ checkpoint(); ensureDraft(); const it={ id:newId(), ...newItem(k), ...at }; delete it.free; list().push(it);
+  const cat=itemDef(k)?.cat; if(cat && state.show['cw-'+cat]===false){ state.show['cw-'+cat]=true; import('./layers.js').then(m=>m.renderLayers?.()).catch(()=>{}); }   // dragged in while its layer was off: switch it on
+  save(); return it; }
 function updateItem(id, patch){ checkpoint(); ensureDraft(); const it=byId(id); if(!it) return null; Object.assign(it, patch); delete it.free; save(); return it; }
 function removeItem(id){ checkpoint(); ensureDraft(); const L=list(), i=L.findIndex(f=>f.id===id); if(i>=0) L.splice(i,1); if(state.selFurn===id) state.selFurn=null; save(); }
 function duplicateItem(id){ checkpoint(); ensureDraft(); const it=byId(id); if(!it) return null; const c={...JSON.parse(JSON.stringify(it)), id:newId()};

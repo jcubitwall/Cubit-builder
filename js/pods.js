@@ -153,10 +153,12 @@ function podFrom(item, x, z, rot){
 }
 /* each edit returns '' when done, or the reason it couldn't be done */
 function tryLayout(pods){ const why=problem(pods); return why; }
+/* something new dragged in: switch its layer on if it was off, so it doesn't vanish (the Layers panel follows) */
+function revealLayers(keys){ let ch=false; keys.forEach(k=>{ if(state.show[k]===false){ state.show[k]=true; ch=true; } }); if(ch){ save(); import('./layers.js').then(m=>m.renderLayers?.()).catch(()=>{}); } }
 function addPod(item, x, z, rot=0){
   const trial=MODELS[state.model].pods.concat([podFrom(item,x,z,rot)]);
   const why=tryLayout(trial); if(why) return why;
-  const key=editKey(); MODELS[key].pods.push(podFrom(item,x,z,rot)); finish(key); return '';
+  const key=editKey(); MODELS[key].pods.push(podFrom(item,x,z,rot)); finish(key); revealLayers(['walls','floors']); return '';
 }
 function movePod(i, x, z, rot){
   const trial=clone(MODELS[state.model].pods); Object.assign(trial[i], {x, z, rot:rot??trial[i].rot??0});
@@ -217,7 +219,7 @@ function dockSpots(item, rot, skip=-1){
 function deckTrial(fn){ const m=MODELS[state.model]; const d=clone(m.decks||[]); fn(d); return problem(m.pods, d); }
 function addDeck(lib, x, z, rot){
   const why=deckTrial(d=>d.push({lib,x,z,rot})); if(why) return why;
-  const key=editKey(); (MODELS[key].decks ||= []).push({lib,x,z,rot}); finish(key); return '';
+  const key=editKey(); (MODELS[key].decks ||= []).push({lib,x,z,rot}); finish(key); revealLayers(['decks']); return '';
 }
 function moveDeck(k, x, z, rot){
   const why=deckTrial(d=>Object.assign(d[k],{x,z,rot})); if(why) return why;
