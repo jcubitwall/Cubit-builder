@@ -446,6 +446,20 @@ While you drag a cabinet, it keeps the wall its back was on when you picked it u
 - **Dropping one in:** Build tray → Cabinets → **Kitchens & groups**. Drag a kitchen in and it lands as a group on the wall you drop it on.
 - **Code:** `js/kitchens.js`, `functions/api/kitchens.js`, group helpers in furniture.js, panels in casework-ui.js.
 
+## Standard windows and doors (North-Air)
+
+These are Cubit's standard units, from North-Air quote 91,608 (Cubit CO-24), stored in `data/units.json`. All are Black/Black, Low E / Argon, with 1½″ brickmould.
+
+| Unit | Size (unit) | Rough stud opening | Notes |
+|---|---|---|---|
+| WN-CA-2447 Casement | 24 × 47¼ | 25¼ × 48½ | Egress. Brickmould 27 × 50¼. Hinge left or right per opening. |
+| DR-PA-7183 Patio door 6′ | 70¾ × 82½ | 72 × 83¾ | Brickmould 73¾ × 85½. Moving panel left or right per opening. |
+| DR-EN-3782 Man door | 37½ × 82 1/16 | 38¾ × 83 5/16 | Standard steel slab with a fixed glass lite and a 6″ steel panel all the way around. Outswing, 6⅝″ vinyl-clad jamb, brickmould on 3 sides. |
+
+New openings drawn in the Panel builder start at these rough stud openings. Interior doors stay at 36½ × 80¾.
+
+A sample unit is offered only for openings that no standard unit fits. That keeps interior doors and older homes' taller windows covered.
+
 ## Walls between pods always match (joints)
 
 Where two pods meet, each pod keeps its own interior wall, always 4½″. Doors, windows, HRV holes and other openings go right through both walls, so their openings always match, mirrored (`js/joints.js`, applied in `bodyWall`):

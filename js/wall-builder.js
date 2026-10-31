@@ -263,7 +263,7 @@ function render(){
           <span class="wb-mini">${fitL()||fitR() ? `cut ${fin(netL())}` : 'corner to corner'}</span></div>
         <div class="wb-adds">
           <div class="wb-addg"><span class="wb-k" title="Boxes and pockets on the ${near(view)} face">Face</span><button data-add="plug">Plug</button><button data-add="switch">Switch</button><button data-add="double">Double</button><button data-add="light">Light</button><button data-add="pocket">Round pocket</button></div>
-          <div class="wb-addg"><span class="wb-k">Through</span><button data-add="window">Window</button><button data-add="door">Door</button><button data-add="opening">Cased</button><button data-add="round">Round window</button><button data-add="vent">Round hole</button></div>
+          <div class="wb-addg"><span class="wb-k">Through</span><button data-add="window">Window</button><button data-add="door">Door</button><button data-add="patio">Patio</button><button data-add="opening">Cased</button><button data-add="round">Round window</button><button data-add="vent">Round hole</button></div>
           <div class="wb-addg"><span class="wb-k">Shape</span><button id="wbShape" aria-pressed="${shapePick}">From library</button><button id="wbDraw">Draw new</button></div>
         </div>
         ${shapePick?shapePicker():''}
@@ -277,13 +277,15 @@ function render(){
   bind();
 }
 /* ---------------------------------------------------------------- editing */
+/* new openings start at the Cubit standard rough stud openings (North-Air units, data/units.json) */
+const STD_RO = { window:{w:25.25, h:48.5}, door:{w:38.75, h:83.3125}, patio:{w:72, h:83.75} };
 function add(kind){
   const c=L()/2;
   if(BOX[kind] || kind==='pocket' || kind==='light'){ const k=near(view), r=ruleFor(kind)||{};
     const b = kind==='pocket' ? {kind:'pocket', shape:'round', d:3, x:0, name:'Round pocket', rk:'pocket'} : kind==='light' ? {kind:'pocket', shape:'round', d:4, x:0, name:'Wall light box', rk:'light'} : {kind:'box', shape:'rect', ...BOX[kind], x:0, rk:kind};
     b.y = r.y ?? 48; b.depth = r.depth ?? 3;
     b.x=fromDrawX(k,b,c+ (W[k].length%3)*6); snapToChase(k,b); W[k].push(b); sel={k, i:W[k].length-1}; }
-  else { const o = kind==='window' ? {kind, x:0, y:36, w:36, h:48} : kind==='door' ? {kind, x:0, y:0, w:36.5, h:80.75} : kind==='opening' ? {kind, x:0, y:0, w:48, h:82} : kind==='round' ? {kind:'window', shape:'round', d:ROUND_RO, x:0, y:36, w:ROUND_RO, h:ROUND_RO} : {kind:'vent', shape:'round', d:4, x:0, y:84, w:4, h:4};
+  else { const o = kind==='window' ? {kind, x:0, y:36, ...STD_RO.window} : kind==='door' ? {kind, x:0, y:0, ...(W.type==='int' ? {w:36.5, h:80.75} : STD_RO.door)} : kind==='patio' ? {kind, x:0, y:0, ...STD_RO.patio} : kind==='opening' ? {kind, x:0, y:0, w:48, h:82} : kind==='round' ? {kind:'window', shape:'round', d:ROUND_RO, x:0, y:36, w:ROUND_RO, h:ROUND_RO} : {kind:'vent', shape:'round', d:4, x:0, y:84, w:4, h:4};
     o.x=fromDrawX('op',o,c-o.w/2); const r=ruleOf('op',o); if(r?.y!=null) setRuleY('op',o,r.y); snapToChase('op',o);
     W.openings.push(o); sel={k:'op', i:W.openings.length-1}; }
   render();

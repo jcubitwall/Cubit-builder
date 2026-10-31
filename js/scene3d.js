@@ -80,7 +80,13 @@ function buildUnit(o, r, t, interior=false){
   box(x0+fw,y0+Hh-fw,W-2*fw,fw,d,MAT.frame); box(x0+fw,y0,W-2*fw,fw,d,MAT.frame);
   // glass, or the door leaf with its knob on the handle side
   if(u.type==='entry'){
-    box(x0+fw,y0+fw,W-2*fw,Hh-2*fw,0.14,interior?MAT.doorInt:MAT.door);
+    const lw=W-2*fw, lh=Hh-2*fw, P=u.panel;
+    if(P && lw>2*P+4 && lh>2*P+4){   // a steel slab with a fixed glass lite: P of steel all the way round the glass
+      const mat=interior?MAT.doorInt:MAT.door;
+      box(x0+fw,y0+fw,P,lh,0.14,mat); box(x0+fw+lw-P,y0+fw,P,lh,0.14,mat);
+      box(x0+fw+P,y0+fw,lw-2*P,P,0.14,mat); box(x0+fw+P,y0+fw+lh-P,lw-2*P,P,0.14,mat);
+      box(x0+fw+P,y0+fw+P,lw-2*P,lh-2*P,0.05,MAT.glass);
+    } else box(x0+fw,y0+fw,lw,lh,0.14,interior?MAT.doorInt:MAT.door);
     const kx = r.hand==='R' ? x0+fw+3 : x0+W-fw-3, knob=new THREE.SphereGeometry(0.12,12,8);
     [zc+0.12, zc-0.12].forEach(z=>{ const k=new THREE.Mesh(knob,MAT.steel); k.position.set(kx/FT, (y0+36)/FT, z); g.add(k); });
   } else box(x0+fw,y0+fw,W-2*fw,Hh-2*fw,0.05,MAT.glass);

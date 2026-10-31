@@ -2,6 +2,8 @@
 
    Library (data/units.json, filled by "Upload STEP → Window / door"):
      { id, name, type, w, h, d, hand?, swing?, source, sample? }   sizes in inches (the unit itself)
+     Cubit standards (North-Air) also carry rso {w,h} (rough stud opening), bm {w,h} (outside of the brickmould),
+     maker, model, glass, rating, egress; a man door: slab {w,h} and panel (the steel left round its glass lite).
    Types, and what "hand" means for each (always seen from OUTSIDE):
      picture   fixed glass
      casement  hinged on one side          hand = hinge side L / R
@@ -42,8 +44,9 @@ const catOf = o => CAT_OF[o.kind];
 /* a unit fits a rough opening when it is no bigger and at most 2″ smaller each way */
 const isRound = o => o.shape==='round';
 const fits = (u,o) => !!TYPES[u.type]?.round===isRound(o) && u.w<=o.w+0.125 && u.h<=o.h+0.125 && o.w-u.w<=2 && o.h-u.h<=2;
-// sample units drop out of a category as soon as a real (uploaded) unit of that category exists
-const unitsFor = o => { const c=catOf(o), real=UNITLIB.some(u=>!u.sample && TYPES[u.type]?.cat===c && !!TYPES[u.type]?.round===isRound(o));
+// a sample unit drops out of an opening's list as soon as a real unit (a Cubit standard or an upload) fits that opening;
+// openings no real unit fits yet (interior doors, older homes' taller windows) keep their sample
+const unitsFor = o => { const c=catOf(o), real=UNITLIB.some(u=>!u.sample && TYPES[u.type]?.cat===c && !!TYPES[u.type]?.round===isRound(o) && fits(u,o));
   return UNITLIB.filter(u=>TYPES[u.type]?.cat===c && !!TYPES[u.type]?.round===isRound(o) && !(real && u.sample))
   .map(u=>({u, fit:fits(u,o)})).sort((a,b)=>(b.fit-a.fit) || (a.u.name>b.u.name?1:-1)); };
 const okey = o => o.key ?? `${o.kind}@${Math.round(o.x)}`;
