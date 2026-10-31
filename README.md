@@ -491,4 +491,6 @@ Hand changes are stored with the home in `MODELS[k].elec`:
 
 These changes survive every re-layout. **Start over** drops them. Each wall's panel lists its boxes, with ◀ ▶ (next chase), ✕ and ↺, plus Add.
 
+A box counts as on a chase anywhere within 2″ of the chase centre. The rules aim for dead centre and nudge only as far as needed, in ½″ steps.
+
 Furniture's own plugs go on every wall, including walls in older homes that keep the library's plugs and switches. That means appliances, the basin GFCI, counter plugs, bedside plugs, and a desk plug 12″ above the desktop. The wall plugs, switches, outside plug and data boxes go only on walls laid out by the rules.

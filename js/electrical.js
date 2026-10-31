@@ -26,7 +26,7 @@
      · Walls between pods: boxes only on the face toward the wall's own pod.
      · Data boxes (network / TV) are optional per home: the TV wall in front of a sofa and opposite each bed, 16″.
    Chases first: every box sits on an electrical chase (wall-rules.js: 6″ in from each edge of the original 48″
-   panel, then every 12″) when one is within reach (18″ for plugs, 6″ for switches) of where the rule wants it,
+   panel, then every 12″; dead centre first, nudged up to 2″ either way if it has to be) when one is within reach (18″ for plugs, 6″ for switches) of where the rule wants it,
    and clear of openings, panel joints, cabinets and other boxes. Otherwise it stays where the rule wants it and is
    flagged "needs a chase".
    Shared by everyone through the home (drafts, projects, Cubit Homes). */
@@ -43,9 +43,12 @@ import { fin } from './format.js';
 const H = { plug:16, counter:42, gfci:42, switch:48, double:48, data:16, wp:16 };
 const REACH = { plug:18, counter:18, gfci:18, appl:18, data:18, wp:18, switch:6, double:6 };
 const R_WALL = 70.866, R_COUNTER = 35.433, MIN_RUN = 35.433, MIN_COUNTER = 11.8, BASIN = 39.37;
+const NUDGE = 2;   // a box up to 2″ either side of a chase's centre still counts as on it (centre first)
 const SW_OFF = 6, CORNER = 3, JOINT = 2.9, STUD = 1.5, BOX_GAP = 4;
 const BOX = { std:{w:2.375, h:3.375}, double:{w:4.125, h:3.625} };
 const NAME = { plug:'Plug box', counter:'Counter plug box', gfci:'GFCI plug box', appl:'Appliance plug box', switch:'Switch box', double:'Double switch box', data:'Data box', wp:'Outside plug (WP)' };
+const NUDGES = [0,0.5,-0.5,1,-1,1.5,-1.5,2,-2];
+const onChase = (W, a) => W.chases.some(c=>Math.abs(c-a)<=NUDGE+0.01);
 const ROUND = v => Math.round(v*8)/8;
 const clone = o => JSON.parse(JSON.stringify(o));
 
@@ -173,7 +176,8 @@ function compute(k){
   function spotOnWall(W, face, aT, y, rk, o={}){
     const reach=o.reach ?? REACH[rk] ?? 18;
     const good=a=>okAt(W, face, a, y, rk, o);
-    const near=c=>W.chases.filter(x=>Math.abs(x-c)<=reach+1e-6 && good(x)).sort((p,q)=>Math.abs(p-c)-Math.abs(q-c))[0];
+    // each chase within reach, nearest first: its centre, else nudged up to 2″ either way (½″ steps, smallest first)
+    const near=c=>{ for(const x of W.chases.filter(x=>Math.abs(x-c)<=reach+1e-6).sort((p,q)=>Math.abs(p-c)-Math.abs(q-c))) for(const n of NUDGES){ if(good(x+n)) return x+n; } return null; };
     let c=near(aT); if(c!=null) return { a:c, chase:true, moved:Math.abs(c-aT)>0.01 };
     if(good(aT)) return { a:aT, chase:false };
     for(let s=0.5; s<=(o.scan??48); s+=0.5) for(const a of [aT+s, aT-s]){ if(a<0||a>W.Lin||!good(a)) continue;
@@ -188,7 +192,8 @@ function compute(k){
     const allowed = u => (!o.dir || (t(u)>=(o.min??0) && t(u)<=(o.max??P))) && (!o.inside || o.inside(mod(u,P)));
     const good = u => { if(!allowed(u)) return null; const q=at(L,u); return q && okAt(q.W,'in',q.a,y,rk,o) ? q : null; };
     const chases=[]; L.walls.forEach(W=>W.chases.forEach(a=>{ const u=uOf(W,a); if(u>=W.loop.lo && u<=W.loop.hi) chases.push(u); }));
-    const near = c => { let best=null; chases.forEach(u=>{ const d=dist(u,c); if(d<=reach+1e-6 && (!best || d<best.d)){ const q=good(u); if(q) best={ d, u, q }; } }); return best; };
+    const near = c => { let best=null; chases.forEach(u0=>{ const d=dist(u0,c); if(d>reach+1e-6 || (best && d>=best.d)) return;
+      for(const n of NUDGES){ const q=good(u0+n); if(q){ best={ d, u:u0+n, q }; return; } } }); return best; };
     let c=near(uT); if(c) return { ...c.q, u:c.u, chase:true, moved:c.d>0.01 };
     let q=good(uT); if(q) return { ...q, u:uT, chase:false };
     const scan=o.scan ?? 96;
@@ -392,9 +397,9 @@ function compute(k){
   const ov=E.ov||{}, byKey={}; walls.forEach(W=>{ byKey[W.key]=W; });
   const out=[];
   boxes.forEach(b=>{ if(!b.id) return; if(ov.del?.[b.id]){ b.removed=true; return; }
-    const mv=ov.mv?.[b.id]; if(mv){ if(mv.a!=null) b.a=mv.a; if(mv.y!=null) b.y=mv.y; b.moved=true; b.chase=b.W.chases.some(c=>Math.abs(c-b.a)<0.05); b.flags=b.flags.filter(f=>f!=='needs a chase'); if(!b.chase) b.flags.push('needs a chase'); }
+    const mv=ov.mv?.[b.id]; if(mv){ if(mv.a!=null) b.a=mv.a; if(mv.y!=null) b.y=mv.y; b.moved=true; b.chase=onChase(b.W,b.a); b.flags=b.flags.filter(f=>f!=='needs a chase'); if(!b.chase) b.flags.push('needs a chase'); }
     out.push(b); });
-  (ov.add||[]).forEach(u=>{ const W=byKey[u.w]; if(!W) return; const chase=W.chases.some(c=>Math.abs(c-u.a)<0.05);
+  (ov.add||[]).forEach(u=>{ const W=byKey[u.w]; if(!W) return; const chase=onChase(W,u.a);
     out.push({ id:u.id, W, face:u.face||'in', a:u.a, y:u.y, rk:u.rk, chase, user:true, note:u.note||'', why:'added by hand', flags:chase||u.face==='out'?[]:['needs a chase'] }); });
 
   /* ---- into the walls */
@@ -434,7 +439,7 @@ function ruleWall(slot, on=true){ return editElec(E=>{ if(on) (E.walls ||= {})[w
 /* this wall's boxes, for the wall panel: [{ id, rk, name, a (from the left seen from that face), y, chase, flags, note }] */
 function boxesOn(slot){
   const P=planFor(); if(!P) return null;
-  return P.boxes.filter(b=>b.W.s.id===slot.id).map(b=>({ id:b.id, rk:b.rk, name:b.name, face:b.face, a:b.a, x:b.face==='in'?b.W.Lin-b.a:b.a, y:b.y, chase:b.chase, flags:b.flags, note:b.note, why:b.why, user:!!b.user, moved:!!b.moved, way:b.way||1 }))
+  return P.boxes.filter(b=>b.W.s.id===slot.id).map(b=>({ id:b.id, rk:b.rk, name:b.name, face:b.face, a:b.a, x:b.face==='in'?b.W.Lin-b.a:b.a, y:b.y, chase:b.chase, flags:b.flags, note:b.note, why:b.why, user:!!b.user, moved:!!b.moved, way:b.way||1, nudge:b.chase&&b.face==='in'&&b.W.chases.length ? +Math.min(...b.W.chases.map(c=>Math.abs(c-b.a))).toFixed(3) : 0 }))
     .sort((p,q)=>(p.face===q.face?0:p.face==='in'?-1:1) || p.x-q.x);
 }
 /* the next chase from a, one way (dir ±1); a from the left seen from outside */
