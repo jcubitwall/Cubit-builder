@@ -147,6 +147,17 @@ function arrowTexture(){
   g.fillStyle='#fff'; g.beginPath(); g.moveTo(14,64); g.lineTo(44,36); g.lineTo(44,54); g.lineTo(84,54); g.lineTo(84,36); g.lineTo(114,64); g.lineTo(84,92); g.lineTo(84,74); g.lineTo(44,74); g.lineTo(44,92); g.closePath(); g.fill();
   arrowTex=new THREE.CanvasTexture(c); return arrowTex;
 }
+/* the turn handle: a green disc with a curved arrow */
+let turnTex=null;
+function turnTexture(){
+  if(turnTex) return turnTex;
+  const c=document.createElement('canvas'); c.width=c.height=128; const g=c.getContext('2d');
+  g.fillStyle='#2e9e5b'; g.beginPath(); g.arc(64,64,60,0,Math.PI*2); g.fill(); g.lineWidth=6; g.strokeStyle='#fff'; g.stroke();
+  g.lineWidth=11; g.lineCap='round'; g.beginPath(); g.arc(64,64,32,-Math.PI*0.95,Math.PI*0.45); g.stroke();
+  const ex=64+32*Math.cos(Math.PI*0.45), ey=64+32*Math.sin(Math.PI*0.45);
+  g.fillStyle='#fff'; g.beginPath(); g.moveTo(ex-24,ey-4); g.lineTo(ex+8,ey-22); g.lineTo(ex+6,ey+16); g.closePath(); g.fill();
+  turnTex=new THREE.CanvasTexture(c); return turnTex;
+}
 /* the item in its pod frame: local (x across its width from its middle, z from its back) ⇄ pod (u, v), feet */
 const toPod = (it, lx, lz) => { const a=(it.a||0)*Math.PI/180; return { u: it.u + lx*Math.cos(a) + lz*Math.sin(a), v: it.v - lx*Math.sin(a) + lz*Math.cos(a) }; };
 const toItem = (it, u, v) => { const a=(it.a||0)*Math.PI/180, dx=u-it.u, dz=v-it.v; return { x: dx*Math.cos(a) - dz*Math.sin(a), z: dx*Math.sin(a) + dz*Math.cos(a) }; };
@@ -179,11 +190,15 @@ function roomBeyond(it, side){
 function updateHandles(){
   if(handleGroup){ handleGroup.parent?.remove(handleGroup); handleGroup=null; }
   const it=state.selFurn && byId(state.selFurn), d=it && itemDef(it.k);
-  if(!it || !d || d.fixed || state.isolate || !frames[it.pod] || !models.get(it.id)?.holder.visible) return;
+  if(!it || !d || state.isolate || !frames[it.pod] || !models.get(it.id)?.holder.visible) return;
   handleGroup=new THREE.Group(); handleGroup.userData.noGhost=true;
   const mat=new THREE.MeshBasicMaterial({ map:arrowTexture(), transparent:true, depthTest:false, side:THREE.DoubleSide });
   const top=((it.y||0)+it.h)/FT+0.05, hw=it.w/2/FT, dd=it.d/FT, s=Math.max(0.5, Math.min(0.9, Math.min(it.w,it.d)/FT*0.55));
-  Object.keys(SIDES).forEach(side=>{
+  { // the turn handle, off the front right corner: drag it round to turn the item in 45° steps
+    const o=turnHandleAt(it), p=toPod(it, o.x, o.z), m=new THREE.Mesh(new THREE.PlaneGeometry(s,s), new THREE.MeshBasicMaterial({ map:turnTexture(), transparent:true, depthTest:false, side:THREE.DoubleSide }));
+    m.rotation.order='YXZ'; m.rotation.y=(it.a||0)*Math.PI/180; m.rotation.x=-Math.PI/2;
+    m.position.set(p.u, top, p.v); m.renderOrder=31; m.userData={ handle:'turn', furn:it.id, noGhost:true }; handleGroup.add(m); }
+  if(!d.fixed) Object.keys(SIDES).forEach(side=>{
     if(side==='B' && it.wall) return;                         // backed onto a wall
     if(roomBeyond(it, side) < 0.3/FT) return;                  // already up against something: no arrow that way
     const [ox,oz]=SIDES[side], lx = ox ? ox*(hw+s*0.55) : 0, lz = ox ? dd/2 : (oz>0 ? dd+s*0.55 : -s*0.55);
@@ -192,6 +207,58 @@ function updateHandles(){
     m.position.set(p.u, top, p.v); m.renderOrder=30; m.userData={ handle:side, furn:it.id, noGhost:true };
     handleGroup.add(m); });
   frames[it.pod].add(handleGroup);
+}
+/* where the turn handle sits, in the item's own frame (feet: x from its middle, z from its back) */
+const turnHandleAt = it => { const s=Math.max(0.5, Math.min(0.9, Math.min(it.w,it.d)/FT*0.55)); return { x:it.w/2/FT+s*0.45, z:it.d/FT+s*0.45 }; };
+/* ---------------------------------------------------------------- turning (the turn handle)
+   The item turns about its middle in 45° steps; a group turns as one, about the picked item's middle. When it's
+   done it's kept clear of the pod's walls, and an item turned square to a wall with its back within 2″ of it backs
+   onto that wall again (so the pot-light rule and the plugs know it's there). */
+const centreOf = it => toPod(it, 0, it.d/FT/2);
+const poseAbout = (it, c, a) => { const r=a*Math.PI/180; return { u:c.u-Math.sin(r)*it.d/FT/2, v:c.v-Math.cos(r)*it.d/FT/2 }; };
+const norm180 = a => { a=((Math.round(a)%360)+360)%360; return a>180 ? a-360 : a; };
+function podCast(f, u, v, du, dv, h){
+  const W=wallMeshes(wallsRef()), wo=f.localToWorld(new THREE.Vector3(u,h,v)), wd=f.localToWorld(new THREE.Vector3(u+du,h,v+dv)).sub(wo).normalize();
+  ray.set(wo,wd); ray.far=40; const hit=ray.intersectObjects(W,false)[0]; return hit ? { dist:hit.distance, slot:hit.object.userData.slotId } : null;
+}
+/* pod-frame extent of an item turned to a (feet): how far its footprint reaches each way from its middle */
+function reachOf(it, a){
+  const hw=it.w/2/FT, hd=it.d/FT/2, r=a*Math.PI/180, c=Math.abs(Math.cos(r)), s=Math.abs(Math.sin(r));
+  return { u: hw*c+hd*s, v: hw*s+hd*c };
+}
+/* keep an item (pose {u,v,a}) clear of the walls; back it onto a wall it's square to and within 2″ of */
+function settle(it, pose){
+  const f=frames[it.pod]; if(!f) return { ...pose, wall:null };
+  let root=f; while(root.parent) root=root.parent; root.updateMatrixWorld(true);   // walls just rebuilt may not have been drawn yet
+  const T={ ...it, ...pose }, c=centreOf(T), R=reachOf(it, pose.a), h=Math.max(0.5, ((it.y||0)+Math.min(it.h,24)/2)/FT);
+  let du=0, dv=0;
+  [[1,0,'u'],[-1,0,'u'],[0,1,'v'],[0,-1,'v']].forEach(([x,z,k])=>{ const hit=podCast(f, c.u, c.v, x, z, h); if(!hit) return;
+    const over=R[k]-hit.dist; if(over>0){ if(x) du-=x*over; else dv-=z*over; } });
+  let out={ ...pose, u:pose.u+du, v:pose.v+dv, wall:null };
+  if(pose.a%90===0){   // square to the pod: is its back on a wall?
+    const r=pose.a*Math.PI/180, bx=-Math.round(Math.sin(r)), bz=-Math.round(Math.cos(r)), cc=centreOf({ ...it, ...out });
+    const hit=podCast(f, cc.u, cc.v, bx, bz, h), gap=hit ? hit.dist-it.d/FT/2 : 99;
+    if(hit && gap<2/FT){ out.u+=bx*gap; out.v+=bz*gap; out.wall=hit.slot||null; }
+  }
+  return out;
+}
+/* turning by the handle: start = {a0, th0, c} from turnStart; pt = home-frame point under the finger.
+   Returns { deg, moves:[[id,{u,v,a,wall}],…] } */
+function podPoint(it, pt, homeGroup){ const f=frames[it.pod]; if(!f) return null; f.updateMatrixWorld(true); return f.worldToLocal(homeGroup.localToWorld(pt.clone())); }
+function turnStart(it, pt, homeGroup){
+  const l=podPoint(it, pt, homeGroup), c=centreOf(it); if(!l) return null;
+  const others=groupMembers(it.grp?.id).filter(o=>o.id!==it.id).map(o=>({ id:o.id, home:{u:o.u, v:o.v, a:o.a||0} }));
+  return { a0:it.a||0, th0:Math.atan2(l.x-c.u, l.z-c.v)*180/Math.PI, c, others };
+}
+function turnTo(it, st, pt, homeGroup, done=false){
+  const l=podPoint(it, pt, homeGroup); if(!l || !st) return null;
+  let d=Math.atan2(l.x-st.c.u, l.z-st.c.v)*180/Math.PI-st.th0; d=((d%360)+540)%360-180;
+  const deg=Math.round(d/45)*45, a=norm180(st.a0+deg);
+  let me={ ...poseAbout(it, st.c, a), a, wall:null };
+  if(!st.others.length) me=settle(it, me);   // a group turns freely; one item stays clear of the walls
+  const moves=[[it.id, me]];
+  st.others.forEach(o=>{ const [x,z]=rotXZ(o.home.u-st.c.u, o.home.v-st.c.v, deg); moves.push([o.id, { u:st.c.u+x, v:st.c.v+z, a:norm180(o.home.a+deg), wall:null }]); });
+  return { deg, moves };
 }
 const handleMeshes = () => handleGroup ? handleGroup.children.filter(m=>m.visible) : [];
 /* stretch an item by dragging one side to a home-frame point (feet); returns the change to make, or null */
@@ -284,7 +351,7 @@ function updateItem(id, patch){ checkpoint(); ensureDraft(); const it=byId(id); 
 function removeItem(id){ checkpoint(); ensureDraft(); const L=list(), i=L.findIndex(f=>f.id===id); if(i>=0) L.splice(i,1); if(state.selFurn===id) state.selFurn=null; save(); }
 function duplicateItem(id){ checkpoint(); ensureDraft(); const it=byId(id); if(!it) return null; const c={...JSON.parse(JSON.stringify(it)), id:newId()};
   const r=(c.a||0)*Math.PI/180; c.u+=Math.cos(r)*c.w/FT; c.v-=Math.sin(r)*c.w/FT; list().push(c); save(); return c; }
-function turnItem(id, dir=1){ checkpoint(); ensureDraft(); const it=byId(id); if(!it) return; it.a=(((it.a||0)-90*dir)%360+360)%360; if(it.a>180) it.a-=360; it.wall=null; save(); }
+function turnItem(id, dir=1){ checkpoint(); ensureDraft(); const it=byId(id); if(!it) return; const c=centreOf(it), a=norm180((it.a||0)-90*dir); Object.assign(it, settle(it, { ...poseAbout(it, c, a), a })); save(); }
 /* when a pod goes, its items go with it; later pods move down one */
 function podRemoved(k, i){ const L=list(k); for(let j=L.length-1;j>=0;j--){ if(L[j].pod===i) L.splice(j,1); else if(L[j].pod>i) L[j].pod--; } }
 /* deepest unit on each wall (inches), for the pot-light rule */
@@ -292,4 +359,4 @@ const DEPTH_CATS=new Set(['base','upper','tall','linen','wardrobe','vanity','app
 function wallDepths(k=state.model){ const out={}; list(k).forEach(it=>{ if(it.wall && DEPTH_CATS.has(itemDef(it.k)?.cat)) out[it.wall]=Math.max(out[it.wall]||0, it.d); }); return out; }
 
 const podsShown = () => lastPods;
-export { freeSpot, clash, setWalls, handleMeshes, roomBeyond, stretchTo, updateHandles, onFurnApplied, setCabExplode, resetCabExplode, cabExploded, explodeFurniture, furnHolder, podsShown, showFurnGhost, hideFurnGhost, setHolderVisible, list as furnitureOf, byId as furnById, buildFurniture, refreshItem, applyFurniture, furnMeshes, snap, podAt, addItem, updateItem, removeItem, duplicateItem, turnItem, podRemoved, wallDepths, shownCat, CATS as FURN_CATS , cabExplodeGoal , rotXZ, groupMembers, makeGroup, ungroup, relinkGroup, renameGroup, setGroupFrom, removeGroup, setMany, moveHolder, groupRecipe, placeRecipe, addRecipe };
+export { turnStart, turnTo, freeSpot, clash, setWalls, handleMeshes, roomBeyond, stretchTo, updateHandles, onFurnApplied, setCabExplode, resetCabExplode, cabExploded, explodeFurniture, furnHolder, podsShown, showFurnGhost, hideFurnGhost, setHolderVisible, list as furnitureOf, byId as furnById, buildFurniture, refreshItem, applyFurniture, furnMeshes, snap, podAt, addItem, updateItem, removeItem, duplicateItem, turnItem, podRemoved, wallDepths, shownCat, CATS as FURN_CATS , cabExplodeGoal , rotXZ, groupMembers, makeGroup, ungroup, relinkGroup, renameGroup, setGroupFrom, removeGroup, setMany, moveHolder, groupRecipe, placeRecipe, addRecipe };

@@ -20,7 +20,7 @@ import { camera, controls, renderer, homeGroup, pickables, buildHome, highlight 
 import { addPod, movePod, rotatePod, addDeck, moveDeck, dockSpots, deckSpots, foot, deckFoot } from './pods.js';
 import { renderModels, renderSide, toast } from './sidebar.js';
 import { deckName } from './deckframe.js';
-import { furnMeshes, furnById, snap, addItem, updateItem, refreshItem, applyFurniture, showFurnGhost, hideFurnGhost, turnItem, setHolderVisible, handleMeshes, roomBeyond, stretchTo, rotXZ, groupMembers, setMany, moveHolder, addRecipe, furnitureOf } from './furniture.js';
+import { furnMeshes, furnById, snap, addItem, updateItem, refreshItem, applyFurniture, showFurnGhost, hideFurnGhost, turnItem, setHolderVisible, handleMeshes, roomBeyond, stretchTo, rotXZ, turnStart, turnTo, groupMembers, setMany, moveHolder, addRecipe, furnitureOf } from './furniture.js';
 import { KITCHENS, kitchenById } from './kitchens.js';
 import { fmt as fmtCw, settings as cwSettings } from './casework.js';
 const fmtIn = v => fmtCw(v)+(cwSettings().units==='mm'?' mm':'″');
@@ -97,6 +97,14 @@ function trackStretch(d, x, y){
   const r=stage.getBoundingClientRect(); tip.hidden=false; tip.style.left=(x-r.left)+'px'; tip.style.top=(y-r.top-46)+'px';
   tip.textContent = (ch.w!=null ? `${fmtIn(ch.w)} wide` : `${fmtIn(ch.d)} deep`) + (ch.snapped ? ' · up against it' : '');
 }
+/* the turn handle: the item (or its group) turns live under the finger, in 45° steps */
+function trackTurn(d, x, y){
+  const it=furnById(d.id), at=planAt(x,y); if(!it || !at) return;
+  const res=turnTo(it, d.st, at, homeGroup); if(!res) return; d.res=res;
+  res.moves.forEach(([id,p])=>moveHolder(id, p.u, p.v, p.a));
+  const r=stage.getBoundingClientRect(); tip.hidden=false; tip.style.left=(x-r.left)+'px'; tip.style.top=(y-r.top-46)+'px';
+  tip.textContent = res.deg ? `Turned ${Math.abs(res.deg)}°` : 'Drag round to turn · 45° steps';
+}
 /* one touch, one wall: the drag keeps the wall it started on (d.lockA) until the item is pulled clearly off it.
    A group moves as one: everything keeps its place relative to the item under the finger (and turns with it). */
 function trackFurn(d, x, y){
@@ -163,7 +171,9 @@ stage.addEventListener('pointerdown', e=>{
     clearTimeout(press?.timer); press=null;
     // a green stretch arrow on the tapped item: drag it to make the item longer / deeper or shorter
     if(editable()){ const hh=handleAt(e.clientX,e.clientY); if(hh){ const it=furnById(hh.object.userData.furn);
-      if(it){ controls.enabled=false; D={mode:'stretch', id:it.id, side:hh.object.userData.handle, room:roomBeyond(it, hh.object.userData.handle), started:true}; document.body.classList.add('dragging'); return; } } }
+      if(it && hh.object.userData.handle==='turn'){ const at=planAt(e.clientX,e.clientY), st=at && turnStart(it, at, homeGroup);
+        if(st){ controls.enabled=false; D={mode:'turn', id:it.id, st, started:true}; document.body.classList.add('dragging'); return; } }
+      else if(it){ controls.enabled=false; D={mode:'stretch', id:it.id, side:hh.object.userData.handle, room:roomBeyond(it, hh.object.userData.handle), started:true}; document.body.classList.add('dragging'); return; } } }
     // in the flat plan a pod, deck or cabinet moves straight away; anywhere else the finger turns the view
     if(isFlat() && editable()){ const d=grabAt(e.clientX,e.clientY); if(d){ controls.enabled=false; D=d; return; } }
     orbit={x:e.clientX, y:e.clientY};
@@ -235,6 +245,7 @@ window.addEventListener('pointermove', e=>{
     return;
   }
   if(D.mode==='stretch'){ D.lastXY=[e.clientX,e.clientY]; trackStretch(D, e.clientX, e.clientY); return; }
+  if(D.mode==='turn'){ trackTurn(D, e.clientX, e.clientY); return; }
   if(D.mode==='fmove'){
     if(!D.started){ if(Math.hypot(e.clientX-D.sx, e.clientY-D.sy)<8) return; D.started=true; document.body.classList.add('dragging'); setHolderVisible(D.id,false); }
     D.lastXY=[e.clientX,e.clientY]; trackFurn(D, e.clientX, e.clientY); return;
@@ -253,6 +264,13 @@ function release(e){
     const d=D; D=null; hideFurnGhost(); tip.hidden=true; document.body.classList.remove('dragging'); controls.enabled=true;
     if(!d.change) return; const {snapped, ...ch}=d.change;
     updateItem(d.id, ch); refreshItem(furnById(d.id)); state.selFurn=d.id; applyFurniture(); renderSide(); return; }
+  if(D && D.mode==='turn'){ if(pointers.size) return;
+    const d=D; D=null; tip.hidden=true; document.body.classList.remove('dragging'); controls.enabled=true;
+    const it=furnById(d.id); if(!it) return;
+    const moves=d.res?.deg ? d.res.moves : null;
+    if(moves){ setMany(moves); moves.forEach(([id])=>refreshItem(furnById(id))); }
+    else [it, ...d.st.others.map(o=>furnById(o.id))].forEach(x=>x && refreshItem(x));   // back where it was
+    state.selFurn=d.id; applyFurniture(); renderSide(); return; }
   if(D && D.mode==='fmove'){ if(pointers.size) return;
     const d=D; D=null; hideFurnGhost(); setHolderVisible(d.id,true); document.body.classList.remove('dragging'); controls.enabled=true;
     if(d.twist || !d.started || !d.at){ endGroupDrag(d, false); return; }

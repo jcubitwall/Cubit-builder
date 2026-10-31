@@ -566,12 +566,14 @@ APPL.forEach(([k,name,kind,w,h,d,note])=>def({ k, cat:'appliance', name, w, h, d
 /* furniture: bought pieces, shown at their usual size so rooms can be laid out (resize to the real piece) */
 const legs = (W,D,h,s=1.5,inset=1) => [[inset,inset],[W-inset-s,inset],[inset,D-inset-s],[W-inset-s,D-inset-s]].map(([x,z],i)=>solid(`Leg ${i+1}`,'furnwood',[x,0,z,s,h,s],[x<W/2?-.6:.6,-.6,z<D/2?-.6:.6]));
 const BED = { Twin:[39,75], Full:[54,75], Queen:[60,80], King:[76,80] };
-def({ k:'BED', cat:'furniture', name:'Bed with platform', w:60, h:22, d:80, wR:[39,80], dR:[75,84], opts:[['size','Mattress',Object.keys(BED)]], opt:{size:'Queen'}, sized: it => { const [w,d]=BED[it.opt.size]||BED.Queen; return {w:w+2, d:d+2}; },
-  build: it => { const W=it.w,D=it.d,H=it.h, t=th('carcass'), m=10;
-    return [ part('Platform side','carcass','carcass',[0,0,0,t,H-m,D],'x',{ex:[-1,0,0]}), part('Platform side','carcass','carcass',[W-t,0,0,t,H-m,D],'x',{ex:[1,0,0]}),
-      part('Platform end','carcass','carcass',[t,0,0,W-2*t,H-m,t],'z',{ex:[0,0,-1]}), part('Platform end','carcass','carcass',[t,0,D-t,W-2*t,H-m,t],'z',{ex:[0,0,1]}),
-      part('Platform deck','shelf','carcass',[t,H-m-t,t,W-2*t,t,D-2*t],'y',{ex:[0,.6,0]}),
-      solid('Mattress','furnsoft',[1,H-m,1,W-2,m,D-2],[0,2,0]), solid('Headboard','furnwood',[0,0,-1.5,W,H+22,1.5],[0,0,-2]) ]; } });
+/* the headboard (1½″) is inside the bed's depth, so the bed backs onto a wall without going into it */
+const HEADBOARD = 1.5;
+def({ k:'BED', cat:'furniture', name:'Bed with platform', w:60, h:22, d:83.5, wR:[39,80], dR:[76.5,86], opts:[['size','Mattress',Object.keys(BED)]], opt:{size:'Queen'}, sized: it => { const [w,d]=BED[it.opt.size]||BED.Queen; return {w:w+2, d:d+2+HEADBOARD}; },
+  build: it => { const W=it.w,D=it.d-HEADBOARD,H=it.h, t=th('carcass'), m=10, z0=HEADBOARD;
+    return [ part('Platform side','carcass','carcass',[0,0,z0,t,H-m,D],'x',{ex:[-1,0,0]}), part('Platform side','carcass','carcass',[W-t,0,z0,t,H-m,D],'x',{ex:[1,0,0]}),
+      part('Platform end','carcass','carcass',[t,0,z0,W-2*t,H-m,t],'z',{ex:[0,0,-1]}), part('Platform end','carcass','carcass',[t,0,z0+D-t,W-2*t,H-m,t],'z',{ex:[0,0,1]}),
+      part('Platform deck','shelf','carcass',[t,H-m-t,z0+t,W-2*t,t,D-2*t],'y',{ex:[0,.6,0]}),
+      solid('Mattress','furnsoft',[1,H-m,z0+1,W-2,m,D-2],[0,2,0]), solid('Headboard','furnwood',[0,0,0,W,H+22,HEADBOARD],[0,0,-2]) ]; } });
 def({ k:'SOFA', cat:'furniture', name:'Sofa', w:84, h:34, d:36, wR:[60,108], sizes:[60,72,84,96],
   build: it => { const W=it.w,D=it.d,H=it.h, a=6; return [ solid('Base','furnsoft',[a,4,0,W-2*a,13,D],[0,-.5,0]), solid('Seat cushions','furnsoft2',[a,17,8,W-2*a,5,D-8],[0,1,.6]), solid('Back','furnsoft',[a,17,0,W-2*a,H-17,8],[0,.6,-1]), solid('Arm','furnsoft',[0,4,0,a,22,D],[-1,0,0]), solid('Arm','furnsoft',[W-a,4,0,a,22,D],[1,0,0]), ...legs(W,D,4,2,2) ]; } });
 def({ k:'CHAIR', cat:'furniture', name:'Armchair', w:32, h:32, d:34, build: it => { const W=it.w,D=it.d,H=it.h,a=5; return [ solid('Base','furnsoft',[a,4,0,W-2*a,13,D],[0,-.5,0]), solid('Seat cushion','furnsoft2',[a,17,8,W-2*a,5,D-8],[0,1,.6]), solid('Back','furnsoft',[a,17,0,W-2*a,H-17,8],[0,.6,-1]), solid('Arm','furnsoft',[0,4,0,a,20,D],[-1,0,0]), solid('Arm','furnsoft',[W-a,4,0,a,20,D],[1,0,0]), ...legs(W,D,4,2,2) ]; } });

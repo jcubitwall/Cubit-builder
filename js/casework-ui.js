@@ -407,13 +407,13 @@ function furnSide(sideH, sideB){
   const iso=state.isolate==='furn:'+it.id;
   sideB.innerHTML=`<div class="row"><button class="btn" id="fOpen">3D, exploded &amp; parts</button><button class="btn ghost" id="fIso" aria-pressed="${iso}">${iso?'Exit isolate':'Isolate'}</button></div>
     ${iso?'<p class="note">Spread three fingers (or press <b>Exploded view</b>) to take it apart right here; pinch to put it back.</p>':''}
-    ${ed?`<div class="row"><button class="btn ghost sm" id="fTurn">Turn 90°</button><button class="btn ghost sm" id="fMir" aria-pressed="${!!it.mirror}">Mirror</button><button class="btn ghost sm" id="fDup">Duplicate</button><button class="btn ghost sm" id="fRm">Remove</button></div>
+    ${ed?`<div class="row"><button class="btn ghost sm" id="fMir" aria-pressed="${!!it.mirror}">Mirror</button><button class="btn ghost sm" id="fDup">Duplicate</button><button class="btn ghost sm" id="fRm">Remove</button></div>
     <div class="row"><button class="btn ghost sm" id="fPick">Pick several…</button>${it.was?`<button class="btn sm" id="fRelink">Relink “${esc(it.was.name)}”</button>`:''}</div>`:''}
     <div class="cw-sizes compact">
       ${['w','h','d','y'].map(k=>`<label class="cw-f"><span>${{w:'Width',h:'Height',d:'Depth',y:'Off the floor'}[k]}</span><input data-fl="${k}" value="${esc(show(it[k]||0))}" inputmode="decimal" ${!ed||(d.fixed&&k!=='y')?'disabled':''}><i>${unitSign()}</i></label>`).join('')}
     </div>
     ${(d.opts||[]).map(([k,l,vals])=>`<div class="cw-opt"><span>${l}</span><div class="seg wrap">${vals.map(v=>`<button data-fo="${k}" data-v="${esc(v)}" aria-pressed="${String((it.opt||{})[k] ?? d.opt?.[k])===String(v)}" ${ed?'':'disabled'}>${esc(v)}</button>`).join('')}</div></div>`).join('')}
-    <p class="note">Drag it in the plan (Build) to move it along the walls; it backs onto the nearest wall and butts up to the cabinets beside it.${it.wall?' Its depth counts for the pot lights along this wall.':''}</p>`;
+    <p class="note">Drag it in the plan (Build) to move it along the walls; it backs onto the nearest wall and butts up to the cabinets beside it. Drag the round green handle at its front corner to turn it, 45° at a time.${it.wall?' Its depth counts for the pot lights along this wall.':''}</p>`;
   const ch=patch=>{ updateItem(it.id, patch); if(d.sized && patch.opt) Object.assign(it, d.sized(it)); refreshItem(it); renderSide(); };
   sideB.querySelector('#fOpen').onclick=()=>openCaseLib({edit:it.id});
   sideB.querySelector('#fPick')?.addEventListener('click',()=>{ state.multiSel=true; state.selSet=[it.id]; applyFurniture(); renderSide(); });
