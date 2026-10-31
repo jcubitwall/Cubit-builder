@@ -18,18 +18,17 @@ const say = async t => { const { toast }=await import('./sidebar.js'); toast(t);
 /* ---------------------------------------------------------------- one wall (sidebar) */
 function elecWallBlock(s){
   const on=slotAuto(s), list=boxesOn(s);
-  if(!on){
-    const added=(list||[]).filter(b=>b.user);
-    return `<div class="el-box"><div class="eyebrow">Plugs & switches</div>
-      <p class="note">This wall keeps the plugs and switches drawn in the wall library.${added.length?` ${added.length} added by hand.`:''}</p>
-      <div class="row edit-only"><button class="btn ghost" id="elRule">Lay this wall out by the rules</button><button class="btn ghost" id="elHome">Electrical…</button></div></div>`;
-  }
   const P=summary(), gone=(P?.removed||[]).filter(b=>b.W.s.id===s.id);
   const row=b=>{ const tags=[b.chase||b.face==='out'?'<span class="el-ok">on a chase</span>':'<span class="el-warn">needs a chase</span>', ...b.flags.filter(f=>f!=='needs a chase').map(f=>`<span class="el-warn">${esc(f)}</span>`), b.moved?'<span class="el-tag">moved</span>':'', b.user?'<span class="el-tag">added</span>':''].filter(Boolean).join(' ');
     return `<div class="el-row" data-id="${esc(b.id)}" data-face="${b.face}" data-a="${b.a}">
       <div><b>${esc(b.way>1 ? `${b.way}-way switch` : SHORT[b.rk]||b.name)}</b>${b.face==='out'?' · outside':''} <small>${fin(b.x)} from the left${b.face==='in'?' (seen from inside)':''} · ${fin(b.y)} up${b.note?` · ${esc(b.note)}`:''}</small><div class="el-tags">${tags}</div></div>
       <div class="el-act edit-only"><button class="btn ghost sm" data-mv="-1" title="Next chase to the left" aria-label="Next chase to the left">◀</button><button class="btn ghost sm" data-mv="1" title="Next chase to the right" aria-label="Next chase to the right">▶</button>${b.moved?'<button class="btn ghost sm" data-reset title="Back to where the rule put it" aria-label="Reset">↺</button>':''}<button class="btn ghost sm" data-rm title="Remove" aria-label="Remove">✕</button></div></div>`; };
   const adds=['plug','switch','counter','data', ...(s.type==='ext'?['wp']:[])];
+  if(!on) return `<div class="el-box"><div class="eyebrow">Plugs & switches</div>
+      <p class="note">This wall keeps the plugs and switches drawn in the wall library. Furniture and appliances against it still get their own plugs${(list||[]).length?':':'.'}</p>
+      ${(list||[]).map(row).join('')}
+      ${gone.length?`<p class="note">Removed: ${gone.map(b=>`<button class="linkbtn edit-only" data-restore="${esc(b.id)}">${esc(SHORT[b.rk]||b.rk)} (put back)</button>`).join(' · ')}</p>`:''}
+      <div class="row edit-only"><button class="btn ghost" id="elRule">Lay this wall out by the rules</button><button class="btn ghost" id="elHome">Electrical…</button></div></div>`;
   return `<div class="el-box"><div class="eyebrow">Plugs & switches · by the rules</div>
     ${(list||[]).length ? (list||[]).map(row).join('') : '<p class="note">No plugs or switches on this wall.</p>'}
     ${gone.length?`<p class="note">Removed: ${gone.map(b=>`<button class="linkbtn edit-only" data-restore="${esc(b.id)}">${esc(SHORT[b.rk]||b.rk)} (put back)</button>`).join(' · ')}</p>`:''}

@@ -16,6 +16,9 @@
      · Appliances get their own plug behind them: fridge 42″, range 6″, dishwasher 12″ (or in the sink cabinet),
        washer / dryer 42″, microwave 42″ (over the range: in the cabinet above).
      · Bedside: a plug each side of the head of a bed that's against a wall.
+     · Desk against a wall: a plug behind it, 12″ above the top.
+   Furniture's own plugs (appliances, basin GFCI, counters, bedside, desk) go on every wall, even one that keeps the
+   library's plugs and switches; the rest (wall plugs, switches, outside, data) only on walls by the rules.
      · Outside: at least one weatherproof plug, beside the main door.
      · Switches 48″, centre 6″ from the door's rough opening on the latch side, on the side the door swings into
        (an outside door: inside). A room with two or more entrances gets 3-way switches (confirmed by the team).
@@ -153,7 +156,7 @@ function compute(k){
   /* ---- can a box go here? */
   const sz = rk => rk==='double' ? BOX.double : BOX.std;
   function okAt(W, face, a, y, rk, o={}){
-    if(!o.any && !W.auto) return false;
+    if(!o.any && !o.furn && !W.auto) return false;   // furniture's own plugs go on every wall; the rest only on walls by the rules
     const {w,h}=sz(rk), hw=w/2, hh=h/2;
     if(face==='in'){ const l=W.loop; if(!l) return false; const u=uOf(W,a); if(u<l.lo+CORNER || u>l.hi-CORNER) return false; }
     else if(a<CORNER+1.75 || a>W.Lin-CORNER-1.75) return false;
@@ -161,6 +164,7 @@ function compute(k){
     if(W.joints.some(j=>Math.abs(a-j)<JOINT)) return false;
     if(face==='in' && W.items.some(it=>it.I!==o.ignore && blocks(it.I) && a+hw>it.a0-0.5 && a-hw<it.a1+0.5 && y+hh>it.y0 && y-hh<it.y1)) return false;
     if(boxes.some(b=>b.W===W && b.face===face && Math.abs(b.a-a)<BOX_GAP && Math.abs(b.y-y)<BOX_GAP+2)) return false;
+    if(!W.auto && (face==='in' ? W.w.inside : W.w.outside||[]).some(b=>isElecBox(b) && Math.abs((face==='in' ? W.Lin-b.x : b.x)-a)<BOX_GAP && Math.abs(b.y-y)<BOX_GAP+2)) return false;   // the library's own boxes
     if(o.within && !o.within(a)) return false;
     return true;
   }
@@ -204,8 +208,8 @@ function compute(k){
     const A=APPL[it.appl]; if(!A) return;
     let y=A.y; if(it.appl==='microwave' && it.y0>=48) y=it.y1+6;
     const c=(it.a0+it.a1)/2, half=Math.max(1,(it.a1-it.a0)/2-2);
-    const s=spotOnWall(W,'in',c,y,'appl',{ ignore:it.I, within:a=>Math.abs(a-c)<=half, scan:half });
-    if(!s){ if(W.auto) flags.push({ t:`No spot behind the ${A.n.toLowerCase()} on ${W.s.label} for its plug`, w:W.s.id }); return; }
+    const s=spotOnWall(W,'in',c,y,'appl',{ ignore:it.I, within:a=>Math.abs(a-c)<=half, scan:half, furn:true });
+    if(!s){ flags.push({ t:`No spot behind the ${A.n.toLowerCase()} on ${W.s.label} for its plug`, w:W.s.id }); return; }
     add(W,'in',s,y,'appl',`ap:${it.I.it.id}`,{ note:A.n+(it.appl==='dw'?' (or in the sink cabinet)':'')+(it.appl==='microwave'&&it.y0>=48?' (in the cabinet above)':''), why:'appliance' });
   }));
   Hm.items.forEach(I=>{ const a=applKind(I); if(!a || a==='microwave') return;
@@ -257,9 +261,9 @@ function compute(k){
   walls.forEach(W=>W.items.forEach(it=>{ if(!isBasin(it.I)) return;
     const c=(it.a0+it.a1)/2, w2=(it.a1-it.a0)/2;
     const within=a=>Math.abs(a-c)<=BASIN-2;
-    let s=null; for(const aT of [c+w2+4, c-w2-4, c]){ s=spotOnWall(W,'in',aT,H.gfci,'gfci',{ within, reach:8, scan:0 }); if(s) break; }
-    s = s || spotOnWall(W,'in',c,H.gfci,'gfci',{ within, scan:BASIN });
-    if(!s){ if(W.auto) flags.push({ t:`No spot within 1 m of the basin on ${W.s.label} for its GFCI plug`, w:W.s.id }); return; }
+    let s=null; for(const aT of [c+w2+4, c-w2-4, c]){ s=spotOnWall(W,'in',aT,H.gfci,'gfci',{ within, reach:8, scan:0, furn:true }); if(s) break; }
+    s = s || spotOnWall(W,'in',c,H.gfci,'gfci',{ within, scan:BASIN, furn:true });
+    if(!s){ flags.push({ t:`No spot within 1 m of the basin on ${W.s.label} for its GFCI plug`, w:W.s.id }); return; }
     add(W,'in',s,H.gfci,'gfci',`gf:${it.I.it.id}`,{ note:'GFCI, within 1 m of the basin', why:'bathroom basin', room:roomOf(W.s.pod.i).key });
   }));
 
@@ -273,8 +277,8 @@ function compute(k){
       const free=len-no.reduce((t,[p,q])=>t+Math.max(0,Math.min(q,r.a1)-Math.max(p,r.a0)),0); if(free<MIN_COUNTER) return;   // all sink / range: no work surface
       const n=Math.max(1, Math.ceil(len/(2*R_COUNTER)-1e-6));
       for(let i=0;i<n;i++){ const aT=r.a0+len*(i+0.5)/n;
-        const s=spotOnWall(W,'in',aT,H.counter,'counter',{ within, scan:len });
-        if(!s){ if(W.auto) flags.push({ t:`No spot for a counter plug on ${W.s.label}`, w:W.s.id }); continue; }
+        const s=spotOnWall(W,'in',aT,H.counter,'counter',{ within, scan:len, furn:true });
+        if(!s){ flags.push({ t:`No spot for a counter plug on ${W.s.label}`, w:W.s.id }); continue; }
         add(W,'in',s,H.counter,'counter',`ct:${W.key}:${ri}:${i}`,{ note:'counter', why:'kitchen counter', room:roomOf(W.s.pod.i).key }); }
     });
   });
@@ -283,10 +287,16 @@ function compute(k){
   const anchors=pods.map(()=>[]);
   walls.forEach(W=>W.items.forEach(it=>{ if(it.I.it.k!=='BED' || !W.loop) return;
     [[it.a0-10, 'L'], [it.a1+10, 'R']].forEach(([aT,sd])=>{
-      const s=spotOnWall(W,'in',aT,H.plug,'plug',{ reach:12, scan:12, within:a=>a<it.a0-1.5 || a>it.a1+1.5 }); if(!s) return;
+      const s=spotOnWall(W,'in',aT,H.plug,'plug',{ reach:12, scan:12, within:a=>a<it.a0-1.5 || a>it.a1+1.5, furn:true }); if(!s) return;
       const b=add(W,'in',s,H.plug,'plug',`bed:${it.I.it.id}:${sd}`,{ note:'bedside', why:'bedside', room:roomOf(W.s.pod.i).key });
       anchors[W.s.pod.i].push(uOf(W,b.a)); });
   }));
+  /* ---- 5b. a desk against a wall: a plug above the desktop, behind it */
+  walls.forEach(W=>W.items.forEach(it=>{ if(it.I.it.k!=='DESK' || !W.loop) return;
+    const c=(it.a0+it.a1)/2, half=Math.max(1,(it.a1-it.a0)/2-3), y=Math.round(it.y1+12);
+    const s=spotOnWall(W,'in',c,y,'plug',{ ignore:it.I, within:a=>Math.abs(a-c)<=half, scan:half, furn:true }); if(!s) return;
+    add(W,'in',s,y,'plug',`dk:${it.I.it.id}`,{ note:'desk, above the top', why:'desk', room:roomOf(W.s.pod.i).key });
+    if(y<30) anchors[W.s.pod.i].push(uOf(W,s.a)); }));
 
   /* ---- 6. data boxes (optional): the TV wall in front of a sofa, opposite each bed */
   if(E.data){
@@ -402,9 +412,8 @@ setElecHook((slot, bw)=>{
   if(building || !slot || !slot.pod) return bw;
   const k=state.model, E=elecOf(k); if(!MODELS[k]) return bw;
   const auto=slotAuto(slot,k);
-  if(!auto && !(E?.ov?.add||[]).some(u=>u.w===wkey(slot))) return bw;
   const P=planFor(k); const mine=P?.byWall?.[slot.id] || { inside:[], outside:[] };
-  if(!auto) return { ...bw, inside:[...(bw.inside||[]), ...mine.inside], outside:[...(bw.outside||[]), ...mine.outside] };   // the library's boxes + the ones added by hand
+  if(!auto) return mine.inside.length||mine.outside.length ? { ...bw, inside:[...(bw.inside||[]), ...mine.inside], outside:[...(bw.outside||[]), ...mine.outside] } : bw;   // the library's boxes + the furniture's plugs + the ones added by hand
   return { ...bw, inside:[...(bw.inside||[]).filter(b=>!isElecBox(b)), ...mine.inside], outside:[...(bw.outside||[]).filter(b=>!isElecBox(b)), ...mine.outside] };
 });
 
@@ -424,7 +433,6 @@ function addBox(slot, rk, a, y, face='in'){ let id='u-'+Date.now().toString(36);
 function ruleWall(slot, on=true){ return editElec(E=>{ if(on) (E.walls ||= {})[wkey(slot)]=true; else if(E.walls) delete E.walls[wkey(slot)]; }); }
 /* this wall's boxes, for the wall panel: [{ id, rk, name, a (from the left seen from that face), y, chase, flags, note }] */
 function boxesOn(slot){
-  const E=elecOf(); if(!E && !(MODELS[state.model]?.pods||[]).some(p=>p.elec)) return null;
   const P=planFor(); if(!P) return null;
   return P.boxes.filter(b=>b.W.s.id===slot.id).map(b=>({ id:b.id, rk:b.rk, name:b.name, face:b.face, a:b.a, x:b.face==='in'?b.W.Lin-b.a:b.a, y:b.y, chase:b.chase, flags:b.flags, note:b.note, why:b.why, user:!!b.user, moved:!!b.moved, way:b.way||1 }))
     .sort((p,q)=>(p.face===q.face?0:p.face==='in'?-1:1) || p.x-q.x);

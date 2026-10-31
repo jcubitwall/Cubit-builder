@@ -94,7 +94,7 @@ function podAt(pt, pods){ return pods.find(p=>pt.x>=p.x-0.01 && pt.x<=p.x+p.w+0.
    beyond that wall's reach (its depth + 1.6′), can another wall take it. */
 function snap(it, pt, wallGroups, homeGroup, keepA=null, lockA=null){
   const p=podAt(pt,lastPods); if(!p || !frames[p.i]) return null;
-  const f=frames[p.i]; f.updateMatrixWorld(true);
+  const f=frames[p.i]; { let R=f; while(R.parent) R=R.parent; R.updateMatrixWorld(true); }   // walls just rebuilt may not have been drawn yet
   const W=wallMeshes(wallGroups), world=homeGroup.localToWorld(pt.clone());
   const local=f.worldToLocal(world.clone());
   const dirs=[[0,-1,0],[0,1,180],[-1,0,90],[1,0,-90]];   // toward the wall: -v (item faces +v, a=0), +v, -u, +u
