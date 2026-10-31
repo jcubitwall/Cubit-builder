@@ -6,7 +6,7 @@ import { state, initState } from './state.js';
 import { loadData } from './data.js';
 import { loadProjects } from './projects.js';
 import { initProjectsUI } from './projects-ui.js';
-import { buildHome, resize, loop, setExplodeGoal } from './scene3d.js';
+import { buildHome, resize, loop, setExplodeGoal, explodeGoal } from './scene3d.js';
 import { renderModels, renderSide } from './sidebar.js';
 import { openSheets, closeSheets } from './sheets.js';
 import { openPlan, closePlan } from './planner.js';
@@ -23,7 +23,7 @@ import { loadSettings, loadFixtures } from './casework.js';
 import './casework-ui.js';
 import './wall-builder.js';
 import { loadDrafts } from './drafts.js';
-import { setCabExplode, cabExploded } from './furniture.js';
+import { setCabExplode, cabExploded, cabExplodeGoal } from './furniture.js';
 import './publish-ui.js';
 import { toast } from './sidebar.js';
 import { MODELS } from './data.js';
@@ -41,17 +41,24 @@ tEx.onclick=()=>{ if(cabIso()){ setCabExplode(!cabExploded()); tEx.setAttribute(
 document.getElementById('bSheets').onclick=()=>{ if(state.view==='sheets'){ closeSheets(); } else { state.sheetSlot = state.selected || null; openSheets(); } };
 document.getElementById('bPlan').onclick=()=>{ if(state.view==='plan'){ closePlan(); closeSheets(); } else openPlan(); };
 
-/* iPad: spread three fingers to explode the home, pinch three fingers to put it back together. The button stays
-   for mouse and phone. OrbitControls ignores three-finger touches, so the two don't fight. */
+/* iPad: spread three fingers to pull the home apart, as far as you spread them (the wider, the further, like the
+   Library's 3D view); pinch them to bring it back together. While a cabinet is isolated, the cabinet. The button
+   stays for mouse and phone (all the way apart / together). OrbitControls ignores three-finger touches. */
 (()=>{ const stage=document.getElementById('stage'); let g=null;
   const spread=t=>{ const n=t.length; let cx=0,cy=0; for(const p of t){ cx+=p.clientX; cy+=p.clientY; } cx/=n; cy/=n;
     let d=0; for(const p of t) d+=Math.hypot(p.clientX-cx, p.clientY-cy); return d/n; };
-  const want=on=>{ const cur = cabIso() ? cabExploded() : !!state.exploded; if(cur!==on) tEx.click(); };
-  stage.addEventListener('touchstart', e=>{ if(e.touches.length===3){ g={d0:spread(e.touches), done:false}; e.preventDefault(); } }, {passive:false});
-  stage.addEventListener('touchmove', e=>{ if(!g || e.touches.length!==3) return; e.preventDefault(); if(g.done) return;
-    const r=spread(e.touches)/g.d0; if(r>1.2){ want(true); g.done=true; } else if(r<0.83){ want(false); g.done=true; } }, {passive:false});
-  stage.addEventListener('touchend', e=>{ if(e.touches.length<3) g=null; });
-  stage.addEventListener('touchcancel', ()=>{ g=null; });
+  const setTo=v=>{
+    if(cabIso()){ setCabExplode(v); tEx.setAttribute('aria-pressed', cabExploded()); return; }
+    if(v>0.02 && !state.exploded){ state.exploded=true; explodeLayers(true); }
+    setExplodeGoal(v); tEx.setAttribute('aria-pressed', !!state.exploded); };
+  stage.addEventListener('touchstart', e=>{ if(e.touches.length===3){ g={ d0:spread(e.touches), e0: cabIso() ? cabExplodeGoal() : (state.exploded ? explodeGoal : 0), moved:false }; e.preventDefault(); } }, {passive:false});
+  stage.addEventListener('touchmove', e=>{ if(!g || e.touches.length!==3) return; e.preventDefault();
+    const r=spread(e.touches)/Math.max(1,g.d0); if(!g.moved && Math.abs(r-1)<0.08) return;   // a swipe (undo / redo) hardly changes the spread
+    g.moved=true; window.__cubitSpread=true; setTo(Math.max(0, Math.min(1, g.e0 + (r-1)*1.6))); }, {passive:false});
+  const end=e=>{ if(e.touches && e.touches.length>=3) return;
+    if(g?.moved && !cabIso() && state.exploded && explodeGoal<=0.02){ state.exploded=false; explodeLayers(false); setExplodeGoal(0); tEx.setAttribute('aria-pressed', false); }
+    g=null; setTimeout(()=>{ window.__cubitSpread=false; }, 60); };
+  stage.addEventListener('touchend', end); stage.addEventListener('touchcancel', end);
 })();
 
 /* the how-to hints step aside once you've used the view */
@@ -64,3 +71,8 @@ document.querySelectorAll('.hint').forEach(h=>{ const host=h.parentNode; const o
   initProjectsUI(); initUpload();
   renderModels(); buildHome(); renderSide(); resize(); loop(); initPhone(); initZoomView(); startBuild();
 })();
+
+/* dragging a pod, cabinet or drawing must never start a text selection (iPad highlights the whole screen) */
+document.addEventListener('selectstart', e=>{ const el = e.target.nodeType===1 ? e.target : e.target.parentElement;
+  if(!el?.closest?.('input, textarea, select, [contenteditable], #sheet, .bp-form, .pt-tab, .boxes')) e.preventDefault(); });
+document.addEventListener('pointerdown', e=>{ if(e.target.closest?.('#stage, #plan, .wb-stage, .v3-stage, .bp-stage, .cw-dlg canvas, .tray-it')) window.getSelection?.()?.removeAllRanges(); }, true);

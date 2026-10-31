@@ -513,7 +513,7 @@ function buildHome(){
       camera.position.set(0, dist, 0.02); controls.target.set(0,0,0); }
     buildHome.framed=state.model;
   }
-  computeSpread(); explodeT = state.exploded?1:0; applyExplode();
+  computeSpread(); if(state.exploded && explodeGoal<=0.02) explodeGoal=1; explodeT = state.exploded ? explodeGoal : 0; applyExplode();   // keeps how far apart it was
 }
 const FRAME_MAT = { steel:new THREE.MeshStandardMaterial({color:0x3d4247, roughness:0.45, metalness:0.6}), acp:new THREE.MeshStandardMaterial({color:0xc9ccd0, roughness:0.35, metalness:0.3}), eps:new THREE.MeshStandardMaterial({color:0xe9eef2, roughness:0.95}), wood:new THREE.MeshStandardMaterial({color:0xe0b36a, roughness:0.8}), osb:new THREE.MeshStandardMaterial({color:0xb7864a, roughness:0.9}), lvl:new THREE.MeshStandardMaterial({color:0xc9783a, roughness:0.75}) };
 const CEIL_Z = 106.6;   // bottom of the roof cassette (interior ceiling), inches above the bottom of the floor

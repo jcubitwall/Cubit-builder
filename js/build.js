@@ -188,6 +188,7 @@ function turnView(rad){ const t=controls.target, o=camera.position.clone().sub(t
 window.addEventListener('pointermove', e=>{
   if(!pointers.has(e.pointerId)) return;
   if(three && pointers.size===3 && !three.done){ pointers.set(e.pointerId,{x:e.clientX,y:e.clientY}); const dx=centroid()-three.x0;
+    if(window.__cubitSpread){ three.done=true; return; }   // a three-finger spread (explode), not a swipe
     if(Math.abs(dx)>70){ three.done=true; dx<0 ? doUndo() : doRedo(); } return; }
   if(viewTwist && pointers.size===2 && !D){ pointers.set(e.pointerId,{x:e.clientX,y:e.clientY}); const [a,b]=[...pointers.values()]; let d=Math.atan2(b.y-a.y,b.x-a.x)-viewTwist.a0;
     if(d>Math.PI) d-=2*Math.PI; if(d<-Math.PI) d+=2*Math.PI;

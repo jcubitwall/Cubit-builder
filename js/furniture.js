@@ -67,14 +67,15 @@ const isoMine = id => { const s=String(state.isolate||''); return s==='furn:'+id
 /* an isolated cabinet's own exploded view (Exploded view / three-finger spread while it's isolated); it starts
    assembled every time a cabinet is isolated, whatever the home around it is doing */
 let cabT=0, cabGoal=0, cabRaf=0;
-function setCabExplode(on){
-  cabGoal=on?1:0; cancelAnimationFrame(cabRaf);
+function setCabExplode(on){   // true / false, or how far apart (0–1) from the three-finger spread
+  cabGoal = typeof on==='number' ? Math.max(0, Math.min(1, on)) : (on?1:0); cancelAnimationFrame(cabRaf);
   const step=()=>{ cabT+=(cabGoal-cabT)*0.15; if(Math.abs(cabGoal-cabT)<0.002) cabT=cabGoal;
     models.forEach(({m},id)=>{ if(isoMine(id)) m.explode(cabT); }); if(cabT!==cabGoal) cabRaf=requestAnimationFrame(step); };
   step();
 }
 function resetCabExplode(){ cancelAnimationFrame(cabRaf); cabT=cabGoal=0; models.forEach(({m})=>m.explode(0)); }
-const cabExploded = () => cabGoal>0.5;
+const cabExploded = () => cabGoal>0.02;
+const cabExplodeGoal = () => cabGoal;
 const furnHolder = ref => { const [id,part]=String(ref).split(':'); const o=models.get(id); if(!o) return null; return part==null ? o.holder : o.m.group.children[+part] || null; };
 const furnMeshes = () => { const out=[]; const vis=o=>{ for(; o; o=o.parent) if(!o.visible) return false; return true; }; models.forEach(({holder})=>{ if(holder.visible) holder.traverse(o=>{ if(o.isMesh && vis(o)) out.push(o); }); }); return out; };
 
@@ -250,4 +251,4 @@ const DEPTH_CATS=new Set(['base','upper','tall','linen','wardrobe','vanity','app
 function wallDepths(k=state.model){ const out={}; list(k).forEach(it=>{ if(it.wall && DEPTH_CATS.has(itemDef(it.k)?.cat)) out[it.wall]=Math.max(out[it.wall]||0, it.d); }); return out; }
 
 const podsShown = () => lastPods;
-export { freeSpot, clash, setWalls, handleMeshes, roomBeyond, stretchTo, updateHandles, onFurnApplied, setCabExplode, resetCabExplode, cabExploded, explodeFurniture, furnHolder, podsShown, showFurnGhost, hideFurnGhost, setHolderVisible, list as furnitureOf, byId as furnById, buildFurniture, refreshItem, applyFurniture, furnMeshes, snap, podAt, addItem, updateItem, removeItem, duplicateItem, turnItem, podRemoved, wallDepths, shownCat, CATS as FURN_CATS };
+export { freeSpot, clash, setWalls, handleMeshes, roomBeyond, stretchTo, updateHandles, onFurnApplied, setCabExplode, resetCabExplode, cabExploded, explodeFurniture, furnHolder, podsShown, showFurnGhost, hideFurnGhost, setHolderVisible, list as furnitureOf, byId as furnById, buildFurniture, refreshItem, applyFurniture, furnMeshes, snap, podAt, addItem, updateItem, removeItem, duplicateItem, turnItem, podRemoved, wallDepths, shownCat, CATS as FURN_CATS , cabExplodeGoal };
