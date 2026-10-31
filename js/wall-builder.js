@@ -75,6 +75,16 @@ function chaseList(){ const out=[];
   return out.sort((p,q)=>p-q); }
 function snapToChase(k, it){ if(!snaps(k,it)) return false; const cs=chaseList(); if(!cs.length) return false;
   const c=centreOut(k,it), n=nearest(cs,c); setCentreOut(k,it,n); return Math.abs(n-c)>0.01; }
+/* a window, door or opening edge that comes within 6″ of a panel joint clicks onto it, so the SIP isn't left with a
+   narrow strip beside the opening (full-height openings make their own panel breaks, so they don't) */
+const JOINT_SNAP = 6;
+const jointSnaps = (k,it) => k==='op' && !it.shape && ['window','door','patio','opening'].includes(it.kind) && !isGapOpening(it);
+function seamsWithout(it){ const i=W.openings.indexOf(it); if(i<0) return seamsOut(); W.openings.splice(i,1); try{ return seamsOut(); } finally{ W.openings.splice(i,0,it); } }
+/* the narrow strips an opening leaves at the joints: [{edge, seam, d}] (0 < |d| < 6″) */
+function strips(it){ const out=[]; seamsWithout(it).forEach(sm=>[it.x, it.x+it.w].forEach(e=>{ const d=sm-e; if(Math.abs(d)>0.01 && Math.abs(d)<JOINT_SNAP) out.push({ e, sm, d }); })); return out; }
+function snapToJoint(k, it){ if(!jointSnaps(k,it)) return false;
+  const st=strips(it).sort((p,q)=>Math.abs(p.d)-Math.abs(q.d))[0]; if(!st) return false;
+  it.x=+(it.x+st.d).toFixed(4); return true; }
 function unlock(k, it, f){ it.free={...(it.free||{}), [f]:true}; }
 function relock(k, it, f){ if(it.free){ delete it.free[f]; if(!Object.keys(it.free).length) delete it.free; }
   const r=ruleOf(k,it); if(!r) return;
@@ -147,7 +157,8 @@ let lastSel='';
 /* checks: inside the wall, clear of the panel joints (the OSB splines), boxes not in an opening */
 function problems(){
   const out=[], seams=seamsOut(), lo=Math.max(0,fitL()), hi=L()-Math.max(0,fitR());
-  W.openings.forEach((o,i)=>{ if(o.x<lo-0.01||o.x+o.w>hi+0.01||o.y<0||o.y+o.h>H) out.push(`Opening ${i+1} runs past the ${o.x<lo-0.01||o.x+o.w>hi+0.01?'cut end':'wall'}`); });
+  W.openings.forEach((o,i)=>{ if(o.x<lo-0.01||o.x+o.w>hi+0.01||o.y<0||o.y+o.h>H) out.push(`Opening ${i+1} runs past the ${o.x<lo-0.01||o.x+o.w>hi+0.01?'cut end':'wall'}`);
+    if(jointSnaps('op',o)) strips(o).forEach(st=>out.push(`${itemLabel('op',o,i).replace(/^./,c=>c.toUpperCase())} leaves a ${fin(Math.abs(st.d))} strip of SIP at the panel joint: drag it to click onto the joint, or move it at least 6″ clear`)); });
   ['inside','outside'].forEach(k=>W[k].forEach((b,i)=>{ const [w,h]=sizeOf(k,b), x0=b.x-w/2, x1=b.x+w/2;
     const a = k==='inside' ? L()-hi : lo, z = k==='inside' ? L()-lo : hi;
     if(x0<a||x1>z||b.y-h/2<0||b.y+h/2>H) out.push(`${b.name||'Box'} on the ${k} runs past the ${x0<a||x1>z?'cut end':'wall'}`);
@@ -286,7 +297,7 @@ function add(kind){
     b.y = r.y ?? 48; b.depth = r.depth ?? 3;
     b.x=fromDrawX(k,b,c+ (W[k].length%3)*6); snapToChase(k,b); W[k].push(b); sel={k, i:W[k].length-1}; }
   else { const o = kind==='window' ? {kind, x:0, y:36, ...STD_RO.window} : kind==='door' ? {kind, x:0, y:0, ...(W.type==='int' ? {w:36.5, h:80.75} : STD_RO.door)} : kind==='patio' ? {kind, x:0, y:0, ...STD_RO.patio} : kind==='opening' ? {kind, x:0, y:0, w:48, h:82} : kind==='round' ? {kind:'window', shape:'round', d:ROUND_RO, x:0, y:36, w:ROUND_RO, h:ROUND_RO} : {kind:'vent', shape:'round', d:4, x:0, y:84, w:4, h:4};
-    o.x=fromDrawX('op',o,c-o.w/2); const r=ruleOf('op',o); if(r?.y!=null) setRuleY('op',o,r.y); snapToChase('op',o);
+    o.x=fromDrawX('op',o,c-o.w/2); const r=ruleOf('op',o); if(r?.y!=null) setRuleY('op',o,r.y); snapToChase('op',o); snapToJoint('op',o);
     W.openings.push(o); sel={k:'op', i:W.openings.length-1}; }
   render();
 }
@@ -359,7 +370,7 @@ function bind(){
     if(!drag.axis){ const dx=e.clientX-drag.c0[0], dy=e.clientY-drag.c0[1]; if(Math.hypot(dx,dy)<8) return; drag.axis=Math.abs(dx)>=Math.abs(dy)?'x':'y'; }
     drag.moved=true;
     const nx=r8(drag.x0 + (drag.axis==='x' ? p.x-drag.p0.x : 0)), ny=r8(drag.y0 - (drag.axis==='y' ? p.y-drag.p0.y : 0));
-    if(!locked(drag.k,it,'x')){ it.x=fromDrawX(drag.k,it,nx); snapToChase(drag.k,it); }
+    if(!locked(drag.k,it,'x')){ it.x=fromDrawX(drag.k,it,nx); snapToChase(drag.k,it); snapToJoint(drag.k,it); }
     if(!locked(drag.k,it,'y')) it.y=Math.max(0, Math.min(H, ny));
     const el=svg.querySelector(`[data-k="${drag.k}"][data-i="${drag.i}"]:not(.wb-hit)`), x=drawX(drag.k,it), [w,h]=sizeOf(drag.k,it);
     if(drag.k==='sh'){ el.setAttribute('transform', `translate(${(drawX('sh',it)-drag.x0).toFixed(2)} ${(-(it.y-drag.y0)).toFixed(2)})`); }
@@ -368,7 +379,7 @@ function bind(){
   svg.addEventListener('pointerup', e=>{ if(emptyDown){ const tap=!pinching() && Math.hypot(e.clientX-emptyDown[0], e.clientY-emptyDown[1])<8; emptyDown=null; if(tap){ if(sel){ sel=null; render(); } } return; } if(!drag) return; const m=drag.moved; drag=null; if(m) render(); });
 }
 /* after the panels move (length, ends, mirror, flip): everything on the chases goes to its nearest chase again */
-function resnapAll(){ W.openings.forEach(o=>snapToChase('op',o)); ['inside','outside'].forEach(k=>W[k].forEach(b=>snapToChase(k,b))); }
+function resnapAll(){ W.openings.forEach(o=>{ snapToChase('op',o); snapToJoint('op',o); }); ['inside','outside'].forEach(k=>W[k].forEach(b=>snapToChase(k,b))); }
 /* ---------------------------------------------------------------- the rules panel */
 const SIDE = [['free','Free'],['chase','Chases'],['fixed','Fixed']];
 function rulesPanel(){
