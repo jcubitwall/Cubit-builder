@@ -3,7 +3,7 @@
    attachZoom(svg, Z) works on the SVG's viewBox, so everything stays sharp at any zoom and taps / drags still land
    in the drawing's own inches. Z = { k, x, y } is the builder's zoom (kept across redraws): k ≥ 1, and x, y the
    offset of the view from the whole-panel view, in drawing units.
-     · two fingers: pinch to zoom round the point between them, slide to move (the view travels with the fingers' direction, as in Shapr3D)   (svg._pinch is true meanwhile, so
+     · two fingers: pinch to zoom round the point between them, slide to move   (svg._pinch is true meanwhile, so
        the builder ignores the first finger's drag)
      · trackpad pinch / ctrl + wheel: zoom round the pointer; wheel or trackpad swipe while zoomed: move
      · the + / − / Fit buttons in the corner; double-tap with two fingers: back to the whole panel */
@@ -60,9 +60,7 @@ function attachZoom(svg, Z){
       const [bx,by,bw,bh]=baseOf(v), k2=clamp(g.k*d/Math.max(1,g.d),1,16), w=bw/k2, h=bh/k2;
       const [px,py]=toSvg(v, g.mx, g.my, g.vb);
       const r=v.getBoundingClientRect(), sc=Math.min(r.width/w, r.height/h), ox=r.left+(r.width-w*sc)/2, oy=r.top+(r.height-h*sc)/2;
-      // zoom round where the fingers started; sliding the two fingers moves the view the way Shapr3D does (the
-      // drawing slides opposite to the fingers)
-      Z.k=k2; Z.x=px-(g.mx-ox)/sc-bx+(mx-g.mx)/sc; Z.y=py-(g.my-oy)/sc-by+(my-g.my)/sc; apply(v, Z); }, true);
+      Z.k=k2; Z.x=px-(mx-ox)/sc-bx; Z.y=py-(my-oy)/sc-by; apply(v, Z); }, true);
     const up=e=>{ if(!pts.has(e.pointerId)) return; pts.delete(e.pointerId);
       if(pts.size<2) g=null;
       if(PINCH){ e.stopImmediatePropagation(); if(!pts.size) setTimeout(()=>{ PINCH=false; const v=cur(); if(v) v._pinch=false; }, 80); } };
