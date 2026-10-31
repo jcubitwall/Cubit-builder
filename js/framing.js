@@ -17,7 +17,7 @@
    Floors and roofs: 1⅞″ LVL rim, 9½″ in the floor and 11⅞″ in the roof, four pieces per pod touching only at
    the inside corners, leaving a 1⅞″ square at each outside corner for the Einspine. */
 import { FRAME, H, FT, SPINE_SCREWS, FLOOR_BUILD, ROOF_BUILD } from './config.js';
-import { panelSpans, wallLen, bodyWall } from './panels.js';
+import { panelSpans, wallLen, bodyWall, isGapOpening } from './panels.js';
 import { slotsFor, podList } from './layout.js';
 import { pickFor, state } from './state.js';
 import { panelPlan } from './labels.js';
@@ -35,11 +35,11 @@ const isFloorOpening = o => o.kind!=='vent' && o.kind!=='window' && o.y < 1.6;
 const REACH = 2;   // an opening edge within 2″ of the corner (past the end wall's thickness) counts as up against it
 function opensAtEnd(slot, end){
   const w=bodyWall(slot, pickFor(slot)); if(!w) return false;
-  const L=wallLen(w), lim=(slot.short ? (slot.type==='int'?4.5:6.5) : 0)+REACH;
+  const L=wallLen(w), lim=((slot.through ? slot.through[end] : slot.short) ? (slot.type==='int'?4.5:6.5) : 0)+REACH;
   return w.openings.some(o=>o.kind!=='vent' && (end===0 ? o.x<=lim : L-(o.x+o.w)<=lim));
 }
 function cornerPost(slot, end){
-  if(!slot.corner?.[end] || !slot.short) return false;
+  if(!slot.corner?.[end] || !(slot.through ? slot.through[end] : slot.short)) return false;
   const c = end===0 ? slot.p0n : slot.p1n, same=(a,b)=>Math.abs(a[0]-b[0])<1e-6 && Math.abs(a[1]-b[1])<1e-6;
   const other = slotsFor(state.model).find(q=>q.id!==slot.id && q.pod.i===slot.pod.i && ((q.corner?.[0] && same(q.p0n,c)) || (q.corner?.[1] && same(q.p1n,c))));
   if(!other) return false;
@@ -62,9 +62,10 @@ function wallFraming(slot, w0){
   // corner posts (this wall runs through a corner with openings against it on both sides), and the long wall
   // that meets such a corner, which then needs no end stud or jack there
   const wt0=(slot.type==='int'?4.5:6.5), posts=[cornerPost(slot,0), cornerPost(slot,1)];
-  const meets=[0,1].map(e=>{ if(slot.short || !slot.corner?.[e]) return false;
+  const thr=(q,e)=>q.through ? q.through[e] : q.short;
+  const meets=[0,1].map(e=>{ if(thr(slot,e) || !slot.corner?.[e]) return false;
     const c=e===0?slot.p0n:slot.p1n, same=(a,b)=>Math.abs(a[0]-b[0])<1e-6&&Math.abs(a[1]-b[1])<1e-6;
-    const q=slotsFor(state.model).find(q=>q.short && q.pod.i===slot.pod.i && ((q.corner?.[0]&&same(q.p0n,c))||(q.corner?.[1]&&same(q.p1n,c))));
+    const q=slotsFor(state.model).find(q=>q.id!==slot.id && q.pod.i===slot.pod.i && ((q.corner?.[0]&&same(q.p0n,c)&&thr(q,0))||(q.corner?.[1]&&same(q.p1n,c)&&thr(q,1))));
     return q ? cornerPost(q, q.corner?.[0]&&same(q.p0n,c)?0:1) : false; });
   const postZone=[]; if(posts[0]) postZone.push([0,wt0]); if(posts[1]) postZone.push([L-wt0,L]);
   posts.forEach((p,e)=>{ if(!p) return; const [a,b]=e===0?[0,wt0]:[L-wt0,L];
@@ -86,6 +87,7 @@ function wallFraming(slot, w0){
   // to fit behind the notch at the very end of the wall (from the notch back to the inside of the core)
   [[nl, nl+t, 'left end', 0], [L-nr-t, L-nr, 'right end', L-t]].forEach(([a,b,side,cx])=>{
     if(jacks.some(j=>j.x0<b-0.1 && j.x1>a+0.1)) return;
+    if(w.openings.some(o=>isGapOpening(o) && (side==='left end' ? o.x<=(w.snap?.[0]?2.01:0.5) : o.x+o.w>=L-(w.snap?.[1]?2.01:0.5)))) return;   // the wall ends in a full-height opening: no SIP, no stud
     if(posts[side==='left end'?0:1] || meets[side==='left end'?0:1]) return;   // a corner post takes this end
     const n = side==='left end' ? nl : nr;
     add('End stud', a, b, P, H-P, side+(n?' · just inboard of the Einspine notch':''));

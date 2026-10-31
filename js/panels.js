@@ -21,7 +21,9 @@ function wallGaps(w){
 /* the solid stretches between gaps: [[a,b], …] */
 function wallStretches(w){
   const L=wallLen(w), G=wallGaps(w), out=[]; let x=0;
-  G.forEach(([a,b])=>{ if(a-x>0.5) out.push([x,a]); x=Math.max(x,b); }); if(L-x>0.5) out.push([x,L]);
+  // where an end wall stops at a long wall running through (w.snap), a sliver of up to 2″ before its opening is no panel
+  const m0 = w.snap?.[0] ? 2.01 : 0.5, m1 = w.snap?.[1] ? 2.01 : 0.5;
+  G.forEach(([a,b])=>{ if(a-x>(x===0?m0:0.5)) out.push([x,a]); x=Math.max(x,b); }); if(L-x>(x===0?Math.max(m0,m1):m1)) out.push([x,L]);
   return out.length ? out : (G.length ? [] : [[0,L]]);
 }
 function panelSpans(w){
@@ -55,8 +57,10 @@ function bodyWall(slot, w){
       return {...mapX(o, x=>x-tl), x:x0}; }
     const x0=Math.max(0,o.x-tl), x1=Math.min(L,o.x+o.w-tl); return x1-x0>0.5 ? {...o, x:x0, w:x1-x0} : null; };
   // the end walls run to the pod corners, where a 1¾″ × 1¾″ notch for the steel spine comes out of the outside face
-  const notch = slot && slot.short && slot.corner ? [slot.corner[0]?NOTCH:0, slot.corner[1]?NOTCH:0] : [0,0];
-  return { ...w, L, trim:[tl,tr], notch, fitted:true,
+  // …or the long wall, where it runs through instead (slot.through)
+  const thr = e => slot?.through ? slot.through[e] : slot?.short;
+  const notch = slot && slot.corner ? [slot.corner[0]&&thr(0)?NOTCH:0, slot.corner[1]&&thr(1)?NOTCH:0] : [0,0];
+  return { ...w, L, trim:[tl,tr], notch, fitted:true, snap: slot?.snap ? [...slot.snap] : [false,false],   // snap: this end stops at a long wall running through
     openings: w.openings.map(o=>clip({...o, key:o.key ?? `${o.kind}@${Math.round(o.x)}`})).filter(Boolean),
     inside: (w.inside||[]).map(b=>({...mapX(b, x=>x-tr), x:b.x-tr})).filter(b=>b.x>0 && b.x<L),     // inside items are measured from the inside-left = outside-right end
     outside: (w.outside||[]).map(b=>({...mapX(b, x=>x-tl), x:b.x-tl})).filter(b=>b.x>0 && b.x<L) };

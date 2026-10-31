@@ -3,7 +3,7 @@
    Plan units are feet. Seen from above, +x is to the right and +z is down the screen, so going
    clockwise means S → E → N → W. A pod can be turned in 90° steps (rot 0/90/180/270, clockwise):
    at 0/180 its length runs along x, at 90/270 along z. */
-import { FT, GAP, POD, SIDE_NAME, LAYER_KINDS, SCREW_MAX, PAD_MAX, ICF, DECK } from './config.js';
+import { FT, H, GAP, POD, SIDE_NAME, LAYER_KINDS, SCREW_MAX, PAD_MAX, ICF, DECK } from './config.js';
 const DG = DECK.gap/12;   // decks sit ¾″ off the house (siding), and butt straight up to each other
 import { MODELS, podById, deckById } from './data.js';
 import { pickFor, state, foundationOf } from './state.js';
@@ -151,23 +151,36 @@ function slotsFor(modelKey){
    exterior and part interior) is not trimmed.
    An 8′ × 8′ pod has no long side; the sides along x (S, N) are treated as long when it isn't turned. */
 const isLongSide = (pod, side) => pod.alongX ? (side==='S'||side==='N') : (side==='W'||side==='E');
+/* Except where an end wall has no SIP at a corner: a full-height opening (a door or cased opening between pods,
+   floor to top) that starts right at the corner, at most the long wall's thickness + 2″ in, so all that would be left
+   is a sliver. There the LONG wall runs through to the corner (it gets the spine notch and the corner framing; its
+   full-height end stud simply faces the opening) and the end wall stops at the long wall's inside face, its opening
+   running right to it. With the opening wall to wall, both long walls run through at that end. Wall letters stay as
+   they are. s.through[e] says which wall runs through each corner. */
+const GAP_REACH = 2;
+const isGap = o => o.gap===true || (o.gap!==false && !o.shape && o.y<=0.5 && o.y+o.h>=H-0.5);
 function fitShortWalls(slots, pods){
+  const same=(a,b)=>Math.abs(a[0]-b[0])<EPS && Math.abs(a[1]-b[1])<EPS;
+  const tOf = s => pickFor(s)?.t || (s.type==='int'?4.5:6.5);
+  slots.forEach(s=>{ s.short=!isLongSide(s.pod, s.side); s.trim=[0,0]; s.through=s.short?[true,true]:[false,false]; s.snap=[false,false]; });
   slots.forEach(s=>{
-    s.short = !isLongSide(s.pod, s.side);
-    s.trim=[0,0];
     if(s.short) return;
     const p=s.pod;
     const atCorner = c => (Math.abs(c[0]-p.x)<EPS||Math.abs(c[0]-p.x1)<EPS) && (Math.abs(c[1]-p.z)<EPS||Math.abs(c[1]-p.z1)<EPS);
-    // the end wall passing through this corner
-    const thickAt = c => {
-      if(!atCorner(c)) return 0;
+    [s.p0n, s.p1n].forEach((c,e)=>{
+      if(!atCorner(c)) return;
+      // the end wall passing through this corner
       const end = slots.find(q=>q.pod===p && !isLongSide(p,q.side) && (
         (q.side==='S'||q.side==='N') ? Math.abs(q.p0n[1]-c[1])<EPS && Math.min(q.a,q.b)-EPS<=c[0] && c[0]<=Math.max(q.a,q.b)+EPS
                                      : Math.abs(q.p0n[0]-c[0])<EPS && Math.min(q.a,q.b)-EPS<=c[1] && c[1]<=Math.max(q.a,q.b)+EPS));
-      const w = end && pickFor(end);
-      return w ? (w.t || (end.type==='int'?4.5:6.5)) : 6.5;
-    };
-    s.trim=[thickAt(s.p0n), thickAt(s.p1n)];
+      if(!end){ s.trim[e]=6.5; return; }
+      const ee = same(end.p0n,c) ? 0 : same(end.p1n,c) ? 1 : -1;
+      if(ee<0){ s.trim[e]=tOf(end); return; }
+      const w=pickFor(end), L=(w?.len||end.len)*FT, tl=tOf(s);
+      const open = (w?.openings||[]).some(o=>isGap(o) && (ee===0 ? o.x <= tl+GAP_REACH : L-(o.x+o.w) <= tl+GAP_REACH));
+      if(open){ s.through[e]=true; end.through[ee]=false; end.trim[ee]=tl; end.snap[ee]=true; }   // the long wall runs through
+      else s.trim[e]=tOf(end);
+    });
   });
   openJoinEnds(slots);
 }

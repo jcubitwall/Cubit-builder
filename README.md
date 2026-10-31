@@ -423,3 +423,13 @@ In Build, a three-finger spread pulls the home (or an isolated cabinet) apart as
 | Admin | Everything an Editor can do, plus the Team list and STEP uploads. |
 
 CSS: `.edit-only` is hidden for Users, and `.editor-only` is hidden for Users and Salespeople. The server checks every save the same way (`atLeast(me, role)`).
+
+## When the long walls run through
+Normally a pod's end walls run through, corner to corner, and the long walls butt between them. The roles swap at a corner where the end wall has no SIP: a full-height opening (a door, a cased opening between pods, glass doors) starts right at the corner, no more than the long wall's thickness plus 2″ in.
+- **The long wall runs through to that corner.** It gets the spine notch and the corner studs, and its full-height end stud faces the opening.
+- **The end wall stops at the long wall's inside face.** Any sliver of up to 2″ before its opening isn't a panel (a jack fills it), and there's no end stud in the opening.
+- **Openings wall to wall:** both long walls run through at that end.
+- **Exterior ends too:** this includes end walls that are full glass doors.
+- **What doesn't change:** wall letters stay as they are, and the rough openings keep their sizes.
+
+Where: `fitShortWalls` in layout.js (`slot.through`, `slot.snap`), `bodyWall` and `wallStretches` in panels.js, corner logic in framing.js.
