@@ -191,8 +191,9 @@ window.addEventListener('pointermove', e=>{
     if(Math.abs(dx)>70){ three.done=true; dx<0 ? doUndo() : doRedo(); } return; }
   if(viewTwist && pointers.size===2 && !D){ pointers.set(e.pointerId,{x:e.clientX,y:e.clientY}); const [a,b]=[...pointers.values()]; let d=Math.atan2(b.y-a.y,b.x-a.x)-viewTwist.a0;
     if(d>Math.PI) d-=2*Math.PI; if(d<-Math.PI) d+=2*Math.PI;
-    if(isFlat()){ if(Math.abs(d)>=Math.PI/4){ const sg=d>0?1:-1; turnView(-sg*Math.PI/2); viewTwist.a0+=sg*Math.PI/2; } }   // plan: quarter turns
-    else if(Math.abs(d)>0.02){ turnView(-d); viewTwist.a0+=d; } }                                                         // 3D: follows the fingers
+    // the home turns the same way as the fingers (fingers clockwise on screen → home clockwise, as in Shapr3D)
+    if(isFlat()){ if(Math.abs(d)>=Math.PI/4){ const sg=d>0?1:-1; turnView(sg*Math.PI/2); viewTwist.a0+=sg*Math.PI/2; } }   // plan: quarter turns
+    else if(Math.abs(d)>0.02){ turnView(d); viewTwist.a0+=d; } }                                                          // 3D: follows the fingers
 });
 const sph=new THREE.Spherical(), off=new THREE.Vector3();
 window.addEventListener('pointermove', e=>{
