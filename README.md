@@ -25,7 +25,7 @@ A web app for designing Cubit pod homes wall by wall, then producing what the sh
   - **Moving around:** drag empty space to pan, use the scroll wheel or pinch to zoom, or press **+ / − / Fit**. On a phone or tablet, swipe a pod sideways out of the list to drag it, and swipe up or down to scroll the list.
   - **Turning:** press **R** while dragging to turn a pod 90°, or select a pod and press **Turn 90°**.
   - **Changing pods:** drag a pod to move it, or select it to **replace** it with another pod or **remove** it.
-  - **Joints:** the ¾″ space at every joint is always added.
+  - **Joints:** the ¾″ space is added at every joint, except that pods joined to another always line up with that pod's outside walls. Where a neighbouring pod runs straight across a joint line (the Cove's 16′ + 8′ end to end along the 24′), that joint adds nothing and the end-to-end pods sit flush (`layoutOffsets` in layout.js).
   - **Pods keep their parts:** a pod keeps its own walls, floors and ceilings when it is moved or turned.
   - **Your own copy:** editing a built-in home makes your own copy. Editing a project changes the project; save it to keep the change.
 - **3D view:** **Layers** switches each part on or off: roof, ceiling, walls, floors, decks, ground screws and pads, windows and doors. It also has see-through glass and doors, wall letters and panel numbers. The small arrow on the right edge opens and hides the panel, in full screen and in the normal view; tapping a wall opens it too.

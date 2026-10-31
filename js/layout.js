@@ -42,7 +42,10 @@ function layoutOffsets(modelKey){
     }));
     return [...lines];
   };
-  const jx = joints('x'), jz = joints('z');
+  // pods joined to another always line up with that pod's outside walls: a joint line that a neighbouring pod runs
+  // straight across (e.g. the Cove's 16′ + 8′ end to end along the 24′) adds no ¾″, the end-to-end joint closes up
+  const spanned = (axis, v) => P.some(q => axis==='x' ? (q.x < v-EPS && q.x1 > v+EPS) : (q.z < v-EPS && q.z1 > v+EPS));
+  const jx = joints('x').filter(v=>!spanned('x', v)), jz = joints('z').filter(v=>!spanned('z', v));
   const pods = P.map(p=>({ ox: jx.filter(v=>v<=p.x+EPS).length*GAP, oz: jz.filter(v=>v<=p.z+EPS).length*GAP }));
   // decks take their place from the pod they touch (¾″ out from it, lined up along it); a deck that
   // touches no pod lines up with the deck it touches. Decks never move the pods.
@@ -288,7 +291,7 @@ function screwPlan(modelKey, insetIn, opts={}){
         // pods always sit ¾″ apart; a deck sits ¾″ off a pod and butts straight up to another deck
         const jg = (!!p.deck!==!!q.deck) ? (Math.abs(qe-(sd.e+sg*DG))<=E ? DG : null)
                  : (p.deck && q.deck) ? (Math.abs(qe-sd.e)<=E ? 0 : null)
-                 : (Math.abs(qe-(sd.e+sg*G))<=E ? G : null);
+                 : (Math.abs(qe-(sd.e+sg*G))<=E ? G : Math.abs(qe-sd.e)<=E ? 0 : null);   // pods ¾″ apart, or flush end to end (lined up on a neighbour)
         if(jg===null) return;
         const a=Math.max(sd.ax==='x'?q.x:q.z, sd.a), b=Math.min(sd.ax==='x'?q.x1:q.z1, sd.b);
         if(b-a>E) cov.push([a,b,q.i,jg]);
