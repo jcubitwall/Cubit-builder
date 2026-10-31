@@ -433,3 +433,15 @@ Normally a pod's end walls run through, corner to corner, and the long walls but
 - **What doesn't change:** wall letters stay as they are, and the rough openings keep their sizes.
 
 Where: `fitShortWalls` in layout.js (`slot.through`, `slot.snap`), `bodyWall` and `wallStretches` in panels.js, corner logic in framing.js.
+
+## Moving cabinets: one touch, one wall
+While you drag a cabinet, it keeps the wall its back was on when you picked it up (or the first wall it touched, if it's new). It slides along that wall and stops at the corner instead of flipping onto the other wall. Another wall can only take it once it's pulled into the room beyond that wall's reach (its depth + 1.6′). Two-finger twist still turns it. Code: `lockA` in `snap` (furniture.js), set in `trackFurn` (build.js).
+
+## Groups and the kitchen library
+- **Pick several:** a cabinet's panel → **Pick several…**. Tap items to add or take them away, or use **All on this wall** or **All in this pod**. Then **Group…** and name it.
+- **What a group does:** it picks, moves (drag any member), turns (two fingers) and explodes as one. A group stays in one pod.
+- **Ungroup to edit** keeps the memory (`it.was`), so **Relink "name"** on any of its items puts it back together.
+- **Save to kitchen library** (editors and admins) stores the group as a recipe: each item's size and options, and its place relative to an anchor. You can save it as a new kitchen. **Updating** the saved kitchen it came from warns first and asks you to type its name; the old version is kept (`kitchens/history/`).
+- **Copies, not links:** homes keep their own copy, so updating a saved kitchen never changes a home that already has it. Salespeople can change kitchens freely, but those changes stay in their draft or the customer's home.
+- **Dropping one in:** Build tray → Cabinets → **Kitchens & groups**. Drag a kitchen in and it lands as a group on the wall you drop it on.
+- **Code:** `js/kitchens.js`, `functions/api/kitchens.js`, group helpers in furniture.js, panels in casework-ui.js.

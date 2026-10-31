@@ -20,7 +20,8 @@ import { camera, controls, renderer, homeGroup, pickables, buildHome, highlight 
 import { addPod, movePod, rotatePod, addDeck, moveDeck, dockSpots, deckSpots, foot, deckFoot } from './pods.js';
 import { renderModels, renderSide, toast } from './sidebar.js';
 import { deckName } from './deckframe.js';
-import { furnMeshes, furnById, snap, addItem, updateItem, refreshItem, applyFurniture, showFurnGhost, hideFurnGhost, turnItem, setHolderVisible, handleMeshes, roomBeyond, stretchTo } from './furniture.js';
+import { furnMeshes, furnById, snap, addItem, updateItem, refreshItem, applyFurniture, showFurnGhost, hideFurnGhost, turnItem, setHolderVisible, handleMeshes, roomBeyond, stretchTo, rotXZ, groupMembers, setMany, moveHolder, addRecipe, furnitureOf } from './furniture.js';
+import { KITCHENS, kitchenById } from './kitchens.js';
 import { fmt as fmtCw, settings as cwSettings } from './casework.js';
 const fmtIn = v => fmtCw(v)+(cwSettings().units==='mm'?' mm':'″');
 import { CATS, ITEMS, newItem, itemDef, partsOf } from './casework.js';
@@ -96,11 +97,24 @@ function trackStretch(d, x, y){
   const r=stage.getBoundingClientRect(); tip.hidden=false; tip.style.left=(x-r.left)+'px'; tip.style.top=(y-r.top-46)+'px';
   tip.textContent = (ch.w!=null ? `${fmtIn(ch.w)} wide` : `${fmtIn(ch.d)} deep`) + (ch.snapped ? ' · up against it' : '');
 }
+/* one touch, one wall: the drag keeps the wall it started on (d.lockA) until the item is pulled clearly off it.
+   A group moves as one: everything keeps its place relative to the item under the finger (and turns with it). */
 function trackFurn(d, x, y){
   const at=planAt(x,y); if(!at){ hideFurnGhost(); d.at=null; return; }
   const it={...(d.it||furnById(d.id))};
-  const s=snap(it, at, wallGroups, homeGroup, it.a);
-  d.at=s; if(s){ if(s.free && d.it?.a!=null) s.a=d.it.a; showFurnGhost(it, s, true); } else hideFurnGhost();
+  let s=snap(it, at, wallGroups, homeGroup, it.a, d.lockA ?? null);
+  if(s && d.group && s.pod!==it.pod) s=null;                    // a group stays in its pod
+  d.at=s; if(s){ if(s.free && d.it?.a!=null) s.a=d.it.a; if(s.wall) d.lockA=s.a; showFurnGhost(it, s, true); } else hideFurnGhost();
+  if(d.group){ const A=s || it;
+    d.moves=d.group.map(g=>{ const [dx,dz]=rotXZ(g.rx, g.rz, A.a||0); let a=(((A.a||0)+g.ra)%360+360)%360; if(a>180) a-=360; const u=A.u+dx, v=A.v+dz; if(s) moveHolder(g.id, u, v, a); return [g.id, {u, v, a, wall:null}]; }); }
+}
+function startGroupDrag(d){
+  const it=furnById(d.id), gid=it?.grp?.id; if(!gid) return;
+  d.group=groupMembers(gid).filter(o=>o.id!==it.id).map(o=>{ const [rx,rz]=rotXZ(o.u-it.u, o.v-it.v, -(it.a||0)); return { id:o.id, rx, rz, ra:(((o.a||0)-(it.a||0))%360+360)%360, home:{u:o.u, v:o.v, a:o.a||0} }; });
+}
+function endGroupDrag(d, keep){
+  if(!d.group) return;
+  if(!keep) d.group.forEach(g=>moveHolder(g.id, g.home.u, g.home.v, g.home.a));   // put the rest back where they were
 }
 
 /* ---------------------------------------------------------------- moving, turning and adding */
@@ -125,7 +139,11 @@ function after(why, msg){
   toast(msg + (MODELS[state.model].project ? ' · save the project to keep it' : ''));
 }
 function turn(d, dir){
-  if(d.mode==='fmove'){ turnItem(d.id, dir); refreshItem(furnById(d.id)); renderSide(); return; }
+  if(d.mode==='fmove'){ const it=furnById(d.id);
+    if(it?.grp){ const da=-90*dir, M=groupMembers(it.grp.id);   // a group turns as one, round the item under the finger
+      setMany(M.map(o=>{ const [x,z]=rotXZ(o.u-it.u, o.v-it.v, da); let a=(((o.a||0)+da)%360+360)%360; if(a>180) a-=360; return [o.id, {u:it.u+x, v:it.v+z, a, wall:o.id===it.id?null:o.wall}]; }));
+      M.forEach(o=>refreshItem(furnById(o.id))); startGroupDrag(d); renderSide(); return; }
+    turnItem(d.id, dir); refreshItem(furnById(d.id)); renderSide(); return; }
   if(d.mode==='fnew'){ d.it.a=(((d.it.a||0)-90*dir)%360+360)%360; if(d.lastXY) trackFurn(d, ...d.lastXY); return; }
   if(d.mode==='new'){ d.rot=((d.rot||0)+(dir>0?90:270))%360; d.spots=null; if(d.lastXY) track(d, ...d.lastXY); return; }
   // a pod already placed: a quarter turn where it stands (or as near as it fits)
@@ -160,7 +178,7 @@ stage.addEventListener('pointerdown', e=>{
         if(D.mode==='fmove'){ setHolderVisible(D.id,false); trackFurn(D, x, y); } else track(D, x, y);
         toast(D.mode==='fmove' ? 'Moving the cabinet · lift to drop' : D.deck ? 'Moving the deck · lift to drop' : 'Moving the pod · lift to drop'); }, LONG_PRESS)}; }
   } else if(pointers.size===3){ if(press){ clearTimeout(press.timer); press=null; }   // three fingers: swipe left = undo, right = redo (Shapr3D)
-    orbit=null; viewTwist=null; if(D && D.mode!=='new' && D.mode!=='fnew'){ hideGhost(); hideFurnGhost(); if(D.id) setHolderVisible(D.id,true); D=null; document.body.classList.remove('dragging'); }
+    orbit=null; viewTwist=null; if(D && D.mode!=='new' && D.mode!=='fnew'){ hideGhost(); hideFurnGhost(); if(D.id) setHolderVisible(D.id,true); endGroupDrag(D, false); D=null; document.body.classList.remove('dragging'); }
     controls.enabled=false; three={x0:centroid(), done:false};
   } else if(pointers.size===2 && orbit){ orbit=null; if(press){ clearTimeout(press.timer); press=null; }                     // a second finger: OrbitControls pans and zooms; a twist turns the view
     const [a,b]=[...pointers.values()]; viewTwist={a0:Math.atan2(b.y-a.y, b.x-a.x), acc:0};
@@ -176,7 +194,7 @@ const LONG_PRESS=450;   // ms held still (within 10 px) to pick a part up in 3D
 /* what's under the finger to move: a cabinet (in front of the wall / floor) or the pod / deck it belongs to */
 function grabAt(x,y){
   const fh=furnAt(x,y), ph=hitAt(x,y), glass = ph && /:(ceiling-int|roof)$/.test(ph.object.userData.slotId||'');
-  if(fh && (!ph || glass || fh.distance<=ph.distance+0.05)){ const it=furnById(fh.object.userData.furn); if(it) return {mode:'fmove', id:it.id, it, sx:x, sy:y, started:false}; }
+  if(fh && (!ph || glass || fh.distance<=ph.distance+0.05)){ const it=furnById(fh.object.userData.furn); if(it){ const d={mode:'fmove', id:it.id, it, sx:x, sy:y, started:false, lockA: it.wall ? (it.a||0) : null}; startGroupDrag(d); return d; } }
   const o=ownerOf(ph); if(!o) return null;
   const at=planAt(x,y), m=MODELS[state.model]; if(!at) return null;
   if(o.deck){ const q=m.decks[o.i]; return {mode:'move', deck:true, i:o.i, lib:q.lib, rot:q.rot||0, grab:{x:at.x, z:at.z, x0:q.x, z0:q.z}, sx:x, sy:y, started:false}; }
@@ -237,8 +255,10 @@ function release(e){
     updateItem(d.id, ch); refreshItem(furnById(d.id)); state.selFurn=d.id; applyFurniture(); renderSide(); return; }
   if(D && D.mode==='fmove'){ if(pointers.size) return;
     const d=D; D=null; hideFurnGhost(); setHolderVisible(d.id,true); document.body.classList.remove('dragging'); controls.enabled=true;
-    if(d.twist || !d.started || !d.at) return;
-    updateItem(d.id, d.at); refreshItem(furnById(d.id)); state.selFurn=d.id; applyFurniture(); renderSide(); return; }
+    if(d.twist || !d.started || !d.at){ endGroupDrag(d, false); return; }
+    if(d.group){ setMany([[d.id, d.at], ...(d.moves||[])]); [d.id, ...d.group.map(g=>g.id)].forEach(id=>refreshItem(furnById(id))); }
+    else { updateItem(d.id, d.at); refreshItem(furnById(d.id)); }
+    state.selFurn=d.id; applyFurniture(); renderSide(); return; }
   if(!D || D.mode!=='move') { if(!pointers.size) controls.enabled=true; return; }
   if(pointers.size) return;                                             // wait for the last finger
   const d=D; D=null; hideGhost(); document.body.classList.remove('dragging'); controls.enabled=true;
@@ -293,7 +313,9 @@ function renderTray(){
   const tabs=`<div class="tray-tabs" role="tablist"><button role="tab" data-tab="pods" aria-selected="${trayTab==='pods'}">Pods</button><button role="tab" data-tab="cab" aria-selected="${trayTab==='cab'}">Cabinets</button></div>`;
   if(trayTab==='cab'){
     const items=ITEMS.filter(d=>d.cat===trayCat);
-    tray.innerHTML = tabs + `<label class="tray-cat"><span>Category</span><select id="trayCat" aria-label="Category">${CATS.map(c=>`<option value="${c.k}" ${c.k===trayCat?'selected':''}>${c.name}</option>`).join('')}</select></label>`
+    const sel = `<label class="tray-cat"><span>Category</span><select id="trayCat" aria-label="Category"><option value="__kit" ${trayCat==='__kit'?'selected':''}>Kitchens &amp; groups</option>${CATS.map(c=>`<option value="${c.k}" ${c.k===trayCat?'selected':''}>${c.name}</option>`).join('')}</select></label>`;
+    if(trayCat==='__kit'){ tray.innerHTML = tabs + sel + (KITCHENS.map(K=>`<button class="tray-it cab kit" data-kit="${K.id}" title="${K.name.replace(/"/g,'&quot;')}"><b>${K.name.replace(/</g,'&lt;')}</b><small>${K.items.length} items</small></button>`).join('') || '<span class="tray-none">No saved kitchens yet. Group cabinets in a home, then save the group.</span>'); return; }
+    tray.innerHTML = tabs + sel
       + items.map(d=>{ const it=newItem(d.k); return `<button class="tray-it cab" data-k="${d.k}" title="${d.name.replace(/"/g,'&quot;')}"><span class="tray-cab">${frontSVG(it,{pad:1})}</span><b>${d.name.replace(/ · .*/,'')}</b><small>${d.name.includes(' · ')?d.name.split(' · ')[1]:`${Math.round(it.w*8)/8}″ wide`}</small></button>`; }).join('')
       + `<button class="tray-it more" data-open="lib"><b>Library…</b><small>sizes, 3D, parts</small></button>`;
     return;
@@ -307,12 +329,12 @@ function renderTray(){
 tray.addEventListener('pointerdown', e=>{
   const b=e.target.closest('.tray-it'); if(!b || !editable() || b.dataset.open) return;
   const sx=e.clientX, sy=e.clientY, id=e.pointerId;
-  const cab=b.dataset.k;
+  const cab=b.dataset.k, kit=b.dataset.kit && kitchenById(b.dataset.kit);
   const item = cab||b.dataset.deck ? null : b.dataset.lib ? {lib:b.dataset.lib} : {t:b.dataset.t};
   const t = item ? (item.lib ? podById(item.lib).t : item.t) : null;
   const mv=ev=>{ if(ev.pointerId!==id) return;
     if(!D){ if(Math.abs(ev.clientY-sy) < 14 || Math.abs(ev.clientY-sy) < Math.abs(ev.clientX-sx)) return;   // sideways: the tray scrolls
-      D = cab ? {mode:'fnew', it:{...newItem(cab), a:0}} : b.dataset.deck ? {mode:'new', deck:true, lib:b.dataset.deck, rot:0} : {mode:'new', deck:false, item, t, rot:0};
+      D = kit ? {mode:'fnew', kit, it:{ ...(kit.items.find(r=>r.rx===0&&r.rz===0)||kit.items[0]), a:0 }} : cab ? {mode:'fnew', it:{...newItem(cab), a:0}} : b.dataset.deck ? {mode:'new', deck:true, lib:b.dataset.deck, rot:0} : {mode:'new', deck:false, item, t, rot:0};
       document.body.classList.add('dragging'); controls.enabled=false; }
     D.lastXY=[ev.clientX, ev.clientY];
     const r=cv.getBoundingClientRect(), over = ev.clientX>r.left && ev.clientX<r.right && ev.clientY>r.top && ev.clientY<r.bottom && !tray.contains(document.elementFromPoint(ev.clientX, ev.clientY));
@@ -323,6 +345,9 @@ tray.addEventListener('pointerdown', e=>{
     if(!d){ return; }
     trayDragAt=performance.now();   // the tap the iPad may still send after a drag must not add a second one
     if(d.mode==='fnew'){ if(!d.at){ toast('Drop it inside a pod. It backs onto the nearest wall.'); return; }
+      if(d.kit){ const anchor=d.kit.items.find(r=>r.rx===0&&r.rz===0)||d.kit.items[0], shift=rotXZ(anchor.rx, anchor.rz, d.at.a||0);
+        const gid=addRecipe(d.kit.items, {...d.at, u:d.at.u-shift[0], v:d.at.v-shift[1]}, d.kit.name, d.kit.id);
+        const L=groupMembers(gid); L.forEach(refreshItem); state.selFurn=L[0]?.id||null; state.selected=null; highlight(); renderSide(); if(!panelOpen()) setPanel(true); toast(`${d.kit.name} added · drag it to move it as one`); return; }
       const f=addItem(d.it.k, {...d.at}); state.selFurn=f.id; state.selected=null; refreshItem(f); highlight(); renderSide(); if(!panelOpen()) setPanel(true); toast(`${itemDef(f.k).name} added`); return; }
     if(!d.ok){ toast('Drop it next to the home, where it docks flush in 8′ steps.'); return; }
     after(d.deck ? addDeck(d.lib, d.at.x, d.at.z, d.rot) : addPod(d.item, d.at.x, d.at.z, d.rot), d.deck ? 'Deck added' : 'Pod added'); };
@@ -338,6 +363,7 @@ tray.addEventListener('click', e=>{
   if(b.dataset.open){ openCaseLib({cat:trayCat}); return; }
   if(!editable()) return;
   if(b.dataset.k){ openCaseLib({k:b.dataset.k}); return; }
+  if(b.dataset.kit){ toast('Drag the kitchen into a pod. It backs onto the wall you drop it on.'); return; }
   if(b.dataset.deck){ const s=deckSpots(b.dataset.deck,0)[0]; if(!s){ toast('No place for this deck yet.'); return; } after(addDeck(b.dataset.deck, s.x, s.z, 0), 'Deck added'); return; }
   const item = b.dataset.lib ? {lib:b.dataset.lib} : {t:b.dataset.t};
   const s=dockSpots(item, 0)[0]; if(!s){ toast('No place for this pod yet.'); return; } after(addPod(item, s.x, s.z, 0), 'Pod added');

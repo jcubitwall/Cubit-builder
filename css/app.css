@@ -1110,3 +1110,5 @@ dialog.lib-dlg.tm-dlg{max-width:min(640px,calc(100vw - 24px))}
 .tm-add{display:flex;gap:8px}.tm-add input{flex:1}
 .tm-roles{display:grid;grid-template-columns:110px 1fr;gap:4px 10px;font-size:13px;margin-top:14px}.tm-roles dt{font-weight:700}.tm-roles dd{margin:0;color:var(--ink-2)}
 @media (max-width:640px){ .cust-grid,.sign-pads{grid-template-columns:1fr} .cust-quick{grid-template-columns:1fr} }
+.pk-list{margin:6px 0;padding-left:18px;font-size:13px;max-height:220px;overflow:auto}.pk-list small{color:var(--ink-2)}
+.tray-it.kit{min-width:120px}.tray-none{font-size:12.5px;color:var(--ink-2);align-self:center;padding:0 10px}

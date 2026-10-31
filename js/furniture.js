@@ -46,13 +46,15 @@ function place(it){
   return holder;
 }
 function refreshItem(it){ if(!it) return; const old=models.get(it.id); if(old){ old.holder.parent?.remove(old.holder); models.delete(it.id); } const cur=byId(it.id); if(cur) place(cur); applyFurniture(); }
+/* picked: the tapped item, the rest of its group, and anything multi-selected */
+const isSel = id => { if(state.selFurn===id || (state.selSet||[]).includes(id)) return true; const g=byId(state.selFurn)?.grp?.id; return !!g && byId(id)?.grp?.id===g; };
 let afterApply=null; const onFurnApplied = fn => { afterApply=fn; };
 function applyFurniture(){
   if(!group) return;
   const F=state.focusPod;
   models.forEach(({holder, m},id)=>{ const it=byId(id); holder.visible = !!it && (state.isolate ? isoMine(id) : shownCat(holder.userData.cat) && (F==null || it.pod===F));
     m.select(null);
-    if(state.selFurn===id && !state.isolate) m.meshes.forEach(x=>{ x.material = x.material.clone(); x.material.emissive?.set(0x6a2a08); }); });
+    if(isSel(id) && !state.isolate) m.meshes.forEach(x=>{ x.material = x.material.clone(); x.material.emissive?.set(0x6a2a08); }); });
   updateHandles();
   afterApply?.();
 }
@@ -87,7 +89,10 @@ function wallMeshes(wallGroups){ const out=[]; wallGroups.forEach(g=>{ if(!g.vis
 function podAt(pt, pods){ return pods.find(p=>pt.x>=p.x-0.01 && pt.x<=p.x+p.w+0.01 && pt.z>=p.z-0.01 && pt.z<=p.z+p.d+0.01); }
 /* snap an item (size in inches) dropped at home-frame point `pt` (THREE.Vector3, feet): back against the nearest
    wall within reach, clear of the walls at the ends, butted to its neighbours. Returns {pod,u,v,a,wall} or null. */
-function snap(it, pt, wallGroups, homeGroup, keepA=null){
+/* lockA: one touch, one wall. While a drag goes on, the item keeps the wall it started on (its back to it): it slides
+   along it and stops at the corner instead of flipping onto the other wall. Only when it's pulled out into the room,
+   beyond that wall's reach (its depth + 1.6′), can another wall take it. */
+function snap(it, pt, wallGroups, homeGroup, keepA=null, lockA=null){
   const p=podAt(pt,lastPods); if(!p || !frames[p.i]) return null;
   const f=frames[p.i]; f.updateMatrixWorld(true);
   const W=wallMeshes(wallGroups), world=homeGroup.localToWorld(pt.clone());
@@ -98,7 +103,10 @@ function snap(it, pt, wallGroups, homeGroup, keepA=null){
   const cast=(o,d,h)=>{ const wo=f.localToWorld(new THREE.Vector3(o.x,h,o.z)), wd=f.localToWorld(new THREE.Vector3(o.x+d[0],h,o.z+d[1])).sub(wo).normalize();
     ray.set(wo,wd); ray.far=40; const hit=ray.intersectObjects(W,false)[0]; if(!hit) return null; return { dist:hit.distance, slot:hit.object.userData.slotId }; };
   const hh=[Math.max(0.5,(it.y+Math.min(it.h,24)/2)/FT), 0.6];
-  dirs.forEach(([du,dv,a])=>{ for(const h of hh){ const c=cast({x:local.x,z:local.z},[du,dv],h); if(c && c.dist<reach && (!best || c.dist<best.dist)) best={...c, du, dv, a}; } });
+  const look = D => D.forEach(([du,dv,a])=>{ for(const h of hh){ const c=cast({x:local.x,z:local.z},[du,dv],h); if(c && c.dist<reach && (!best || c.dist<best.dist)) best={...c, du, dv, a}; } });
+  const nA = x => ((Math.round(x)%360)+360)%360;
+  if(lockA!=null) look(dirs.filter(d=>nA(d[2])===nA(lockA)));   // the wall it's on first
+  if(!best) look(dirs);
   if(!best){
     // not near a wall: free standing (furniture), keep it in the pod
     return { pod:p.i, u:local.x, v:local.z, a:keepA ?? 0, wall:null, free:true };
@@ -223,6 +231,37 @@ function freeSpot(it, homeGroup){
       const cand={...it, ...at, id:'_new'}; if(!list().some(o=>clash(cand,o))) return at; } }
   return null;
 }
+/* ---------------------------------------------------------------- groups (a kitchen…)
+   Items grouped together carry it.grp = {id, name, from}; from = the saved kitchen it came from (kitchens.js). They pick,
+   move, turn and explode as one. Ungrouping keeps it.was = the group, so it can be relinked after editing. */
+const rotXZ = (x, z, deg) => { const r=deg*Math.PI/180, c=Math.cos(r), s=Math.sin(r); return [x*c+z*s, -x*s+z*c]; };
+const groupMembers = gid => gid ? list().filter(o=>o.grp?.id===gid) : [];
+const newGid = () => 'g'+Date.now().toString(36)+Math.random().toString(36).slice(2,4);
+function makeGroup(ids, name, from=null){ checkpoint(); ensureDraft(); const gid=newGid(); ids.forEach(id=>{ const it=byId(id); if(it){ it.grp={id:gid, name, from}; delete it.was; } }); save(); return gid; }
+function ungroup(gid){ checkpoint(); ensureDraft(); groupMembers(gid).forEach(it=>{ it.was={...it.grp}; delete it.grp; }); save(); }
+function relinkGroup(gid){ checkpoint(); ensureDraft(); const L=list().filter(it=>it.was?.id===gid); L.forEach(it=>{ it.grp=it.was; delete it.was; }); save(); return L.length; }
+function renameGroup(gid, name){ checkpoint(); ensureDraft(); groupMembers(gid).forEach(it=>{ it.grp.name=name; }); save(); }
+function setGroupFrom(gid, from){ groupMembers(gid).forEach(it=>{ it.grp.from=from; }); save(); }
+function removeGroup(gid){ checkpoint(); ensureDraft(); const L=list(); for(let i=L.length-1;i>=0;i--) if(L[i].grp?.id===gid) L.splice(i,1); if(byId(state.selFurn)==null) state.selFurn=null; save(); }
+/* several items moved at once (a group dragged): one undo step */
+function setMany(updates){ checkpoint(); ensureDraft(); updates.forEach(([id,patch])=>{ const it=byId(id); if(it){ Object.assign(it, patch); delete it.free; } }); save(); }
+/* the live preview while a group is dragged: move the 3D holders without rebuilding them */
+function moveHolder(id, u, v, a){ const o=models.get(id); if(o){ o.holder.position.set(u, 0, v); o.holder.rotation.y=(a||0)*Math.PI/180; } }
+/* a group as a recipe: each item relative to the anchor (sizes, options, where it sits from the anchor's back-middle) */
+function groupRecipe(items, anchor){
+  return items.map(it=>{ const [x,z]=rotXZ(it.u-anchor.u, it.v-anchor.v, -(anchor.a||0)); const { id, pod, u, v, a, wall, grp, was, free, ...rest }=it;
+    return { ...JSON.parse(JSON.stringify(rest)), rx:x, rz:z, ra:(((it.a||0)-(anchor.a||0))%360+360)%360 }; });
+}
+/* where every item of a recipe goes when its anchor lands at `at` ({pod,u,v,a}) */
+function placeRecipe(recipe, at){
+  return recipe.map(r=>{ const [x,z]=rotXZ(r.rx, r.rz, at.a||0); let a=(((at.a||0)+r.ra)%360+360)%360; if(a>180) a-=360; const { rx, rz, ra, ...it }=r; return { ...it, pod:at.pod, u:at.u+x, v:at.v+z, a, wall: r.rx===0 && r.rz===0 ? at.wall : null }; });
+}
+function addRecipe(recipe, at, name, from){
+  checkpoint(); ensureDraft(); const gid=newGid(), L=list();
+  placeRecipe(recipe, at).forEach(x=>{ L.push({ id:newId(), ...x, grp:{id:gid, name, from} }); const c=itemDef(x.k)?.cat; if(c && state.show['cw-'+c]===false) state.show['cw-'+c]=true; });
+  save(); return gid;
+}
+
 /* ---------------------------------------------------------------- the ghost while dragging */
 let fg=null;
 function showFurnGhost(it, at){
@@ -253,4 +292,4 @@ const DEPTH_CATS=new Set(['base','upper','tall','linen','wardrobe','vanity','app
 function wallDepths(k=state.model){ const out={}; list(k).forEach(it=>{ if(it.wall && DEPTH_CATS.has(itemDef(it.k)?.cat)) out[it.wall]=Math.max(out[it.wall]||0, it.d); }); return out; }
 
 const podsShown = () => lastPods;
-export { freeSpot, clash, setWalls, handleMeshes, roomBeyond, stretchTo, updateHandles, onFurnApplied, setCabExplode, resetCabExplode, cabExploded, explodeFurniture, furnHolder, podsShown, showFurnGhost, hideFurnGhost, setHolderVisible, list as furnitureOf, byId as furnById, buildFurniture, refreshItem, applyFurniture, furnMeshes, snap, podAt, addItem, updateItem, removeItem, duplicateItem, turnItem, podRemoved, wallDepths, shownCat, CATS as FURN_CATS , cabExplodeGoal };
+export { freeSpot, clash, setWalls, handleMeshes, roomBeyond, stretchTo, updateHandles, onFurnApplied, setCabExplode, resetCabExplode, cabExploded, explodeFurniture, furnHolder, podsShown, showFurnGhost, hideFurnGhost, setHolderVisible, list as furnitureOf, byId as furnById, buildFurniture, refreshItem, applyFurniture, furnMeshes, snap, podAt, addItem, updateItem, removeItem, duplicateItem, turnItem, podRemoved, wallDepths, shownCat, CATS as FURN_CATS , cabExplodeGoal , rotXZ, groupMembers, makeGroup, ungroup, relinkGroup, renameGroup, setGroupFrom, removeGroup, setMany, moveHolder, groupRecipe, placeRecipe, addRecipe };

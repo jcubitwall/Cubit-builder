@@ -705,8 +705,12 @@ renderer.domElement.addEventListener('pointerup',e=>{
   const hit=ray.intersectObjects(pickables,false).find(shown);
   // a cabinet or piece of furniture in front of the wall / floor: pick it
   const fh=ray.intersectObjects(furnMeshes(),false)[0];
-  if(fh && (!hit || /:(ceiling-int|roof)$/.test(hit.object.userData.slotId||'') || fh.distance<=hit.distance+0.05)){ state.selFurn=fh.object.userData.furn; state.selected=null; state.selUnit=null; applyFurniture(); highlight(); renderSide(); return; }
-  if(state.selFurn){ state.selFurn=null; applyFurniture(); }
+  if(fh && (!hit || /:(ceiling-int|roof)$/.test(hit.object.userData.slotId||'') || fh.distance<=hit.distance+0.05)){ const id=fh.object.userData.furn;
+    if(state.multiSel){ const S=new Set(state.selSet||[]); if(state.selFurn && !S.size) S.add(state.selFurn); S.has(id) ? S.delete(id) : S.add(id); state.selSet=[...S]; state.selFurn=state.selSet[0]||null; }   // picking several: each tap adds or takes away
+    else { state.selFurn=id; state.selSet=[]; }
+    state.selected=null; state.selUnit=null; applyFurniture(); highlight(); renderSide(); return; }
+  if(state.multiSel) return;   // picking several: a tap on empty space doesn't drop the selection
+  if(state.selFurn){ state.selFurn=null; state.selSet=[]; applyFurniture(); }
   // the ceiling already picked: a tap on it picks / unpicks the light hole there (or places a new light)
   if(hit && hit.object.userData.slotId===state.selected && /:ceiling-int$/.test(state.selected||'')){
     const g=layerGroups.find(g=>g.userData.layerSlot.id===state.selected), inner=g?.userData.inner;

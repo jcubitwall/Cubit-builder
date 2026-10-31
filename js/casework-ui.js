@@ -6,7 +6,8 @@ import { cabinetJob, jobZip, sheetSVG, CAB_CNC } from './cabcnc.js';
 import { MODELS } from './data.js';
 import { itemModel } from './casework3d.js';
 import { frontSVG } from './casework-svg.js';
-import { furnitureOf, furnById, updateItem, removeItem, duplicateItem, turnItem, refreshItem, addItem, snap, applyFurniture, podsShown, freeSpot } from './furniture.js';
+import { furnitureOf, furnById, updateItem, removeItem, duplicateItem, turnItem, refreshItem, addItem, snap, applyFurniture, podsShown, freeSpot, groupMembers, makeGroup, ungroup, relinkGroup, renameGroup, setGroupFrom, removeGroup, groupRecipe } from './furniture.js';
+import { kitchenById, newKitchenId, saveKitchen } from './kitchens.js';
 import { state, save } from './state.js';
 import { canSave, canEdit } from './role.js';
 import { homeGroup, wallGroups, highlight } from './scene3d.js';
@@ -336,8 +337,67 @@ async function commit(S, say){
 }
 
 /* ---------------------------------------------------------------- a placed item, in the side panel */
+/* ---------------------------------------------------------------- picking several, and groups (a kitchen…) */
+function pickSide(sideH, sideB){
+  const ids=(state.selSet||[]).filter(id=>furnById(id)), L=ids.map(furnById);
+  sideH.innerHTML=`<button class="side-x" id="pkX" aria-label="Stop picking">✕</button><div class="eyebrow">Picking cabinets</div><h2>${L.length} picked</h2><p>Tap cabinets, counters, appliances and furniture to add or take them away.</p>`;
+  const cur=furnById(state.selFurn)||L[0];
+  sideB.innerHTML=`<div class="row"><button class="btn ghost sm" id="pkWall" ${cur?.wall?'':'disabled'}>All on this wall</button><button class="btn ghost sm" id="pkPod" ${cur?'':'disabled'}>All in this pod</button></div>
+    ${L.length?`<ul class="pk-list">${L.map(o=>`<li>${esc(o.label||itemDef(o.k)?.name||o.k)} <small>${fmt(o.w)}${unitSign()}</small></li>`).join('')}</ul>`:''}
+    <div class="row"><button class="btn" id="pkGroup" ${L.length>1?'':'disabled'}>Group…</button><button class="btn ghost" id="pkDone">Done</button></div>
+    <p class="note">A group moves, turns and explodes as one. Name it (e.g. Kitchen) and it can be saved to the library.</p>`;
+  const done=()=>{ state.multiSel=false; state.selSet=[]; applyFurniture(); renderSide(); };
+  sideH.querySelector('#pkX').onclick=done; sideB.querySelector('#pkDone').onclick=done;
+  const add=list=>{ const S=new Set(ids); list.forEach(o=>S.add(o.id)); state.selSet=[...S]; state.selFurn=state.selSet[0]; applyFurniture(); renderSide(); };
+  sideB.querySelector('#pkWall').onclick=()=>add(furnitureOf().filter(o=>o.pod===cur.pod && o.wall && o.wall===cur.wall));
+  sideB.querySelector('#pkPod').onclick=()=>add(furnitureOf().filter(o=>o.pod===cur.pod));
+  sideB.querySelector('#pkGroup').onclick=async()=>{
+    if(new Set(L.map(o=>o.pod)).size>1){ toast('A group stays in one pod. Pick items in the same pod.'); return; }
+    if(L.some(o=>o.grp)){ toast('Some of these are already in a group. Ungroup them first.'); return; }
+    const name=await askName({ title:'Name the group', placeholder:'e.g. Kitchen · white shaker', note:'It moves, turns and explodes as one.' }); if(!name) return;
+    makeGroup(ids, name); state.multiSel=false; state.selSet=[]; state.selFurn=ids[0]; applyFurniture(); renderSide(); toast(`Grouped as “${name}”`); };
+  return true;
+}
+function groupSide(sideH, sideB, it){
+  const g=it.grp, M=groupMembers(g.id), src=g.from && kitchenById(g.from), ed=canSave();
+  sideH.innerHTML=`<button class="side-x" id="sideXf" aria-label="Back to the whole home">✕</button><div class="eyebrow">Group${src?` · from the saved kitchen “${esc(src.name)}”`:''}</div><h2>${esc(g.name)}</h2><p>${M.length} items · drag any of them to move the group, two fingers to turn it</p>`;
+  sideH.querySelector('#sideXf').onclick=()=>{ state.selFurn=null; applyFurniture(); renderSide(); };
+  sideB.innerHTML=`<ul class="pk-list">${M.map(o=>`<li>${esc(o.label||itemDef(o.k)?.name||o.k)} <small>${fmt(o.w)}${unitSign()}</small></li>`).join('')}</ul>
+    ${ed?`<div class="row"><button class="btn ghost sm" id="gRen">Rename</button><button class="btn ghost sm" id="gUn">Ungroup to edit</button><button class="btn ghost sm" id="gRm">Remove group</button></div>`:''}
+    <div class="row editor-only"><button class="btn" id="gSave">Save to kitchen library…</button></div>
+    ${ed && !canEdit()?'<p class="note">This kitchen stays in your draft or the customer’s home. An editor or admin can adopt it into the kitchen library later.</p>':''}`;
+  sideB.querySelector('#gRen')?.addEventListener('click', async()=>{ const v=await askName({ title:'Rename the group', current:g.name }); if(!v) return; renameGroup(g.id, v); renderSide(); });
+  sideB.querySelector('#gUn')?.addEventListener('click', ()=>{ ungroup(g.id); applyFurniture(); renderSide(); toast(`Ungrouped · change what you need, then Relink “${g.name}” on any of its items`); });
+  sideB.querySelector('#gRm')?.addEventListener('click', e=>{ const b=e.target; if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent=`Tap again: remove all ${M.length}`; return; } const ids=M.map(o=>o.id); removeGroup(g.id); ids.forEach(id=>refreshItem({id})); state.selFurn=null; applyFurniture(); renderSide(); toast(`${g.name} removed`); });
+  sideB.querySelector('#gSave')?.addEventListener('click', ()=>saveGroupDialog(it));
+}
+/* save a group to the kitchen library: a new kitchen, or (after a warning) over the saved kitchen it came from */
+function saveGroupDialog(it){
+  if(!canEdit()){ toast('Editors and admins save kitchens to the library.'); return; }
+  const g=it.grp, M=groupMembers(g.id), src=g.from && kitchenById(g.from);
+  const anchor = M.find(o=>o.wall) || it, recipe=groupRecipe(M, anchor);
+  let d=document.getElementById('kitDlg'); if(!d){ d=document.createElement('dialog'); d.id='kitDlg'; d.className='lib-dlg'; document.body.appendChild(d); }
+  const step1=()=>{ d.innerHTML=`<div class="dlg"><div class="dlg-h"><h2>Save “${esc(g.name)}” to the kitchen library</h2><button class="btn ghost" id="kX">Cancel</button></div>
+      <label class="fld">Name<input id="kN" value="${esc(g.name)}" maxlength="80"></label><label class="fld">Note (optional)<input id="kNote" maxlength="200" placeholder="e.g. 10′ galley, 24″ range, bottom-freezer fridge"></label>
+      <div class="row"><button class="btn" id="kNew">Save as a new kitchen</button>${src?`<button class="btn ghost danger" id="kOver">Update “${esc(src.name)}”…</button>`:''}</div>
+      <p class="note">Homes that already have this kitchen keep their own copy. A saved kitchen only changes what's dropped in from now on.</p></div>`;
+    d.querySelector('#kX').onclick=()=>d.close();
+    d.querySelector('#kNew').onclick=async e=>{ const name=d.querySelector('#kN').value.trim()||g.name; e.target.disabled=true;
+      try{ const K=await saveKitchen({ id:newKitchenId(name), name, note:d.querySelector('#kNote').value.trim(), items:recipe }); setGroupFrom(g.id, K.id); renameGroup(g.id, name); d.close(); renderSide(); toast(`“${name}” saved to the kitchen library`); }catch(err){ toast('Not saved: '+err.message); e.target.disabled=false; } };
+    d.querySelector('#kOver')?.addEventListener('click', ()=>step2()); };
+  const step2=()=>{ d.innerHTML=`<div class="dlg"><div class="dlg-h"><h2>Update “${esc(src.name)}”?</h2></div>
+      <p class="pub-warn"><b>Warning.</b> This replaces the saved kitchen <b>${esc(src.name)}</b> in the library for the whole team. Everyone dropping it in from now on gets this version. The version it replaces is kept on the server.</p>
+      <label class="fld">Type “${esc(src.name)}” to confirm<input id="kC" autocomplete="off"></label>
+      <div class="row"><button class="btn danger" id="kGo" disabled>Update ${esc(src.name)}</button><button class="btn ghost" id="kBack">Back</button></div></div>`;
+    const c=d.querySelector('#kC'), go=d.querySelector('#kGo'); c.oninput=()=>{ go.disabled=c.value.trim().toLowerCase()!==src.name.trim().toLowerCase(); }; c.focus();
+    d.querySelector('#kBack').onclick=step1;
+    go.onclick=async()=>{ go.disabled=true; try{ await saveKitchen({ id:src.id, name:src.name, note:src.note||'', items:recipe }, true); d.close(); renderSide(); toast(`“${src.name}” updated in the kitchen library`); }catch(err){ toast('Not saved: '+err.message); go.disabled=false; } }; };
+  step1(); d.showModal();
+}
 function furnSide(sideH, sideB){
+  if(state.multiSel) return pickSide(sideH, sideB);
   const it=furnById(state.selFurn); if(!it) return false;
+  if(it.grp) { groupSide(sideH, sideB, it); return true; }
   const d=itemDef(it.k), cat=catOf(d.cat), n=partsOf(it).filter(p=>!p.hw&&!p.solid).length, tot=totals([it]);
   sideH.innerHTML=`<button class="side-x" id="sideXf" title="Back to the whole home" aria-label="Back to the whole home">✕</button><div class="eyebrow">${esc(cat.name)}</div><h2>${esc(it.label||d.name)}${it.label?` <small class="muted">${esc(d.name)}</small>`:''}${canSave()?' <button class="linkbtn ren-link" id="fName">Name</button>':''}</h2><p>${sizeTxt(it)}${it.y?` · ${show(it.y)}${unitSign()} off the floor`:''}${n?` · ${n} parts · ${Object.entries(tot.area).map(([k,a])=>`${k}″ ${a.toFixed(1)} sq ft`).join(' · ')}`:''}</p>`;
   sideH.querySelector('#sideXf').onclick=()=>{ state.selFurn=null; applyFurniture(); renderSide(); };
@@ -347,7 +407,8 @@ function furnSide(sideH, sideB){
   const iso=state.isolate==='furn:'+it.id;
   sideB.innerHTML=`<div class="row"><button class="btn" id="fOpen">3D, exploded &amp; parts</button><button class="btn ghost" id="fIso" aria-pressed="${iso}">${iso?'Exit isolate':'Isolate'}</button></div>
     ${iso?'<p class="note">Spread three fingers (or press <b>Exploded view</b>) to take it apart right here; pinch to put it back.</p>':''}
-    ${ed?`<div class="row"><button class="btn ghost sm" id="fTurn">Turn 90°</button><button class="btn ghost sm" id="fMir" aria-pressed="${!!it.mirror}">Mirror</button><button class="btn ghost sm" id="fDup">Duplicate</button><button class="btn ghost sm" id="fRm">Remove</button></div>`:''}
+    ${ed?`<div class="row"><button class="btn ghost sm" id="fTurn">Turn 90°</button><button class="btn ghost sm" id="fMir" aria-pressed="${!!it.mirror}">Mirror</button><button class="btn ghost sm" id="fDup">Duplicate</button><button class="btn ghost sm" id="fRm">Remove</button></div>
+    <div class="row"><button class="btn ghost sm" id="fPick">Pick several…</button>${it.was?`<button class="btn sm" id="fRelink">Relink “${esc(it.was.name)}”</button>`:''}</div>`:''}
     <div class="cw-sizes compact">
       ${['w','h','d','y'].map(k=>`<label class="cw-f"><span>${{w:'Width',h:'Height',d:'Depth',y:'Off the floor'}[k]}</span><input data-fl="${k}" value="${esc(show(it[k]||0))}" inputmode="decimal" ${!ed||(d.fixed&&k!=='y')?'disabled':''}><i>${unitSign()}</i></label>`).join('')}
     </div>
@@ -355,6 +416,8 @@ function furnSide(sideH, sideB){
     <p class="note">Drag it in the plan (Build) to move it along the walls; it backs onto the nearest wall and butts up to the cabinets beside it.${it.wall?' Its depth counts for the pot lights along this wall.':''}</p>`;
   const ch=patch=>{ updateItem(it.id, patch); if(d.sized && patch.opt) Object.assign(it, d.sized(it)); refreshItem(it); renderSide(); };
   sideB.querySelector('#fOpen').onclick=()=>openCaseLib({edit:it.id});
+  sideB.querySelector('#fPick')?.addEventListener('click',()=>{ state.multiSel=true; state.selSet=[it.id]; applyFurniture(); renderSide(); });
+  sideB.querySelector('#fRelink')?.addEventListener('click',()=>{ const nm=it.was.name, n=relinkGroup(it.was.id); applyFurniture(); renderSide(); toast(`Relinked “${nm}” (${n} items)`); });
   sideB.querySelector('#fIso').onclick=()=>{ setIsolate(iso?null:'furn:'+it.id, d.name); renderSide(); };
   sideB.querySelector('#fTurn')?.addEventListener('click',()=>{ turnItem(it.id); refreshItem(it); renderSide(); });
   sideB.querySelector('#fMir')?.addEventListener('click',()=>{ ch({mirror:!it.mirror}); toast(it.mirror?'Mirrored':'Back as drawn'); });
