@@ -11,7 +11,7 @@
    inside items from the left end seen from INSIDE; openings by their bottom-left corner, face items by centre. */
 import { LIB, byId, mirrorWall, saveWallLib } from './data.js';
 import { state } from './state.js';
-import { canSave } from './role.js';
+import { canSave, canEdit } from './role.js';
 import { buildHome } from './scene3d.js';
 import { renderSide, toast } from './sidebar.js';
 import { choose } from './state.js';
@@ -271,7 +271,7 @@ function render(){
         ${layoutPanel()}
         ${rulesPanel()}
         <div class="wb-save"><input id="wbName" value="${esc(W.name||'')}" placeholder="${esc(autoName())}" aria-label="Name">
-          ${canSave()?`<button class="btn sm" id="wbSave">${libHit?'Save':'Save to library'}</button>${libHit?'<button class="btn ghost sm" id="wbSaveNew">Save as new</button>':''}`:'<span class="wb-mini">Viewers can look but not save.</span>'}</div>
+          ${canEdit()?`<button class="btn sm" id="wbSave">${libHit?'Save':'Save to library'}</button>${libHit?'<button class="btn ghost sm" id="wbSaveNew">Save as new</button>':''}`:'<span class="wb-mini">Look only: editors and admins change walls.</span>'}</div>
         ${forSlot?`<p class="wb-mini">Saving also puts it on ${esc(forSlot.label)}.</p>`:''}
       </div></div></div>`;
   bind();
@@ -371,7 +371,7 @@ function resnapAll(){ W.openings.forEach(o=>snapToChase('op',o)); ['inside','out
 const SIDE = [['free','Free'],['chase','Chases'],['fixed','Fixed']];
 function rulesPanel(){
   RD ||= JSON.parse(JSON.stringify(rules()));
-  const ed=canSave(), inp=(k,f,v)=>`<input data-r="${k}:${f}" inputmode="decimal" value="${v==null?'':Math.round(v*16)/16}" ${ed?'':'disabled'}>`;
+  const ed=canEdit(), inp=(k,f,v)=>`<input data-r="${k}:${f}" inputmode="decimal" value="${v==null?'':Math.round(v*16)/16}" ${ed?'':'disabled'}>`;
   const lk=(k,f,on)=>`<button class="wb-lock${on?'':' open'}" data-rl="${k}:${f}" aria-pressed="${!!on}" ${ed?'':'disabled'} title="${on?'Locked: can only be changed on purpose, one item at a time':'Free to change'}">${on?'🔒':'🔓'}</button>`;
   return `<details class="wb-rules" ${rulesOpen?'open':''}><summary>Defaults &amp; locks <span class="note">for every wall built</span></summary>
     <p class="note">New items start at these heights and depths. 🔒 = locked: it can't be dragged or typed, only unlocked on purpose on one item. Chases = snaps sideways to the centre of the nearest electrical chase (6″ in from each original panel edge, then every foot: 6, 18, 30, 42).</p>
@@ -398,7 +398,7 @@ function bindRules(){
 function mapPath(o, f){ ['ends','path'].forEach(k=>{ if(o[k]) o[k]=o[k].map(([x,y])=>[f(x),y]); }); }
 const nextId=(prefix)=>{ let n=1; while(LIB.some(x=>x.id===`${prefix}-${String(n).padStart(2,'0')}`)) n++; return `${prefix}-${String(n).padStart(2,'0')}`; };
 async function saveWall(asNew){
-  if(!canSave()){ toast('Viewers can look but not save walls.'); return; }
+  if(!canEdit()){ toast('Only editors and admins can change walls.'); return; }
   const w=clone(W); w.name=(dlg.querySelector('#wbName')?.value||'').trim() || autoName(); w.t = w.type==='int'?4.5:6.5;
   if(asNew || !origin) w.id=nextId(`${w.type==='int'?'I':'W'}${String(w.len).padStart(2,'0')}`); else w.id=origin;
   w.source=`Wall builder ${new Date().toISOString().slice(0,10)}`;

@@ -69,9 +69,9 @@ function restoreDraft(key){ const t=trash(), it=t.find(x=>x.item.key===key); if(
   unpack(it.item); MODELS[key].custom=true; saveCustomModels(); save(); push(key);
   try{ localStorage.setItem(TRASH_KEY, JSON.stringify(t.filter(x=>x!==it))); }catch(e){}
   return true; }
-async function deleteDraft(k){
+async function deleteDraft(k, { moved=false }={}){   // moved: it went to Purgatory, a customer or Cubit Homes (nothing to keep)
   if(!isDraft(k)) return;
-  try{ const t=trash().filter(x=>x.item.key!==k); t.push({ at:new Date().toISOString(), item:pack(k) }); localStorage.setItem(TRASH_KEY, JSON.stringify(t)); }catch(e){}
+  if(!moved) try{ const t=trash().filter(x=>x.item.key!==k); t.push({ at:new Date().toISOString(), item:pack(k) }); localStorage.setItem(TRASH_KEY, JSON.stringify(t)); }catch(e){}
   const from=MODELS[k].from; delete MODELS[k]; FIELDS.forEach(f=>{ if(state[f]) delete state[f][k]; });
   if(state.model===k) state.model = (from && MODELS[from]) ? from : (Object.keys(MODELS).find(x=>!MODELS[x].custom && !MODELS[x].deleted) || state.model);
   saveCustomModels(); save();

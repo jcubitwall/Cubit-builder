@@ -11,7 +11,7 @@ import { thumbSVG } from './panels.js';
 import { familyOf, familyById, FAMILIES, variantsOf } from './catalog.js';
 import { renderModels, renderSide, toast } from './sidebar.js';
 import { buildHome } from './scene3d.js';
-import { canSave } from './role.js';
+import { canSave, canEdit } from './role.js';
 import { openViewer } from './viewer3d.js';
 
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -24,7 +24,7 @@ function refresh(after){ renderModels(); renderSide(); if(after) after(); if(dlg
 /* ---------- rename: a small window with the name ready to type over */
 let ren=null;
 function askRename(kind, id, after){
-  if(!canSave()){ toast('Viewers can look but not change the library.'); return; }
+  if(!canEdit()){ toast('Only editors and admins can change the library.'); return; }
   const it=find(kind,id); if(!it) return;
   if(!ren){ ren=document.createElement('dialog'); ren.id='renDlg'; ren.className='lib-dlg';
     ren.innerHTML=`<form method="dialog" class="dlg"><div class="dlg-h"><h2 id="renT">Rename</h2></div>
@@ -42,7 +42,7 @@ function askRename(kind, id, after){
 }
 /* ---------- delete: tap twice (the button says what's at stake the first time) */
 async function askDelete(btn, kind, id, after){
-  if(!canSave()){ toast('Viewers can look but not change the library.'); return; }
+  if(!canEdit()){ toast('Only editors and admins can change the library.'); return; }
   if(btn.dataset.sure!=='1'){
     const u=usedBy(kind,id,state);
     btn.dataset.sure='1'; btn.textContent = u.length ? `Used in ${u.length} — tap to delete` : 'Tap again to delete';
@@ -88,7 +88,7 @@ function render(){
   body.innerHTML = list.length ? list.map(r=>`<div class="lib-row" data-view="${esc(r.id)}" title="Tap to see it in 3D">${r.thumb?`<span class="lib-th">${r.thumb}</span>`:''}
       <div class="lib-t"><b>${esc(r.it.name)}</b><small><code>${esc(r.id)}</code> · ${esc(r.sub)}${showGone && r.it.deletedAt ? ` · deleted ${when(r.it.deletedAt)}, kept until ${until(r.it.deletedAt)}` : ''}</small></div>
       ${r.draft?'':`<button class="btn ghost sm lib-3d" data-view="${esc(r.id)}" aria-label="See ${esc(r.it.name)} in 3D">3D</button>`}
-      <div class="lib-a edit-only">${showGone ? `<button class="btn ghost sm" ${r.draft?'data-resdraft':'data-res'}="${esc(r.id)}">Restore</button>`
+      <div class="lib-a editor-only">${showGone ? `<button class="btn ghost sm" ${r.draft?'data-resdraft':'data-res'}="${esc(r.id)}">Restore</button>`
         : `<button class="btn ghost sm" data-ren="${esc(r.id)}">Rename</button><button class="btn ghost sm danger" data-del="${esc(r.id)}">Delete</button>`}</div></div>`).join('')
     : `<p class="note">${showGone ? 'Nothing deleted here.' : q ? 'Nothing matches.' : 'Empty.'}</p>`;
 }

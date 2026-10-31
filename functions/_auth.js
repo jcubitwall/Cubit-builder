@@ -1,7 +1,7 @@
 /* Cubit Builder — who is asking, and what they may do.
    The whole site sits behind Cloudflare Access, so only invited people get in at all. Access signs every
    request with a JWT (header Cf-Access-Jwt-Assertion / cookie CF_Authorization). We verify it here and
-   look the email up in ADMIN_EMAILS: admins can upload STEP files; everyone else is a viewer.
+   look up the email's role (see whoIs below).
 
    Settings (Cloudflare Pages → Settings → Variables and secrets):
      ACCESS_TEAM    your Access team domain, e.g. cubit.cloudflareaccess.com (optional: if it is not set, the
@@ -37,10 +37,35 @@ async function verify(token, env){
   if(!aud.includes(env.ACCESS_AUD) || claims.exp*1000 < Date.now()) return null;
   return claims;
 }
+/* Roles, lowest to highest:
+     user     look at everything (explode, walls, labels, production guidance); saves nothing
+     sales    + customers, swap walls, add / move pods, basic choices with a client, save to Purgatory / a customer
+     editor   + everything that changes homes and libraries (panel builder, windows, plugs, delete, adopt into Cubit Homes)
+     admin    + app settings, the team list, STEP uploads
+   ADMIN_EMAILS (Cloudflare setting) are always admins. Everyone else gets the role an admin gave them in the app
+   (⋯ → Team, kept in R2 at catalog/team.json); anyone else who can log in is a user. */
+export const RANK = { user:0, sales:1, editor:2, admin:3 };
+export const ROLES = Object.keys(RANK);
+export const TEAM_KEY = 'catalog/team.json';
+let teamCache = { at:0, v:null };
+export const forgetTeam = () => { teamCache = { at:0, v:null }; };
+export async function teamOf(env){
+  if(!env.STEPS) return {};
+  if(teamCache.v && Date.now()-teamCache.at < 15000) return teamCache.v;
+  let v = {}; try{ const o = await env.STEPS.get(TEAM_KEY); if(o) v = (await o.json()).members || {}; }catch(e){}
+  teamCache = { at:Date.now(), v }; return v;
+}
 export async function whoIs(request, env){
   const claims = await verify(request.headers.get('Cf-Access-Jwt-Assertion') || cookie(request,'CF_Authorization'), env);
   if(!claims?.email) return { email:null, role:'none' };
+  const mail = claims.email.toLowerCase();
   const admins = (env.ADMIN_EMAILS||'').toLowerCase().split(',').map(s=>s.trim()).filter(Boolean);
-  return { email: claims.email, role: admins.includes(claims.email.toLowerCase()) ? 'admin' : 'viewer' };
+  if(admins.includes(mail)) return { email: claims.email, role:'admin', fixed:true };
+  const t = (await teamOf(env))[mail];
+  return { email: claims.email, role: RANK[t?.role] != null ? t.role : 'user' };
 }
+/* at least this role? */
+export const atLeast = (me, role) => (RANK[me?.role] ?? -1) >= RANK[role];
+const WHO = { sales:'salespeople, editors and admins', editor:'editors and admins', admin:'admins' };
+export const denied = role => new Response(JSON.stringify({ error:`Only ${WHO[role]} can do that.` }), { status:403, headers:{ 'content-type':'application/json', 'cache-control':'no-store' } });
 export const json = (obj, status=200) => new Response(JSON.stringify(obj), { status, headers:{ 'content-type':'application/json', 'cache-control':'no-store' } });

@@ -16,6 +16,8 @@ import { loadRole } from './role.js';
 import { initUpload } from './upload.js';
 import { loadUnits } from './units.js';
 import { loadCatalog } from './catalog.js';
+import { loadCustomers } from './customers.js';
+import './team-ui.js';
 import { loadEdits } from './libedit.js';
 import { startBuild } from './build.js';
 import './library-ui.js';
@@ -29,7 +31,8 @@ import { toast } from './sidebar.js';
 import { MODELS } from './data.js';
 /* the first change to a Cubit model went into your own draft copy */
 window.addEventListener('cubit:draft', e=>{ setTimeout(()=>{ renderModels(); buildHome(); renderSide(); }, 0);
-  setTimeout(()=>toast(`Editing your draft of ${MODELS[e.detail.from]?.name||'this home'} · the Cubit model is unchanged`), 1800); });   // after the change's own message
+  const F=MODELS[e.detail.from];
+  setTimeout(()=>toast(F?.locked ? `${F.name} is signed and locked · your change went into a draft in My Drafts` : `Editing your draft of ${F?.name||'this home'} · the original is unchanged`), 1800); });   // after the change's own message
 import { initPhone } from './phone.js';
 import { initZoomView } from './zoomview.js';
 
@@ -65,7 +68,7 @@ document.getElementById('bPlan').onclick=()=>{ if(state.view==='plan'){ closePla
 document.querySelectorAll('.hint').forEach(h=>{ const host=h.parentNode; const off=()=>{ h.classList.add('gone'); host.removeEventListener('pointerdown',off); }; host.addEventListener('pointerdown',off); });
 
 (async function boot(){
-  try{ await loadRole(); await loadData(); await loadUnits(); await loadProjects(); await loadCatalog(); await loadEdits(); await loadSettings(); await loadFixtures(); await loadRules(); await loadShapes(); }
+  try{ await loadRole(); await loadData(); await loadUnits(); await loadProjects(); await loadCustomers(); await loadCatalog(); await loadEdits(); await loadSettings(); await loadFixtures(); await loadRules(); await loadShapes(); }
   catch(e){ document.getElementById('sideH').innerHTML='<h2>Could not load the wall library</h2><p>Open the app from its web address (GitHub Pages) or a local web server, not by double-clicking the file.</p>'; return; }
   initState(); try{ await loadDrafts(); }catch(e){}
   initProjectsUI(); initUpload();

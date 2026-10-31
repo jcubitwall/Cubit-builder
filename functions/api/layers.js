@@ -2,7 +2,7 @@
    POST /api/layers {op:'save', layer}  admins: add or replace one (the version it replaces is kept)
         {op:'delete', id}
    Kept in the R2 bucket (binding STEPS): layers/index.json, earlier versions under layers/history/<id>/. */
-import { whoIs, json } from '../_auth.js';
+import { whoIs, json, atLeast, denied } from '../_auth.js';
 import { atomic } from '../_store.js';
 const KEY='layers/index.json';
 const KINDS=['floor-ext','floor-int','ceiling-int','roof'];
@@ -13,7 +13,7 @@ export async function onRequestGet({ request, env }){
   return json(env.STEPS ? await read(env) : []);
 }
 export async function onRequestPost({ request, env }){
-  const me=await whoIs(request, env); if(me.role!=='admin') return json({ error:'Only admins can change the layer library.' }, 403);
+  const me=await whoIs(request, env); if(!atLeast(me,'editor')) return denied('editor');
   if(!env.STEPS) return json({ error:'Storage is not set up (R2 binding STEPS).' }, 500);
   const b=await request.json().catch(()=>null);
   if(!b || !['save','delete'].includes(b.op)) return json({ error:'Bad request.' }, 400);

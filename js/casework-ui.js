@@ -8,7 +8,7 @@ import { itemModel } from './casework3d.js';
 import { frontSVG } from './casework-svg.js';
 import { furnitureOf, furnById, updateItem, removeItem, duplicateItem, turnItem, refreshItem, addItem, snap, applyFurniture, podsShown, freeSpot } from './furniture.js';
 import { state, save } from './state.js';
-import { canSave } from './role.js';
+import { canSave, canEdit } from './role.js';
 import { homeGroup, wallGroups, highlight } from './scene3d.js';
 import { renderSide, toast } from './sidebar.js';
 import { setPanel, panelOpen } from './fullscreen.js';
@@ -290,7 +290,7 @@ const LABEL = { cup:'Cup diameter', depth:'Cup and dowel depth', edge:'Cup centr
 const getP = (o,p) => p.split('.').reduce((a,k)=>a?.[k], o);
 function setP(o,p,v){ const ks=p.split('.'); const last=ks.pop(); const t=ks.reduce((a,k)=>(a[k] ??= {}), o); t[last]=v; }
 function renderSettings(body){
-  const S=JSON.parse(JSON.stringify(settings())), ro=!canSave();
+  const S=JSON.parse(JSON.stringify(settings())), ro=!canEdit();
   const field=f=>{ const v=getP(S,f.path);
     if(f.kind==='text') return `<label class="cw-f"><span>${f.label}</span><input data-p="${f.path}" data-kind="text" value="${esc(v)}" ${ro?'disabled':''}></label>`;
     if(f.kind==='bool') return `<div class="cw-f"><span>${f.label}</span><div class="seg"><button data-p="${f.path}" data-v="1" data-bool="1" aria-pressed="${!!v}" ${ro?'disabled':''}>Yes</button><button data-p="${f.path}" data-v="0" data-bool="1" aria-pressed="${!v}" ${ro?'disabled':''}>No</button></div></div>`;

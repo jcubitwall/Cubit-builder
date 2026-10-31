@@ -15,7 +15,7 @@
    On a ceiling the pot lights stay with the light rules (and Lights by hand); they show here faintly. */
 import { LAYERLIB, layerById, mirrorLayer, forgetLayerMirrors, saveLayerLib } from './data.js';
 import { state, chooseLayer } from './state.js';
-import { canSave } from './role.js';
+import { canSave, canEdit } from './role.js';
 import { buildHome } from './scene3d.js';
 import { renderSide, toast } from './sidebar.js';
 import { slotsFor } from './layout.js';
@@ -194,7 +194,7 @@ function render(){
         ${shapePick?`<div class="wb-shapes">${SHAPELIB.length ? SHAPELIB.map(s=>`<button class="wb-shp" data-shape="${esc(s.id)}">${shapeThumb(s)}<span><b>${esc(s.name)}</b><small>${fin(s.w||0)} × ${fin(s.h||0)}</small></span></button>`).join('') : '<p class="note">No shapes yet: Draw a new shape.</p>'}</div>`:''}
         ${fields()}
         <div class="wb-save"><input id="lbName" value="${esc(Lr.name||'')}" placeholder="${esc(autoName())}" aria-label="Name">
-          ${canSave()?`<button class="btn sm" id="lbSave">${libHit?'Save':'Save to library'}</button>${libHit?'<button class="btn ghost sm" id="lbSaveNew">Save as new</button>':''}`:'<span class="wb-mini">Viewers can look but not save.</span>'}</div>
+          ${canEdit()?`<button class="btn sm" id="lbSave">${libHit?'Save':'Save to library'}</button>${libHit?'<button class="btn ghost sm" id="lbSaveNew">Save as new</button>':''}`:'<span class="wb-mini">Look only: editors and admins change floors and roofs.</span>'}</div>
         ${forSlot?`<p class="wb-mini">Saving also puts it on ${esc(forSlot.label)}.</p>`:''}
       </div></div></div>`;
   bind();
@@ -287,7 +287,7 @@ function bind(){
 }
 const nextId=prefix=>{ let n=1; while(LAYERLIB.some(x=>x.id===`${prefix}-${String(n).padStart(2,'0')}`)) n++; return `${prefix}-${String(n).padStart(2,'0')}`; };
 async function saveLayer(asNew){
-  if(!canSave()){ toast('Viewers can look but not save.'); return; }
+  if(!canEdit()){ toast('Only editors and admins can change floors and roofs.'); return; }
   const l=clone(Lr); l.name=(dlg.querySelector('#lbName')?.value||'').trim() || autoName();
   l.t=T(); l.z=l.z ?? K().z;
   // a floor keeps how the standard cassette is built (rims, EPS, blocks, frame) unless it already says

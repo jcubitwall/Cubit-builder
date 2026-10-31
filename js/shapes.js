@@ -12,7 +12,7 @@
    expand*() turn it into the ordinary cuts the 3D view, the sheets and the G-code already know: exact outlines
    ('poly' + path) with the bit's paths worked out (tool rings), through cuts as openings / holes, pockets as face
    cuts with their depth. A pocket as deep as the panel is a through cut. */
-import { canSave } from './role.js';
+import { canSave, canEdit } from './role.js';
 import { flatten, bbox, bboxAll, mirrorAll, normalize, toolRings, area } from './geom2d.js';
 
 const SHAPELIB=[];
@@ -28,7 +28,7 @@ const shapeById = id => SHAPELIB.find(s=>s.id===id);
 const nextShapeId = () => { let n=1; while(SHAPELIB.some(s=>s.id===`SH-${String(n).padStart(2,'0')}`)) n++; return `SH-${String(n).padStart(2,'0')}`; };
 function keepLocal(){ try{ localStorage.setItem(KEY, JSON.stringify(SHAPELIB.filter(s=>s.src==='saved'))); }catch(e){} }
 async function saveShape(shape){
-  if(!canSave()) throw new Error('Viewers can look but not save.');
+  if(!canEdit()) throw new Error('Only editors and admins can change the shape library.');
   const s=JSON.parse(JSON.stringify(shape)); delete s.src;
   const B=boxOf(s); s.w=+B.w.toFixed(4); s.h=+B.h.toFixed(4);
   let shared=false;

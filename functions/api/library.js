@@ -5,7 +5,7 @@
    small JSON file in the R2 bucket (binding STEPS, key catalog/library-edits.json) and laid over the library
    files when the app loads. A deleted item is hidden from every list; homes already using it keep working, and
    it can be brought back. */
-import { whoIs, json } from '../_auth.js';
+import { whoIs, json, atLeast, denied } from '../_auth.js';
 import { atomic } from '../_store.js';
 const KEY = 'catalog/library-edits.json';
 const KINDS = ['families','models','pods','walls','layers','decks'];
@@ -22,7 +22,7 @@ export async function onRequestGet({ request, env }){
 }
 export async function onRequestPost({ request, env }){
   const me = await whoIs(request, env);
-  if(me.role !== 'admin') return json({ error:'Only admins can change the library.' }, 403);
+  if(!atLeast(me,'editor')) return denied('editor');
   if(!env.STEPS) return json({ error:'Storage is not set up (R2 binding STEPS).' }, 500);
   const b = await request.json().catch(()=>null);
   if(!b || !['rename','delete','restore','hand'].includes(b.op) || !KINDS.includes(b.kind) || typeof b.id !== 'string' || !b.id || b.id.length > 80) return json({ error:'Bad request.' }, 400);

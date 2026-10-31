@@ -11,7 +11,7 @@ import { pickLayer } from './state.js';
 import { lightsIn, editsOf, setEdits, ceilingFrame, LIGHT } from './lights.js';
 import { buildHome } from './scene3d.js';
 import { renderSide, toast } from './sidebar.js';
-import { canSave } from './role.js';
+import { canSave, canEdit } from './role.js';
 
 let sel={ pod:null, ids:new Set() }, adding=false, step=1;
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -27,7 +27,7 @@ function basis(ls){
 function lights(ls){ return lightsIn(pickLayer(ls), ls); }
 
 function lightEditorHTML(ls){
-  const L=pickLayer(ls), len=ls.len*12, B=basis(ls), ids=selFor(ls), pts=lights(ls), ed=canSave();
+  const L=pickLayer(ls), len=ls.len*12, B=basis(ls), ids=selFor(ls), pts=lights(ls), ed=canEdit();
   const corners=[[0,0],[len,0],[len,96],[0,96]].map(([x,z])=>B.toP(x,z)), xs=corners.map(c=>c[0]), zs=corners.map(c=>c[1]);
   const x0=Math.min(...xs)-6, z0=Math.min(...zs)-6, W=Math.max(...xs)-x0+6, H=Math.max(...zs)-z0+6;
   const other=(L.holes||[]).filter(h=>!h.light && h.w>1.2).map(h=>{ const c=[[h.x,h.z],[h.x+h.w,h.z],[h.x+h.w,h.z+h.d],[h.x,h.z+h.d]].map(([x,z])=>B.toP(x,z)); return `<polygon points="${c.map(p=>p.join(',')).join(' ')}" class="le-hole"/>`; }).join('');

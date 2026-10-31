@@ -13,7 +13,9 @@ import { pickFor, save, state, choose, pickLayer, chooseLayer, foundationOf, set
 import { ocSeg, bindOC } from './deckframe.js';
 import { concretePlan } from './concrete.js';
 import { FAMILIES, familyOf, familyById, variantsOf, saveSub, removeSub, editSub } from './catalog.js';
-import { isAdmin, canSave } from './role.js';
+import { isAdmin, canSave, canEdit } from './role.js';
+import { myDrafts } from './drafts.js';
+import { liveCustomers, CUSTOMERS, restoreCustomer } from './customers.js';
 import { TYPES, unitsFor, unitFor, setUnit, unitSVG, unitLabel, catOf, okey, pairOf, doorOwner, setDoorOwner } from './units.js';
 import { fin } from './format.js';
 import { setIsolate, setPod } from './layers.js';
@@ -33,34 +35,59 @@ import './compass-ui.js';
 const sideH=document.getElementById('sideH'), sideB=document.getElementById('sideB');
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-/* the header: one chip per model name; under the one you're on, its standard layout and sub-models */
+/* the home picker: four categories, one list at a time
+     Cubit Homes  the originals, by model name (the standard layout and its variations). Protected: a change makes a
+                  draft. Editors and admins adopt homes into it and replace or delete originals, deliberately.
+     My Drafts    your own working copies (only you see them)
+     Purgatory    homes saved for the team to review (team projects without a customer)
+     Customers    each customer and the home(s) linked to them */
 const famPick = {};   // last home opened under each model name (this visit)
-let openFam, famInit=false;   // the model name whose designs are listed ('none' = closed; null = the homes not filed yet)
-const KIND = k => { const m=MODELS[k]; return familyById(familyOf(k))?.base===k ? ['Cubit model','base'] : m.sub ? ['Variations','sub'] : m.project ? ['Team projects','proj'] : m.custom ? ['My drafts','draft'] : ['Other','other']; };
+let openFam, famInit=false, homeCat=null, custOpen=null;
+const catOfHome = k => { const m=MODELS[k]; if(!m) return 'cubit'; if(m.custom) return 'drafts'; if(m.project) return m.customer ? 'cust' : 'purg'; return 'cubit'; };
+const isOriginal = k => { const m=MODELS[k]; return !!m && !m.deleted && !m.custom && !m.project; };
 function renderModels(){
   applyEdits();
   const el=document.getElementById('models');
   const fam=familyOf(state.model)||null;
   if(fam) famPick[fam]=state.model;
+  if(!homeCat) homeCat=catOfHome(state.model);
   if(!famInit){ openFam=fam; famInit=true; }
-  const unfiled=variantsOf(null);
-  const chip=(id,name,list,extra='')=>`<button class="chip fam ${list.length?'':'empty'}" data-f="${id??''}" aria-pressed="${openFam===id}" aria-expanded="${openFam===id}">${esc(name)}<small>${list.length} design${list.length===1?'':'s'}</small><span class="caret" aria-hidden="true">▾</span>${extra}</button>`;
-  let h = FAMILIES.filter(f=>!f.deleted).map(f=>chip(f.id, f.name, variantsOf(f.id))).join('')
-    + (unfiled.length ? chip(null, 'Not filed yet', unfiled) : '')
-    + (canSave() ? `<button class="chip new" data-new="1">＋ New home</button>` : '');
-  const list = openFam!=='none' && (openFam===null ? unfiled : variantsOf(openFam));
-  if(list && (openFam!==null || unfiled.length)){
-    const groups={}; list.forEach(k=>{ const [g]=KIND(k); (groups[g] ||= []).push(k); });
-    h += `<div class="fam-list" role="listbox" aria-label="${esc(openFam ? familyById(openFam)?.name : 'Not filed yet')} designs">${list.length ? Object.entries(groups).map(([g,ks])=>`<div class="fam-g"><div class="fam-gh">${g}</div>${ks.map(k=>{ const m=MODELS[k], [,cls]=KIND(k);
-      return `<button class="fam-it ${cls}" role="option" data-m="${k}" aria-selected="${k===state.model}"><b>${esc(m.name)}</b><small>${esc(m.size||'')}${m.team?' · team':''}${m.custom?' · only you see it':''}</small></button>`; }).join('')}</div>`).join('')
-      : `<p class="note">No design under ${esc(familyById(openFam)?.name||'')} yet. Start one with ＋ New home and pick ${esc(familyById(openFam)?.name||'it')}, or name a draft after it.</p>`}
-      ${openFam===null ? '<p class="note">Name a home after its model (it has “Nest”, “Cove”… in its name) or pick the model in its panel, and it moves under that model.</p>' : ''}</div>`;
+  const drafts=myDrafts(), purg=Object.keys(MODELS).filter(k=>MODELS[k].project && !MODELS[k].customer && !MODELS[k].deleted).sort((a,b)=>String(MODELS[b].saved||'').localeCompare(String(MODELS[a].saved||'')));
+  const custs=liveCustomers(), gone=CUSTOMERS.filter(c=>c.deleted), homesOf=c=>Object.keys(MODELS).filter(k=>MODELS[k].project && MODELS[k].customer===c.id);
+  const cubitN=Object.keys(MODELS).filter(isOriginal).length;
+  const tabs=[['cubit','Cubit Homes',cubitN], ...(canSave()||drafts.length?[['drafts','My Drafts',drafts.length]]:[]), ['purg','Purgatory',purg.length], ['cust','Customers',custs.length]];
+  let h=`<div class="hc-tabs" role="tablist" aria-label="Home categories">${tabs.map(([k,l,n])=>`<button role="tab" data-cat="${k}" aria-selected="${homeCat===k}">${l}<small>${n}</small></button>`).join('')}</div>`;
+  const item=(k,sub)=>{ const m=MODELS[k]; return `<button class="fam-it ${catOfHome(k)}" role="option" data-m="${k}" aria-selected="${k===state.model}"><b>${esc(m.name)}${m.locked?' <span class="lock-b" title="Signed and locked">🔒</span>':''}</b><small>${esc(sub ?? (m.size||''))}</small></button>`; };
+  const when = iso => iso ? new Date(iso).toLocaleDateString(undefined,{month:'short', day:'numeric'}) : '';
+  const who = e => e ? String(e).split('@')[0] : '';
+  if(homeCat==='cubit'){
+    const famList = f => variantsOf(f).filter(isOriginal);
+    const unfiled=famList(null);
+    const chip=(id,name,list)=>`<button class="chip fam ${list.length?'':'empty'}" data-f="${id??''}" aria-pressed="${openFam===id}" aria-expanded="${openFam===id}">${esc(name)}<small>${list.length}</small><span class="caret" aria-hidden="true">▾</span></button>`;
+    h+=`<div class="hc-chips">${FAMILIES.filter(f=>!f.deleted).map(f=>chip(f.id, f.name, famList(f.id))).join('')}${unfiled.length?chip(null,'Not filed yet',unfiled):''}</div>`;
+    const list = openFam!=='none' && openFam!==undefined ? famList(openFam) : null;
+    if(list) h+=`<div class="fam-list" role="listbox">${list.length ? list.map(k=>item(k, MODELS[k].sub ? `variation · ${MODELS[k].size||''}` : `standard · ${MODELS[k].size||''}`)).join('') : '<p class="note">No original under this model name yet. Editors adopt one from Purgatory or a draft.</p>'}</div>`;
+  } else if(homeCat==='drafts'){
+    h+=`<div class="fam-list" role="listbox">${canSave()?'<button class="fam-it new" data-new="1"><b>＋ New home</b><small>start from scratch</small></button>':''}${drafts.map(k=>item(k, MODELS[k].from&&MODELS[k].from!==k&&MODELS[MODELS[k].from] ? `from ${MODELS[MODELS[k].from].name}` : 'only you see it')).join('') || '<p class="note">No drafts. Change any home and your copy lands here.</p>'}</div>`;
+  } else if(homeCat==='purg'){
+    h+=`<div class="fam-list" role="listbox">${purg.map(k=>item(k, [MODELS[k].size, who(MODELS[k].by), when(MODELS[k].saved)].filter(Boolean).join(' · '))).join('') || '<p class="note">Nothing waiting. Save a draft to Purgatory for the team to review.</p>'}</div>`;
+  } else {
+    h+=`<div class="fam-list" role="listbox">${canSave()?'<button class="fam-it new" data-newcust="1"><b>＋ New customer</b><small>profile, then link a home</small></button>':''}${custs.map(c=>{ const hs=homesOf(c), open=custOpen===c.id || hs.includes(state.model);
+        return `<div class="cust-g"><button class="fam-it cust-h" data-copen="${esc(c.id)}" aria-expanded="${open}"><b>${esc(c.name)}</b><small>${c.status==='Signed'||Object.keys(c.signed||{}).length?'signed · ':''}${hs.length} home${hs.length===1?'':'s'}</small></button>
+          ${open?`<div class="cust-homes">${hs.map(k=>item(k, MODELS[k].locked?'signed · locked':'not signed yet')).join('')}${canSave()?`<button class="fam-it sub" data-cust="${esc(c.id)}"><b>Profile</b><small>details, selections, sign</small></button>`:''}</div>`:''}</div>`; }).join('') || '<p class="note">No customers yet.</p>'}
+      ${canEdit() && gone.length ? `<details class="cust-gone"><summary>Recently deleted (${gone.length})</summary>${gone.map(c=>`<div class="fam-it"><b>${esc(c.name)}</b><button class="linkbtn" data-crest="${esc(c.id)}">Restore</button></div>`).join('')}</details>` : ''}</div>`;
   }
   el.innerHTML = h;
   const go = k => { state.model=k; state.selected=null; save(); renderModels(); buildHome(); renderSide(); if(state.view==='sheets') openSheets(); };
   el.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>go(b.dataset.m));
+  el.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{ homeCat=b.dataset.cat; renderModels(); });
   el.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{ const f=b.dataset.f||null; openFam = openFam===f ? 'none' : f; renderModels(); });
+  el.querySelectorAll('[data-copen]').forEach(b=>b.onclick=()=>{ custOpen = custOpen===b.dataset.copen ? null : b.dataset.copen; renderModels(); });
+  el.querySelectorAll('[data-cust]').forEach(b=>b.onclick=()=>{ document.getElementById('homeDlg')?.close(); import('./customers-ui.js').then(m=>m.openCustomer(b.dataset.cust)); });
+  el.querySelectorAll('[data-crest]').forEach(b=>b.onclick=async()=>{ try{ await restoreCustomer(b.dataset.crest); renderModels(); toast('Customer restored'); }catch(e){ toast(e.message); } });
+  el.querySelectorAll('[data-newcust]').forEach(b=>b.onclick=()=>{ document.getElementById('homeDlg')?.close(); import('./customers-ui.js').then(m=>m.openCustomer(null)); });
 }
+const showHomeCat = c => { homeCat=c; renderModels(); };
 function wallListHTML(slots, current){
   const layers=layerSlotsFor(state.model);
   let html='';
@@ -136,7 +163,7 @@ function renderSideInner(){
     const nS=screwsFor(state.model,state.inset).length, conc=foundationOf(state.model)==='concrete' ? concretePlan(state.model) : null;
     const facts=[`${pods} pod${pods>1?'s':''}`, `${area} sq ft`, `${slots.filter(x=>x.type!=='int').length} outside + ${slots.filter(x=>x.type==='int').length} inside walls`, `${panels} SIP panels`,
       conc ? `${Math.round(conc.icfLen)}′ ICF${nS?` · ${nS} deck screws`:''}` : `${nS} ground screws`, (m.decks||[]).length ? `${m.decks.length} deck${m.decks.length>1?'s':''}` : '', m.note ? 'scanned from STEP' : ''].filter(Boolean);
-    sideH.innerHTML=`<div class="eyebrow">${fam?esc(fam.name):'Model'}${m.sub?' · sub-model':m.custom?' · your layout':m.project?' · project':fam&&fam.base===state.model?' · standard':''}</div><h2>${esc(m.name)} <button class="linkbtn ren-link edit-only" id="renHome">Rename</button></h2><p>${facts.join(' · ')}</p>`;
+    sideH.innerHTML=`<div class="eyebrow">${fam?esc(fam.name):'Model'}${m.sub?' · sub-model':m.custom?' · your layout':m.project?' · project':fam&&fam.base===state.model?' · standard':''}</div><h2>${esc(m.name)} <button class="linkbtn ren-link editor-only" id="renHome">Rename</button></h2><p>${facts.join(' · ')}</p>`;
     sideH.querySelector('#renHome').onclick=()=>askRename('models', state.model);
     sideB.innerHTML=`
       ${draftBlock()}
@@ -153,7 +180,7 @@ function renderSideInner(){
   } else {
     const w=pickFor(s); const opts=optionsFor(s.len, s.type||'ext', state.model);
     const isInt=s.type==='int';
-    sideH.innerHTML=`<div class="eyebrow">${isInt?'Interior wall · 4½″':'Exterior wall · 6½″'} · ${s.len}′ · ${s.len/4} panels</div><h2>${esc(withName(s.label, 'w:'+s.id))}${nameBtn('nmWall')}</h2><p>${s.detail} · faces ${fmtBearing(facing(s))} · now <b>${w?esc(w.id):'—'}</b> ${w?esc(w.name):''}${w&&!w.blank?' <button class="linkbtn ren-link edit-only" id="renWall">Rename</button>':''}</p>`;
+    sideH.innerHTML=`<div class="eyebrow">${isInt?'Interior wall · 4½″':'Exterior wall · 6½″'} · ${s.len}′ · ${s.len/4} panels</div><h2>${esc(withName(s.label, 'w:'+s.id))}${nameBtn('nmWall')}</h2><p>${s.detail} · faces ${fmtBearing(facing(s))} · now <b>${w?esc(w.id):'—'}</b> ${w?esc(w.name):''}${w&&!w.blank?' <button class="linkbtn ren-link editor-only" id="renWall">Rename</button>':''}</p>`;
     const rw=sideH.querySelector('#renWall'); if(rw) rw.onclick=()=>askRename('walls', w.mirrorOf||w.id);
     bindName(sideH, 'nmWall', 'w:'+s.id, `Name ${s.label}`, 'e.g. Kitchen wall');
     sideB.innerHTML=`
@@ -289,7 +316,7 @@ function renderDeckSide3d(k){
 /* ============================================================ layout editor: add / remove pods */
 function renderLayerSide(ls){
   const L=pickLayer(ls), K=LAYER_KINDS[ls.kind], opts=layerOptions(ls.kind, ls.len);
-  sideH.innerHTML=`<div class="eyebrow">${K.label} · ${ls.len}′ × 8′ · ${(L.t||K.t)}″ thick</div><h2>${esc(withName(ls.label, 'l:'+ls.id))}${nameBtn('nmLayer')}</h2><p>now <b>${esc(L.id)}</b> ${esc(L.name)}${L.blank?'':' <button class="linkbtn ren-link edit-only" id="renLayer">Rename</button>'}</p>`;
+  sideH.innerHTML=`<div class="eyebrow">${K.label} · ${ls.len}′ × 8′ · ${(L.t||K.t)}″ thick</div><h2>${esc(withName(ls.label, 'l:'+ls.id))}${nameBtn('nmLayer')}</h2><p>now <b>${esc(L.id)}</b> ${esc(L.name)}${L.blank?'':' <button class="linkbtn ren-link editor-only" id="renLayer">Rename</button>'}</p>`;
   const rl=sideH.querySelector('#renLayer'); if(rl) rl.onclick=()=>askRename('layers', L.id);
   bindName(sideH, 'nmLayer', 'l:'+ls.id, `Name ${ls.label}`, 'e.g. Bedroom ceiling');
   sideB.innerHTML=`
@@ -366,4 +393,4 @@ document.getElementById('fileIn').addEventListener('change',e=>{
 });
 let toastT; function toast(msg, ms=2400){ let t=document.querySelector('.toast'); if(!t){t=document.createElement('div');t.className='toast';document.body.appendChild(t);} t.textContent=msg; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true,ms||2400); }
 
-export { sideH, renderModels, wallListHTML, renderSide, importBlock, toast, sideB, layerThumb };
+export { showHomeCat, catOfHome, sideH, renderModels, wallListHTML, renderSide, importBlock, toast, sideB, layerThumb };

@@ -3,7 +3,7 @@
         {op:'delete', key}                delete one of yours
    Kept in the R2 bucket (binding STEPS) under drafts/<you>/<key>.json — one folder per person, read and
    written only with that person's own signed-in email. */
-import { whoIs, json } from '../_auth.js';
+import { whoIs, json, atLeast, denied } from '../_auth.js';
 const okKey = k => typeof k==='string' && /^(draft|custom)-[a-z0-9]{3,30}$/.test(k);
 const folder = email => 'drafts/'+String(email).toLowerCase().replace(/[^a-z0-9@._-]/g,'_')+'/';
 export async function onRequestGet({ request, env }){
@@ -18,6 +18,7 @@ export async function onRequestPost({ request, env }){
   if(!env.STEPS) return json({ error:'Storage is not set up (R2 binding STEPS).' }, 500);
   const b = await request.json().catch(()=>null);
   if(!b || !['put','delete'].includes(b.op)) return json({ error:'Bad request.' }, 400);
+  if(!atLeast(me,'sales')) return denied('sales');
   if(JSON.stringify(b).length > 3_000_000) return json({ error:'Too big.' }, 413);
   if(b.op==='put'){
     const it=b.item; if(!it || !okKey(it.key) || !it.model || !Array.isArray(it.model.pods)) return json({ error:'Bad draft.' }, 400);

@@ -76,7 +76,8 @@ const keyOf = p => 'proj-'+p.id;
 function register(p, force=false){
   if(!force && TEAM[p.id] && TEAM[p.id]!==p) return;          // the team's copy wins over a browser's or the repo's
   addLibrary(p.library);
-  MODELS[keyOf(p)] = { ...clone(p.model), name:p.name, size:p.model.size||'', project:p.id, shared:!!p.shared || !!TEAM[p.id], team:!!TEAM[p.id], by:p.by||'', saved:p.saved, custom:false };
+  MODELS[keyOf(p)] = { ...clone(p.model), name:p.name, size:p.model.size||'', project:p.id, shared:!!p.shared || !!TEAM[p.id], team:!!TEAM[p.id], by:p.by||'', saved:p.saved, custom:false,
+    customer:p.customer||null, locked:p.locked||null, unlocks:p.unlocks||[] };
 }
 function persist(){ if(!canSave()) return; try{ localStorage.setItem(KEY, JSON.stringify(PROJECTS)); }catch(e){} }
 
@@ -91,10 +92,12 @@ function snapshot(name, id, k=state.model){
 }
 /* Save: updates the open project, or makes a new one. On the team's server when there is one. */
 const newId = () => Date.now().toString(36);
-async function saveProject(name, asNew=false){
+/* opts.customer: the customer this home belongs to ('' = back to Purgatory); left out, it keeps the one it has */
+async function saveProject(name, asNew=false, opts={}){
   const open = MODELS[state.model]?.project;
+  const customer = 'customer' in opts ? (opts.customer||null) : (MODELS[state.model]?.customer||null);
   const id = (!asNew && open && (PROJECTS[open] || TEAM[open] || (remote && SHARED[open]))) ? open : newId();
-  const q0 = snapshot(name, id), k=keyOf(q0);
+  const q0 = snapshot(name, id), k=keyOf(q0); if(customer) q0.customer=customer;
   // the project becomes the home on screen, carrying this browser's choices
   register(q0, true);
   ['picks','layerPicks','wallA','faces','units','cabinets','lights'].forEach(f=>{ (state[f] ||= {})[k]=clone(q0[f]||{}); });
@@ -103,7 +106,7 @@ async function saveProject(name, asNew=false){
   state.model=k; save();
   // new walls, floors, ceilings and pods of this home go into their libraries; the project then refers to them
   const counts = saveToLibraries(name);
-  const q = snapshot(name, id, k);
+  const q = snapshot(name, id, k); if(customer) q.customer=customer;
   let merged=null;
   if(remote){
     const had=!!TEAM[id], b=BASE[id];
@@ -150,6 +153,11 @@ async function renameProject(id, name){
   if(TEAM[id]){ await post({op:'rename', id, name}); return; }
   if(!PROJECTS[id]) return; PROJECTS[id].name=name; persist(); register(PROJECTS[id]);
 }
+/* signed by the customer and the rep: the home locks (no more saves) until an editor or admin unlocks it */
+async function lockProject(id, lock){ if(TEAM[id]) await post({op:'lock', id, lock}); else if(PROJECTS[id]){ PROJECTS[id].locked={ at:new Date().toISOString(), ...lock }; persist(); register(PROJECTS[id]); } }
+async function unlockProject(id, reason, fee){ if(TEAM[id]) await post({op:'unlock', id, reason, fee});
+  else if(PROJECTS[id]){ const P=PROJECTS[id]; P.unlocks=[...(P.unlocks||[]), { at:new Date().toISOString(), reason, fee, was:P.locked }]; P.locked=null; persist(); register(P); } }
+const projectOf = k => { const id=MODELS[k]?.project; return id ? (TEAM[id]||PROJECTS[id]||SHARED[id]||null) : null; };
 async function versions(id){ const r=await fetch('api/projects?versions='+encodeURIComponent(id),{cache:'no-store'}); return r.ok ? r.json() : []; }
 async function restoreVersion(id, at){ await post({op:'restore', id, at}); openProject(id); }
 const isTeam = () => remote;
@@ -179,4 +187,4 @@ function importJSON(text){
   persist(); return n;
 }
 
-export { baseFor, snapshot, libraryFor, loadProjects, saveProject, openProject, deleteProject, renameProject, exportJSON, importJSON, versions, restoreVersion, isTeam, PROJECTS, SHARED, TEAM };
+export { lockProject, unlockProject, projectOf, baseFor, snapshot, libraryFor, loadProjects, saveProject, openProject, deleteProject, renameProject, exportJSON, importJSON, versions, restoreVersion, isTeam, PROJECTS, SHARED, TEAM };

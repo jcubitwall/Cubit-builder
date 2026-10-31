@@ -389,3 +389,37 @@ Deleted library items (model names, homes, pods, walls, floors and roofs, decks)
 
 ## Exploding in Build
 In Build, a three-finger spread pulls the home (or an isolated cabinet) apart as far as you spread your fingers, the same as the Library's 3D view; a pinch brings it back together. The Exploded view button still goes all the way apart or all the way back.
+
+## Homes, customers and roles
+**The home picker** (top left) has four categories, one list at a time:
+- **Cubit Homes:** the originals, by model name: the standard layout and its variations. They're protected; a change makes your own copy in My Drafts.
+- **My Drafts:** your own working copies. Only you see them.
+- **Purgatory:** homes saved for the team to review. These are team projects without a customer, including every older project.
+- **Customers:** each customer, with the home(s) linked to them and their profile.
+
+**The home's panel** shows what you can do with it:
+
+| Home | What you can do |
+|---|---|
+| Draft | Save to Purgatory · Save to Customer (pick one or ＋ New customer) · editors: Adopt into Cubit Homes |
+| Purgatory | Save changes · Save to Customer · editors: Adopt into Cubit Homes, Delete |
+| Customer | Profile · Save changes · Sign & lock · editors: Unlock |
+| Cubit Home | Protected. Editors can rename or move a variation, replace it (change it, then Adopt → Replace, after three warnings and the typed name), or delete it (typed name, kept 2 weeks). |
+
+**Customers** (`js/customers.js`, `js/customers-ui.js`, `functions/api/customers.js`):
+- **Profile:** contact details and site, plus the linked homes.
+- **Selections:** built from each home (pods, windows and doors, cabinets, appliances and fixtures, foundation, decks, lights), plus the finishes typed in (cladding and colour, accent walls, frames, flooring, walls, ceiling, cabinets, counters, hardware, fixtures).
+- **Sign & lock:** the customer and the rep sign on the screen. The home is saved, the signatures and the summary are kept for good (`customers/<id>/signed-…`), the home locks, and a signed PDF summary downloads (it can be made again from the profile).
+- **Locked homes:** the server refuses saves (423). A change in the app goes into a draft. Editors unlock with a reason and any fee; every unlock is logged on the home and the customer.
+- **Deleting a customer:** editors only. Kept 2 weeks, then gone.
+
+**Roles** (`functions/_auth.js`, `js/role.js`). Admins set them under ⋯ → Team (`catalog/team.json`). `ADMIN_EMAILS` are always admins. Anyone else who can log in is a User.
+
+| Role | Can |
+|---|---|
+| User | Look at everything: explode, zoom, walls, labels, panel builder and sheets (look only). Saves nothing. |
+| Salesperson | Everything a User can do, plus customers, swapping walls and windows, pods, cabinets, basic choices with a client, Save to Purgatory or Customer, and Sign & lock. |
+| Editor | Everything a Salesperson can do, plus the panel builder (moving windows, plugs, holes), pot lights, the libraries, deleting, Adopt and Replace in Cubit Homes, Unlock, and shop settings. |
+| Admin | Everything an Editor can do, plus the Team list and STEP uploads. |
+
+CSS: `.edit-only` is hidden for Users, and `.editor-only` is hidden for Users and Salespeople. The server checks every save the same way (`atLeast(me, role)`).

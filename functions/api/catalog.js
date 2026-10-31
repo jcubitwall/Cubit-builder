@@ -5,7 +5,7 @@
    Expanse). They are kept as one JSON file in the R2 bucket (binding STEPS, key catalog/submodels.json).
    An item with `over: <model key>` is a Cubit model saved over (it replaces that model for everyone).
    Every version replaced or removed is kept under catalog/history/<id>/. */
-import { whoIs, json } from '../_auth.js';
+import { whoIs, json, atLeast, denied } from '../_auth.js';
 import { atomic } from '../_store.js';
 const KEY = 'catalog/submodels.json';
 async function read(env){ const o = await env.STEPS.get(KEY); if(!o) return []; try{ const v = await o.json(); return Array.isArray(v) ? v : []; }catch(e){ return []; } }
@@ -17,7 +17,7 @@ export async function onRequestGet({ request, env }){
 }
 export async function onRequestPost({ request, env }){
   const me = await whoIs(request, env);
-  if(me.role !== 'admin') return json({ error:'Only admins can change the models.' }, 403);
+  if(!atLeast(me,'editor')) return denied('editor');
   if(!env.STEPS) return json({ error:'Storage is not set up (R2 binding STEPS).' }, 500);
   const body = await request.json().catch(()=>null);
   if(!body || !['upsert','delete'].includes(body.op)) return json({ error:'Bad request.' }, 400);

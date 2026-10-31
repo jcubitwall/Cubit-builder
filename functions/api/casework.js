@@ -1,7 +1,7 @@
 /* GET  /api/casework              the shop's cabinet settings (plywood thickness, edge band, joinery, hardware)
    POST /api/casework {settings}   admins: save them (shared by the whole team)
    Kept in the R2 bucket (binding STEPS) as casework/settings.json. */
-import { whoIs, json } from '../_auth.js';
+import { whoIs, json, atLeast, denied } from '../_auth.js';
 const KEY = 'casework/settings.json';
 export async function onRequestGet({ request, env }){
   const me = await whoIs(request, env); if(me.role === 'none') return json({ error:'Not signed in.' }, 401);
@@ -10,7 +10,7 @@ export async function onRequestGet({ request, env }){
   try{ return json(await o.json()); }catch(e){ return json({}); }
 }
 export async function onRequestPost({ request, env }){
-  const me = await whoIs(request, env); if(me.role !== 'admin') return json({ error:'Only admins can change the shop settings.' }, 403);
+  const me = await whoIs(request, env); if(!atLeast(me,'editor')) return denied('editor');
   if(!env.STEPS) return json({ error:'Storage is not set up (R2 binding STEPS).' }, 500);
   const b = await request.json().catch(()=>null);
   if(!b || typeof b.settings !== 'object' || JSON.stringify(b.settings).length > 100000) return json({ error:'Bad request.' }, 400);

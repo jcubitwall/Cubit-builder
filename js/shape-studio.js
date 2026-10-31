@@ -31,7 +31,7 @@ import { flatten, area, bbox, bboxAll, segCount, segType, segLength, bulgeArc, f
   arrangement, inRegion, interiorPoint, simplify, crossings, distToSeg, inPoly, R_BIT } from './geom2d.js';
 import { SHAPELIB, shapeById, nextShapeId, saveShape, deleteShape, sharedShapes, shapeThumb } from './shapes.js';
 import { makeHistory } from './local-history.js';
-import { canSave } from './role.js';
+import { canSave, canEdit } from './role.js';
 import { toast } from './sidebar.js';
 import { fin as finInch } from './format.js';
 /* ---------------------------------------------------------------- units: inches (fractions), feet & inches, mm, cm.
@@ -841,7 +841,7 @@ function library(){
   const box=dlg.querySelector('.ss-lib'); box.hidden=!libOpen; if(!libOpen) return;
   box.innerHTML=`<div class="eyebrow">Shape library · ${SHAPELIB.length}${sharedShapes()?' · shared':' · this browser'}</div>
     <button class="btn ghost sm" data-ln>＋ New sketch</button>
-    <div class="ss-libl">${SHAPELIB.map(s=>`<div class="ss-li"><button class="ss-lo" data-lo="${esc(s.id)}">${shapeThumb(s,56)}<span><b>${esc(s.name)}</b><small>${esc(s.id)} · ${fin(s.w||0)} × ${fin(s.h||0)}</small></span></button>${canSave()?`<button class="linkbtn" data-ld="${esc(s.id)}">Delete</button>`:''}</div>`).join('') || '<p class="note">Nothing saved yet.</p>'}</div>`;
+    <div class="ss-libl">${SHAPELIB.map(s=>`<div class="ss-li"><button class="ss-lo" data-lo="${esc(s.id)}">${shapeThumb(s,56)}<span><b>${esc(s.name)}</b><small>${esc(s.id)} · ${fin(s.w||0)} × ${fin(s.h||0)}</small></span></button>${canEdit()?`<button class="linkbtn" data-ld="${esc(s.id)}">Delete</button>`:''}</div>`).join('') || '<p class="note">Nothing saved yet.</p>'}</div>`;
   box.querySelector('[data-ln]').onclick=()=>openShapeStudio({});
   box.querySelectorAll('[data-lo]').forEach(b=>b.onclick=()=>openShapeStudio({ id:b.dataset.lo }));
   box.querySelectorAll('[data-ld]').forEach(b=>b.onclick=async()=>{ if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to delete'; return; }
@@ -849,7 +849,7 @@ function library(){
 }
 async function save(asNew){
   finishDraft(false);
-  if(!canSave()){ toast('Viewers can look but not save.'); return; }
+  if(!canEdit()){ toast('Only editors and admins can change the shape library.'); return; }
   const name=(S.name||'').trim(); if(!name){ toast('Give the shape a name first'); dlg.querySelector('#ssName').focus(); return; }
   syncRegions();
   const r4=P=>P.map(([x,y])=>[+x.toFixed(4), +y.toFixed(4)]);

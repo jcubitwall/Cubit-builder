@@ -113,7 +113,7 @@ function bake(key){
 /* Cubit models (the standard design of each model name) and published variations (sub-models) are protected:
    the first change makes a private draft copy in "My drafts" and the change goes there. Drafts and team projects
    are edited in place. Publishing (publish-ui.js) is the only way a draft reaches the shared library. */
-const isProtected = key => { const m=MODELS[key]; return !!m && !m.custom && !m.project; };
+const isProtected = key => { const m=MODELS[key]; return !!m && !m.custom && (!m.project || !!m.locked); };   // a signed customer home is locked too
 function makeDraftCopy(key){
   const m=MODELS[key], nk='draft-'+Date.now().toString(36)+Math.random().toString(36).slice(2,4);
   const fam = m.family || (m.base && MODELS[m.base]?.family) || null;
@@ -132,7 +132,7 @@ function ensureDraft(){ return isProtected(state.model) ? makeDraftCopy(state.mo
 function editKey(){
   checkpoint();
   const key=state.model, m=MODELS[key];
-  if(m.custom || m.project){ bake(key); return key; }
+  if(m.custom || (m.project && !m.locked)){ bake(key); return key; }   // a signed (locked) customer home: the change goes into a draft
   return makeDraftCopy(key);
 }
 function finish(key){
