@@ -59,12 +59,23 @@ function renameDraft(k, name){ if(!isDraft(k)) return; MODELS[k].name=String(nam
   const f=famByName(MODELS[k].name); if(f) MODELS[k].family=f;   // named after a model: it files itself under it
   saveCustomModels(); save(); push(k); }
 function setDraftFamily(k, family){ if(!isDraft(k)) return; if(family) MODELS[k].family=family; else delete MODELS[k].family; saveCustomModels(); save(); push(k); }
+/* deleted drafts are kept for two weeks in this browser (Library → Homes → Recently deleted), then forgotten */
+const TRASH_KEY='cubit-draft-trash', KEEP_MS=14*24*3600*1000;
+function trash(){ let t=[]; try{ t=JSON.parse(localStorage.getItem(TRASH_KEY)||'[]'); }catch(e){}
+  const now=Date.now(), keep=t.filter(x=>now-Date.parse(x.at) < KEEP_MS); if(keep.length!==t.length) try{ localStorage.setItem(TRASH_KEY, JSON.stringify(keep)); }catch(e){}
+  return keep; }
+const deletedDrafts = () => trash();
+function restoreDraft(key){ const t=trash(), it=t.find(x=>x.item.key===key); if(!it) return false;
+  unpack(it.item); MODELS[key].custom=true; saveCustomModels(); save(); push(key);
+  try{ localStorage.setItem(TRASH_KEY, JSON.stringify(t.filter(x=>x!==it))); }catch(e){}
+  return true; }
 async function deleteDraft(k){
   if(!isDraft(k)) return;
+  try{ const t=trash().filter(x=>x.item.key!==k); t.push({ at:new Date().toISOString(), item:pack(k) }); localStorage.setItem(TRASH_KEY, JSON.stringify(t)); }catch(e){}
   const from=MODELS[k].from; delete MODELS[k]; FIELDS.forEach(f=>{ if(state[f]) delete state[f][k]; });
   if(state.model===k) state.model = (from && MODELS[from]) ? from : (Object.keys(MODELS).find(x=>!MODELS[x].custom && !MODELS[x].deleted) || state.model);
   saveCustomModels(); save();
   if(remote) try{ await fetch('api/drafts',{method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({op:'delete', key:k})}); }catch(e){}
 }
 const draftsRemote = () => remote;
-export { loadDrafts, newHome, renameDraft, setDraftFamily, deleteDraft, myDrafts, isDraft, draftsRemote, push as pushDraft };
+export { deletedDrafts, restoreDraft, loadDrafts, newHome, renameDraft, setDraftFamily, deleteDraft, myDrafts, isDraft, draftsRemote, push as pushDraft };

@@ -2,7 +2,10 @@
    the app. Rename any home, pod, wall, floor / ceiling / roof layer or deck; delete hides it from every list
    (homes already using it keep working) and Restore brings it back. */
 import { MODELS, LIB, LAYERLIB, PODLIB, DECKLIB } from './data.js';
-import { renameItem, deleteItem, restoreItem, usedBy, originalName, applyEdits } from './libedit.js';
+import { renameItem, deleteItem, restoreItem, usedBy, originalName, applyEdits, KEEP_MS } from './libedit.js';
+import { deletedDrafts, restoreDraft } from './drafts.js';
+const until = at => { const d=new Date(at+KEEP_MS); return isNaN(d) ? '' : d.toLocaleDateString(undefined,{month:'short', day:'numeric'}); };
+const when = at => { const d=new Date(at); return isNaN(d) ? '' : d.toLocaleDateString(undefined,{month:'short', day:'numeric'}); };
 import { state, save } from './state.js';
 import { thumbSVG } from './panels.js';
 import { familyOf, familyById, FAMILIES, variantsOf } from './catalog.js';
@@ -53,7 +56,7 @@ async function askDelete(btn, kind, id, after){
       const next = FAMILIES.map(f=>variantsOf(f.id)[0]).find(Boolean) || Object.keys(MODELS).find(k=>!MODELS[k].deleted);
       if(next){ state.model=next; state.selected=null; save(); buildHome(); }
     }
-    toast(`Deleted “${find(kind,id)?.name||id}” · Library → Show deleted brings it back`); refresh(after);
+    toast(`Deleted “${find(kind,id)?.name||id}” · it can be brought back for 2 weeks (Library → Recently deleted)`); refresh(after);
   }catch(e){ fail(e); }
 }
 async function restore(kind,id){ try{ await restoreItem(kind,id); toast(`Restored “${find(kind,id)?.name||id}”`); refresh(); }catch(e){ fail(e); } }
@@ -74,15 +77,18 @@ function rows(){
 function render(){
   applyEdits();
   const body=dlg.querySelector('#libBody'), Q=q.toLowerCase();
-  const all=rows(), list=all.filter(r=>(showGone ? r.it.deleted : !r.it.deleted) && (!Q || `${r.it.name} ${r.id} ${r.sub}`.toLowerCase().includes(Q)))
-    .sort((a,b)=>String(a.it.name).localeCompare(String(b.it.name), undefined, {numeric:true}));
+  const all=rows().filter(r=>!r.it.purged);   // gone for good after two weeks: never shown
+  if(tab==='models') deletedDrafts().forEach(x=>{ if(!MODELS[x.item.key]) all.push({ id:x.item.key, draft:true, it:{ name:x.item.name, deleted:true, deletedAt:Date.parse(x.at) }, sub:'your draft' }); });
+  const list=all.filter(r=>(showGone ? r.it.deleted : !r.it.deleted) && (!Q || `${r.it.name} ${r.id} ${r.sub}`.toLowerCase().includes(Q)))
+    .sort((a,b)=> showGone ? (b.it.deletedAt||0)-(a.it.deletedAt||0) : String(a.it.name).localeCompare(String(b.it.name), undefined, {numeric:true}));
   const gone=all.filter(r=>r.it.deleted).length;
+  if(!gone && showGone) showGone=false;
   dlg.querySelector('#libTabs').innerHTML = TABS.map(([k,l])=>`<button role="tab" data-tab="${k}" aria-selected="${tab===k}">${l}</button>`).join('');
-  dlg.querySelector('#libGone').textContent = showGone ? 'Back to the library' : `Show deleted${gone?` (${gone})`:''}`;
+  const gb=dlg.querySelector('#libGone'); gb.textContent = showGone ? 'Back to the library' : `Recently deleted (${gone})`; gb.hidden = !gone && !showGone;   // nothing deleted: not shown at all
   body.innerHTML = list.length ? list.map(r=>`<div class="lib-row" data-view="${esc(r.id)}" title="Tap to see it in 3D">${r.thumb?`<span class="lib-th">${r.thumb}</span>`:''}
-      <div class="lib-t"><b>${esc(r.it.name)}</b><small><code>${esc(r.id)}</code> · ${esc(r.sub)}</small></div>
-      <button class="btn ghost sm lib-3d" data-view="${esc(r.id)}" aria-label="See ${esc(r.it.name)} in 3D">3D</button>
-      <div class="lib-a edit-only">${showGone ? `<button class="btn ghost sm" data-res="${esc(r.id)}">Restore</button>`
+      <div class="lib-t"><b>${esc(r.it.name)}</b><small><code>${esc(r.id)}</code> · ${esc(r.sub)}${showGone && r.it.deletedAt ? ` · deleted ${when(r.it.deletedAt)}, kept until ${until(r.it.deletedAt)}` : ''}</small></div>
+      ${r.draft?'':`<button class="btn ghost sm lib-3d" data-view="${esc(r.id)}" aria-label="See ${esc(r.it.name)} in 3D">3D</button>`}
+      <div class="lib-a edit-only">${showGone ? `<button class="btn ghost sm" ${r.draft?'data-resdraft':'data-res'}="${esc(r.id)}">Restore</button>`
         : `<button class="btn ghost sm" data-ren="${esc(r.id)}">Rename</button><button class="btn ghost sm danger" data-del="${esc(r.id)}">Delete</button>`}</div></div>`).join('')
     : `<p class="note">${showGone ? 'Nothing deleted here.' : q ? 'Nothing matches.' : 'Empty.'}</p>`;
 }
@@ -93,7 +99,7 @@ function open(){
       <div class="lib-tabs" id="libTabs" role="tablist"></div>
       <div class="lib-bar"><input type="search" id="libQ" placeholder="Search names and IDs" aria-label="Search the library"><button class="linkbtn" id="libGone"></button></div>
       <div id="libBody" class="lib-list"></div>
-      <p class="note">Tap a row (or 3D) to see it full screen in 3D. Renaming changes the name everywhere for the whole team. Deleting hides it from every list; homes already using it keep it.</p></div>`;
+      <p class="note">Tap a row (or 3D) to see it full screen in 3D. Renaming changes the name everywhere for the whole team. Deleting hides it from every list straight away (homes already using it keep it); for 2 weeks it can be brought back from Recently deleted, then it's gone for good.</p></div>`;
     document.body.appendChild(dlg);
     dlg.querySelector('#libClose').onclick=()=>dlg.close();
     dlg.querySelector('#libQ').oninput=e=>{ q=e.target.value; render(); };
@@ -103,6 +109,7 @@ function open(){
       const r=e.target.closest('[data-ren]'); if(r){ askRename(tab, r.dataset.ren); return; }
       const d=e.target.closest('[data-del]'); if(d){ askDelete(d, tab, d.dataset.del); return; }
       const s=e.target.closest('[data-res]'); if(s){ restore(tab, s.dataset.res); return; }
+      const sd=e.target.closest('[data-resdraft]'); if(sd){ if(restoreDraft(sd.dataset.resdraft)){ toast('Draft restored'); refresh(); } return; }
       if(e.target.closest('button,input,a')  && !e.target.closest('.lib-3d')) return;
       const v=e.target.closest('[data-view]'); if(v){ const id=v.dataset.view;
         openViewer(tab, id, tab==='families' ? { modelKey: familyById(id)?.base && MODELS[familyById(id).base] ? familyById(id).base : variantsOf(id)[0] } : {}); }

@@ -5,12 +5,14 @@
    opened from a local server they're kept in this browser. They're laid over the library files after loading, so
    nothing in the data files is rewritten.
 
-   Delete hides the item from every list and picker. Homes already using it keep working (nothing breaks), and a
-   deleted item can be brought back from the Library window. */
+   Delete hides the item from every list and picker at once. Homes already using it keep working (nothing breaks).
+   For two weeks it can be brought back (Library → Recently deleted); after that it's gone for good and isn't shown
+   anywhere, not even there. */
 import { MODELS, LIB, LAYERLIB, PODLIB, DECKLIB, clearMirrors } from './data.js';
 import { FAMILIES } from './catalog.js';
 
 const LOCAL_KEY = 'cubit-library-edits';
+const KEEP_MS = 14*24*3600*1000;   // deleted things can come back for two weeks
 let remote = false, ED = { names:{}, gone:{}, hand:{} };
 const ORIG = new Map();          // "kind:id" → the name it had before any rename
 
@@ -33,7 +35,9 @@ function applyEdits(){
     const k=`${kind}:${id}`;
     if(!ORIG.has(k)) ORIG.set(k, ref.name);
     ref.name = ED.names[k] || ORIG.get(k);
-    ref.deleted = !!ED.gone[k];
+    const g=ED.gone[k], at=g && g.at ? Date.parse(g.at) : NaN;
+    ref.deleted = !!g; ref.deletedAt = g ? at : undefined;
+    ref.purged = !!g && !(Date.now()-at < KEEP_MS);   // older than two weeks (or no date): gone for good
     // features made by hand: walls o (openings) / i (inside) / x (outside), layers h (holes); each keeps its index
     if(kind==='walls' || kind==='layers'){
       const H=new Set(ED.hand[k]||[]);
@@ -73,4 +77,4 @@ function usedBy(kind, id, state){
   return [...new Set(homes)].concat(pods.map(n=>`pod ${n}`));
 }
 const isRemote = () => remote;
-export { setHand, loadEdits, applyEdits, renameItem, deleteItem, restoreItem, usedBy, originalName, itemsOf, isRemote };
+export { setHand, loadEdits, applyEdits, renameItem, deleteItem, restoreItem, usedBy, originalName, itemsOf, isRemote , KEEP_MS };

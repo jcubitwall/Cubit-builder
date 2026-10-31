@@ -383,3 +383,9 @@ From the shop, Oct 2026. Heights are measured from the bottom of the floor.
   - 16″ wood blocks laid flat across every panel joint, at 32″ and 64″ across. They are 1⅞″ thick so they fill the gap; LVL offcuts ripped 3½″ wide are exactly that.
 - **Where it shows:** 3D (with the framing switch), the framing cut list and the take-off.
 - **Scanned layers:** older scanned ceilings and roofs (6.47″ / 6.48″) take these thicknesses when they load (`fixLayer` in data.js).
+
+## Deleting: two weeks to change your mind
+Deleted library items (model names, homes, pods, walls, floors and roofs, decks) and deleted drafts disappear from every list and picker straight away. For 14 days they can be brought back from Library → **Recently deleted**. That link only shows while something is in it, and each row says until when it's kept. After 14 days they're gone for good and aren't shown anywhere. Library deletions keep their date in the library edits (`KEEP_MS` in libedit.js); deleted drafts are kept in this browser (`cubit-draft-trash`, drafts.js).
+
+## Exploding in Build
+In Build, a three-finger spread pulls the home (or an isolated cabinet) apart as far as you spread your fingers, the same as the Library's 3D view; a pinch brings it back together. The Exploded view button still goes all the way apart or all the way back.
