@@ -1,5 +1,5 @@
 /* Cubit Builder — state.js : what the person has chosen, kept in their browser */
-import { MODELS, byId, optionsFor, layerOptions, layerById, podById } from './data.js';
+import { MODELS, byId, optionsFor, layerOptions, layerById, podById, saveCustomModels } from './data.js';
 import { LAYER_KINDS, T, TI } from './config.js';
 import { canSave } from './role.js';
 import { checkpoint } from './history.js';
@@ -84,7 +84,12 @@ function pickLayer(slot){
 }
 function chooseLayer(slot, id){ checkpoint(); ensureDraft(); (state.layerPicks[state.model] ||= {})[slot.id]=id; save(); }
 function setFace(slot, f){ checkpoint(); ensureDraft(); (state.faces[state.model] ||= {})[slot.id]=f; save(); }
-function choose(slot, wallId){ checkpoint(); ensureDraft(); (state.picks[state.model] ||= {})[slot.id]=wallId; save(); }
+function choose(slot, wallId){ checkpoint(); ensureDraft(); (state.picks[state.model] ||= {})[slot.id]=wallId;
+  // a wall swapped in takes its plugs and switches from the electrical rules, not the library (electrical.js)
+  const m=MODELS[state.model]; if(m && !m.elec?.auto){ m.elec={ ...(m.elec||{}), walls:{ ...(m.elec?.walls||{}), [wkey(slot)]:true } }; if(m.custom) saveCustomModels(); }
+  save(); }
+/* a wall's lasting name in its home: pod number, the pod's own side, where along it, interior or exterior (survives moves and turns) */
+const wkey = slot => `${slot.pod.i}:${slot.local}:${slot.from}:${slot.type||'ext'}`;
 
 /* what the home (pods) stands on: 'screws' (ground screws) or 'concrete' (ICF perimeter foundation) */
 const foundationOf = k => state.found?.[k] || MODELS[k]?.found || 'screws';
@@ -92,4 +97,4 @@ function setFoundation(k, f){ if(k===state.model){ checkpoint(); k=ensureDraft()
 /* deck joist spacing for a home, inches on centre: 24 (standard) or 16 */
 const deckOCOf = k => +(state.deckOC?.[k] || MODELS[k]?.deckOC || 24);
 function setDeckOC(k, oc){ if(k===state.model){ checkpoint(); k=ensureDraft(); } (state.deckOC ||= {})[k]=oc; save(); }
-export { onSave, deckOCOf, setDeckOC, foundationOf, setFoundation, state, initState, save, pickFor, podSeg, choose, setFace, pickLayer, chooseLayer, blankWall };
+export { wkey, onSave, deckOCOf, setDeckOC, foundationOf, setFoundation, state, initState, save, pickFor, podSeg, choose, setFace, pickLayer, chooseLayer, blankWall };

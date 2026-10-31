@@ -1112,3 +1112,23 @@ dialog.lib-dlg.tm-dlg{max-width:min(640px,calc(100vw - 24px))}
 @media (max-width:640px){ .cust-grid,.sign-pads{grid-template-columns:1fr} .cust-quick{grid-template-columns:1fr} }
 .pk-list{margin:6px 0;padding-left:18px;font-size:13px;max-height:220px;overflow:auto}.pk-list small{color:var(--ink-2)}
 .tray-it.kit{min-width:120px}.tray-none{font-size:12.5px;color:var(--ink-2);align-self:center;padding:0 10px}
+/* electrical (electrical-ui.js) */
+.el-box{border-top:1px solid var(--line);padding:10px 0 4px;margin-top:8px}
+.el-row{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid var(--line)}
+.el-row small{display:block;color:var(--ink-2);font-size:12px;margin-top:2px}
+.el-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.el-ok,.el-warn,.el-tag{font-size:11px;padding:1px 7px;border-radius:999px;border:1px solid var(--line);white-space:nowrap}
+.el-ok{color:#2f7d4f;border-color:#bfe0cb}
+.el-warn{color:#a2531a;border-color:#efcfb4;background:#fff7f0}
+.el-act{display:flex;gap:3px;flex:none}
+.btn.sm{padding:4px 8px;min-height:30px;font-size:13px}
+.el-add{flex-wrap:wrap;align-items:center;gap:4px;margin-top:8px}
+.el-line{padding:8px 0;border-top:1px solid var(--line)}
+dialog.lib-dlg.el-dlg{max-width:min(640px,calc(100vw - 24px))}
+.el-chip{display:inline-block;font-size:12px;padding:2px 8px;margin:2px 2px 0 0;border-radius:999px;background:var(--surface-2);border:1px solid var(--line)}
+.el-opt{display:flex;gap:8px;align-items:flex-start;padding:6px 0}
+.el-flag{display:block;width:100%;text-align:left;font:inherit;background:none;border:0;border-bottom:1px solid var(--line);padding:7px 0;color:var(--ink);cursor:pointer}
+.el-flag small{color:var(--ink-2)}
+.el-rules{padding-left:18px;margin:6px 0}.el-rules li{margin:4px 0}
+@media (prefers-color-scheme: dark){ .el-warn{background:transparent} }
+.el-dlg .eyebrow{margin-top:14px}

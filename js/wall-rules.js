@@ -14,7 +14,7 @@
    ORIGINAL 48″ panel and then every foot: 6″, 18″, 30″, 42″. A panel cut short keeps the chases measured from its
    factory edge (the joint side). */
 const DEFAULTS = {
-  plug:   { label:'Plug box',          y:18, ylock:true,  depth:3, dlock:true,  side:'chase' },
+  plug:   { label:'Plug box',          y:16, ylock:true,  depth:3, dlock:true,  side:'chase' },
   switch: { label:'Switch box',        y:48, ylock:true,  depth:3, dlock:true,  side:'chase' },
   double: { label:'Double switch box', y:48, ylock:true,  depth:3, dlock:true,  side:'chase' },
   light:  { label:'Wall light box',    y:66, ylock:false, depth:3, dlock:true,  side:'chase' },

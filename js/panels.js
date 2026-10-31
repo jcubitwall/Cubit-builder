@@ -60,10 +60,26 @@ function bodyWall(slot, w){
   // …or the long wall, where it runs through instead (slot.through)
   const thr = e => slot?.through ? slot.through[e] : slot?.short;
   const notch = slot && slot.corner ? [slot.corner[0]&&thr(0)?NOTCH:0, slot.corner[1]&&thr(1)?NOTCH:0] : [0,0];
-  return { ...w, L, trim:[tl,tr], notch, fitted:true, snap: slot?.snap ? [...slot.snap] : [false,false],   // snap: this end stops at a long wall running through
+  const out = { ...w, L, trim:[tl,tr], notch, fitted:true, snap: slot?.snap ? [...slot.snap] : [false,false],   // snap: this end stops at a long wall running through
     openings: w.openings.map(o=>clip({...o, key:o.key ?? `${o.kind}@${Math.round(o.x)}`})).filter(Boolean),
     inside: (w.inside||[]).map(b=>({...mapX(b, x=>x-tr), x:b.x-tr})).filter(b=>b.x>0 && b.x<L),     // inside items are measured from the inside-left = outside-right end
     outside: (w.outside||[]).map(b=>({...mapX(b, x=>x-tl), x:b.x-tl})).filter(b=>b.x>0 && b.x<L) };
+  return elecHook ? elecHook(slot, out) : out;
+}
+/* Plugs and switches laid out by rule (electrical.js) replace the wall's own boxes in homes that use the rules */
+let elecHook=null;
+const setElecHook = fn => { elecHook=fn; };
+/* a plug, switch or data box (not a light box, pocket or recess) */
+const isElecBox = b => b && (b.kind==='outlet' || b.kind==='switch' || b.kind==='data' ||
+  (b.kind==='box' && !/round|slot|poly/.test(b.shape||'') && b.rk!=='light'));
+/* what a box is, for drawings and counts: 'plug' 'counter' 'appl' 'switch' 'double' 'data' 'wp' or 'box' (unknown) */
+function boxKind(b, outside=false){
+  if(b.kind==='outlet') return outside ? 'wp' : 'plug';
+  if(b.kind==='switch' || b.kind==='data') return b.kind;
+  if(b.kind!=='box') return null;
+  if(b.rk) return outside && b.rk==='plug' ? 'wp' : b.rk;
+  const n=String(b.name||'').toLowerCase();
+  return /double/.test(n) ? 'double' : /switch/.test(n) ? 'switch' : /data/.test(n) ? 'data' : /plug/.test(n) ? (outside?'wp':'plug') : 'box';
 }
 /* Cuts exactly as drawn in the STEP file — round holes, chase slots and any other outline ('poly': its `path`,
    plus `tool`, the ¾″ bit's centre paths) — never squared off. Their outline in inches (wall or layer coords). */
@@ -191,4 +207,4 @@ function handOf(f){
   if((!f.shape || f.shape==='rect') && f.w && (f.h??f.d) && Math.min(f.w, f.h??f.d) < bit) return 'auto';
   return null;
 }
-export { isGapOpening, wallGaps, wallStretches, crossesJoint, clipStrip, notchedOutline, handOf, isShaped, shapeOf, outlinePts, mapX, faceShape, layerHoles, panelCells, panelCount, panelNum, thumbSVG, wallLen, panelSpans, panelAt, bodyWall };
+export { isGapOpening, wallGaps, wallStretches, crossesJoint, clipStrip, notchedOutline, handOf, isShaped, shapeOf, outlinePts, mapX, faceShape, layerHoles, panelCells, panelCount, panelNum, thumbSVG, wallLen, panelSpans, panelAt, bodyWall, setElecHook, isElecBox, boxKind };

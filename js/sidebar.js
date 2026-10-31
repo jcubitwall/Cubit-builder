@@ -27,6 +27,7 @@ import { furnSide, homeBlock, bindHomeBlock } from './casework-ui.js';
 import { draftBlock, bindDraftBlock, draftsRow } from './publish-ui.js';
 import { lightEditorHTML, bindLightEditor } from './light-edit-ui.js';
 import { openWallBuilder } from './wall-builder.js';
+import { elecWallBlock, bindElecWall, elecHomeLine, bindElecHome } from './electrical-ui.js';
 import './shape-studio.js';
 import { openLayerBuilder } from './layer-builder.js';
 import './panel-builder.js';
@@ -170,13 +171,14 @@ function renderSideInner(){
       ${foundationBlock()}
       ${wallListHTML(slots,null)}
       ${homeBlock()}
+      ${elecHomeLine()}
       <div class="more-grp">
       ${MODELS[state.model].project ? catalogBlock() : ''}
       ${layoutBlock(m)}
       ${importBlock()}
       <details class="help"><summary>How walls are lettered</summary><p>Each pod's walls run A, B, C, D clockwise seen from above. A and C are the through walls (they run straight through, corner to corner) and B and D butt between them. Every pod's A points the same way: the way most pods' largest opening faces on the outside of the home. Click a through wall to make it A by hand. Panel numbers sit over the room side of each wall.</p></details>
       </div>`;
-    bindLayout(); bindFoundation(); bindCatalog(); bindHomeBlock(sideB); bindDraftBlock(sideB);
+    bindLayout(); bindFoundation(); bindCatalog(); bindHomeBlock(sideB); bindDraftBlock(sideB); bindElecHome(sideB);
   } else {
     const w=pickFor(s); const opts=optionsFor(s.len, s.type||'ext', state.model);
     const isInt=s.type==='int';
@@ -188,6 +190,7 @@ function renderSideInner(){
       ${(state.wallA?.[state.model]?.[s.pod.i] || m.pods[s.pod.i]?.a) ? `<p class="note">Wall A for ${s.pod.label} was set by hand. <button class="linkbtn" id="autoA">Go back to automatic</button></p>`:''}
       ${isInt&&partnerOf(s,slots)?`<p class="note">Joins ${s.other.label} (${esc(partnerOf(s,slots).label)}). Picking a wall here gives that wall the same one, mirrored, so openings line up.</p>`:''}
       ${unitsBlock(s, bodyWall(s,w))}
+      ${elecWallBlock(s)}
       ${(()=>{ const cv=cabinetsOf(state.model)[s.id], d=cabDepth(cv), kind=d ? (typeof cv==='object' ? cv.kind : 'Custom') : 'None';
         return `<div class="cab-box"><div class="eyebrow">Cabinets on this wall · deepest unit</div>
           <div class="seg wrap" role="group" aria-label="Deepest cabinet on this wall">${CAB_PRESETS.map(([n,v])=>`<button data-cab="${v}" data-cabn="${n}" aria-pressed="${kind===n}">${n}${v?` ${v}″`:''}</button>`).join('')}</div>
@@ -204,6 +207,7 @@ function renderSideInner(){
     sideB.querySelector('#wBuild')?.addEventListener('click',()=>openWallBuilder({ from: w && !w.blank ? w.id : null, slot:s, len:s.len, type:s.type||'ext' }));
     sideB.querySelector('#wMir')?.addEventListener('click',()=>{ const id=mirrorId(w.id); choose(s, id); const pt=partnerOf(s, slots); if(pt) choose(pt, mirrorId(id)); buildHome(); renderSide(); toast(`${s.label} mirrored`+(pt?` · ${pt.label} follows`:'')); });
     bindUnits(s, bodyWall(s,w));
+    bindElecWall(sideB, s);
     sideB.querySelectorAll('[data-cab]').forEach(b=>b.onclick=()=>{ setCabinet(state.model, s.id, +b.dataset.cab, b.dataset.cabn); buildHome(); renderSide(); });
     const cd=sideB.querySelector('#cabD'); if(cd) cd.onchange=()=>{ setCabinet(state.model, s.id, Math.max(0,+cd.value||0), 'Custom'); buildHome(); renderSide(); };
     sideB.querySelector('#toSheet').onclick=()=>{ state.sheetSlot=s.id; openSheets(); };

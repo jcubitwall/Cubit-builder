@@ -48,7 +48,7 @@ onSave(()=>{ const k=state.model; if(!remote || !isDraft(k)) return; clearTimeou
 function newHome({ name, family=null, pod='L24' }){
   const k='draft-'+Date.now().toString(36);
   family = family || famByName(name);
-  MODELS[k]={ name:name||'New home', size:'', family:family||null, pods:[{t:pod, x:0, z:0, rot:0}], decks:[], picks:{}, layerPicks:{}, custom:true, draft:true, created:new Date().toISOString(), scratch:true };
+  MODELS[k]={ name:name||'New home', size:'', family:family||null, pods:[{t:pod, x:0, z:0, rot:0}], decks:[], picks:{}, layerPicks:{}, custom:true, draft:true, created:new Date().toISOString(), scratch:true, elec:{ auto:true } };
   if(!family) delete MODELS[k].family;
   ['picks','layerPicks','wallA','faces'].forEach(f=>{ (state[f] ||= {})[k]={}; });
   state.model=k; state.selected=null; state.selFurn=null;

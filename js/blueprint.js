@@ -13,7 +13,7 @@ import { FT, H, T, TI, GAP, POD, SIDE_NAME, LAYER_KINDS, FLOOR_BUILD, ROOF_BUILD
 import { MODELS } from './data.js';
 import { state, pickFor, pickLayer, foundationOf } from './state.js';
 import { slotsFor, podList, layerSlotsFor, layoutOffsets, deckList } from './layout.js';
-import { bodyWall, wallLen, panelSpans } from './panels.js';
+import { bodyWall, wallLen, panelSpans, boxKind } from './panels.js';
 import { unitFor, pairOf, doorOwner, symbol, TYPES } from './units.js';
 import { ceilingFrame, lightsIn } from './lights.js';
 import { itemDef } from './casework.js';
@@ -450,15 +450,19 @@ function sElectrical(ctx, sh){
   let g=deckSVG(H_, xf)+planFurniture(ctx, xf, { tone:'#b7bccb', label:false })+drawWalls(H_, xf, { light:true, labels:false })+roomLabels(H_, xf, { dims:false });
   const s=Math.max(0.8, Math.min(1.3, xf.k/18)), cnt={};
   H_.lights.forEach(L=>{ const [x,y]=xf.P(L.p); g+=ELEC.pot(x,y,s); cnt.pot=(cnt.pot||0)+1; });
-  wallBoxes(H_).forEach(({b,p,ext})=>{ const [x,y]=xf.P(p); const kind=b.kind;
-    if(kind==='outlet'){ g+=ELEC.outlet(x,y,s,ext); cnt[ext?'wp':'outlet']=(cnt[ext?'wp':'outlet']||0)+1; }
-    else if(kind==='switch'){ g+=ELEC.switch(x,y,s); cnt.switch=(cnt.switch||0)+1; }
-    else if(kind==='data'){ g+=ELEC.data(x,y,s); cnt.data=(cnt.data||0)+1; }
-    else if(kind==='light'){ g+=ELEC.light(x,y,s); cnt.xl=(cnt.xl||0)+1; }
-    else if(kind==='box'){ g+=ELEC.box(x,y,s); cnt.box=(cnt.box||0)+1; } });
+  wallBoxes(H_).forEach(({b,p,ext})=>{ const [x,y]=xf.P(p); const kind=b.kind==='light'?'light':(boxKind(b, ext)||b.kind);
+    const c1=c=>{ cnt[c]=(cnt[c]||0)+1; };
+    if(kind==='wp' || ((kind==='plug'||kind==='counter'||kind==='appl'||kind==='gfci') && ext)){ g+=ELEC.outlet(x,y,s,true); c1('wp'); }
+    else if(kind==='plug'){ g+=ELEC.outlet(x,y,s,false); c1('outlet'); }
+    else if(kind==='counter'||kind==='appl'){ g+=ELEC.outlet(x,y,s,false); c1(kind); }
+    else if(kind==='gfci'){ g+=ELEC.outlet(x,y,s,false)+tx(x,y-6*s,'GFI',{size:5.5*s,anchor:'middle',fill:RED}); c1('gfci'); }
+    else if(kind==='switch'||kind==='double'){ const w3=/^[34]-way/.test(b.name||''); g+=w3 ? tx(x,y+3*s,'S'+(b.name||'')[0],{size:8*s,anchor:'middle',fill:RED,weight:'bold'}) : ELEC.switch(x,y,s); c1(w3?'sw3':kind); }
+    else if(kind==='data'){ g+=ELEC.data(x,y,s); c1('data'); }
+    else if(kind==='light'){ g+=ELEC.light(x,y,s); c1('xl'); }
+    else if(kind==='box'){ g+=ELEC.box(x,y,s); c1('box'); } });
   g+=elevMarkers(H_, xf)+northArrow(AREA.x1-40, AREA.y0+40)+scaleBar(AREA.x0+10, AREA.y1-14, xf.k)+viewTitle(AREA.x0+(AREA.x1-AREA.x0)/2-90, AREA.y1-10, '1', sh.no, 'MAIN LEVEL ELECTRICAL PLAN', label);
   // legend
-  const LG=[['pot','pot',`4" POT LIGHT (CEILING)`],['outlet','outlet','DUPLEX RECEPTACLE'],['wp','outlet','EXTERIOR WP RECEPTACLE'],['switch','switch','SWITCH'],['data','data','DATA / COMMS'],['xl','light','EXTERIOR WALL LIGHT'],['box','box','JUNCTION / DEVICE BOX']].filter(([c])=>cnt[c]);
+  const LG=[['pot','pot',`4" POT LIGHT (CEILING)`],['outlet','outlet','DUPLEX RECEPTACLE @ 16"'],['counter','outlet','COUNTER RECEPTACLE @ 42"'],['gfci','outlet','GFCI RECEPTACLE @ 42"'],['appl','outlet','APPLIANCE RECEPTACLE'],['wp','outlet','EXTERIOR WP RECEPTACLE'],['switch','switch','SWITCH @ 48"'],['double','switch','DOUBLE SWITCH @ 48"'],['sw3','switch','3-WAY / 4-WAY SWITCH'],['data','data','DATA / COMMS'],['xl','light','EXTERIOR WALL LIGHT'],['box','box','JUNCTION / DEVICE BOX']].filter(([c])=>cnt[c]);
   let lx=AREA.x0+10, ly=AREA.y0+20; g+=rect(lx-6, ly-14, 250, 30+LG.length*18+44, {fill:'#fff', stroke:BLUE, sw:0.6})+tx(lx, ly, 'ELECTRICAL LEGEND', {size:11, weight:'bold', fill:BLUE}); ly+=20;
   LG.forEach(([c,sym,t])=>{ g+=ELEC[sym](lx+8, ly-3, 1.2, c==='wp')+tx(lx+24, ly, t, {size:8.5, fill:BLUE})+tx(lx+236, ly, String(cnt[c]), {size:8.5, anchor:'end', weight:'bold', fill:BLUE}); ly+=18; });
   wrap('CIRCUITING, PANEL SCHEDULE AND CABLE SIZES BY THE ELECTRICIAN UNLESS SHOWN ON E-SERIES SHEETS. ALL WORK TO THE CANADIAN ELECTRICAL CODE.', 236, 7).forEach(l=>{ g+=tx(lx, ly+2, l, {size:7, fill:GREY}); ly+=9; });
@@ -711,4 +715,4 @@ function makeContext({ bp=loadBP(), renders=[], found=null, concrete=null }={}){
 function buildSheet(ctx, sh){ const s={...sh}; const body=s.fn(ctx, s); return sheetSVG(ctx, s, body); }
 function buildSet(ctx){ return ctx.list.map(sh=>({ sh, svg:buildSheet(ctx, sh) })); }
 
-export { SHEETS, PW, PH, loadBP, saveBP, homeInfo, makeContext, buildSheet, buildSet, setLogo, homeModel, schedules, NOTES0, COMPANY0, ftin };
+export { podInterior, SHEETS, PW, PH, loadBP, saveBP, homeInfo, makeContext, buildSheet, buildSet, setLogo, homeModel, schedules, NOTES0, COMPANY0, ftin };

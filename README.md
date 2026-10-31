@@ -445,3 +445,25 @@ While you drag a cabinet, it keeps the wall its back was on when you picked it u
 - **Copies, not links:** homes keep their own copy, so updating a saved kitchen never changes a home that already has it. Salespeople can change kitchens freely, but those changes stay in their draft or the customer's home.
 - **Dropping one in:** Build tray → Cabinets → **Kitchens & groups**. Drag a kitchen in and it lands as a group on the wall you drop it on.
 - **Code:** `js/kitchens.js`, `functions/api/kitchens.js`, group helpers in furniture.js, panels in casework-ui.js.
+
+## Plugs and switches by rule (electrical)
+New homes take no plugs or switches from the wall library. `js/electrical.js` lays them out from the rooms, the doors and the cabinets every time something changes, and they're cut into the walls like any other box (3D, panel sheets, CNC, blueprint E11). In an older home, the same happens to any wall swapped in and every wall of a pod added; ⋯ → **Electrical** → **Re-lay electrical** moves the whole home onto the rules (one wall at a time: **Lay this wall out by the rules** on its panel).
+
+Rules (CEC as used in Nova Scotia; heights to the box centre):
+- Plugs 16″, with no point along usable wall more than 1.8 m from one. Every stretch of 900 mm or more gets a plug. Doorways, full-height glass, the wall behind a door swung open and walls behind fixed cabinets, appliances, tubs and showers break the run. The run carries on round corners. Bathrooms get only the basin GFCI.
+- Kitchen counters: plugs at 42″, every point within 900 mm, none behind the range or sink. Basin: GFCI at 42″ within 1 m.
+- Each appliance gets its own plug behind it: fridge 42″, range 6″, dishwasher 12″, washer / dryer 42″, microwave 42″. Beds against a wall: a plug each side of the head.
+- One weatherproof plug outside, beside the main door. With no outside door it goes mid-wall and is flagged.
+- Switches 48″, centred 6″ from the rough opening on the latch side, on the side the door swings into. Outside doors get a double box. A room with two or more entrances gets 3-way switches (4-way between) once the team confirms. Rooms are pods joined through a non-door opening 48″ or wider.
+- Walls between pods: boxes go only on the face toward the wall's own pod.
+- Data boxes (optional per home): one on the TV wall in front of a sofa, and one opposite each bed.
+- Chases come first: a box snaps to an electrical chase (`wall-rules.js`) within 18″ for plugs or 6″ for switches, clear of openings, panel joints, cabinets and other boxes. Otherwise it stays where the rule put it and is flagged **needs a chase**.
+
+Hand changes are stored with the home in `MODELS[k].elec`:
+- `auto` (whole home)
+- `walls` (wall keys `pod:side:from:type`)
+- `ov.del` / `ov.mv` / `ov.add`: removed, moved and added boxes
+- `sw3` (3-way confirmations)
+- `data`
+
+These changes survive every re-layout. **Start over** drops them. Each wall's panel lists its boxes, with ◀ ▶ (next chase), ✕ and ↺, plus Add.

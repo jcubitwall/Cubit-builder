@@ -94,6 +94,7 @@ function describe(key, i, slots, lslots){
   lslots.filter(l=>l.pod.i===i).forEach(l=>{ const L=pickLayer(l); if(L && !L.blank) layers[l.kind]=L.id; });
   const out={t:p.t, x:p.x, z:p.z, rot, walls, layers};
   if(p.src) out.src=p.src;
+  if(p.elec) out.elec=1;   // plugs and switches by the electrical rules
   const ex=explicitA(key,i); if(ex) out.a=localSide(rot, ex); else if(p.a) out.a=p.a;
   return out;
 }
@@ -118,7 +119,7 @@ function makeDraftCopy(key){
   const m=MODELS[key], nk='draft-'+Date.now().toString(36)+Math.random().toString(36).slice(2,4);
   const fam = m.family || (m.base && MODELS[m.base]?.family) || null;
   const n=Object.values(MODELS).filter(x=>x.custom && x.from===key).length;
-  MODELS[nk]={ name:m.name+(n?` (draft ${n+1})`:' (draft)'), size:m.size, ...(m.scratch?{scratch:true}:{}), base:m.base||(m.sub?undefined:key), family:fam, from:key, pods:bakedPods(key), decks:clone(m.decks||[]), picks:{}, layerPicks:{}, custom:true, draft:true, created:new Date().toISOString() };
+  MODELS[nk]={ name:m.name+(n?` (draft ${n+1})`:' (draft)'), size:m.size, ...(m.scratch?{scratch:true}:{}), base:m.base||(m.sub?undefined:key), family:fam, from:key, pods:bakedPods(key), decks:clone(m.decks||[]), picks:{}, layerPicks:{}, custom:true, draft:true, created:new Date().toISOString(), ...(m.elec?{elec:clone(m.elec)}:{}) };
   if(!MODELS[nk].base) delete MODELS[nk].base;
   ['bearing','found','deckOC'].forEach(f=>{ const v=state[f]?.[key] ?? m[f]; if(v!=null) (state[f] ||= {})[nk]=v; });
   ['units','furniture','cabinets','lights','names'].forEach(f=>{ const v=state[f]?.[key] ?? (f==='units'?m.units:null); if(v) (state[f] ||= {})[nk]=clone(v); });
@@ -158,7 +159,7 @@ function revealLayers(keys){ let ch=false; keys.forEach(k=>{ if(state.show[k]===
 function addPod(item, x, z, rot=0){
   const trial=MODELS[state.model].pods.concat([podFrom(item,x,z,rot)]);
   const why=tryLayout(trial); if(why) return why;
-  const key=editKey(); MODELS[key].pods.push(podFrom(item,x,z,rot)); finish(key); revealLayers(['walls','floors']); return '';
+  const key=editKey(); MODELS[key].pods.push({ ...podFrom(item,x,z,rot), ...(MODELS[key].elec?.auto?{}:{elec:1}) }); finish(key); revealLayers(['walls','floors']); return '';
 }
 function movePod(i, x, z, rot){
   const trial=clone(MODELS[state.model].pods); Object.assign(trial[i], {x, z, rot:rot??trial[i].rot??0});
@@ -188,7 +189,7 @@ function replacePod(i, item){
   const tries=[[cur.x,cur.z],[Math.round((f.x+f.w/2-g.w/2)/8)*8, Math.round((f.z+f.d/2-g.d/2)/8)*8],[f.x+f.w-g.w, f.z+f.d-g.d]];
   for(const [x,z] of tries){
     const trial=clone(MODELS[state.model].pods); trial[i]={...fresh,x,z};
-    if(!problem(trial)){ const key=editKey(); MODELS[key].pods[i]={...fresh,x,z}; finish(key); return ''; }
+    if(!problem(trial)){ const key=editKey(); MODELS[key].pods[i]={...fresh,x,z, ...(MODELS[key].elec?.auto?{}:{elec:1})}; finish(key); return ''; }
   }
   return 'That pod doesn’t fit in this spot.';
 }
@@ -196,6 +197,9 @@ function deletePod(i){
   const pods=MODELS[state.model].pods; if(pods.length<2) return 'A home needs at least one pod.';
   const trial=pods.filter((_,j)=>j!==i); const why=problem(trial); if(why) return why.startsWith('A deck') ? 'A deck is docked to this pod. Move or remove the deck first.' : 'Removing this pod would leave the others apart.';
   const key=editKey(); MODELS[key].pods.splice(i,1); podRemoved(key, i);   // its cabinets and furniture go with it
+  const EL=MODELS[key].elec; if(EL){ const re=k=>{ const m=String(k).match(/^(\d+)(:.*)$/); if(!m) return k; const n=+m[1]; return n===i ? null : n>i ? `${n-1}${m[2]}` : k; };   // electrical: walls keyed by pod number
+    if(EL.walls){ const n={}; Object.entries(EL.walls).forEach(([k,v])=>{ const r=re(k); if(r) n[r]=v; }); EL.walls=n; }
+    if(EL.ov?.add) EL.ov.add=EL.ov.add.filter(u=>re(u.w)).map(u=>({...u, w:re(u.w)})); }
   state.focusPod=null; state.isolate=null; state.selFurn=null;                 // nothing left pointing at the old pod numbers
   const LE=state.lights?.[key]?.edits; if(LE){ const n={}; Object.entries(LE).forEach(([k,v])=>{ k=+k; if(k<i) n[k]=v; else if(k>i) n[k-1]=v; }); state.lights[key].edits=n; }
   finish(key); return '';
