@@ -83,7 +83,7 @@ function persist(){ if(!canSave()) return; try{ localStorage.setItem(KEY, JSON.s
 
 function snapshot(name, id, k=state.model){
   const m = MODELS[k];
-  const model = clone({ name:m.name, size:m.size, pods:m.pods, decks:m.decks||[], picks:m.picks||{}, layerPicks:m.layerPicks||{}, base:m.base || (m.project?undefined:k), wallA:m.wallA, note:m.note, ...(m.elec?{elec:m.elec}:{}) });
+  const model = clone({ name:m.name, size:m.size, pods:m.pods, decks:m.decks||[], picks:m.picks||{}, layerPicks:m.layerPicks||{}, base:m.base || (m.project?undefined:k), wallA:m.wallA, note:m.note, ...(m.elec?{elec:m.elec}:{}), ...(m.joint?{joint:m.joint}:{}) });
   if(model.base===undefined) delete model.base;
   if(m.base) model.base=m.base;
   const own = f => clone(state[f]?.[k]||{});

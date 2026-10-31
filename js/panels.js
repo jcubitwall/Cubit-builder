@@ -1,5 +1,5 @@
 /* Cubit Builder — panels.js */
-import { FT, H, PW, NOTCH } from './config.js';
+import { FT, H, PW, NOTCH, TI } from './config.js';
 import { expandWallShapes, expandLayerShapes } from './shapes.js';
 
 /* ============================================================ panel geometry (shared by 3D + 2D) */
@@ -46,7 +46,7 @@ function panelAt(w, x){
 /* The wall as built in its slot. Short end walls run straight through, corner to corner; long walls butt
    between them, so they lose the end walls' thickness at each pod corner (slot.trim = [left, right] in
    inches, seen from outside). Wall data is stored edge-to-edge; this shifts and clips it to the real wall. */
-function bodyWall(slot, w){
+function bodyWallRaw(slot, w){
   if(!w || w.fitted) return w;
   const tl=slot?.trim?.[0]||0, tr=slot?.trim?.[1]||0, full=w.len*FT, L=full-tl-tr;
   // shapes from the Shape studio become ordinary cuts first (exact outlines with their tool paths)
@@ -64,8 +64,19 @@ function bodyWall(slot, w){
     openings: w.openings.map(o=>clip({...o, key:o.key ?? `${o.kind}@${Math.round(o.x)}`})).filter(Boolean),
     inside: (w.inside||[]).map(b=>({...mapX(b, x=>x-tr), x:b.x-tr})).filter(b=>b.x>0 && b.x<L),     // inside items are measured from the inside-left = outside-right end
     outside: (w.outside||[]).map(b=>({...mapX(b, x=>x-tl), x:b.x-tl})).filter(b=>b.x>0 && b.x<L) };
+  return out;
+}
+/* the wall as it stands in the home: fitted, its openings matched to the neighbour's where pods meet (joints.js),
+   and its plugs and switches laid out by rule (electrical.js) */
+function bodyWall(slot, w){
+  if(!w || w.fitted) return w;
+  let out=bodyWallRaw(slot, w);
+  if(slot?.type==='int') out.t=TI;   // always 4½″ between pods
+  if(jointHook) out=jointHook(slot, out);
   return elecHook ? elecHook(slot, out) : out;
 }
+let jointHook=null;
+const setJointHook = fn => { jointHook=fn; };
 /* Plugs and switches laid out by rule (electrical.js) replace the wall's own boxes in homes that use the rules */
 let elecHook=null;
 const setElecHook = fn => { elecHook=fn; };
@@ -207,4 +218,4 @@ function handOf(f){
   if((!f.shape || f.shape==='rect') && f.w && (f.h??f.d) && Math.min(f.w, f.h??f.d) < bit) return 'auto';
   return null;
 }
-export { isGapOpening, wallGaps, wallStretches, crossesJoint, clipStrip, notchedOutline, handOf, isShaped, shapeOf, outlinePts, mapX, faceShape, layerHoles, panelCells, panelCount, panelNum, thumbSVG, wallLen, panelSpans, panelAt, bodyWall, setElecHook, isElecBox, boxKind };
+export { isGapOpening, wallGaps, wallStretches, crossesJoint, clipStrip, notchedOutline, handOf, isShaped, shapeOf, outlinePts, mapX, faceShape, layerHoles, panelCells, panelCount, panelNum, thumbSVG, wallLen, panelSpans, panelAt, bodyWall, bodyWallRaw, setJointHook, setElecHook, isElecBox, boxKind };

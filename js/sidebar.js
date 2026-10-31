@@ -1,5 +1,6 @@
 /* Cubit Builder — sidebar.js : model chips, wall list, wall options, layout editor, wall upload */
 import { FT, POD, PW, T, TI } from './config.js';
+import { jointInfo, makeLead, setFree, differs } from './joints.js';
 import { LIB, MODELS, optionsFor, saveCustomModels, layerOptions, mirrorId, layerMirrorId } from './data.js';
 import { LAYER_KINDS } from './config.js';
 import { screwsFor, slotsFor, podList, CW, layerSlotsFor, partnerOf, deckList } from './layout.js';
@@ -150,6 +151,16 @@ function renderSide(){
     state.selUnit=null; }
 }
 document.addEventListener('keydown', e=>{ if(e.key==='Escape' && state.view==='studio' && state.selected && !document.querySelector('dialog[open]') && !e.target.closest('input,textarea,select')){ state.selected=null; highlight(); renderSide(); } });
+/* where two pods meet: the two walls' openings always match; the plugs and switches on each face are its own */
+function jointBlock(s){
+  const J=jointInfo(s); if(!J) return '';
+  const other=esc(J.other.label);
+  if(J.free) return `<div class="jt-box"><div class="eyebrow">Between pods · 4½″</div><p class="note">Joins ${other}. <b>Let go:</b> this wall keeps its own openings${differs(s)?', and they <b>don’t line up</b> with the other side':''}.</p>
+    <div class="row"><button class="btn ghost edit-only" id="jFree">Match the other side again</button></div></div>`;
+  const lead = J.leads==='me' ? 'This wall leads: the other side takes its openings, mirrored.' : J.leads==='q' ? `The openings follow ${esc(J.other.label)}, mirrored.` : 'The openings of both walls are put together, so each one goes right through.';
+  return `<div class="jt-box"><div class="eyebrow">Between pods · 4½″</div><p class="note">Joins ${other}. Doors, windows, HRV holes and openings always match on both sides. ${lead} Plugs, switches and other boxes are each wall’s own.</p>
+    <div class="row">${J.leads==='me'?'':'<button class="btn ghost edit-only" id="jLead">Use this wall’s openings</button>'}<button class="btn ghost edit-only" id="jFree" title="Only when the two walls really must have different openings">Let the two differ</button></div></div>`;
+}
 function renderSideInner(){
   if(state.selFurn && furnSide(sideH, sideB)) return;   // a cabinet or piece of furniture picked
   const slots=slotsFor(state.model); const m=MODELS[state.model];
@@ -188,7 +199,7 @@ function renderSideInner(){
     sideB.innerHTML=`
       <div class="row"><button class="btn" id="toSheet">Assembly sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===s.id}">${state.isolate===s.id?'Exit isolate':'Isolate'}</button>${s.short ? `<button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button>` : ''}${w&&!w.blank?`<button class="btn ghost edit-only" id="wMir" title="The same wall the other way round (left ↔ right)">Mirror wall</button>`:''}<button class="btn ghost edit-only" id="wBuild" title="Openings, boxes, holes and shapes for this wall">Panel builder</button></div>
       ${(state.wallA?.[state.model]?.[s.pod.i] || m.pods[s.pod.i]?.a) ? `<p class="note">Wall A for ${s.pod.label} was set by hand. <button class="linkbtn" id="autoA">Go back to automatic</button></p>`:''}
-      ${isInt&&partnerOf(s,slots)?`<p class="note">Joins ${s.other.label} (${esc(partnerOf(s,slots).label)}). Picking a wall here gives that wall the same one, mirrored, so openings line up.</p>`:''}
+      ${isInt?jointBlock(s):''}
       ${unitsBlock(s, bodyWall(s,w))}
       ${elecWallBlock(s)}
       ${(()=>{ const cv=cabinetsOf(state.model)[s.id], d=cabDepth(cv), kind=d ? (typeof cv==='object' ? cv.kind : 'Custom') : 'None';
@@ -202,12 +213,14 @@ function renderSideInner(){
     sideB.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
       choose(s, b.dataset.o);
       // where two pods join, the neighbour's wall becomes the same wall, mirrored
-      const pt=partnerOf(s, slots); if(pt) choose(pt, mirrorId(b.dataset.o));
+      const pt=partnerOf(s, slots); if(pt) choose(pt, mirrorId(b.dataset.o), {follow:true});
       buildHome(); renderSide(); toast(`${s.label} → ${b.dataset.o}`+(pt?` · ${pt.label} → mirrored`:'')); });
     sideB.querySelector('#wBuild')?.addEventListener('click',()=>openWallBuilder({ from: w && !w.blank ? w.id : null, slot:s, len:s.len, type:s.type||'ext' }));
-    sideB.querySelector('#wMir')?.addEventListener('click',()=>{ const id=mirrorId(w.id); choose(s, id); const pt=partnerOf(s, slots); if(pt) choose(pt, mirrorId(id)); buildHome(); renderSide(); toast(`${s.label} mirrored`+(pt?` · ${pt.label} follows`:'')); });
+    sideB.querySelector('#wMir')?.addEventListener('click',()=>{ const id=mirrorId(w.id); choose(s, id); const pt=partnerOf(s, slots); if(pt) choose(pt, mirrorId(id), {follow:true}); buildHome(); renderSide(); toast(`${s.label} mirrored`+(pt?` · ${pt.label} follows`:'')); });
     bindUnits(s, bodyWall(s,w));
     bindElecWall(sideB, s);
+    sideB.querySelector('#jLead')?.addEventListener('click',()=>{ makeLead(s); buildHome(); renderSide(); toast(`${s.other.label}'s wall now takes this wall's openings`); });
+    sideB.querySelector('#jFree')?.addEventListener('click',()=>{ const f=!jointInfo(s)?.free; setFree(s, f); buildHome(); renderSide(); toast(f?'The two walls can now differ':'The two walls match again'); });
     sideB.querySelectorAll('[data-cab]').forEach(b=>b.onclick=()=>{ setCabinet(state.model, s.id, +b.dataset.cab, b.dataset.cabn); buildHome(); renderSide(); });
     const cd=sideB.querySelector('#cabD'); if(cd) cd.onchange=()=>{ setCabinet(state.model, s.id, Math.max(0,+cd.value||0), 'Custom'); buildHome(); renderSide(); };
     sideB.querySelector('#toSheet').onclick=()=>{ state.sheetSlot=s.id; openSheets(); };

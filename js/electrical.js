@@ -82,7 +82,7 @@ const blocks = I => I.cat!=='furniture' && I.cat!=='sink';     // beds, sofas, t
 let building=false, memo={ sig:null, plan:null };
 function sigOf(k){
   const m=MODELS[k]; if(!m) return '';
-  return JSON.stringify([k, m.pods, m.picks, m.units, m.elec, m.wallA, state.picks?.[k], state.faces?.[k], state.units?.[k], state.wallA?.[k], state.furniture?.[k]]);
+  return JSON.stringify([k, m.pods, m.picks, m.units, m.elec, m.joint, m.wallA, state.picks?.[k], state.faces?.[k], state.units?.[k], state.wallA?.[k], state.furniture?.[k]]);
 }
 function planFor(k=state.model){
   if(building) return null;

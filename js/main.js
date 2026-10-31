@@ -19,6 +19,7 @@ import { loadCatalog } from './catalog.js';
 import { loadCustomers } from './customers.js';
 import { loadKitchens } from './kitchens.js';
 import './team-ui.js';
+import './joints.js';
 import './electrical.js';
 import { loadEdits } from './libedit.js';
 import { startBuild } from './build.js';

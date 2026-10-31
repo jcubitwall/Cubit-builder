@@ -446,6 +446,15 @@ While you drag a cabinet, it keeps the wall its back was on when you picked it u
 - **Dropping one in:** Build tray → Cabinets → **Kitchens & groups**. Drag a kitchen in and it lands as a group on the wall you drop it on.
 - **Code:** `js/kitchens.js`, `functions/api/kitchens.js`, group helpers in furniture.js, panels in casework-ui.js.
 
+## Walls between pods always match (joints)
+
+Where two pods meet, each pod keeps its own interior wall, always 4½″. Doors, windows, HRV holes and other openings go right through both walls, so their openings always match, mirrored (`js/joints.js`, applied in `bodyWall`):
+
+- The wall picked or built most recently leads, and the wall on the other side takes its openings. The time is stored in `MODELS[k].joint.lead[wkey]`. **Use this wall's openings** on the wall panel makes the other wall lead instead.
+- If neither wall has been picked yet (stock homes, new pods), the openings of both walls are combined, lower-numbered pod first. An opening on the other side that overlaps one already there is dropped, because it's the same opening drawn slightly off.
+- Plugs, switches, data boxes and anything else on a wall's face belong to that wall only. The electrical rules put boxes only on the face toward the wall's own pod.
+- **Let the two differ** (`joint.free`) stops a pair matching. Use it only when the two walls really must have different openings.
+
 ## Plugs and switches by rule (electrical)
 New homes take no plugs or switches from the wall library. `js/electrical.js` lays them out from the rooms, the doors and the cabinets every time something changes, and they're cut into the walls like any other box (3D, panel sheets, CNC, blueprint E11). In an older home, the same happens to any wall swapped in and every wall of a pod added; ⋯ → **Electrical** → **Re-lay electrical** moves the whole home onto the rules (one wall at a time: **Lay this wall out by the rules** on its panel).
 

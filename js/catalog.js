@@ -69,7 +69,7 @@ function registerOver(it){
   const m=clone(it.model), wallA={...(m.wallA||{})};
   Object.entries(it.wallA||{}).forEach(([i,side])=>{ wallA[+i+1]=side; });
   MODELS[k]={ ...cur, pods:m.pods, decks:m.decks||[], size:m.size||cur.size, picks:{...(m.picks||{}), ...(it.picks||{})}, layerPicks:{...(m.layerPicks||{}), ...(it.layerPicks||{})}, wallA,
-    units:it.units||{}, found:it.found, deckOC:it.deckOC, bearing:it.bearing, overBy:it.by, overAt:it.saved, ...(m.elec?{elec:m.elec}:{elec:undefined}) };
+    units:it.units||{}, found:it.found, deckOC:it.deckOC, bearing:it.bearing, overBy:it.by, overAt:it.saved, ...(m.elec?{elec:m.elec}:{elec:undefined}), ...(m.joint?{joint:m.joint}:{joint:undefined}) };
   // the shared version wins over anything left in this browser for that model
   ['picks','layerPicks','wallA','units','found','deckOC','bearing','cabinets','lights','faces','names','furniture'].forEach(f=>{ if(state[f]) delete state[f][k]; });
   if(it.faces) state.faces[k]=clone(it.faces);

@@ -119,7 +119,7 @@ function makeDraftCopy(key){
   const m=MODELS[key], nk='draft-'+Date.now().toString(36)+Math.random().toString(36).slice(2,4);
   const fam = m.family || (m.base && MODELS[m.base]?.family) || null;
   const n=Object.values(MODELS).filter(x=>x.custom && x.from===key).length;
-  MODELS[nk]={ name:m.name+(n?` (draft ${n+1})`:' (draft)'), size:m.size, ...(m.scratch?{scratch:true}:{}), base:m.base||(m.sub?undefined:key), family:fam, from:key, pods:bakedPods(key), decks:clone(m.decks||[]), picks:{}, layerPicks:{}, custom:true, draft:true, created:new Date().toISOString(), ...(m.elec?{elec:clone(m.elec)}:{}) };
+  MODELS[nk]={ name:m.name+(n?` (draft ${n+1})`:' (draft)'), size:m.size, ...(m.scratch?{scratch:true}:{}), base:m.base||(m.sub?undefined:key), family:fam, from:key, pods:bakedPods(key), decks:clone(m.decks||[]), picks:{}, layerPicks:{}, custom:true, draft:true, created:new Date().toISOString(), ...(m.elec?{elec:clone(m.elec)}:{}), ...(m.joint?{joint:clone(m.joint)}:{}) };
   if(!MODELS[nk].base) delete MODELS[nk].base;
   ['bearing','found','deckOC'].forEach(f=>{ const v=state[f]?.[key] ?? m[f]; if(v!=null) (state[f] ||= {})[nk]=v; });
   ['units','furniture','cabinets','lights','names'].forEach(f=>{ const v=state[f]?.[key] ?? (f==='units'?m.units:null); if(v) (state[f] ||= {})[nk]=clone(v); });
@@ -200,6 +200,7 @@ function deletePod(i){
   const EL=MODELS[key].elec; if(EL){ const re=k=>{ const m=String(k).match(/^(\d+)(:.*)$/); if(!m) return k; const n=+m[1]; return n===i ? null : n>i ? `${n-1}${m[2]}` : k; };   // electrical: walls keyed by pod number
     if(EL.walls){ const n={}; Object.entries(EL.walls).forEach(([k,v])=>{ const r=re(k); if(r) n[r]=v; }); EL.walls=n; }
     if(EL.ov?.add) EL.ov.add=EL.ov.add.filter(u=>re(u.w)).map(u=>({...u, w:re(u.w)})); }
+  const JN=MODELS[key].joint; if(JN) ['lead','free'].forEach(f=>{ if(!JN[f]) return; const n={}; Object.entries(JN[f]).forEach(([k,v])=>{ const m=String(k).match(/^(\d+)(:.*)$/); if(!m) return; const p=+m[1]; if(p<i) n[k]=v; else if(p>i) n[`${p-1}${m[2]}`]=v; }); JN[f]=n; });   // matched walls between pods: keyed by pod number too
   state.focusPod=null; state.isolate=null; state.selFurn=null;                 // nothing left pointing at the old pod numbers
   const LE=state.lights?.[key]?.edits; if(LE){ const n={}; Object.entries(LE).forEach(([k,v])=>{ k=+k; if(k<i) n[k]=v; else if(k>i) n[k-1]=v; }); state.lights[key].edits=n; }
   finish(key); return '';
