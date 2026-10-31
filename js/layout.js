@@ -32,21 +32,33 @@ const deckList = modelKey => (MODELS[modelKey].decks||[]).map((d,k)=>{
 });
 function layoutOffsets(modelKey){
   const P = podList(modelKey), Dk = deckList(modelKey);
-  // pods: every joint line between pods adds ¾″ to everything beyond it
-  const joints = axis => {
-    const lines = new Set();
-    P.forEach(p=>P.forEach(q=>{
-      if(p===q) return;
-      if(axis==='x' && Math.abs(p.x1-q.x)<EPS && Math.min(p.z1,q.z1)-Math.max(p.z,q.z)>EPS) lines.add(q.x);
-      if(axis==='z' && Math.abs(p.z1-q.z)<EPS && Math.min(p.x1,q.x1)-Math.max(p.x,q.x)>EPS) lines.add(q.z);
-    }));
-    return [...lines];
-  };
-  // pods joined to another always line up with that pod's outside walls: a joint line that a neighbouring pod runs
-  // straight across (e.g. the Cove's 16′ + 8′ end to end along the 24′) adds no ¾″, the end-to-end joint closes up
-  const spanned = (axis, v) => P.some(q => axis==='x' ? (q.x < v-EPS && q.x1 > v+EPS) : (q.z < v-EPS && q.z1 > v+EPS));
-  const jx = joints('x').filter(v=>!spanned('x', v)), jz = joints('z').filter(v=>!spanned('z', v));
-  const pods = P.map(p=>({ ox: jx.filter(v=>v<=p.x+EPS).length*GAP, oz: jz.filter(v=>v<=p.z+EPS).length*GAP }));
+  // pods: each pod is docked to one neighbour and takes its place from it: ¾″ out from it across the joint, and lined
+  // up with it along the joint (its outside walls flush with that pod's). The home starts from its longest pod and
+  // docks outward. Where a pod also touches another pod it isn't docked to, the ¾″ there is kept too: it's pushed
+  // clear (with everything docked to it), and its far walls may then sit ¾″ off that pod's (that's fine).
+  const touch = (p,q) => {   // q against p: [axis, sign] (sign: q is on the + or − side of p), or null
+    const ovX=Math.min(p.x1,q.x1)-Math.max(p.x,q.x)>EPS, ovZ=Math.min(p.z1,q.z1)-Math.max(p.z,q.z)>EPS;
+    if(ovZ && Math.abs(p.x1-q.x)<EPS) return ['x',1]; if(ovZ && Math.abs(q.x1-p.x)<EPS) return ['x',-1];
+    if(ovX && Math.abs(p.z1-q.z)<EPS) return ['z',1]; if(ovX && Math.abs(q.z1-p.z)<EPS) return ['z',-1];
+    return null; };
+  const shared = (p,q,ax) => ax==='x' ? Math.min(p.z1,q.z1)-Math.max(p.z,q.z) : Math.min(p.x1,q.x1)-Math.max(p.x,q.x);
+  const pods = P.map(()=>null), parent = P.map(()=>-1), order=[];
+  while(pods.some(o=>!o)){
+    const root = P.filter(p=>!pods[p.i]).sort((a,b)=>b.len-a.len || a.i-b.i)[0];
+    pods[root.i]={ox:0, oz:0}; order.push(root.i);
+    const queue=[root.i];
+    while(queue.length){ const pi=queue.shift(), p=P[pi];
+      // dock the free neighbours, the longest shared joint first
+      P.filter(q=>!pods[q.i] && touch(p,q)).map(q=>({q, t:touch(p,q)})).sort((a,b)=>shared(p,b.q,b.t[0])-shared(p,a.q,a.t[0]))
+        .forEach(({q,t:[ax,sg]})=>{ if(pods[q.i]) return; const o={...pods[pi]}; o[ax==='x'?'ox':'oz'] += sg*GAP; pods[q.i]=o; parent[q.i]=pi; order.push(q.i); queue.push(q.i); }); }
+  }
+  // keep ¾″ at every other joint too: push the later pod (and what's docked to it) clear
+  const kids = i => P.filter(q=>parent[q.i]===i).flatMap(q=>[q.i, ...kids(q.i)]);
+  for(let pass=0; pass<4; pass++){ let moved=false;
+    order.forEach((qi,k)=>order.slice(0,k).forEach(pi=>{ const p=P[pi], q=P[qi], t=touch(p,q); if(!t || parent[qi]===pi) return;
+      const [ax,sg]=t, key=ax==='x'?'ox':'oz', gap=sg*(pods[qi][key]-pods[pi][key]);
+      if(gap < GAP-1e-6){ const d=sg*(GAP-gap); [qi, ...kids(qi)].forEach(i=>{ pods[i][key]+=d; }); moved=true; } }));
+    if(!moved) break; }
   // decks take their place from the pod they touch (¾″ out from it, lined up along it); a deck that
   // touches no pod lines up with the deck it touches. Decks never move the pods.
   const decks = Dk.map(()=>({ox:null, oz:null}));
