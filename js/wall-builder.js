@@ -427,4 +427,18 @@ async function saveWall(asNew){
   buildHome(); renderSide(); render();
   toast(`${w.id} saved to the wall library${shared?' (for the whole team)':' (in this browser)'}${forSlot?` · on ${forSlot.label}`:''}`);
 }
-export { openWallBuilder };
+/* save a wall made by the app (e.g. a window centred over a sink) to the library and put it on a slot, the same way
+   the builder does: the team library when the server has one, else this browser */
+async function saveWallFor(w, slot){
+  if(!canEdit()) throw new Error('Only editors and admins can change walls.');
+  w={ ...clone(w), id:nextId(`${w.type==='int'?'I':'W'}${String(w.len).padStart(2,'0')}`), t:w.type==='int'?4.5:6.5 };
+  delete w.mirrorOf; delete w.src; delete w.fitted; delete w.blank;
+  let shared=false;
+  const r=await fetch('api/walls',{method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({op:'save', wall:w})}).catch(()=>null);
+  if(r && r.ok && (r.headers.get('content-type')||'').includes('json')) shared=true;
+  else if(r && r.status!==404 && r.status!==405){ const o=await r.json().catch(()=>({})); if(o.error) throw new Error(o.error); }
+  LIB.push({ ...w, src: shared?'team':'saved' }); if(!shared) saveWallLib();
+  if(slot) choose(slot, w.id);
+  return { id:w.id, shared };
+}
+export { openWallBuilder, saveWallFor };

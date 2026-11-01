@@ -6,7 +6,7 @@ import { cabinetJob, jobZip, sheetSVG, CAB_CNC } from './cabcnc.js';
 import { MODELS } from './data.js';
 import { itemModel } from './casework3d.js';
 import { frontSVG } from './casework-svg.js';
-import { fitBaseToSink, furnitureOf, furnById, updateItem, removeItem, duplicateItem, turnItem, refreshItem, addItem, snap, applyFurniture, podsShown, freeSpot, groupMembers, makeGroup, ungroup, relinkGroup, renameGroup, setGroupFrom, removeGroup, groupRecipe } from './furniture.js';
+import { centreUnderWindow, fitBaseToSink, furnitureOf, furnById, updateItem, removeItem, duplicateItem, turnItem, refreshItem, addItem, snap, applyFurniture, podsShown, freeSpot, groupMembers, makeGroup, ungroup, relinkGroup, renameGroup, setGroupFrom, removeGroup, groupRecipe } from './furniture.js';
 import { kitchenById, newKitchenId, saveKitchen } from './kitchens.js';
 import { state, save } from './state.js';
 import { canSave, canEdit } from './role.js';
@@ -410,7 +410,9 @@ function kitchenNote(it, d, ed){
     const at=it.dock.at||'C';
     return `<div class="cw-opt"><span>In the sink base</span><div class="seg">${[['L','Left'],['C','Centre'],['R','Right']].map(([k,l])=>`<button data-dock="${k}" aria-pressed="${at===k}" ${ed?'':'disabled'}>${l}</button>`).join('')}</div></div>
       <p class="note">${(it.opt?.mount||d.mount)==='top'?`Top mount: the hole is cut ${show(settings().counter.lap)}${unitSign()} in from the sink's edge all the way round.`:`Bottom mount: the sink is recessed under the countertop, which runs ${show(settings().counter.reveal||0)}${unitSign()} over the bowl all the way round.`}</p>`; }
-  if(it.sinkMin) return `<p class="note">Holds a sink: at least ${show(it.sinkMin)}${unitSign()} wide (it can be made wider, not narrower). Its stretchers are narrowed over the sink.</p>${ed && it.w>it.sinkMin+0.01?`<div class="row"><button class="btn ghost sm" id="fFitSink">Fit to the sink (${show(it.sinkMin)}${unitSign()})</button></div>`:''}`;
+  const under = (it.k==='BS' || it.sinkMin) && it.wall && ed ? `<div class="row"><button class="btn ghost sm" id="fUnderWin">Centre under the window</button></div>` : '';
+  if(it.sinkMin) return under+`<p class="note">Holds a sink: at least ${show(it.sinkMin)}${unitSign()} wide (it can be made wider, not narrower). Its stretchers are narrowed over the sink.</p>${ed && it.w>it.sinkMin+0.01?`<div class="row"><button class="btn ghost sm" id="fFitSink">Fit to the sink (${show(it.sinkMin)}${unitSign()})</button></div>`:''}`;
+  if(under) return under;
   if(d.cat==='counter'){ const C=settings().counter, H=it.sinks||[];
     return `<p class="note">${esc(C.name)} ${show(it.h)}${unitSign()}. It fits the cabinets under it: back to the wall, ${show(C.end)}${unitSign()} past a free end (a range end too), ${show(C.over)}${unitSign()} past the boxes at the front.${H.length?` Sink hole${H.length>1?'s':''}: ${H.map(h=>`${show(h.x1-h.x0)} × ${show(h.z1-h.z0)}${unitSign()} (${h.mount==='top'?'top':'bottom'} mount)`).join(', ')}.`:''}</p>`; }
   return '';
@@ -448,6 +450,9 @@ function furnSide(sideH, sideB){
   sideB.querySelectorAll('[data-fl]').forEach(inp=>inp.onchange=()=>{ const v=parseLen(inp.value), k=inp.dataset.fl;
     if(k==='w' && it.sinkMin && v<it.sinkMin-1e-6){ toast(`The sink needs this base at least ${show(it.sinkMin)}${unitSign()} wide`); inp.value=show(it.w); return; }
     if(isFinite(v) && v>=0) ch({[k]:v}); else inp.value=show(it[k]||0); });
+  sideB.querySelector('#fUnderWin')?.addEventListener('click',()=>{ const r=centreUnderWindow(it.id); if(!r.ok){ toast(r.why); return; }
+    furnitureOf().forEach(refreshItem); renderSide();
+    toast(!r.wanted ? 'Already centred under the window' : Math.abs(r.moved-r.wanted)<0.01 ? `Moved ${show(Math.abs(r.moved))}${unitSign()}: the sink is centred under the window` : `Moved ${show(Math.abs(r.moved))}${unitSign()} of ${show(Math.abs(r.wanted))}${unitSign()}: the row is against a wall or another unit`); });
   sideB.querySelector('#fFitSink')?.addEventListener('click',()=>{ fitBaseToSink(it.id); refreshItem(it); renderSide(); toast('Sink base fitted to its sink'); });
   sideB.querySelectorAll('[data-dock]').forEach(b=>b.onclick=()=>{ ch({ dock:{ ...(it.dock||{}), at:b.dataset.dock } }); });
   sideB.querySelectorAll('[data-fo]').forEach(b=>b.onclick=()=>{ const raw=b.dataset.v; ch({opt:{...(it.opt||{}), [b.dataset.fo]:isNaN(+raw)?raw:+raw}}); });

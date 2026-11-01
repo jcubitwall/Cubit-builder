@@ -11,6 +11,9 @@ import { checkpoint } from './history.js';
 import { ensureDraft } from './pods.js';
 import { itemDef, newItem, CATS, settings as cwSettings, sinkHole, sinkBaseMin, th } from './casework.js';
 import { itemModel } from './casework3d.js';
+import { slotsFor } from './layout.js';
+import { bodyWall } from './panels.js';
+import { pickFor } from './state.js';
 
 const FT=12;
 const list = (k=state.model) => ((state.furniture ||= {})[k] ||= []);
@@ -472,6 +475,62 @@ function fitKitchen(){
 }
 function changed(){ const moved=fitKitchen(); save(); if(group) moved.forEach(id=>refreshItem(byId(id))); }
 
+/* ---------------------------------------------------------------- sinks and windows
+   Home frame (feet, as the walls are drawn: slot.p0, slot.n) ⇄ a pod's own frame (the furniture's u, v). */
+function homeToPod(pod, x, z){ const f=frames[pod], hg=group?.parent; if(!f || !hg){ return null; } let R=f; while(R.parent) R=R.parent; R.updateMatrixWorld(true);
+  const l=f.worldToLocal(hg.localToWorld(new THREE.Vector3(x,0,z))); return { u:l.x, v:l.z }; }
+function podToHome(pod, u, v){ const f=frames[pod], hg=group?.parent; if(!f || !hg) return null; let R=f; while(R.parent) R=R.parent; R.updateMatrixWorld(true);
+  const w=hg.worldToLocal(f.localToWorld(new THREE.Vector3(u,0,v))); return { x:w.x, z:w.z }; }
+/* the windows in a wall, with their middles in the home frame */
+function windowsIn(slotId){
+  const s=slotsFor(state.model).find(q=>q.id===slotId); if(!s) return [];
+  const w=bodyWall(s, pickFor(s)); if(!w) return [];
+  const r=[s.n[1],-s.n[0]], tl=w.trim?.[0]||0;
+  return (w.openings||[]).filter(o=>o.kind==='window').map(o=>{ const t=(o.x+o.w/2+tl)/FT; return { o, s, x:s.p0[0]+r[0]*t, z:s.p0[1]+r[1]*t }; });
+}
+/* the middle of a docked sink's hole, or of the sink base, in the pod frame */
+function sinkMiddle(cab){
+  const sk=list().find(s=>s.dock?.cab===cab.id), hole=sk && sinkHole(sk);
+  if(sk && hole) return { sink:sk, ...toPod(sk, (hole.cx||0)/FT, (sk.d/2+(hole.cz||0))/FT) };
+  return { sink:null, ...toPod(cab, 0, cab.d/2/FT) };
+}
+/* the base cabinets in a row with this one (same wall line, butted within ½″), left to right in its frame */
+function rowOf(cab){
+  const line=list().filter(o=>o.pod===cab.pod && sameA(o.a,cab.a) && !o.dock && itemDef(o.k)?.cat!=='counter' && itemDef(o.k)?.cat!=='upper').map(o=>{
+    const c=toItem(cab, o.u, o.v); return { o, z:c.z, x0:c.x-o.w/2/FT, x1:c.x+o.w/2/FT }; }).filter(r=>Math.abs(r.z)<4/FT).sort((a,b)=>a.x0-b.x0);
+  const i=line.findIndex(r=>r.o.id===cab.id); if(i<0) return [];
+  let a=i, b=i; while(a>0 && line[a-1].x1>=line[a].x0-0.5/FT) a--; while(b<line.length-1 && line[b+1].x0<=line[b].x1+0.5/FT) b++;
+  return line.slice(a, b+1);
+}
+/* slide a sink base (and the cabinets butted to it) along its wall so its sink sits under the middle of the window
+   above. Returns { ok, moved (in), wanted (in), why } */
+function centreUnderWindow(id){
+  const cab=byId(id); if(!cab) return { ok:false, why:'No cabinet.' };
+  if(!cab.wall) return { ok:false, why:'This cabinet isn’t backed onto a wall.' };
+  const W=windowsIn(cab.wall); if(!W.length) return { ok:false, why:'There’s no window in the wall behind it.' };
+  const m=sinkMiddle(cab), mx=toItem(cab, m.u, m.v).x;
+  const pick=W.map(w=>{ const p=homeToPod(cab.pod, w.x, w.z); return p && { w, x:toItem(cab, p.u, p.v).x }; }).filter(Boolean).sort((a,b)=>Math.abs(a.x-mx)-Math.abs(b.x-mx))[0];
+  if(!pick) return { ok:false, why:'Couldn’t place the window.' };
+  const want=pick.x-mx; if(Math.abs(want)<0.01/FT) return { ok:true, moved:0, wanted:0 };
+  const row=rowOf(cab); if(!row.length) return { ok:false, why:'Couldn’t find the cabinet row.' };
+  const room = want<0 ? roomBeyond(row[0].o,'L') : roomBeyond(row[row.length-1].o,'R');
+  const d=Math.sign(want)*Math.min(Math.abs(want), Math.max(0, room));
+  checkpoint(); ensureDraft();
+  const p0=toPod(cab,0,0), p1=toPod(cab,d,0), du=p1.u-p0.u, dv=p1.v-p0.v;
+  row.forEach(r=>{ const o=byId(r.o.id); o.u+=du; o.v+=dv; });
+  changed();
+  return { ok:true, moved:+(d*FT).toFixed(3), wanted:+(want*FT).toFixed(3) };
+}
+/* where a sink would put the middle of a window in a wall: the sinks / sink bases backed onto it, nearest first:
+   [{ t (in, along the wall from its left end seen from outside, before its trims), name }] */
+function sinksOnWall(slotId){
+  const s=slotsFor(state.model).find(q=>q.id===slotId); if(!s) return [];
+  const r=[s.n[1],-s.n[0]];
+  return list().filter(o=>o.wall===slotId && itemDef(o.k)?.cat==='base' && (o.k==='BS' || list().some(x=>x.dock?.cab===o.id))).map(cab=>{
+    const m=sinkMiddle(cab), h=podToHome(cab.pod, m.u, m.v); if(!h) return null;
+    return { t:((h.x-s.p0[0])*r[0]+(h.z-s.p0[1])*r[1])*FT, name:m.sink ? itemDef(m.sink.k).name : itemDef(cab.k).name }; }).filter(Boolean);
+}
+
 /* ---------------------------------------------------------------- edits */
 function addItem(k, at){ checkpoint(); ensureDraft(); const it={ id:newId(), ...newItem(k), ...at }; delete it.free; list().push(it);
   const cat=itemDef(k)?.cat; if(cat && state.show['cw-'+cat]===false){ state.show['cw-'+cat]=true; import('./layers.js').then(m=>m.renderLayers?.()).catch(()=>{}); }   // dragged in while its layer was off: switch it on
@@ -488,4 +547,4 @@ const DEPTH_CATS=new Set(['base','upper','tall','linen','wardrobe','vanity','app
 function wallDepths(k=state.model){ const out={}; list(k).forEach(it=>{ if(it.wall && DEPTH_CATS.has(itemDef(it.k)?.cat)) out[it.wall]=Math.max(out[it.wall]||0, it.d); }); return out; }
 
 const podsShown = () => lastPods;
-export { fitBaseToSink, dockAt, turnStart, turnTo, freeSpot, clash, setWalls, handleMeshes, roomBeyond, stretchTo, updateHandles, onFurnApplied, setCabExplode, resetCabExplode, cabExploded, explodeFurniture, furnHolder, podsShown, showFurnGhost, hideFurnGhost, setHolderVisible, list as furnitureOf, byId as furnById, buildFurniture, refreshItem, applyFurniture, furnMeshes, snap, podAt, addItem, updateItem, removeItem, duplicateItem, turnItem, podRemoved, wallDepths, shownCat, CATS as FURN_CATS , cabExplodeGoal , rotXZ, groupMembers, makeGroup, ungroup, relinkGroup, renameGroup, setGroupFrom, removeGroup, setMany, moveHolder, groupRecipe, placeRecipe, addRecipe };
+export { centreUnderWindow, sinksOnWall, windowsIn, fitBaseToSink, dockAt, turnStart, turnTo, freeSpot, clash, setWalls, handleMeshes, roomBeyond, stretchTo, updateHandles, onFurnApplied, setCabExplode, resetCabExplode, cabExploded, explodeFurniture, furnHolder, podsShown, showFurnGhost, hideFurnGhost, setHolderVisible, list as furnitureOf, byId as furnById, buildFurniture, refreshItem, applyFurniture, furnMeshes, snap, podAt, addItem, updateItem, removeItem, duplicateItem, turnItem, podRemoved, wallDepths, shownCat, CATS as FURN_CATS , cabExplodeGoal , rotXZ, groupMembers, makeGroup, ungroup, relinkGroup, renameGroup, setGroupFrom, removeGroup, setMany, moveHolder, groupRecipe, placeRecipe, addRecipe };

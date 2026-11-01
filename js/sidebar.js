@@ -1,6 +1,7 @@
 /* Cubit Builder — sidebar.js : model chips, wall list, wall options, layout editor, wall upload */
 import { FT, POD, PW, T, TI } from './config.js';
 import { jointInfo, makeLead, setFree, differs } from './joints.js';
+import { planWindowOverSink, centreWindowOverSink } from './sink-window.js';
 import { LIB, MODELS, optionsFor, saveCustomModels, layerOptions, mirrorId, layerMirrorId } from './data.js';
 import { LAYER_KINDS } from './config.js';
 import { screwsFor, slotsFor, podList, CW, layerSlotsFor, partnerOf, deckList } from './layout.js';
@@ -290,7 +291,10 @@ function unitsBlock(s, w){
     const hand = T?.hand ? `<span class="seg sm" role="group" aria-label="${T.hand} side"><button data-h="L" data-k="${esc(okey(o))}" aria-pressed="${r.hand!=='R'}">${T.hand==='Hinge'?'Hinge L':'Left'}</button><button data-h="R" data-k="${esc(okey(o))}" aria-pressed="${r.hand==='R'}">${T.hand==='Hinge'?'Hinge R':'Right'}</button></span>` : '';
     const swing = T?.swing ? `<span class="seg sm" role="group" aria-label="Swing"><button data-sw="in" data-k="${esc(okey(o))}" aria-pressed="${r.swing!=='out'}">${pr?'Into '+esc(s.pod.label):'In'}</button><button data-sw="out" data-k="${esc(okey(o))}" aria-pressed="${r.swing==='out'}">${pr?'Into '+esc(pr.slot.pod.label):'Out'}</button></span>` : '';
     const ownerSeg = pr ? `<span class="muted">Between ${esc(s.pod.label)} and ${esc(pr.slot.pod.label)}: only one wall gets the door. It's in this one (${esc(s.pod.label)}); ${esc(pr.slot.label)} has the matching rough opening. <button class="linkbtn" data-move="${esc(okey(o))}">Move it to ${esc(pr.slot.pod.label)}'s wall</button></span>` : '';
-    return `<div class="unit-row"><div class="unit-pic">${r?unitSVG(r.unit.type,r.hand,o.w,o.h,44,s.type==='int',o.shape==='round'):unitSVG('none','L',o.w,o.h,44,false,o.shape==='round')}</div><div class="unit-main"><b>${o.shape==='round'?'Round window':KIND_NAME[o.kind]} ${n[o.kind]}</b> <span class="muted">${o.shape==='round'?'⌀ '+fin(o.d||o.w)+' round R.O.':fin(o.w)+' × '+fin(o.h)+' R.O.'}${o.y>0?' · sill '+fin(o.y):''}</span>${sel}${hand||swing?`<div class="unit-opts">${hand}${swing}</div>`:''}${ownerSeg}${r?`<span class="muted">${esc(pr?unitLabel(r).replace(/swings (in|out)/, m=>'swings into '+(m.endsWith('in')?s.pod.label:pr.slot.pod.label)):unitLabel(r))}${r.unit.sample?' · sample unit':''}${r.unit.rso?` · RSO ${fin(r.unit.rso.w)} × ${fin(r.unit.rso.h)}${Math.abs(r.unit.rso.w-o.w)>0.25||Math.abs(r.unit.rso.h-o.h)>0.25?' (this opening is '+fin(o.w)+' × '+fin(o.h)+')':''}`:''}${r.unit.egress?' · egress':''}</span>`:''}</div></div>`;
+    const wsink = o.kind==='window' ? (()=>{ const P=planWindowOverSink(s,o); if(!P.ok) return '';
+      if(Math.abs(P.dx)<0.01) return `<span class="muted">Centred over the sink below${P.joint?' (as near as the panel joint allows)':''}.</span>`;
+      return `<div class="unit-opts"><button class="btn ghost edit-only" data-wsink="${esc(okey(o))}" title="Moves the window in this home's own copy of the wall">Centre over the sink (${P.dx>0?'→':'←'} ${fin(Math.abs(P.dx))})</button></div>`; })() : '';
+    return `<div class="unit-row"><div class="unit-pic">${r?unitSVG(r.unit.type,r.hand,o.w,o.h,44,s.type==='int',o.shape==='round'):unitSVG('none','L',o.w,o.h,44,false,o.shape==='round')}</div><div class="unit-main"><b>${o.shape==='round'?'Round window':KIND_NAME[o.kind]} ${n[o.kind]}</b> <span class="muted">${o.shape==='round'?'⌀ '+fin(o.d||o.w)+' round R.O.':fin(o.w)+' × '+fin(o.h)+' R.O.'}${o.y>0?' · sill '+fin(o.y):''}</span>${sel}${hand||swing?`<div class="unit-opts">${hand}${swing}</div>`:''}${ownerSeg}${wsink}${r?`<span class="muted">${esc(pr?unitLabel(r).replace(/swings (in|out)/, m=>'swings into '+(m.endsWith('in')?s.pod.label:pr.slot.pod.label)):unitLabel(r))}${r.unit.sample?' · sample unit':''}${r.unit.rso?` · RSO ${fin(r.unit.rso.w)} × ${fin(r.unit.rso.h)}${Math.abs(r.unit.rso.w-o.w)>0.25||Math.abs(r.unit.rso.h-o.h)>0.25?' (this opening is '+fin(o.w)+' × '+fin(o.h)+')':''}`:''}${r.unit.egress?' · egress':''}</span>`:''}</div></div>`;
   }).join('')}</div>${!ops.every(o=>unitsFor(o).length)?'<p class="note">Add a window or door to the library with <b>Upload STEP → Window / door</b>.</p>':''}`;
 }
 function bindUnits(s, w){
@@ -303,6 +307,10 @@ function bindUnits(s, w){
   // a door between two pods: which pod's wall holds it
   sideB.querySelectorAll('.units [data-own]').forEach(b=>b.onclick=()=>{ setDoorOwner(s, byK(b.dataset.own)); done(); });
   sideB.querySelectorAll('.units [data-move]').forEach(b=>b.onclick=()=>{ const o=byK(b.dataset.move), pr=pairOf(s,o); if(pr){ setDoorOwner(pr.slot, pr.o); state.selected=pr.slot.id; done(); } });
+  sideB.querySelectorAll('.units [data-wsink]').forEach(b=>b.onclick=async()=>{ const o=byK(b.dataset.wsink); b.disabled=true;
+    try{ const r=await centreWindowOverSink(s, o); if(!r.ok){ toast(r.why); b.disabled=false; return; }
+      done(); toast(r.same ? 'Already centred over the sink' : `Window centred over the sink${r.joint?` · ${fin(Math.abs(r.joint))} off centre so its edge sits on the panel joint`:''} · this home now uses wall ${r.id}`); }
+    catch(e){ toast(`Not moved: ${e.message||e}`); b.disabled=false; } });
   sideB.querySelectorAll('.units [data-goto]').forEach(b=>b.onclick=()=>{ state.selected=b.dataset.goto; highlight(); renderSide(); });
 }
 
