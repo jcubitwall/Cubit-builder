@@ -63,7 +63,6 @@ function initPhone(){
   $('bHome').onclick=()=>dlg.showModal();
   $('homeClose').onclick=()=>dlg.close();
   if($('hProjects')) $('hProjects').onclick=()=>{ dlg.close(); $('bProjects').click(); };
-  $('hUpload').onclick=()=>{ dlg.close(); $('bUpload').click(); };
   // picking a home closes the sheet (a model name with more than one design stays open to pick one)
   models.addEventListener('click', e=>{ const b=e.target.closest('button'); if(!b) return;
     setTimeout(()=>{ if(b.dataset.m) dlg.close(); }, 0); });
