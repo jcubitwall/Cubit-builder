@@ -62,7 +62,7 @@ const DEFAULTS = {
   screw:{ name:'Confirmat / #8 screws through the ends', every:8 },
   rod:{ name:'Oval closet rod 1″ with end flanges' },
   // countertops: Cubit makes most of them in ½″ FormX solid surface, cut on the CNC with FormX's own bit and speeds
-  counter:{ name:'FormX ½″ solid surface', t:0.5, over:1, end:0.125, lap:0.25, reveal:0,
+  counter:{ name:'FormX ½″ solid surface', t:0.5, over:1, end:0.125, lap:0.25, reveal:0.25,
     cnc:{ T:15, name:'FORMX', dia:0.5, S:18000, feed:200, plunge:60, step:0.25, sheet:[30,144], margin:0.5 } },
   // sink bases: the stretchers keep their full width this far in from each side; the sink's hole clears them by `clear`
   sinkBase:{ keep:3, clear:0.25, minStrip:0.5 },
@@ -575,7 +575,7 @@ def({ k:'CT', cat:'counter', name:'Countertop', w:48, h:0.5, d:24.625, wR:[12,14
       note:`${name} ${fmtU(T)}${holes.length?' · '+holes.map(h=>`${h.mount==='top'?'top mount':'bottom mount'} sink: hole ${fx3(h.x1-h.x0)} × ${fx3(h.z1-h.z0)}`).join(' · '):''}`,
       cnc:{ U:W, V:D, u:['left end','right end'], v:['front','back'], up:'top face', outline:rectO(W,D),
         ops: holes.map(h=>({ k:'cutout', u0:r4(h.x0), u1:r4(h.x1), v0:r4(D-h.z1), v1:r4(D-h.z0), r:h.r||0, thru:true, depth:T, tool:'FormX', side:'A',
-          what:`Sink cut-out, ${h.mount==='top'?`top mount (${fmtU(S.counter.lap)} in from the sink's edge)`:'bottom mount (the bowl opening)'}${h.name?` · ${h.name}`:''}` })),
+          what:`Sink cut-out, ${h.mount==='top'?`top mount (${fmtU(S.counter.lap)} in from the sink's edge)`:`bottom mount (the countertop ${fmtU(S.counter.reveal||0)} over the bowl, recessed sink)`}${h.name?` · ${h.name}`:''}` })),
         at:at([0,T,D],[1,0,0],[0,0,-1],[0,1,0]) } });
     top.counter=true;
     const P=[top];
@@ -708,7 +708,8 @@ def({ k:'SK-LAU', cat:'sink', name:'Laundry tub, freestanding 24 × 22', w:24, h
 /* sinks that sit in a countertop: how they're mounted and how wide their rim is.
    Top mount (drop-in): the rim sits on the countertop, and the hole is cut `counter.lap` (¼″) in from the sink's edge
    all the way round. Bottom mount (undermount): the sink hangs under the countertop, and the hole is the bowl's
-   opening (inside the rim), less `counter.reveal` each side where the countertop runs over the bowl.
+   opening (inside the rim), less `counter.reveal` (¼″) each side: the countertop runs ¼″ over the bowl, so the sink
+   is recessed under it.
    They dock into a sink base (furniture.js): its centre, or against either side (the hole `sinkBase.keep` in). */
 ITEMS.filter(d=>d.cat==='sink' && d.k!=='SK-LAU').forEach(d=>{ const top=/drop-in/.test(d.name) || d.k==='SK-2-60';
   d.mount=top?'top':'bottom'; d.rim=top?1.25:1; d.R=1.25; d.rb=1; d.dock=true;
@@ -718,7 +719,7 @@ function sinkHole(it){ const d=itemDef(it.k); if(!d?.dock) return null;
   const mount=it.opt?.mount || d.mount, c=S.counter;
   // the hole's corners follow the sink: in from the rim's rounded corners (top mount), or the bowl's (bottom mount)
   if(mount==='top') return { w:r4(it.w-2*c.lap), d:r4(it.d-2*c.lap), mount, r:r4(Math.max(0, (d.R??1.25)-c.lap)) };
-  const rim=d.rim||1; return { w:r4(it.w-2*rim-2*(c.reveal||0)), d:r4(it.d-2*rim-2*(c.reveal||0)), mount, r:r4(Math.max(0, (d.rb??1)+(c.reveal||0))) };
+  const rim=d.rim||1; return { w:r4(it.w-2*rim-2*(c.reveal||0)), d:r4(it.d-2*rim-2*(c.reveal||0)), mount, r:r4(Math.max(0, (d.rb??1)-(c.reveal||0))) };
 }
 /* the narrowest sink base for a sink: its hole plus the full-width stretcher ends and clearance each side,
    but never narrower than the sink itself plus the two ends */
