@@ -87,7 +87,11 @@ try{ if(navigator.standalone || matchMedia('(display-mode: standalone)').matches
       <label><input type="radio" name="kind" value="pod"> <b>Pod</b><span>one pod with its walls, floors and roof</span></label>
       <label><input type="radio" name="kind" value="home" checked> <b>Home</b><span>a whole home: pods, decks and all</span></label>
       <label><input type="radio" name="kind" value="unit"> <b>Window / door</b><span>one unit at its real size, standing upright</span></label>
+      <label><input type="radio" name="kind" value="sink"> <b>Sink</b><span>one kitchen sink, sitting level, rim on top, its front facing you in the front view</span></label>
     </fieldset>
+    <div class="up-unit" id="upSink" hidden>
+      <label class="fld">Mounted<select id="upMount"><option value="top">Top mount (drop-in): the rim sits on the countertop</option><option value="bottom">Bottom mount (undermount): recessed under the countertop</option></select></label>
+    </div>
     <div class="up-unit" id="upUnit" hidden>
       <label class="fld">Type<select id="upType">
         <option value="casement">Casement</option><option value="picture">Picture (fixed)</option><option value="awning">Awning</option>

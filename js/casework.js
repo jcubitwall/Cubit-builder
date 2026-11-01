@@ -20,6 +20,7 @@
    Units: inches inside. Items: { k, w, h, d, y, opt } (w/h/d finished overall, y = height off the floor).
    An item's own coordinates: x 0→w left to right seen from the front, y up, z 0 at the back → d at the front. */
 
+import { offset as offsetPaths } from './geom2d.js';
 const MM = 1/25.4;
 const r16 = v => Math.round(v*16)/16;
 const r4 = v => Math.round(v*10000)/10000;
@@ -574,8 +575,8 @@ def({ k:'CT', cat:'counter', name:'Countertop', w:48, h:0.5, d:24.625, wR:[12,14
     const top=part('Countertop','top','counter',[0,0,0,W,T,D],'y',{ ex:[0,1,0],
       note:`${name} ${fmtU(T)}${holes.length?' · '+holes.map(h=>`${h.mount==='top'?'top mount':'bottom mount'} sink: hole ${fx3(h.x1-h.x0)} × ${fx3(h.z1-h.z0)}`).join(' · '):''}`,
       cnc:{ U:W, V:D, u:['left end','right end'], v:['front','back'], up:'top face', outline:rectO(W,D),
-        ops: holes.map(h=>({ k:'cutout', u0:r4(h.x0), u1:r4(h.x1), v0:r4(D-h.z1), v1:r4(D-h.z0), r:h.r||0, thru:true, depth:T, tool:'FormX', side:'A',
-          what:`Sink cut-out, ${h.mount==='top'?`top mount (${fmtU(S.counter.lap)} in from the sink's edge)`:`bottom mount (the countertop ${fmtU(S.counter.reveal||0)} over the bowl, recessed sink)`}${h.name?` · ${h.name}`:''}` })),
+        ops: holes.flatMap(h=>(h.paths?.length ? h.paths.map(P=>({ path:P.map(([x,z])=>[r4(x), r4(D-z)]) })) : [{}]).map(extra=>({ k:'cutout', u0:r4(h.x0), u1:r4(h.x1), v0:r4(D-h.z1), v1:r4(D-h.z0), r:h.r||0, ...extra, thru:true, depth:T, tool:'FormX', side:'A',
+          what:`Sink cut-out, ${h.mount==='top'?`top mount (${fmtU(S.counter.lap)} in from the sink's edge)`:`bottom mount (the countertop ${fmtU(S.counter.reveal||0)} over the bowl, recessed sink)`}${h.name?` · ${h.name}`:''}` }))),
         at:at([0,T,D],[1,0,0],[0,0,-1],[0,1,0]) } });
     top.counter=true;
     const P=[top];
@@ -642,14 +643,27 @@ def({ k:'CTB', cat:'furniture', name:'Coffee table', w:44, h:17, d:24, build: it
    their STEP files (loaded at start: data/fixtures-*.json, one mesh per solid so they explode). */
 const FIX = {};
 const FIX_FILES = { lpgShower:'data/fixtures-lifepodgo-shower.json' };
-async function loadFixtures(){ await Promise.all(Object.entries(FIX_FILES).map(async([k,u])=>{ try{ const r=await fetch(u); if(r.ok) FIX[k]=await r.json(); }catch(e){} })); }
+async function loadFixtures(){ await Promise.all(Object.entries(FIX_FILES).map(async([k,u])=>{ try{ const r=await fetch(u); if(r.ok) FIX[k]=await r.json(); }catch(e){} }));
+  await loadStepSinks(); }
+/* sinks uploaded as STEP files (Upload STEP → Sink; tools/step-import/sink_import.py): data/sinks.json lists them, each
+   with its mesh, its rim outline and its bowl opening(s), so the same rules hold as for the built-in sinks: it docks
+   in a sink base, the base fits it, the stretchers clear it, and the countertop's hole follows its exact shape (¼″
+   inside the rim for top mount; ¼″ over the bowls for bottom mount, recessed). */
+async function loadStepSinks(){
+  let list=[]; try{ const r=await fetch('data/sinks.json',{cache:'no-store'}); if(r.ok) list=await r.json(); }catch(e){}
+  await Promise.all(list.map(async e=>{ try{ const r=await fetch(e.file); if(!r.ok) return; const F=await r.json(); FIX[e.k]=F;
+    if(ITEMS.some(d=>d.k===e.k)) return;
+    def({ k:e.k, cat:'sink', name:e.name, w:F.w, h:F.h, d:F.d, gap:e.gap ?? 2, y:sinkY(F.h), fixed:true, step:true, note:'Cubit sink, drawn from its STEP file',
+      mount:e.mount||'top', rim:1, dock:true, rimPath:F.rim, openPaths:F.open, opts:[['mount','Mount',['top','bottom']]], opt:{ mount:e.mount||'top' },
+      build:it=>meshParts(e.k, it, 'steel') }); }catch(err){} }));
+}
 const fx = (name, role, box, o={}) => ({ ...part(name, role, 'buy', box, 'y', {ex:o.ex||[0,0,0]}), solid:true, shape:o.shape, t:o.t, note:o.note||'' });
 /* an open basin (tub, shower pan, sink bowl): rim walls `t` thick plus a floor */
 const basin = (name, role, [x,y,z,w,h,d], t, ex=[0,0,0]) => [ fx(name, role, [x,y,z,w,h,d], {shape:'basin', t, ex}), fx(name+' floor', role, [x+t,y,z+t,w-2*t,Math.min(1,h/4),d-2*t], {ex}) ];
-function meshParts(key, it){
-  const F=FIX[key]; if(!F) return [fx('Loading…','acrylic',[0,0,0,it.w,it.h,it.d])];
+function meshParts(key, it, role='acrylic'){
+  const F=FIX[key]; if(!F) return [fx('Loading…',role,[0,0,0,it.w,it.h,it.d])];
   return F.parts.map(pt=>{ let mn=[1e9,1e9,1e9], mx=[-1e9,-1e9,-1e9]; for(let i=0;i<pt.p.length;i+=3) for(let a=0;a<3;a++){ const v=pt.p[i+a]/F.q; if(v<mn[a]) mn[a]=v; if(v>mx[a]) mx[a]=v; }
-    return { ...fx(pt.name,'acrylic',[mn[0],mn[1],mn[2],mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]],{ex:pt.ex}), mesh:pt, meshQ:F.q }; });
+    return { ...fx(pt.name,role,[mn[0],mn[1],mn[2],mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]],{ex:pt.ex}), mesh:pt, meshQ:F.q }; });
 }
 const BATH_NOTE='Typical size, check the model you buy';
 const toilet = (seatH, tankH) => it => { const W=it.w, D=it.d, cx=W/2;
@@ -715,14 +729,25 @@ ITEMS.filter(d=>d.cat==='sink' && d.k!=='SK-LAU').forEach(d=>{ const top=/drop-i
   d.mount=top?'top':'bottom'; d.rim=top?1.25:1; d.R=1.25; d.rb=1; d.dock=true;
   d.opts=[...(d.opts||[]), ['mount','Mount',['top','bottom']]]; d.opt={ ...(d.opt||{}), mount:d.mount }; });
 /* the hole a sink needs in the countertop (centred on the sink): { w, d, mount } */
+const HOLES = new Map();
 function sinkHole(it){ const d=itemDef(it.k); if(!d?.dock) return null;
   const mount=it.opt?.mount || d.mount, c=S.counter;
+  // a sink from a STEP file: its own outlines, offset in (round corners stay round): [{x,z}…] from its left end and back
+  if(d.rimPath){ const mir=!!it.mirror, key=[it.k, mount, c.lap, c.reveal, mir].join('|');
+    if(!HOLES.has(key)){ const fl=P=>P.map(([x,z])=>[mir?it.w-x:x, z]);
+      let paths = mount==='top' ? offsetPaths([fl(d.rimPath)], -c.lap) : offsetPaths((d.openPaths||[]).map(fl), -(c.reveal||0));
+      if(mount==='top' && paths.length>1) paths=[paths.sort((a,b)=>Math.abs(polyArea(b))-Math.abs(polyArea(a)))[0]];
+      if(!paths.length) return null;
+      const xs=paths.flat().map(p=>p[0]), zs=paths.flat().map(p=>p[1]), x0=Math.min(...xs), x1=Math.max(...xs), z0=Math.min(...zs), z1=Math.max(...zs);
+      HOLES.set(key, { w:r4(x1-x0), d:r4(z1-z0), mount, r:0, cx:r4((x0+x1)/2-it.w/2), cz:r4((z0+z1)/2-it.d/2), paths:paths.map(P=>P.map(([x,z])=>[r4(x),r4(z)])) }); }
+    return HOLES.get(key); }
   // the hole's corners follow the sink: in from the rim's rounded corners (top mount), or the bowl's (bottom mount)
   if(mount==='top') return { w:r4(it.w-2*c.lap), d:r4(it.d-2*c.lap), mount, r:r4(Math.max(0, (d.R??1.25)-c.lap)) };
   const rim=d.rim||1; return { w:r4(it.w-2*rim-2*(c.reveal||0)), d:r4(it.d-2*rim-2*(c.reveal||0)), mount, r:r4(Math.max(0, (d.rb??1)-(c.reveal||0))) };
 }
 /* the narrowest sink base for a sink: its hole plus the full-width stretcher ends and clearance each side,
    but never narrower than the sink itself plus the two ends */
+const polyArea = P => P.reduce((a,p,i)=>{ const q=P[(i+1)%P.length]; return a+p[0]*q[1]-q[0]*p[1]; },0)/2;
 function sinkBaseMin(sink){ const h=sinkHole(sink); if(!h) return 0; const T=T_(), SB=S.sinkBase;
   return Math.ceil(Math.max(h.w+2*(T+SB.clear+0.25), sink.w+2*T)*4)/4; }
 
@@ -742,7 +767,7 @@ const mirU = (c, W=null) => { if(!c) return c; const U=c.U, swap=w=>({left:'righ
   const fx = v => W==null ? v : [W-v[0], v[1], v[2]], fd = v => W==null ? v : [-v[0], v[1], v[2]];
   let A=c.at; if(A){ const o=[A.o[0]+U*A.eu[0], A.o[1]+U*A.eu[1], A.o[2]+U*A.eu[2]]; A={ o:fx(o), eu:fd(A.eu.map(x=>-x)), ev:fd(A.ev), n:fd(A.n) }; }
   return { ...c, at:A, u: W==null ? [c.u[1], c.u[0]] : [swap(c.u[1]), swap(c.u[0])], outline:c.outline.map(([u,v])=>[r4(U-u),v]).reverse(),
-    ops:c.ops.map(o=>o.u!=null ? {...o, u:r4(U-o.u)} : {...o, u0:r4(U-o.u1), u1:r4(U-o.u0)}) }; };
+    ops:c.ops.map(o=>o.u!=null ? {...o, u:r4(U-o.u)} : {...o, u0:r4(U-o.u1), u1:r4(U-o.u0), ...(o.path?{ path:o.path.map(([u,v])=>[r4(U-u),v]).reverse() }:{})}) }; };
 function partsOf(it){
   const d=itemDef(it.k); if(!d) return [];
   const P=d.build({ ...it, opt:{...(d.opt||{}), ...(it.opt||{})} }).filter(Boolean).map(finishPart);

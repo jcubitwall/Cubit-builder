@@ -68,7 +68,7 @@ function cncGeos(p){
   const dep=o=>Math.min(T, o.thru ? T : o.depth);
   const levels=[...new Set(c.ops.map(o=>+dep(o).toFixed(4)).filter(d=>d>0.002))].sort((a,b)=>a-b);
   const cuts=[0, ...levels.filter(d=>d<T-0.002), T];
-  const shapeOf = o => o.u!=null ? circ(o.u,o.v,o.d/2) : o.r>0.01 ? roundRect(o.u0,o.v0,o.u1,o.v1,o.r) : [[o.u0,o.v0],[o.u1,o.v0],[o.u1,o.v1],[o.u0,o.v1]];
+  const shapeOf = o => o.u!=null ? circ(o.u,o.v,o.d/2) : o.path ? o.path : o.r>0.01 ? roundRect(o.u0,o.v0,o.u1,o.v1,o.r) : [[o.u0,o.v0],[o.u1,o.v0],[o.u1,o.v1],[o.u0,o.v1]];
   const geos=[];
   for(let i=0;i+1<cuts.length;i++){ const a=cuts[i], b=cuts[i+1];
     const rem=c.ops.filter(o=>dep(o)>=b-1e-4).map(shapeOf);

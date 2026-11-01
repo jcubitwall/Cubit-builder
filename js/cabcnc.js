@@ -14,6 +14,7 @@
    3. Z0 is the spoilboard; the top of the sheet is the thickness MEASURED for this run (asked for every time).
    The tools, speeds and feeds are the shop's (CAB_CNC, the same tool table as the walls: "WALLS TOOLSET"). */
 import { partsOf, itemDef, settings, MM } from './casework.js';
+import { offset } from './geom2d.js';
 
 const CAB_CNC = {
   sheet:[48,96], trim:0.125, gap:0.5625, onionArea:150, onion:0.04, thru:-0.005, safe:1.0, start:12,
@@ -170,7 +171,16 @@ function counterProgram({ file, part, label, C }){
     `G0 Z${f(CAB_CNC.start)}`,'M5',`T${K.T}`,`(${K.name})`,`S${K.S}`,'M3','g4 x 4','M50',`G0 Z${f(CAB_CNC.start)}`);
   const X=u=>m+u, Y=v=>m+v;
   // sink holes: inside the line
-  part.cnc.ops.filter(o=>o.k==='cutout').forEach(o=>{
+  part.cnc.ops.filter(o=>o.k==='cutout' && o.path).forEach(o=>{   // a sink from a STEP file: its exact outline, the bit inside it
+    offset([o.path.map(([u,v])=>[X(u),Y(v)])], -r).forEach(P=>{
+      const ar=P.reduce((a,p,i)=>{ const q=P[(i+1)%P.length]; return a+p[0]*q[1]-q[0]*p[1]; },0); if(ar>0) P=P.slice().reverse();   // clockwise
+      let k=0, lb=-1; P.forEach((p,i)=>{ const q=P[(i+1)%P.length], l=Math.hypot(q[0]-p[0],q[1]-p[1]); if(l>lb){ lb=l; k=i; } });
+      const Q=[...P.slice(k), ...P.slice(0,k)], a0=Q[0], a1=Q[1], ramp=Math.min(1, lb/2), ux=(a1[0]-a0[0])/(lb||1), uy=(a1[1]-a0[1])/(lb||1), R=[a0[0]+ux*ramp, a0[1]+uy*ramp];
+      L.push(`(${o.what} · exact outline)`, `G0 X${f(a0[0])} Y${f(a0[1])} Z${f(safe)}`, `G1 Z${f(t)} F${K.plunge}.0`);
+      levels.forEach((z,i)=>{ if(i) L.push(`G1 X${f(a0[0])} Y${f(a0[1])}`); L.push(`G1 X${f(R[0])} Y${f(R[1])} Z${f(z)} F${K.plunge}.0`);
+        Q.slice(1).forEach((p,j)=>L.push(`G1 X${f(p[0])} Y${f(p[1])}${j===0?` F${K.feed}.0`:''}`)); L.push(`G1 X${f(a0[0])} Y${f(a0[1])}`); });
+      L.push(`G1 X${f(R[0])} Y${f(R[1])}`, `G0 Z${f(safe)}`); }); });
+  part.cnc.ops.filter(o=>o.k==='cutout' && !o.path).forEach(o=>{
     const x0=X(o.u0)+r, x1=X(o.u1)-r, y0=Y(o.v0)+r, y1=Y(o.v1)-r; if(x1<=x0 || y1<=y0) return;
     // the hole's corners follow the sink (o.r); the bit's centre goes round them at o.r less its radius
     const rc=Math.max(0, Math.min((o.r||0)-r, (x1-x0)/2, (y1-y0)/2)), ramp=Math.min(1, (y1-y0-2*rc)/2);

@@ -375,7 +375,7 @@ function dockPose(sink, cab, at){
   const SB=KF().sinkBase, hole=sinkHole(sink); if(!hole) return null;
   let x=0; const side=cab.w/2-SB.keep-hole.w/2;
   if(at==='L') x=-Math.max(0,side); else if(at==='R') x=Math.max(0,side);
-  const gap=itemDef(sink.k)?.gap ?? 2, p=toPod(cab, x/FT, gap/FT);
+  const gap=itemDef(sink.k)?.gap ?? 2, p=toPod(cab, (x-(hole.cx||0))/FT, gap/FT);   // x: the hole's centre; the sink's own middle is cx off it
   const top=(cab.y||0)+cab.h;   // top mount: the rim sits on the countertop · bottom mount: the sink hangs under it
   return { u:p.u, v:p.v, a:cab.a||0, y:+(hole.mount==='top' ? top+KF().counter.t-sink.h+0.2 : top-sink.h).toFixed(4), x, hole, gap };
 }
@@ -413,7 +413,7 @@ function fitSinks(){
   docked.forEach(s=>{ const cab=byId(s.dock.cab);
     const P=dockPose(s, cab, s.dock.at||'C'); if(!P) return;
     Object.assign(s, { u:P.u, v:P.v, a:P.a, y:P.y, wall:cab.wall||null });
-    const xc=cab.w/2+P.x, z0=P.gap+(s.d-P.hole.d)/2;
+    const xc=cab.w/2+P.x, z0=P.gap+s.d/2+(P.hole.cz||0)-P.hole.d/2;
     cab.sinkCut={ x0:+(xc-P.hole.w/2).toFixed(4), x1:+(xc+P.hole.w/2).toFixed(4), z0:+z0.toFixed(4), z1:+(z0+P.hole.d).toFixed(4) }; });
 }
 function fitCounters(){
@@ -444,8 +444,11 @@ function fitCounters(){
     const x0=run.x0-oL/FT, x1=run.x1+oR/FT, cx=(x0+x1)/2, P=toPod(ct, cx, run.its[0].z);
     Object.assign(ct, { w:+((x1-x0)*FT).toFixed(4), d:+(box+C.over).toFixed(4), y:+top.toFixed(4), u:P.u, v:P.v, wall:run.its.find(r=>r.o.wall)?.o.wall||ct.wall||null });
     // the sinks in it: their holes in the countertop's own coordinates (in, x from its left end, z from the back)
-    ct.sinks=L.filter(s=>s.pod===ct.pod && itemDef(s.k)?.dock && sameA(s.a,ct.a)).map(s=>{ const hole=sinkHole(s), c=toPod(s,0,s.d/2/FT), q=toItem(ct,c.u,c.v);
-      const X=q.x*FT+ct.w/2, Z=q.z*FT; return { x0:+(X-hole.w/2).toFixed(4), x1:+(X+hole.w/2).toFixed(4), z0:+(Z-hole.d/2).toFixed(4), z1:+(Z+hole.d/2).toFixed(4), mount:hole.mount, r:hole.r||0, name:itemDef(s.k).name }; })
+    // a point on the sink (in, x from its left end, z from its back) in the countertop's coordinates
+    const onCT = (s, x, z) => { const p=toPod(s, (x-s.w/2)/FT, z/FT), q=toItem(ct, p.u, p.v); return [+(q.x*FT+ct.w/2).toFixed(4), +(q.z*FT).toFixed(4)]; };
+    ct.sinks=L.filter(s=>s.pod===ct.pod && itemDef(s.k)?.dock && sameA(s.a,ct.a)).map(s=>{ const hole=sinkHole(s); if(!hole) return null;
+      const [X,Z]=onCT(s, s.w/2+(hole.cx||0), s.d/2+(hole.cz||0)), paths=hole.paths ? hole.paths.map(P=>P.map(([x,z])=>onCT(s,x,z))) : null;
+      return { x0:+(X-hole.w/2).toFixed(4), x1:+(X+hole.w/2).toFixed(4), z0:+(Z-hole.d/2).toFixed(4), z1:+(Z+hole.d/2).toFixed(4), mount:hole.mount, r:hole.r||0, ...(paths?{paths}:{}), name:itemDef(s.k).name }; }).filter(Boolean)
       .filter(hh=>hh.x0>=-0.01 && hh.x1<=ct.w+0.01 && hh.z0>=-0.01 && hh.z1<=ct.d+0.01);
     if(!ct.sinks.length) delete ct.sinks;
   });

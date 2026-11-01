@@ -11,6 +11,7 @@ let watching=null, timer=null;
 
 function summaryText(s){
   if(!s) return '';
+  if(s.kind==='sink') return `${s.new_sink?'New sink':'Updated sink'} <b>${esc(s.sink)}</b> · ${s.mount==='top'?'top mount':'bottom mount'} · ${s.w}″ × ${s.d}″ × ${s.h}″ deep · ${s.bowls} bowl${s.bowls===1?'':'s'} · in the cabinet library under Sinks`;
   if(s.kind==='unit') return `${s.new_units?'New unit':'Already in the library as'} <b>${esc(s.unit)}</b> · ${esc(s.type)} · ${s.w}″ × ${s.h}″ × ${s.d}″ deep${s.note?' · <span class="flipflag">'+esc(s.note)+'</span>':''}`;
   if(s.kind==='wall') return `${s.new_walls?'New wall':'Already in the library as'} <b>${esc(s.wall)}</b> · ${esc(s.type==='int'?'interior':'exterior')} · ${s.openings} opening${s.openings===1?'':'s'} · ${esc(s.fitted||'')}${/no "OSB out"/.test(s.outside_face||'')?' · <span class="flipflag">outside face guessed (no “OSB out” body): check it</span>':''}`;
   const bits=[`${s.pods} pod${s.pods===1?'':'s'}`, `${s.new_walls} new wall${s.new_walls===1?'':'s'}`, `${s.new_layers} new floor/ceiling layer${s.new_layers===1?'':'s'}`, `${s.new_pods} new pod${s.new_pods===1?'':'s'}`];
@@ -45,7 +46,7 @@ function initUpload(){
   el('upClose').onclick=()=>dlg.close();
   const famSel=el('upFam'); if(famSel && famSel.options.length<2) FAMILIES.filter(x=>!x.deleted).forEach(x=>famSel.add(new Option(x.name, x.id)));
   const unitUI=()=>{ const k=new FormData(el('upForm')).get('kind'), t=el('upType').value; if(el('upFamF')) el('upFamF').hidden = k!=='home';
-    el('upUnit').hidden = k!=='unit';
+    el('upUnit').hidden = k!=='unit'; if(el('upSink')) el('upSink').hidden = k!=='sink';
     el('upHandF').hidden = !['casement','slider','entry','patio'].includes(t);
     el('upSwingF').hidden = t!=='entry'; };
   el('upForm').addEventListener('change', unitUI);
@@ -56,6 +57,7 @@ function initUpload(){
     const fam=FAMILIES.find(x=>x.id===el('upFam')?.value); if(fam && new FormData(el('upForm')).get('kind')==='home' && famByName(name)!==fam.id) name=`${name} · ${fam.name}`;
     let kind=new FormData(el('upForm')).get('kind');
     if(kind==='unit') kind=`unit-${el('upType').value}-${el('upHand').value}-${el('upSwing').value}`;
+    if(kind==='sink') kind=`sink-${el('upMount').value}`;
     if(!f || !name) return;
     const go=el('upGo'); go.disabled=true; go.textContent='Uploading…';
     try{
@@ -63,7 +65,7 @@ function initUpload(){
       const r=await fetch('api/upload?'+q, { method:'PUT', body:f, headers:{'content-type':'application/octet-stream'} });
       const out=await r.json().catch(()=>({error:`Server said ${r.status}`}));
       if(!r.ok) throw new Error(out.error||`Server said ${r.status}`);
-      watching={ id:out.id, name, kind: kind.startsWith('unit')?'window / door':kind }; el('upForm').reset(); unitUI();
+      watching={ id:out.id, name, kind: kind.startsWith('unit')?'window / door':kind.startsWith('sink')?'sink':kind }; el('upForm').reset(); unitUI();
       toast('Uploaded. Scanning on the server…');
       refresh(); clearInterval(timer); timer=setInterval(refresh, 15000);
     }catch(err){ toast(err.message); el('upStatus').innerHTML=`<p class="note flipflag">${esc(err.message)}</p>`; }

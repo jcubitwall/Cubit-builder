@@ -31,3 +31,24 @@ To rebuild `data/pods.json` from the shared projects without scanning again, run
 Not read yet: plugs, switches and pot lights. When they're modelled, name them `PLUG`, `SWITCH` and `POTLIGHT`.
 
 It takes about 30 seconds for a 5-pod home.
+
+## Sinks
+
+Upload STEP → **Sink** (top mount or bottom mount), or run:
+
+```
+python3 -I tools/step-import/sink_import.py sink.step --name "Blanco 33 double" --mount top --repo .
+```
+
+Model one kitchen sink at its real size, sitting level the way it's installed (rim on top), with its front facing you in Shapr3D's front view (toward −Y).
+
+The import keeps three things in `data/sinks/<id>.json`, listed in `data/sinks.json`:
+- the mesh;
+- the rim outline seen from above: the widest level section in the top inch;
+- the bowl opening(s) at that same height.
+
+The app then treats it exactly like a built-in sink:
+- it docks in a sink base at the centre, left or right;
+- the base grows to fit it;
+- the stretchers clear its hole;
+- the countertop's hole follows its exact shape. Top mount: ¼″ inside the rim. Bottom mount: ¼″ over each bowl, so the sink is recessed under the countertop. This holds in 3D and in the FormX CNC program.
