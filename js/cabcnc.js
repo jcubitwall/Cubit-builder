@@ -172,10 +172,16 @@ function counterProgram({ file, part, label, C }){
   // sink holes: inside the line
   part.cnc.ops.filter(o=>o.k==='cutout').forEach(o=>{
     const x0=X(o.u0)+r, x1=X(o.u1)-r, y0=Y(o.v0)+r, y1=Y(o.v1)-r; if(x1<=x0 || y1<=y0) return;
-    const ramp=Math.min(1, (y1-y0)/2);
-    L.push(`(${o.what})`, `G0 X${f(x0)} Y${f(y0)} Z${f(safe)}`, `G1 Z${f(t)} F${K.plunge}.0`);
-    levels.forEach(z=>{ L.push(`G1 X${f(x0)} Y${f(y0+ramp)} Z${f(z)} F${K.plunge}.0`, `G1 X${f(x0)} Y${f(y1)} F${K.feed}.0`, `G1 X${f(x1)} Y${f(y1)}`, `G1 X${f(x1)} Y${f(y0)}`, `G1 X${f(x0)} Y${f(y0)}`); });
-    L.push(`G1 X${f(x0)} Y${f(y0+ramp)}`, `G0 Z${f(safe)}`); });
+    // the hole's corners follow the sink (o.r); the bit's centre goes round them at o.r less its radius
+    const rc=Math.max(0, Math.min((o.r||0)-r, (x1-x0)/2, (y1-y0)/2)), ramp=Math.min(1, (y1-y0-2*rc)/2);
+    const loop = rc>0.001 ? [
+      `G1 X${f(x0)} Y${f(y1-rc)}`, `G2 X${f(x0+rc)} Y${f(y1)} I${f(rc)} J0.0000`, `G1 X${f(x1-rc)} Y${f(y1)}`, `G2 X${f(x1)} Y${f(y1-rc)} I0.0000 J${f(-rc)}`,
+      `G1 X${f(x1)} Y${f(y0+rc)}`, `G2 X${f(x1-rc)} Y${f(y0)} I${f(-rc)} J0.0000`, `G1 X${f(x0+rc)} Y${f(y0)}`, `G2 X${f(x0)} Y${f(y0+rc)} I0.0000 J${f(rc)}` ]
+      : [ `G1 X${f(x0)} Y${f(y1)}`, `G1 X${f(x1)} Y${f(y1)}`, `G1 X${f(x1)} Y${f(y0)}`, `G1 X${f(x0)} Y${f(y0)}` ];
+    const sy=y0+rc;
+    L.push(`(${o.what}${o.r?` · corners R${(o.r).toFixed(3)}`:''})`, `G0 X${f(x0)} Y${f(sy)} Z${f(safe)}`, `G1 Z${f(t)} F${K.plunge}.0`);
+    levels.forEach((z,i)=>{ if(i) L.push(`G1 X${f(x0)} Y${f(sy)}`); L.push(`G1 X${f(x0)} Y${f(sy+ramp)} Z${f(z)} F${K.plunge}.0`, loop[0]+` F${K.feed}.0`, ...loop.slice(1)); });
+    L.push(`G1 X${f(x0)} Y${f(sy+ramp)}`, `G0 Z${f(safe)}`); });
   // the outline: outside the line, round the corners
   const E=offsetPath(part.cnc.outline, r).map(e=>({ ...e, st:[X(e.st[0]),Y(e.st[1])], en:[X(e.en[0]),Y(e.en[1])], corner:[X(e.corner[0]),Y(e.corner[1])], nextStart:[X(e.nextStart[0]),Y(e.nextStart[1])] }));
   let k=0, best=-1; E.forEach((e,i)=>{ const l=Math.hypot(e.en[0]-e.st[0], e.en[1]-e.st[1]); if(l>best){ best=l; k=i; } });

@@ -574,7 +574,7 @@ def({ k:'CT', cat:'counter', name:'Countertop', w:48, h:0.5, d:24.625, wR:[12,14
     const top=part('Countertop','top','counter',[0,0,0,W,T,D],'y',{ ex:[0,1,0],
       note:`${name} ${fmtU(T)}${holes.length?' · '+holes.map(h=>`${h.mount==='top'?'top mount':'bottom mount'} sink: hole ${fx3(h.x1-h.x0)} × ${fx3(h.z1-h.z0)}`).join(' · '):''}`,
       cnc:{ U:W, V:D, u:['left end','right end'], v:['front','back'], up:'top face', outline:rectO(W,D),
-        ops: holes.map(h=>({ k:'cutout', u0:r4(h.x0), u1:r4(h.x1), v0:r4(D-h.z1), v1:r4(D-h.z0), thru:true, depth:T, tool:'FormX', side:'A',
+        ops: holes.map(h=>({ k:'cutout', u0:r4(h.x0), u1:r4(h.x1), v0:r4(D-h.z1), v1:r4(D-h.z0), r:h.r||0, thru:true, depth:T, tool:'FormX', side:'A',
           what:`Sink cut-out, ${h.mount==='top'?`top mount (${fmtU(S.counter.lap)} in from the sink's edge)`:'bottom mount (the bowl opening)'}${h.name?` · ${h.name}`:''}` })),
         at:at([0,T,D],[1,0,0],[0,0,-1],[0,1,0]) } });
     top.counter=true;
@@ -681,8 +681,21 @@ def({ k:'LPG-SH-L', cat:'bath', name:'LifePodGo shower · left hand', w:42.56, h
 def({ k:'LPG-SH-R', cat:'bath', name:'LifePodGo shower · right hand', w:42.56, h:87.13, d:35.5, fixed:true, mirrored:true, note:'Cubit stock, drawn from the LifePodGo STEP file. Right hand: the deep side wall is on the right, seen from the front. In stock both hands', build:it=>meshParts('lpgShower', it) });
 /* kitchen and utility sinks: they sit in the countertop (top of the rim at the counter top), 2″ off the wall */
 const sinkY = h => () => 35.5 + (S.counter?.t ?? 0.5) - h + 0.2;
-const sink1 = it => basin('Bowl','steel',[0,0,0,it.w,it.h,it.d],1);
-const sink2 = (split=0.5) => it => { const a=it.w*split; return [ ...basin('Left bowl','steel',[0,0,0,a+0.5,it.h,it.d],1,[-.5,0,0]), ...basin('Right bowl','steel',[a-0.5,0,0,it.w-a+0.5,it.h,it.d],1,[.5,0,0]) ]; };
+/* a kitchen sink as it really looks: a flat rim (deck) with rounded corners, the bowl(s) hanging under it with rounded
+   corners and a floor. Top mount: the rim sits on the countertop. Bottom mount: the flange is under the countertop.
+   split: one bowl (null) or the left bowl's share of a double. The rim's radius (d.R) and the bowls' (d.rb) also
+   round the countertop's hole (sinkHole). */
+const SINK_RIM_T = 0.12, SINK_DIV = 1.5;
+function sinkBowls(it, split){ const d=itemDef(it.k)||{}, rim=d.rim||1, iw=it.w-2*rim, id=it.d-2*rim;
+  if(split==null) return [[rim, rim, iw, id]];
+  const a=(iw-SINK_DIV)*split; return [[rim, rim, a, id], [rim+a+SINK_DIV, rim, iw-SINK_DIV-a, id]]; }
+const sinkModel = (split=null) => it => { const d=itemDef(it.k)||{}, R=d.R??1.25, rb=d.rb??1, H=it.h, B=sinkBowls(it, split);
+  const P=[ fx('Rim','steel',[0,H-SINK_RIM_T,0,it.w,SINK_RIM_T,it.d],{ shape:'rplate', ex:[0,.6,0] }) ];
+  P[0].rr={ R, holes:B.map(b=>[...b, rb]) };
+  B.forEach((b,i)=>{ const q=fx(B.length>1?(i?'Right bowl':'Left bowl'):'Bowl','steel',[b[0],0,b[1],b[2],H-SINK_RIM_T,b[3]],{ shape:'rbowl', ex:[B.length>1?(i?.5:-.5):0,-.4,0] }); q.rr={ R:rb, t:0.06 }; P.push(q); });
+  return P; };
+const sink1 = sinkModel();
+const sink2 = (split=0.5) => sinkModel(split);
 def({ k:'SK-1-25', cat:'sink', name:'Kitchen sink, single bowl 25 × 22 drop-in', w:25, h:8,  d:22, gap:1.5, y:sinkY(8),  fixed:true, note:BATH_NOTE+' · fits a 30″ sink base', build:sink1 });
 def({ k:'SK-1-30', cat:'sink', name:'Kitchen sink, single bowl 30 × 18 undermount', w:30, h:9, d:18, gap:3, y:sinkY(9), fixed:true, note:BATH_NOTE+' · fits a 33–36″ sink base', build:sink1 });
 def({ k:'SK-2-33', cat:'sink', name:'Kitchen sink, double bowl 33 × 22 drop-in', w:33, h:8,  d:22, gap:1.5, y:sinkY(8),  fixed:true, note:BATH_NOTE+' · fits a 36″ sink base', build:sink2() });
@@ -698,13 +711,14 @@ def({ k:'SK-LAU', cat:'sink', name:'Laundry tub, freestanding 24 × 22', w:24, h
    opening (inside the rim), less `counter.reveal` each side where the countertop runs over the bowl.
    They dock into a sink base (furniture.js): its centre, or against either side (the hole `sinkBase.keep` in). */
 ITEMS.filter(d=>d.cat==='sink' && d.k!=='SK-LAU').forEach(d=>{ const top=/drop-in/.test(d.name) || d.k==='SK-2-60';
-  d.mount=top?'top':'bottom'; d.rim=top?1.25:1; d.dock=true;
+  d.mount=top?'top':'bottom'; d.rim=top?1.25:1; d.R=1.25; d.rb=1; d.dock=true;
   d.opts=[...(d.opts||[]), ['mount','Mount',['top','bottom']]]; d.opt={ ...(d.opt||{}), mount:d.mount }; });
 /* the hole a sink needs in the countertop (centred on the sink): { w, d, mount } */
 function sinkHole(it){ const d=itemDef(it.k); if(!d?.dock) return null;
   const mount=it.opt?.mount || d.mount, c=S.counter;
-  if(mount==='top') return { w:r4(it.w-2*c.lap), d:r4(it.d-2*c.lap), mount };
-  const rim=d.rim||1; return { w:r4(it.w-2*rim-2*(c.reveal||0)), d:r4(it.d-2*rim-2*(c.reveal||0)), mount };
+  // the hole's corners follow the sink: in from the rim's rounded corners (top mount), or the bowl's (bottom mount)
+  if(mount==='top') return { w:r4(it.w-2*c.lap), d:r4(it.d-2*c.lap), mount, r:r4(Math.max(0, (d.R??1.25)-c.lap)) };
+  const rim=d.rim||1; return { w:r4(it.w-2*rim-2*(c.reveal||0)), d:r4(it.d-2*rim-2*(c.reveal||0)), mount, r:r4(Math.max(0, (d.rb??1)+(c.reveal||0))) };
 }
 /* the narrowest sink base for a sink: its hole plus the full-width stretcher ends and clearance each side,
    but never narrower than the sink itself plus the two ends */
@@ -734,7 +748,7 @@ function partsOf(it){
   if(!!it.mirror !== !!d.mirrored){   // mirrored left ↔ right: hinges, drawers, partitions and names change sides
     const W=it.w, sw=s=>String(s).replace(/\b(left|right|Left|Right)\b/g, w=>({left:'right',right:'left',Left:'Right',Right:'Left'}[w]));
     P.forEach(p=>{ p.box=[W-p.box[0]-p.box[3], ...p.box.slice(1)];
-      if(p.hole) p.hole=[W-p.hole[0]-p.hole[2], ...p.hole.slice(1)]; if(p.mesh) p.mirrorW=W; p.ex=[-p.ex[0], p.ex[1], p.ex[2]]; p.name=sw(p.name); p.ops=p.ops.map(sw);
+      if(p.hole) p.hole=[W-p.hole[0]-p.hole[2], ...p.hole.slice(1)]; if(p.rr?.holes) p.rr={ ...p.rr, holes:p.rr.holes.map(([x,z,w,d,r])=>[p.box[3]-x-w,z,w,d,r]) }; if(p.mesh) p.mirrorW=W; p.ex=[-p.ex[0], p.ex[1], p.ex[2]]; p.name=sw(p.name); p.ops=p.ops.map(sw);
       if(p.cnc) p.cnc=mirU(p.cnc, W); });
   }
   return P;

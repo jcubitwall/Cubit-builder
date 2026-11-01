@@ -9,14 +9,29 @@ const COL = { carcass:0xdcc39a, shelf:0xe4cfa4, back:0xcdb287, front:0xf1ece2, d
 const mats = {};
 function matFor(role, dim=false){
   const k=role+(dim?'-d':'');
-  if(!mats[k]) mats[k]=new THREE.MeshStandardMaterial({ color:COL[role]??0xcccccc, roughness: role==='hw'||role==='appliance'||role==='appdoor'||role==='steel' ? 0.35 : role==='porcelain'||role==='acrylic' ? 0.3 : 0.8, metalness: role==='hw'||role==='appliance' ? 0.55 : role==='steel' ? 0.15 : 0, transparent:dim, opacity:dim?0.18:1, depthWrite:!dim });
+  if(!mats[k]) mats[k]=new THREE.MeshStandardMaterial({ color:COL[role]??0xcccccc, roughness: role==='hw'||role==='appliance'||role==='appdoor'||role==='steel' ? 0.35 : role==='porcelain'||role==='acrylic' ? 0.3 : 0.8, metalness: role==='hw'||role==='appliance' ? 0.55 : role==='steel' ? 0.15 : 0, transparent:dim, opacity:dim?0.18:1, depthWrite:!dim, side: ['steel','porcelain','acrylic'].includes(role) ? THREE.DoubleSide : THREE.FrontSide });
   return mats[k];
 }
 const EDGE = new THREE.LineBasicMaterial({ color:0x2b2f2c, transparent:true, opacity:0.28 });
 const SEL = new THREE.MeshStandardMaterial({ color:0xd0661f, roughness:0.6, emissive:0x5a2205 });
 
+/* a rounded rectangle (x, z from the corner, w × d, corner radius r) traced into a Shape or Path in the x–(−z) plane
+   (the plane an extrusion turned up by rotateX(−90°) lies in) */
+function rrect(sh, x, z, w, d, r){ r=Math.max(0, Math.min(r, w/2-0.01, d/2-0.01)); const X0=x, X1=x+w, Y0=-z, Y1=-(z+d);
+  if(r<0.01){ sh.moveTo(X0,Y0); sh.lineTo(X1,Y0); sh.lineTo(X1,Y1); sh.lineTo(X0,Y1); sh.lineTo(X0,Y0); return sh; }
+  sh.moveTo(X0+r,Y0); sh.lineTo(X1-r,Y0); sh.absarc(X1-r,Y0-r,r,Math.PI/2,0,true); sh.lineTo(X1,Y1+r); sh.absarc(X1-r,Y1+r,r,0,-Math.PI/2,true);
+  sh.lineTo(X0+r,Y1); sh.absarc(X0+r,Y1+r,r,-Math.PI/2,-Math.PI,true); sh.lineTo(X0,Y0-r); sh.absarc(X0+r,Y0-r,r,Math.PI,Math.PI/2,true); return sh; }
+const upExtrude = (sh, depth, x, y, z) => { const g=new THREE.ExtrudeGeometry(sh,{ depth, bevelEnabled:false, curveSegments:10 }); g.rotateX(-Math.PI/2); g.translate(x,y,z); return g; };
 function boxGeo(p){
   const [x,y,z,sx,sy,sz]=p.box;
+  // a sink's rim (deck): a plate with rounded corners and the bowls' openings
+  if(p.shape==='rplate'){ const sh=rrect(new THREE.Shape(), 0, 0, sx, sz, p.rr?.R||0);
+    (p.rr?.holes||[]).forEach(([hx,hz,hw,hd,hr])=>sh.holes.push(rrect(new THREE.Path(), hx-x, hz-z, hw, hd, hr)));
+    return upExtrude(sh, sy, x, y, z); }
+  // a sink bowl: rounded walls `t` thick and a floor, open at the top
+  if(p.shape==='rbowl'){ const r=p.rr?.R||0, t=p.rr?.t||0.06, ring=rrect(new THREE.Shape(), 0, 0, sx, sz, r);
+    ring.holes.push(rrect(new THREE.Path(), t, t, sx-2*t, sz-2*t, Math.max(0.05, r-t)));
+    return [ upExtrude(ring, sy, x, y, z), upExtrude(rrect(new THREE.Shape(), 0, 0, sx, sz, r), t, x, y, z) ]; }
   // a mesh drawn from a STEP file (inches × q), mirrored if the item is
   if(p.mesh){ const q=p.meshQ||100, P=p.mesh.p, W=p.mirrorW||0, pos=new Float32Array(P.length);
     for(let i=0;i<P.length;i+=3){ pos[i]=W ? W-P[i]/q : P[i]/q; pos[i+1]=P[i+1]/q; pos[i+2]=P[i+2]/q; }
@@ -44,13 +59,16 @@ function boxGeo(p){
 /* a cabinet part exactly as it's cut: its outline (notches), minus every dado, groove, rabbet and hole to its depth.
    The panel is built in slices through its thickness, one per depth that something is cut to, each slice the outline
    less everything that goes at least that deep. Placed by part.cnc.at (origin, u, v, outward normal of the up face). */
+/* a rounded rectangle as points (a sink hole in a countertop) */
+function roundRect(u0,v0,u1,v1,r,n=8){ r=Math.min(r,(u1-u0)/2,(v1-v0)/2); const P=[], arc=(cu,cv,a0)=>{ for(let i=0;i<=n;i++){ const a=a0+i/n*Math.PI/2; P.push([cu+r*Math.cos(a), cv+r*Math.sin(a)]); } };
+  arc(u1-r,v0+r,-Math.PI/2); arc(u1-r,v1-r,0); arc(u0+r,v1-r,Math.PI/2); arc(u0+r,v0+r,Math.PI); return P; }
 const circ = (u,v,r,n=14) => [...Array(n)].map((_,i)=>[u+r*Math.cos(2*Math.PI*i/n), v+r*Math.sin(2*Math.PI*i/n)]);
 function cncGeos(p){
   const c=p.cnc, A=c.at, T=p.T; if(!A) return null;
   const dep=o=>Math.min(T, o.thru ? T : o.depth);
   const levels=[...new Set(c.ops.map(o=>+dep(o).toFixed(4)).filter(d=>d>0.002))].sort((a,b)=>a-b);
   const cuts=[0, ...levels.filter(d=>d<T-0.002), T];
-  const shapeOf = o => o.u!=null ? circ(o.u,o.v,o.d/2) : [[o.u0,o.v0],[o.u1,o.v0],[o.u1,o.v1],[o.u0,o.v1]];
+  const shapeOf = o => o.u!=null ? circ(o.u,o.v,o.d/2) : o.r>0.01 ? roundRect(o.u0,o.v0,o.u1,o.v1,o.r) : [[o.u0,o.v0],[o.u1,o.v0],[o.u1,o.v1],[o.u0,o.v1]];
   const geos=[];
   for(let i=0;i+1<cuts.length;i++){ const a=cuts[i], b=cuts[i+1];
     const rem=c.ops.filter(o=>dep(o)>=b-1e-4).map(shapeOf);
@@ -71,7 +89,7 @@ function itemModel(it, { edges=true, tenons=true, detail=true }={}){
   parts.forEach((p,i)=>{
     const sub=new THREE.Group(); sub.userData={ part:i, ex:p.ex };
     const exact = (detail && p.cnc && !p.hw && !p.solid) ? cncGeos(p) : null;
-    (exact || [boxGeo(p)]).forEach(g=>{ const m=new THREE.Mesh(g, matFor(p.role)); m.userData.part=i; m.castShadow=true; m.receiveShadow=true; sub.add(m); meshes.push(m);
+    (exact || [].concat(boxGeo(p))).forEach(g=>{ const m=new THREE.Mesh(g, matFor(p.role)); m.userData.part=i; m.castShadow=true; m.receiveShadow=true; sub.add(m); meshes.push(m);
       if(edges && !p.hw) sub.add(new THREE.LineSegments(new THREE.EdgesGeometry(g, 30), EDGE)); });
     if(tenons) (p.tenonGeo||[]).forEach(b=>{ const tg=boxGeo({box:b}), tm=new THREE.Mesh(tg, matFor(p.role)); tm.userData.part=i; sub.add(tm); meshes.push(tm); if(edges) sub.add(new THREE.LineSegments(new THREE.EdgesGeometry(tg), EDGE)); });
     group.add(sub);

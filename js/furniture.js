@@ -445,7 +445,7 @@ function fitCounters(){
     Object.assign(ct, { w:+((x1-x0)*FT).toFixed(4), d:+(box+C.over).toFixed(4), y:+top.toFixed(4), u:P.u, v:P.v, wall:run.its.find(r=>r.o.wall)?.o.wall||ct.wall||null });
     // the sinks in it: their holes in the countertop's own coordinates (in, x from its left end, z from the back)
     ct.sinks=L.filter(s=>s.pod===ct.pod && itemDef(s.k)?.dock && sameA(s.a,ct.a)).map(s=>{ const hole=sinkHole(s), c=toPod(s,0,s.d/2/FT), q=toItem(ct,c.u,c.v);
-      const X=q.x*FT+ct.w/2, Z=q.z*FT; return { x0:+(X-hole.w/2).toFixed(4), x1:+(X+hole.w/2).toFixed(4), z0:+(Z-hole.d/2).toFixed(4), z1:+(Z+hole.d/2).toFixed(4), mount:hole.mount, name:itemDef(s.k).name }; })
+      const X=q.x*FT+ct.w/2, Z=q.z*FT; return { x0:+(X-hole.w/2).toFixed(4), x1:+(X+hole.w/2).toFixed(4), z0:+(Z-hole.d/2).toFixed(4), z1:+(Z+hole.d/2).toFixed(4), mount:hole.mount, r:hole.r||0, name:itemDef(s.k).name }; })
       .filter(hh=>hh.x0>=-0.01 && hh.x1<=ct.w+0.01 && hh.z0>=-0.01 && hh.z1<=ct.d+0.01);
     if(!ct.sinks.length) delete ct.sinks;
   });
