@@ -29,6 +29,7 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(40,1,0.5,500);
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.maxPolarAngle = Math.PI*0.999; controls.minPolarAngle = 0;
+controls.minDistance = 1.5; controls.maxDistance = 400;   // never so close the view can't come back out (feet)
 scene.add(new THREE.HemisphereLight(0xffffff,0x8a8a80,0.85));
 const sun = new THREE.DirectionalLight(0xffffff,0.75); sun.position.set(30,50,20); scene.add(sun);
 const grid = new THREE.GridHelper(96,24,0x9aa39b,0xc3c9c1); grid.position.y=-FLOOR-0.02; scene.add(grid);

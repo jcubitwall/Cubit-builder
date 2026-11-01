@@ -164,6 +164,9 @@ function turn(d, dir){
 /* pointer down on the plan: a pod / deck under one finger in the flat plan starts a move (instead of orbiting) */
 stage.addEventListener('pointerdown', e=>{
   if(e.target!==cv || state.view!=='studio') return;
+  // the first finger of a new touch: anything left from a gesture whose lift was never seen is dropped, so the view
+  // can always pan and zoom again
+  if(e.isPrimary && pointers.size) resetGesture();
   pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
   if(D && (D.mode==='new'||D.mode==='fnew')){ turn(D, 1); return; }                       // another finger while dragging one in: turn it
   if(pointers.size===1){
@@ -190,6 +193,11 @@ stage.addEventListener('pointerdown', e=>{
   } else if(pointers.size===3){ if(press){ clearTimeout(press.timer); press=null; }   // three fingers: swipe left = undo, right = redo (Shapr3D)
     orbit=null; viewTwist=null; if(D && D.mode!=='new' && D.mode!=='fnew'){ hideGhost(); hideFurnGhost(); if(D.id) setHolderVisible(D.id,true); endGroupDrag(D, false); D=null; document.body.classList.remove('dragging'); }
     controls.enabled=false; three={x0:centroid(), done:false};
+  } else if(pointers.size===2 && D && !(D.started && (D.mode==='move'||D.mode==='fmove'))){
+    // a second finger before anything was moved (first finger landed on the home): it's a pinch / pan of the view,
+    // not a move. OrbitControls takes both fingers from here (it sees this touch after us).
+    cancelDrag(); controls.enabled=true; if(press){ clearTimeout(press.timer); press=null; }
+    const [a,b]=[...pointers.values()]; viewTwist={a0:Math.atan2(b.y-a.y, b.x-a.x), acc:0};
   } else if(pointers.size===2 && orbit){ orbit=null; if(press){ clearTimeout(press.timer); press=null; }                     // a second finger: OrbitControls pans and zooms; a twist turns the view
     const [a,b]=[...pointers.values()]; viewTwist={a0:Math.atan2(b.y-a.y, b.x-a.x), acc:0};
   } else if(pointers.size===2 && D && D.mode==='fmove'){
@@ -200,6 +208,12 @@ stage.addEventListener('pointerdown', e=>{
   }
 }, true);
 let three=null, viewTwist=null, press=null;
+/* drop a drag without applying it (everything back where it was) */
+function cancelDrag(){ if(!D) return; const d=D; D=null; hideGhost(); hideFurnGhost(); tip.hidden=true; if(d.id) setHolderVisible(d.id,true);
+  if(d.mode==='turn' && d.st){ const it=furnById(d.id); [it, ...d.st.others.map(o=>furnById(o.id))].forEach(x=>x && refreshItem(x)); }
+  endGroupDrag(d, false); document.body.classList.remove('dragging'); }
+/* forget every finger and gesture: the view is free again */
+function resetGesture(){ pointers.clear(); orbit=null; viewTwist=null; three=null; if(press){ clearTimeout(press.timer); press=null; } cancelDrag(); controls.enabled=true; }
 const LONG_PRESS=450;   // ms held still (within 10 px) to pick a part up in 3D
 /* what's under the finger to move: a cabinet (in front of the wall / floor) or the pod / deck it belongs to */
 function grabAt(x,y){
@@ -287,6 +301,10 @@ function release(e){
   after(d.deck ? moveDeck(d.i, d.at.x, d.at.z, d.rot) : movePod(d.i, d.at.x, d.at.z, d.rot), d.deck ? 'Deck moved' : 'Pod moved');
 }
 window.addEventListener('pointerup', release); window.addEventListener('pointercancel', release);
+// all fingers off the glass (or the app sent to the background) but a lift went missing: finish properly and free the view
+const allOff = e => { if(e.touches && e.touches.length) return; if(pointers.size) [...pointers.keys()].forEach(id=>release({ pointerId:id })); if(!D) controls.enabled=true; };
+window.addEventListener('touchend', allOff, true); window.addEventListener('touchcancel', allOff, true);
+window.addEventListener('blur', ()=>resetGesture()); document.addEventListener('visibilitychange', ()=>{ if(document.hidden) resetGesture(); });
 
 /* ---------------------------------------------------------------- double-tap: isolate */
 function isoLabel(id){
