@@ -6,6 +6,7 @@
    move boxes; those changes are kept with the home (MODELS[k].elec.ov) and survive every re-layout.
 
    The rules (Canadian Electrical Code, as used in Nova Scotia; heights to the box centre):
+     · No plug under a window: it goes to the nearest chase beside it (left or right).
      · Plugs 16″. Along the floor line no point of usable wall is more than 1.8 m (70 7/8″) from a plug, so plugs are
        never more than 3.6 m apart; any stretch of wall 900 mm (35 7/16″) or longer gets one. Doorways, full-height
        glass, the wall behind a door swung open and walls behind fixed cabinets, appliances, tubs and showers aren't
@@ -47,6 +48,10 @@ const NUDGE = 2;   // a box up to 2″ either side of a chase's centre still cou
 const SW_OFF = 6, CORNER = 3, JOINT = 2.9, STUD = 1.5, BOX_GAP = 4;
 const BOX = { std:{w:2.375, h:3.375}, double:{w:4.125, h:3.625} };
 const NAME = { plug:'Plug box', counter:'Counter plug box', gfci:'GFCI plug box', appl:'Appliance plug box', switch:'Switch box', double:'Double switch box', data:'Data box', wp:'Outside plug (WP)' };
+/* receptacles (not switches) never go under a window: anywhere below its sill, from 1½″ outside one side to 1½″
+   outside the other */
+const RCPT = new Set(['plug','counter','gfci','appl','data','wp']);
+const underWindow = (W, a, y, hw=BOX.std.w/2) => (W.w.openings||[]).some(op=>op.kind==='window' && y<op.y && a+hw+STUD>op.x && a-hw-STUD<op.x+op.w);
 const NUDGES = [0,0.5,-0.5,1,-1,1.5,-1.5,2,-2];
 const onChase = (W, a) => W.chases.some(c=>Math.abs(c-a)<=NUDGE+0.01);
 const ROUND = v => Math.round(v*8)/8;
@@ -164,6 +169,7 @@ function compute(k){
     if(face==='in'){ const l=W.loop; if(!l) return false; const u=uOf(W,a); if(u<l.lo+CORNER || u>l.hi-CORNER) return false; }
     else if(a<CORNER+1.75 || a>W.Lin-CORNER-1.75) return false;
     if((W.w.openings||[]).some(op=>a+hw+STUD>op.x && a-hw-STUD<op.x+op.w && y+hh+STUD>op.y && y-hh-STUD<op.y+op.h)) return false;
+    if(RCPT.has(rk) && underWindow(W, a, y, hw)) return false;   // never under a window: the nearest chase beside it instead
     if(W.joints.some(j=>Math.abs(a-j)<JOINT)) return false;
     if(face==='in' && W.items.some(it=>it.I!==o.ignore && blocks(it.I) && a+hw>it.a0-0.5 && a-hw<it.a1+0.5 && y+hh>it.y0 && y-hh<it.y1)) return false;
     if(boxes.some(b=>b.W===W && b.face===face && Math.abs(b.a-a)<BOX_GAP && Math.abs(b.y-y)<BOX_GAP+2)) return false;
@@ -397,10 +403,10 @@ function compute(k){
   const ov=E.ov||{}, byKey={}; walls.forEach(W=>{ byKey[W.key]=W; });
   const out=[];
   boxes.forEach(b=>{ if(!b.id) return; if(ov.del?.[b.id]){ b.removed=true; return; }
-    const mv=ov.mv?.[b.id]; if(mv){ if(mv.a!=null) b.a=mv.a; if(mv.y!=null) b.y=mv.y; b.moved=true; b.chase=onChase(b.W,b.a); b.flags=b.flags.filter(f=>f!=='needs a chase'); if(!b.chase) b.flags.push('needs a chase'); }
+    const mv=ov.mv?.[b.id]; if(mv){ if(mv.a!=null) b.a=mv.a; if(mv.y!=null) b.y=mv.y; b.moved=true; b.chase=onChase(b.W,b.a); b.flags=b.flags.filter(f=>f!=='needs a chase'); if(!b.chase) b.flags.push('needs a chase'); if(RCPT.has(b.rk) && underWindow(b.W,b.a,b.y)) b.flags.push('under a window'); }
     out.push(b); });
   (ov.add||[]).forEach(u=>{ const W=byKey[u.w]; if(!W) return; const chase=onChase(W,u.a);
-    out.push({ id:u.id, W, face:u.face||'in', a:u.a, y:u.y, rk:u.rk, chase, user:true, note:u.note||'', why:'added by hand', flags:chase||u.face==='out'?[]:['needs a chase'] }); });
+    out.push({ id:u.id, W, face:u.face||'in', a:u.a, y:u.y, rk:u.rk, chase, user:true, note:u.note||'', why:'added by hand', flags:[...(chase||u.face==='out'?[]:['needs a chase']), ...(RCPT.has(u.rk) && underWindow(W,u.a,u.y)?['under a window']:[])] }); });
 
   /* ---- into the walls */
   const byWall={};
