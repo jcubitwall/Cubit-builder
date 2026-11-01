@@ -384,7 +384,7 @@ tray.addEventListener('pointerdown', e=>{
       if(d.kit){ const anchor=d.kit.items.find(r=>r.rx===0&&r.rz===0)||d.kit.items[0], shift=rotXZ(anchor.rx, anchor.rz, d.at.a||0);
         const gid=addRecipe(d.kit.items, {...d.at, u:d.at.u-shift[0], v:d.at.v-shift[1]}, d.kit.name, d.kit.id);
         const L=groupMembers(gid); L.forEach(refreshItem); state.selFurn=L[0]?.id||null; state.selected=null; highlight(); renderSide(); if(!panelOpen()) setPanel(true); toast(`${d.kit.name} added · drag it to move it as one`); return; }
-      const f=addItem(d.it.k, {...d.at}); state.selFurn=f.id; state.selected=null; refreshItem(f); highlight(); renderSide(); if(!panelOpen()) setPanel(true); toast(`${itemDef(f.k).name} added`); return; }
+      const { overBase, ...at }=d.at, f=addItem(d.it.k, at); state.selFurn=f.id; state.selected=null; refreshItem(f); highlight(); renderSide(); if(!panelOpen()) setPanel(true); toast(`${itemDef(f.k).name} added${overBase?` · ${f.w}″ wide, to match the base under it`:''}`); return; }
     if(!d.ok){ toast('Drop it next to the home, where it docks flush in 8′ steps.'); return; }
     after(d.deck ? addDeck(d.lib, d.at.x, d.at.z, d.rot) : addPod(d.item, d.at.x, d.at.z, d.rot), d.deck ? 'Deck added' : 'Pod added'); };
   window.addEventListener('pointermove',mv); window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up);

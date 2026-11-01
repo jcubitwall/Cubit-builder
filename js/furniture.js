@@ -95,6 +95,7 @@ function podAt(pt, pods){ return pods.find(p=>pt.x>=p.x-0.01 && pt.x<=p.x+p.w+0.
 /* a sink dropped on a sink base docks in it (centre or either side, whichever is nearest the finger); anywhere else
    it's placed like any other item and is no longer docked */
 function snap(it, pt, wallGroups, homeGroup, keepA=null, lockA=null){
+  if(itemDef(it.k)?.cat==='upper' && !it.id) return snapUpper(it, snapItem(it, pt, wallGroups, homeGroup, keepA, lockA));
   if(!itemDef(it.k)?.dock) return snapItem(it, pt, wallGroups, homeGroup, keepA, lockA);
   const p=podAt(pt,lastPods), f=p && frames[p.i];
   if(f){ let R=f; while(R.parent) R=R.parent; R.updateMatrixWorld(true);
@@ -103,6 +104,16 @@ function snap(it, pt, wallGroups, homeGroup, keepA=null, lockA=null){
       const at=dockAt(it, cw, toItem(cw, l.x, l.z).x*FT), P=dockPose(it, cw, at);
       if(P) return { pod:p.i, u:P.u, v:P.v, a:P.a, y:P.y, wall:cab.wall||null, dock:{ cab:cab.id, at, ...(fresh?{fresh:true}:{}) } }; } }
   const r=snapItem(it, pt, wallGroups, homeGroup, keepA, lockA); return r ? { ...r, dock:null } : r;
+}
+/* an upper cabinet being dragged in: over a base cabinet on the same wall it takes that base's width and lines up
+   with it (it can be resized afterwards like any cabinet) */
+function snapUpper(it, s){
+  if(!s || s.free) return s;
+  const c=list().filter(o=>o.pod===s.pod && itemDef(o.k)?.cat==='base' && sameA(o.a, s.a)).map(o=>({ o, q:toItem(o, s.u, s.v) }))
+    .filter(r=>Math.abs(r.q.z)<4/FT && Math.abs(r.q.x)<=r.o.w/2/FT).sort((a,b)=>Math.abs(a.q.x)-Math.abs(b.q.x))[0];
+  if(!c) return s;
+  const d=itemDef(it.k), w=Math.min(d.wR?.[1]??48, Math.max(d.wR?.[0]??6, c.o.w)), p=toPod(c.o, 0, 0);
+  return { ...s, u:p.u, v:p.v, a:c.o.a||0, w, overBase:c.o.id };
 }
 function snapItem(it, pt, wallGroups, homeGroup, keepA=null, lockA=null){
   const p=podAt(pt,lastPods); if(!p || !frames[p.i]) return null;
@@ -348,8 +359,8 @@ function showFurnGhost(it, at){
   if(!fg){ fg=new THREE.Mesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshBasicMaterial({color:0x2e9e5b, transparent:true, opacity:0.4, depthTest:false}));
     fg.renderOrder=20; const e=new THREE.LineSegments(new THREE.EdgesGeometry(fg.geometry), new THREE.LineBasicMaterial({color:0x1c211e, depthTest:false})); e.renderOrder=21; fg.add(e); }
   if(fg.parent!==f) f.add(fg);
-  const r=(at.a||0)*Math.PI/180, h=Math.max(0.3, it.h/FT);
-  fg.visible=true; fg.rotation.y=r; fg.scale.set(it.w/FT, h, it.d/FT);
+  const r=(at.a||0)*Math.PI/180, h=Math.max(0.3, it.h/FT), W=at.w ?? it.w;
+  fg.visible=true; fg.rotation.y=r; fg.scale.set(W/FT, h, it.d/FT);
   fg.position.set(at.u+Math.sin(r)*it.d/2/FT, (it.y||0)/FT+h/2, at.v+Math.cos(r)*it.d/2/FT);
 }
 const hideFurnGhost = () => { if(fg) fg.visible=false; };
