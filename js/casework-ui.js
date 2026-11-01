@@ -7,6 +7,7 @@ import { MODELS } from './data.js';
 import { itemModel } from './casework3d.js';
 import { frontSVG } from './casework-svg.js';
 import { centreUnderWindow, fitBaseToSink, furnitureOf, furnById, updateItem, removeItem, duplicateItem, turnItem, refreshItem, addItem, snap, applyFurniture, podsShown, freeSpot, groupMembers, makeGroup, ungroup, relinkGroup, renameGroup, setGroupFrom, removeGroup, groupRecipe } from './furniture.js';
+import { plumbNote } from './plumbing.js';
 import { kitchenById, newKitchenId, saveKitchen } from './kitchens.js';
 import { state, save } from './state.js';
 import { canSave, canEdit } from './role.js';
@@ -437,6 +438,7 @@ function furnSide(sideH, sideB){
     </div>
     ${(d.opts||[]).map(([k,l,vals])=>`<div class="cw-opt"><span>${l}</span><div class="seg wrap">${vals.map(v=>`<button data-fo="${k}" data-v="${esc(v)}" aria-pressed="${String((it.opt||{})[k] ?? d.opt?.[k])===String(v)}" ${ed?'':'disabled'}>${esc(v)}</button>`).join('')}</div></div>`).join('')}
     ${kitchenNote(it, d, ed)}
+    ${plumbNote(it)}
     <p class="note">Drag it in the plan (Build) to move it along the walls; it backs onto the nearest wall and butts up to the cabinets beside it. Drag the round green handle at its front corner to turn it, 45° at a time.${it.wall?' Its depth counts for the pot lights along this wall.':''}</p>`;
   const ch=patch=>{ updateItem(it.id, patch); if(d.sized && patch.opt) Object.assign(it, d.sized(it)); refreshItem(it); renderSide(); };
   sideB.querySelector('#fOpen').onclick=()=>openCaseLib({edit:it.id});

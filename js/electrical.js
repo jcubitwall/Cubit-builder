@@ -14,6 +14,7 @@
      · Kitchen counters: plugs at 42″ so no point along the counter is more than 900 mm from one; none behind the
        range or the sink.
      · Bathroom basin: a GFCI plug at 42″ within 1 m of the basin.
+     · No plug within 500 mm of a bathtub or shower, measured across the floor in the same room (plumbing.js).
      · Appliances get their own plug behind them: fridge 42″, range 6″, dishwasher 12″ (or in the sink cabinet),
        washer / dryer 42″, microwave 42″ (over the range: in the cabinet above).
      · Bedside: a plug each side of the head of a bed that's against a wall.
@@ -86,6 +87,18 @@ function applKind(I){
 const APPL = { fridge:{y:42, n:'Fridge'}, under:{y:16, n:'Under-counter fridge'}, range:{y:6, n:'Range (40 A)'}, dw:{y:12, n:'Dishwasher'}, washer:{y:42, n:'Washer / dryer'}, microwave:{y:42, n:'Microwave'} };
 const isBasin = I => (I.cat==='vanity' && /sink/i.test(I.def.name||'')) || (I.cat==='bath' && /sink|basin|lav/i.test(I.def.name||''));
 const isWet = I => I.cat==='bath' && /^(WC|SH|TS|BT)/.test(I.it.k||'');
+/* tubs and showers: no receptacle within 500 mm of one (across the floor, same room) */
+const TUB_CLEAR = 19.685;
+const isTub = I => I.cat==='bath' && /^(SH|TS|BT|LPG-SH)/.test(I.it.k||'');
+const tubsOf = Hm => Hm.items.filter(isTub).map(I=>({ pod:I.it.pod, pts:[I.f(-I.it.w/2,0), I.f(I.it.w/2,0), I.f(I.it.w/2,I.it.d), I.f(-I.it.w/2,I.it.d)] }));
+function distToQuad(P, Q){   // feet: 0 inside the (convex) quad, else to the nearest edge
+  let inside=true, sg=0, best=Infinity;
+  for(let i=0;i<4;i++){ const A=Q[i], B=Q[(i+1)%4], ex=B[0]-A[0], ez=B[1]-A[1], cr=ex*(P[1]-A[1])-ez*(P[0]-A[0]);
+    if(Math.abs(cr)>1e-9){ const s=Math.sign(cr); if(!sg) sg=s; else if(s!==sg) inside=false; }
+    const L2=ex*ex+ez*ez||1e-12, t=Math.max(0,Math.min(1,((P[0]-A[0])*ex+(P[1]-A[1])*ez)/L2)); best=Math.min(best, Math.hypot(P[0]-A[0]-t*ex, P[1]-A[1]-t*ez)); }
+  return inside ? 0 : best;
+}
+const nearTub = (tubs, W, a, hw=0) => { if(!tubs.length) return false; const P=W.at(a/FT, W.t); return tubs.some(T=>T.pod===W.s.pod.i && distToQuad(P, T.pts)*FT - hw < TUB_CLEAR); };
 const isSinkBase = I => (I.it.k==='BS') || I.cat==='sink';
 const blocks = I => I.cat!=='furniture' && I.cat!=='sink';     // beds, sofas, tables… can move; sinks sit in a counter
 
@@ -107,7 +120,7 @@ function planFor(k=state.model){
 
 function compute(k){
   const E=elecOf(k)||{}, Hm=homeModel(k);
-  const walls=Hm.walls, boxes=[], flags=[];
+  const walls=Hm.walls, boxes=[], flags=[], tubs=tubsOf(Hm);
   const autoOf = W => slotAuto(W.s, k);
 
   /* ---- each wall: its line, its chases, panel joints, openings and what stands against it */
@@ -170,6 +183,7 @@ function compute(k){
     else if(a<CORNER+1.75 || a>W.Lin-CORNER-1.75) return false;
     if((W.w.openings||[]).some(op=>a+hw+STUD>op.x && a-hw-STUD<op.x+op.w && y+hh+STUD>op.y && y-hh-STUD<op.y+op.h)) return false;
     if(RCPT.has(rk) && underWindow(W, a, y, hw)) return false;   // never under a window: the nearest chase beside it instead
+    if(face==='in' && RCPT.has(rk) && nearTub(tubs, W, a, hw)) return false;   // 500 mm clear of a tub or shower
     if(W.joints.some(j=>Math.abs(a-j)<JOINT)) return false;
     if(face==='in' && W.items.some(it=>it.I!==o.ignore && blocks(it.I) && a+hw>it.a0-0.5 && a-hw<it.a1+0.5 && y+hh>it.y0 && y-hh<it.y1)) return false;
     if(boxes.some(b=>b.W===W && b.face===face && Math.abs(b.a-a)<BOX_GAP && Math.abs(b.y-y)<BOX_GAP+2)) return false;
@@ -403,10 +417,10 @@ function compute(k){
   const ov=E.ov||{}, byKey={}; walls.forEach(W=>{ byKey[W.key]=W; });
   const out=[];
   boxes.forEach(b=>{ if(!b.id) return; if(ov.del?.[b.id]){ b.removed=true; return; }
-    const mv=ov.mv?.[b.id]; if(mv){ if(mv.a!=null) b.a=mv.a; if(mv.y!=null) b.y=mv.y; b.moved=true; b.chase=onChase(b.W,b.a); b.flags=b.flags.filter(f=>f!=='needs a chase'); if(!b.chase) b.flags.push('needs a chase'); if(RCPT.has(b.rk) && underWindow(b.W,b.a,b.y)) b.flags.push('under a window'); }
+    const mv=ov.mv?.[b.id]; if(mv){ if(mv.a!=null) b.a=mv.a; if(mv.y!=null) b.y=mv.y; b.moved=true; b.chase=onChase(b.W,b.a); b.flags=b.flags.filter(f=>f!=='needs a chase'); if(!b.chase) b.flags.push('needs a chase'); if(RCPT.has(b.rk) && underWindow(b.W,b.a,b.y)) b.flags.push('under a window'); if(b.face==='in' && RCPT.has(b.rk) && nearTub(tubs,b.W,b.a,BOX.std.w/2)) b.flags.push('within 500 mm of the tub / shower'); }
     out.push(b); });
   (ov.add||[]).forEach(u=>{ const W=byKey[u.w]; if(!W) return; const chase=onChase(W,u.a);
-    out.push({ id:u.id, W, face:u.face||'in', a:u.a, y:u.y, rk:u.rk, chase, user:true, note:u.note||'', why:'added by hand', flags:[...(chase||u.face==='out'?[]:['needs a chase']), ...(RCPT.has(u.rk) && underWindow(W,u.a,u.y)?['under a window']:[])] }); });
+    out.push({ id:u.id, W, face:u.face||'in', a:u.a, y:u.y, rk:u.rk, chase, user:true, note:u.note||'', why:'added by hand', flags:[...(chase||u.face==='out'?[]:['needs a chase']), ...(RCPT.has(u.rk) && underWindow(W,u.a,u.y)?['under a window']:[]), ...((u.face||'in')==='in' && RCPT.has(u.rk) && nearTub(tubs,W,u.a,BOX.std.w/2)?['within 500 mm of the tub / shower']:[])] }); });
 
   /* ---- into the walls */
   const byWall={};

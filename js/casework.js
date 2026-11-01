@@ -693,6 +693,44 @@ def({ k:'LV-WH', cat:'bath', name:'Bathroom sink, wall hung 20 × 17', w:20, h:6
 /* Cubit stock: LifePodGo one-piece shower (Shapr3D STEP, Oct 2026). Both hands are in stock. */
 def({ k:'LPG-SH-L', cat:'bath', name:'LifePodGo shower · left hand', w:42.56, h:87.13, d:35.5, fixed:true, note:'Cubit stock, drawn from the LifePodGo STEP file. Left hand: the deep side wall is on the left, seen from the front. In stock both hands', build:it=>meshParts('lpgShower', it) });
 def({ k:'LPG-SH-R', cat:'bath', name:'LifePodGo shower · right hand', w:42.56, h:87.13, d:35.5, fixed:true, mirrored:true, note:'Cubit stock, drawn from the LifePodGo STEP file. Right hand: the deep side wall is on the right, seen from the front. In stock both hands', build:it=>meshParts('lpgShower', it) });
+/* Mirolin Liberty one-piece tub-shower, 60 × 34 × 88 (TS5L left hand drain, TS5R right hand; Home Depot 1000714777).
+   From Mirolin's TS5L data sheet: 60 × 34 × 88 (±¼″), bathing well 16″ deep with a 42 × 21 bottom, 2″ drain and 2½″
+   overflow (13″ of water drain to overflow), 2¾″ drain-to-floor clearance; drain centre 6¾″ from the drain end and
+   18¼″ from the back; 20″ threshold; 6 shelves; 177 lb; alcove, rough-in above the floor; sits on its two feet and
+   front edge, shimmed level. Valve, spout and shower arm aren't on the sheet: the usual heights (valve 30″, spout
+   24″, arm 78″ off the floor) on the drain end, in line with the drain. `plumb` is drawn for the left hand unit, x
+   from its left end, z from its back, inches; plumbing.js puts it in the home and checks it. */
+const LIB_PLUMB = { src:'Mirolin TS5L data sheet', alcove:true,
+  drain:{ x:6.75, z:18.25, dia:2, below:2.75 },
+  overflow:{ x:4, z:18.25, y:17, dia:2.5 },
+  hole:{ w:8, d:12, note:'typical, check the Mirolin installation guide before cutting the floor' },
+  wall:{ side:'left', z:18.25, valve:30, spout:24, head:78, std:true },
+  supply:'½″ PEX hot and cold to the valve' };
+const libertyTS = it => { const W=60, D=34, H=88, rim=20, t=3.8, wt=1.5, dr=LIB_PLUMB.drain, ov=LIB_PLUMB.overflow, vw=LIB_PLUMB.wall;
+  const P=[ fx('Tub','acrylic',[0,0,0,W,rim,D],{ shape:'basin', t, ex:[0,-.6,0] }), fx('Tub floor','acrylic',[t,0,t,W-2*t,rim-16,D-2*t],{ ex:[0,-.6,0] }),
+    fx('Back wall','acrylic',[0,rim,0,W,H-rim,wt],{ ex:[0,0,-1] }), fx('Left wall','acrylic',[0,rim,wt,wt,H-rim,D-wt],{ ex:[-1,0,0] }), fx('Right wall','acrylic',[W-wt,rim,wt,wt,H-rim,D-wt],{ ex:[1,0,0] }) ];
+  [46,56,66].forEach((y,i)=>{ P.push(fx(`Shelf, left ${i+1}`,'acrylic',[wt,y,wt,3.5,0.75,9],{ ex:[-.6,0,-.6] }), fx(`Shelf, right ${i+1}`,'acrylic',[W-wt-3.5,y,wt,3.5,0.75,9],{ ex:[.6,0,-.6] })); });
+  // where the plumbing goes (the trim is bought separately): drain, overflow, valve, spout and shower arm
+  P.push(fx('Drain 2″','steel',[dr.x-1.4,rim-16,dr.z-1.4,2.8,0.15,2.8],{ shape:'cyl', ex:[0,.4,0], note:'2″ drain' }),
+    fx('Overflow 2½″','steel',[ov.x,ov.y-1.6,ov.z-1.6,0.3,3.2,3.2],{ ex:[-.4,0,0], note:'2½″ overflow' }),
+    fx('Valve trim, left','steel',[wt,vw.valve-3.5,vw.z-3.5,0.4,7,7],{ ex:[-.6,0,0], note:'valve, bought separately' }),
+    fx('Tub spout, left','steel',[wt,vw.spout-0.6,vw.z-0.9,5,1.2,1.8],{ ex:[-.6,0,0], note:'spout, bought separately' }),
+    fx('Shower arm, left','steel',[wt,vw.head-0.4,vw.z-0.4,6,0.8,0.8],{ ex:[-.6,0,0], note:'shower arm, bought separately' }),
+    fx('Shower head, left','steel',[wt+5,vw.head-2.5,vw.z-2,1.2,3,4],{ ex:[-.6,0,0] }));
+  return P; };
+const LIB_NOTE = 'Mirolin Liberty, one piece acrylic tub-shower for a 60″ alcove: 60 × 34 × 88, 20″ threshold, 16″ deep bathing well, 6 shelves, 177 lb, rough-in above the floor. From Mirolin’s data sheet';
+def({ k:'TS-MIR-LIB-L', cat:'bath', name:'Mirolin Liberty tub-shower 60 × 34 · left hand drain (TS5L)', w:60, h:88, d:34, fixed:true, plumb:LIB_PLUMB, note:LIB_NOTE+'. Left hand: drain, valve and shower on the left end, seen from the front', build:libertyTS });
+def({ k:'TS-MIR-LIB-R', cat:'bath', name:'Mirolin Liberty tub-shower 60 × 34 · right hand drain (TS5R)', w:60, h:88, d:34, fixed:true, mirrored:true, plumb:LIB_PLUMB, note:LIB_NOTE+'. Right hand: drain, valve and shower on the right end, seen from the front', build:libertyTS });
+/* a fixture's plumbing in its own frame, mirrored if it is: lx from its middle, lz from its back, y up (inches) */
+function plumbOf(it){
+  const d=itemDef(it.k), P=d?.plumb; if(!P) return null;
+  const mir=!!it.mirror !== !!d.mirrored, W=it.w, X=x=>(mir?W-x:x)-W/2, sd=s=>mir?({left:'right',right:'left'}[s]||s):s;
+  const r={ ...P, mir };
+  if(P.drain){ r.drain={ ...P.drain, lx:X(P.drain.x), lz:P.drain.z }; if(P.hole) r.hole={ ...P.hole, lx:r.drain.lx, lz:r.drain.lz }; }
+  if(P.overflow) r.overflow={ ...P.overflow, lx:X(P.overflow.x), lz:P.overflow.z };
+  if(P.wall){ const side=sd(P.wall.side); r.wall={ ...P.wall, side, lx:side==='left'?-W/2:W/2, lz:P.wall.z }; }
+  return r;
+}
 /* kitchen and utility sinks: they sit in the countertop (top of the rim at the counter top), 2″ off the wall */
 const sinkY = h => () => 35.5 + (S.counter?.t ?? 0.5) - h + 0.2;
 /* a kitchen sink as it really looks: a flat rim (deck) with rounded corners, the bowl(s) hanging under it with rounded
@@ -812,4 +850,4 @@ function csv(it, name){
   rows.unshift([`${name} — ${fmt(it.w)} W × ${fmt(it.h)} H × ${fmt(it.d)} D (inches)`]);
   return rows.map(r=>r.map(v=>/[",\n]/.test(String(v))?`"${String(v).replace(/"/g,'""')}"`:v).join(',')).join('\n');
 }
-export { sinkHole, sinkBaseMin, fx3, hingeSpec, runnerSpec, handleById, SETTINGS_V, loadFixtures, DEFAULTS, MM, CATS, ITEMS, itemDef, catOf, newItem, partsOf, cutList, hardwareOf, totals, csv, fmt, fmtU, settings, loadSettings, saveSettings, th, nomOf };
+export { plumbOf, sinkHole, sinkBaseMin, fx3, hingeSpec, runnerSpec, handleById, SETTINGS_V, loadFixtures, DEFAULTS, MM, CATS, ITEMS, itemDef, catOf, newItem, partsOf, cutList, hardwareOf, totals, csv, fmt, fmtU, settings, loadSettings, saveSettings, th, nomOf };

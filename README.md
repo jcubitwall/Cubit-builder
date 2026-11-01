@@ -505,3 +505,20 @@ Kitchens fit themselves after every change (`js/furniture.js`, `fitKitchen`).
 - **Mount.** Every sink is either top mount (drop-in) or bottom mount (undermount), shown on the sink and the countertop. A top-mount hole is ¼″ in from the sink's edge all the way around (`counter.lap`). A bottom-mount hole is the bowl opening, less `counter.reveal` each side. The sink hangs under the countertop.
 - **Countertop fit.** A countertop on base cabinets fits them: back to the wall, ⅛″ past each end that isn't against a wall or a tall unit (a range end gets the ⅛″ too), and 1″ past the front of the boxes so the doors stay about ¼″ under. It sits on the cabinets at the shop thickness, ½″ FormX by default.
 - **Countertop CNC.** Each countertop gets its own program with FormX's own tool (Shop settings → Countertop CNC), included in the cabinet G-code zip. The sink holes are cut first, bit inside the line. Then the outline, bit outside the line, stepping down each pass.
+
+## Plumbing fixtures with their plumbing mapped (plumbing.js)
+A fixture can carry its plumbing points (`plumb` in casework.js, drawn for the as-drawn hand; mirroring flips them).
+The first is the **Mirolin Liberty tub-shower 60 × 34 × 88** (Bathroom fixtures: TS5L left hand drain, TS5R right hand),
+from Mirolin's TS5L data sheet: 2″ drain 6¾″ from the drain end and 18¼″ from the back, 2½″ overflow, 2¾″ clear under
+the tub, 20″ threshold, 16″ bathing well, 6 shelves. Valve 30″, spout 24″ and shower arm 78″ off the floor on the drain
+end, in line with the drain, are the usual heights (not on the sheet). The floor opening (8″ × 12″ on the drain) is
+typical: check the Mirolin installation guide before cutting.
+
+Placed in a home, it works out the drain's exact point, the floor opening, and the valve wall (which wall, how far along
+seen from inside, the heights, ½″ PEX hot and cold), shown on the fixture, on the wall and on P11. The rules, flagged:
+· an alcove unit needs a wall at its back and both ends;
+· the valve end must be against a wall, and an inside one (no supply pipes in a SIP outside wall: mirror or turn it,
+  or fur out a chase);
+· no window or door where the valve, spout or shower arm go.
+Electrical: no receptacle within 500 mm of any tub or shower (across the floor, same room); hand-placed ones there are
+flagged.

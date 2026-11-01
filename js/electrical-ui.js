@@ -94,6 +94,7 @@ function render(){
 const rulesHTML = () => `<details class="help"><summary>The rules</summary><ul class="el-rules">
   <li>Plugs ${ELEC_H.plug}″ to centre: no point along usable wall more than 1.8 m (70⅞″) from one, any wall 900 mm or longer gets one. Doorways, full-height glass, behind a door swung open and behind fixed cabinets, appliances, tubs and showers don't count. Bathrooms: the basin plug only.</li>
   <li>Counters: plugs at ${ELEC_H.counter}″ so no point is more than 900 mm from one, none behind the range or sink. Basin: GFCI at ${ELEC_H.gfci}″ within 1 m.</li>
+  <li>No plug within 500 mm of a bathtub or shower (across the floor, same room); none on the walls behind one.</li>
   <li>Appliances get their own plug behind them: fridge 42″, range 6″, dishwasher 12″, washer / dryer 42″, microwave 42″. Beds: a plug each side of the head.</li>
   <li>Switches ${ELEC_H.switch}″, centre 6″ from the rough opening on the latch side, on the side the door swings into; outside doors a double box (room + outside light). Two or more entrances: 3-way, once confirmed.</li>
   <li>One weatherproof plug outside, beside the main door.</li>

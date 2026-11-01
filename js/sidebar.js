@@ -30,6 +30,7 @@ import { draftBlock, bindDraftBlock, draftsRow } from './publish-ui.js';
 import { lightEditorHTML, bindLightEditor } from './light-edit-ui.js';
 import { openWallBuilder } from './wall-builder.js';
 import { elecWallBlock, bindElecWall, elecHomeLine, bindElecHome } from './electrical-ui.js';
+import { plumbWallBlock } from './plumbing.js';
 import './shape-studio.js';
 import { openLayerBuilder } from './layer-builder.js';
 import './panel-builder.js';
@@ -203,6 +204,7 @@ function renderSideInner(){
       ${isInt?jointBlock(s):''}
       ${unitsBlock(s, bodyWall(s,w))}
       ${elecWallBlock(s)}
+      ${plumbWallBlock(s)}
       ${(()=>{ const cv=cabinetsOf(state.model)[s.id], d=cabDepth(cv), kind=d ? (typeof cv==='object' ? cv.kind : 'Custom') : 'None';
         return `<div class="cab-box"><div class="eyebrow">Cabinets on this wall · deepest unit</div>
           <div class="seg wrap" role="group" aria-label="Deepest cabinet on this wall">${CAB_PRESETS.map(([n,v])=>`<button data-cab="${v}" data-cabn="${n}" aria-pressed="${kind===n}">${n}${v?` ${v}″`:''}</button>`).join('')}</div>
