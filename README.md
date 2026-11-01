@@ -494,3 +494,14 @@ These changes survive every re-layout. **Start over** drops them. Each wall's pa
 A box counts as on a chase anywhere within 2″ of the chase centre. The rules aim for dead centre and nudge only as far as needed, in ½″ steps.
 
 Furniture's own plugs go on every wall, including walls in older homes that keep the library's plugs and switches. That means appliances, the basin GFCI, counter plugs, bedside plugs, and a desk plug 12″ above the desktop. The wall plugs, switches, outside plug and data boxes go only on walls laid out by the rules.
+
+## Sinks, sink bases and countertops
+
+Kitchens fit themselves after every change (`js/furniture.js`, `fitKitchen`).
+
+- **Sinks dock into a sink base.** Drop a sink on a base cabinet and it docks: at the centre, or with its hole 3″ in from either side (`sinkBase.keep`), whichever is nearest where it was dropped. The sink's own gap sets how far it sits off the wall. Change Left / Centre / Right on the sink's panel.
+- **Sink base width.** A base holding a sink is never narrower than the sink needs (`sinkBaseMin`). It grows to fit when the sink docks, and the units on its right move along with it. It can be made wider but not narrower. **Fit to the sink** takes it back to the minimum.
+- **Stretchers.** The base's front and rear stretchers are narrowed over the sink hole, ¼″ clear of it, keeping full width 3″ in from each side. If less than ½″ would be left, the middle is cut out and only the two ends are fitted. The notches are part of each stretcher's CNC outline.
+- **Mount.** Every sink is either top mount (drop-in) or bottom mount (undermount), shown on the sink and the countertop. A top-mount hole is ¼″ in from the sink's edge all the way around (`counter.lap`). A bottom-mount hole is the bowl opening, less `counter.reveal` each side. The sink hangs under the countertop.
+- **Countertop fit.** A countertop on base cabinets fits them: back to the wall, ⅛″ past each end that isn't against a wall or a tall unit (a range end gets the ⅛″ too), and 1″ past the front of the boxes so the doors stay about ¼″ under. It sits on the cabinets at the shop thickness, ½″ FormX by default.
+- **Countertop CNC.** Each countertop gets its own program with FormX's own tool (Shop settings → Countertop CNC), included in the cabinet G-code zip. The sink holes are cut first, bit inside the line. Then the outline, bit outside the line, stepping down each pass.

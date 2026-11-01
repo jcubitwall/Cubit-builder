@@ -32,7 +32,7 @@ const f4 = v => (Math.abs(v)<5e-5?0:v).toFixed(4);
 /* items: [{ it, label }] → [{ part, label, U, V }] one per piece */
 function jobParts(items){
   const out=[];
-  items.forEach(({it,label})=>partsOf(it).filter(p=>p.cnc && !p.hw && !p.solid).forEach(p=>out.push({ p, label:`${label} ${p.name}`, U:p.cnc.U, V:p.cnc.V })));
+  items.forEach(({it,label})=>partsOf(it).filter(p=>p.cnc && !p.hw && !p.solid && !p.counter).forEach(p=>out.push({ p, label:`${label} ${p.name}`, U:p.cnc.U, V:p.cnc.V })));
   return out;
 }
 
@@ -157,6 +157,46 @@ function program({ title, file, mat, t, placed, side }){
   return L.join('\n')+'\n';
 }
 
+/* ---------------------------------------------------------------- countertops (FormX) */
+/* One program per countertop, with FormX's own tool (shop settings → Countertop CNC). The countertop lies top face up
+   with its front edge along X (the table's front), its left end `margin` in from the table corner. Z0 is the
+   spoilboard; the top of the countertop is its thickness. First every sink hole: the bit inside the line, round the
+   hole clockwise (corners come out at the bit's radius), stepping down `step` a pass and through on the last. Then the
+   outline: the bit outside the line, clockwise round the outside, the same steps. Hold the sink slug before its last pass. */
+function counterProgram({ file, part, label, C }){
+  const K=C.cnc, t=part.T, r=K.dia/2, m=K.margin??0.5, safe=t+1, L=[], f=v=>f4(v);
+  const levels=[]; for(let z=t-K.step; z>0.02; z-=K.step) levels.push(z); levels.push(CAB_CNC.thru);
+  L.push('(Cubit Builder output for ShopSabre with ATC)','(Units INCH)',`(${file})`,`(${C.name} T=${t.toFixed(3)} countertop ${part.cnc.U.toFixed(3)} x ${part.cnc.V.toFixed(3)})`,'(Top face up, front edge along X, left end at the corner)',`(${label})`,'G90',
+    `G0 Z${f(CAB_CNC.start)}`,'M5',`T${K.T}`,`(${K.name})`,`S${K.S}`,'M3','g4 x 4','M50',`G0 Z${f(CAB_CNC.start)}`);
+  const X=u=>m+u, Y=v=>m+v;
+  // sink holes: inside the line
+  part.cnc.ops.filter(o=>o.k==='cutout').forEach(o=>{
+    const x0=X(o.u0)+r, x1=X(o.u1)-r, y0=Y(o.v0)+r, y1=Y(o.v1)-r; if(x1<=x0 || y1<=y0) return;
+    const ramp=Math.min(1, (y1-y0)/2);
+    L.push(`(${o.what})`, `G0 X${f(x0)} Y${f(y0)} Z${f(safe)}`, `G1 Z${f(t)} F${K.plunge}.0`);
+    levels.forEach(z=>{ L.push(`G1 X${f(x0)} Y${f(y0+ramp)} Z${f(z)} F${K.plunge}.0`, `G1 X${f(x0)} Y${f(y1)} F${K.feed}.0`, `G1 X${f(x1)} Y${f(y1)}`, `G1 X${f(x1)} Y${f(y0)}`, `G1 X${f(x0)} Y${f(y0)}`); });
+    L.push(`G1 X${f(x0)} Y${f(y0+ramp)}`, `G0 Z${f(safe)}`); });
+  // the outline: outside the line, round the corners
+  const E=offsetPath(part.cnc.outline, r).map(e=>({ ...e, st:[X(e.st[0]),Y(e.st[1])], en:[X(e.en[0]),Y(e.en[1])], corner:[X(e.corner[0]),Y(e.corner[1])], nextStart:[X(e.nextStart[0]),Y(e.nextStart[1])] }));
+  let k=0, best=-1; E.forEach((e,i)=>{ const l=Math.hypot(e.en[0]-e.st[0], e.en[1]-e.st[1]); if(l>best){ best=l; k=i; } });
+  const e0=E[k], dx=e0.en[0]-e0.st[0], dy=e0.en[1]-e0.st[1], l=Math.hypot(dx,dy), ux=dx/l, uy=dy/l, S0=[e0.st[0]+ux*Math.max(0,(l-1)/2), e0.st[1]+uy*Math.max(0,(l-1)/2)];
+  L.push('(Outline)', `G0 X${f(S0[0])} Y${f(S0[1])} Z${f(safe)}`, `G1 Z${f(t)} F${K.plunge}.0`);
+  levels.forEach(z=>{ L.push(`G1 X${f(S0[0]+ux)} Y${f(S0[1]+uy)} Z${f(z)} F${K.plunge}.0`);
+    for(let j=0;j<E.length;j++){ const e=E[(k+j)%E.length]; if(j>0) L.push(`G1 X${f(e.st[0])} Y${f(e.st[1])}`); L.push(`G1 X${f(e.en[0])} Y${f(e.en[1])}${j===0?` F${K.feed}.0`:''}`);
+      if(e.convex) L.push(`G2 X${f(e.nextStart[0])} Y${f(e.nextStart[1])} I${f(e.corner[0]-e.en[0])} J${f(e.corner[1]-e.en[1])}`); }
+    L.push(`G1 X${f(e0.st[0])} Y${f(e0.st[1])}`, `G1 X${f(S0[0])} Y${f(S0[1])}`); });
+  L.push(`G1 X${f(S0[0]+ux*1.125)} Y${f(S0[1]+uy*1.125)}`, `G0 Z${f(CAB_CNC.start)}`, 'G0 X0.0000 Y0.0000', 'M5');
+  return L.join('\n')+'\n';
+}
+/* every countertop in the items: { name, text, label, U, V, holes, long } (long: longer than the FormX stock) */
+function counterFiles(items, job){
+  const C=settings().counter, out=[]; let n=0;
+  items.forEach(({it,label})=>partsOf(it).filter(p=>p.counter && p.cnc).forEach(p=>{ n++;
+    const name=`${safeName(job)} ${safeName(C.name)} CT${String(n).padStart(2,'0')}.TAP`;
+    out.push({ name, label:`${label} ${p.name}`, U:p.cnc.U, V:p.cnc.V, holes:p.cnc.ops.filter(o=>o.k==='cutout').length, long:p.cnc.U>(C.cnc.sheet?.[1]||144)+1e-6, text:counterProgram({ file:name, part:p, label:`${label} ${p.name}`, C }) }); }));
+  return out;
+}
+
 /* ---------------------------------------------------------------- the whole job */
 const safeName = s => String(s).replace(/[^\w .+-]+/g,'').replace(/\s+/g,' ').trim() || 'Cabinets';
 function cabinetJob(items, { job='Cubit Home', t }={}){
@@ -167,7 +207,7 @@ function cabinetJob(items, { job='Cubit Home', t }={}){
     const hasB=s.placed.some(q=>q.p.cnc.ops.some(op=>op.side==='B'));
     if(hasB) files.push({ sheet:i, side:'B', name:`${base}-B first.TAP`, text:program({ file:`${base}-B first.TAP`, mat, t:tt, placed:s.placed, side:'B' }) });
     files.push({ sheet:i, side:'A', name:`${base}.TAP`, text:program({ file:`${base}.TAP`, mat, t:tt, placed:s.placed, side:'A' }) }); });
-  return { job, mat, t:tt, sheets, tooBig, files, pieces };
+  return { job, mat, t:tt, sheets, tooBig, files, pieces, counters:counterFiles(items, job) };
 }
 /* parts list (Mozaik-like): one line per piece with its sheet and place */
 function jobCSV(J){
@@ -182,7 +222,12 @@ async function jobZip(J){
     'Each sheet: load it GOOD FACE DOWN and run S##R01.TAP. If a sheet also has a "-B first" program, run that one first with the sheet the other way up, then turn it over and run the main one: the cut-throughs are always last.',
     'Z0 is the spoilboard. The programs are for the thickness above: if the sheets measure differently, make them again.',
     'Tools (WALLS TOOLSET): T7 5 mm drill · T11 35 mm · T8 8 mm · T2 ½″ · T14 ¼″ · T1 ⅜″.'].join('\n');
-  return zip([{ name:'README.txt', text:readme }, { name:'parts.csv', text:jobCSV(J) }, ...J.files.map(f=>({ name:f.name, text:f.text }))]);
+  const C=settings().counter, ct=J.counters||[];
+  const readme2 = ct.length ? '\n\n'+[`Countertops: ${ct.length} × ${C.name} ${C.t}″, one program each (CT##.TAP), tool T${C.cnc.T} ${C.cnc.name} Ø${C.cnc.dia}″ at ${C.cnc.S} RPM, ${C.cnc.feed} in/min, ${C.cnc.step}″ a pass.`,
+    'Lay the countertop TOP FACE UP, front edge along the table front (X), left end at the corner. Z0 is the spoilboard.',
+    'Sink holes are cut first (the bit inside the line); hold the slug before the last pass. Then the outline.',
+    ...ct.filter(f=>f.long).map(f=>`${f.label} is ${f.U.toFixed(3)}″ long: longer than the ${C.cnc.sheet?.[1]||144}″ stock. It needs a joint.`)].join('\n') : '';
+  return zip([{ name:'README.txt', text:readme+readme2 }, { name:'parts.csv', text:jobCSV(J) }, ...J.files.map(f=>({ name:f.name, text:f.text })), ...ct.map(f=>({ name:f.name, text:f.text }))]);
 }
 /* a sheet as a picture: parts, their labels, holes and dados */
 function sheetSVG(s, { px=420 }={}){
@@ -197,4 +242,4 @@ function sheetSVG(s, { px=420 }={}){
     g+=`<text x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" class="cc-lab" text-anchor="middle">${q.label.replace(/</g,'')}</text>`; });
   return g+'</svg>';
 }
-export { CAB_CNC, cabinetJob, jobZip, jobCSV, sheetSVG, nest, offsetPath, jobParts };
+export { counterFiles, counterProgram, CAB_CNC, cabinetJob, jobZip, jobCSV, sheetSVG, nest, offsetPath, jobParts };

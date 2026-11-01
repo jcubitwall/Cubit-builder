@@ -61,7 +61,11 @@ const DEFAULTS = {
   pullAt:{ edge:2, end:3 },                                          // door handle: in from the opening edge, from the end
   screw:{ name:'Confirmat / #8 screws through the ends', every:8 },
   rod:{ name:'Oval closet rod 1″ with end flanges' },
-  counter:{ name:'Quartz', t:1.25, over:1 },
+  // countertops: Cubit makes most of them in ½″ FormX solid surface, cut on the CNC with FormX's own bit and speeds
+  counter:{ name:'FormX ½″ solid surface', t:0.5, over:1, end:0.125, lap:0.25, reveal:0,
+    cnc:{ T:15, name:'FORMX', dia:0.5, S:18000, feed:200, plunge:60, step:0.25, sheet:[30,144], margin:0.5 } },
+  // sink bases: the stretchers keep their full width this far in from each side; the sink's hole clears them by `clear`
+  sinkBase:{ keep:3, clear:0.25, minStrip:0.5 },
 };
 const KEY='cubit-casework-settings';
 let S = clone(DEFAULTS), remote=false;
@@ -69,10 +73,12 @@ function clone(o){ return JSON.parse(JSON.stringify(o)); }
 function merge(base, over){ for(const k in over){ if(over[k] && typeof over[k]==='object' && !Array.isArray(over[k]) && base[k] && typeof base[k]==='object') merge(base[k], over[k]); else base[k]=over[k]; } return base; }
 /* settings saved before the Mozaik rules are dropped (only the units are kept) */
 const upgrade = o => (o && o.v===SETTINGS_V) ? o : { units:o?.units||'in' };
+/* the old countertop default (1¼″ quartz) gives way to FormX; a countertop someone set up on purpose stays */
+function fixCounter(){ const c=S.counter; if(c && c.name==='Quartz' && Math.abs(c.t-1.25)<1e-6) S.counter=merge(clone(DEFAULTS.counter), {}); return S; }
 async function loadSettings(){
-  try{ const r=await fetch('api/casework',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ S=merge(clone(DEFAULTS), upgrade(await r.json())); remote=true; return S; } }catch(e){}
+  try{ const r=await fetch('api/casework',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ S=merge(clone(DEFAULTS), upgrade(await r.json())); remote=true; return fixCounter(); } }catch(e){}
   try{ S=merge(clone(DEFAULTS), upgrade(JSON.parse(localStorage.getItem(KEY)||'{}'))); }catch(e){}
-  return S;
+  return fixCounter();
 }
 async function saveSettings(next){
   S=merge(clone(DEFAULTS), {...next, v:SETTINGS_V});
@@ -149,6 +155,21 @@ function opsText(p){
 /* ---------------------------------------------------------------- the carcass (Mozaik dado construction) */
 /* c: { kick, top:'stretchers'|'full', adj:n, fixed:[underside heights], doors:false (no doors in front), parts:[partition x],
         hinges:[{side:'L'|'R', ys:[cup heights on the cabinet]}] (filled in by the fronts), runners:[{y,len}] } */
+/* where a docked sink's hole crosses a sink base's stretchers (it.sinkCut, set by furniture.js, in the cabinet's
+   coordinates seen from the front: x0..x1 across, z0..z1 from the back). Returns the stretchers' notch along u
+   (u runs from the right end) and how much of each stretcher's width is left, or null. */
+function sinkCutOf(it, c, { T, e, pw, D, zbF, cl, sw }){
+  const sc=it.sinkCut; if(!sc || c.top!=='stretchers') return null;
+  const SB=S.sinkBase, W=it.w, mir = !!it.mirror !== !!itemDef(it.k)?.mirrored;
+  let x0=sc.x0-SB.clear, x1=sc.x1+SB.clear; if(mir){ [x0,x1]=[W-x1, W-x0]; }    // built as drawn, mirrored afterwards
+  x0=Math.min(x0, SB.keep); x1=Math.max(x1, W-SB.keep);                       // the full width stays only `keep` in from the sides
+  x0=Math.max(x0, T+0.25); x1=Math.min(x1, W-T-0.25);
+  const xR=T-e+pw, ua=r4(Math.max(0.5, xR-x1)), ub=r4(Math.min(pw-0.5, xR-x0));
+  const zFront=it.d-T, zFS=zFront-sw;                                          // front stretcher: z zFS..zFront (item z, from the back)
+  const zRB=zFront-(zbF-cl), zRF=zRB+sw;                                        // rear stretcher: z zRB..zRF
+  const keepF=r4(Math.max(0, Math.min(sw, zFront-(sc.z1+SB.clear)))), keepR=r4(Math.max(0, Math.min(sw, (sc.z0-SB.clear)-zRB)));
+  return { u:[ua,ub], keepF, keepR };
+}
 function carcass(it, c){
   const W=it.w, H=it.h, T=T_(), e=S.dado.engage, dd=S.dado.depth, dw=T+S.dado.fit, stop=S.dado.stop, cl=S.dado.clear, bi=S.back.inset;
   const D = it.d - (c.doors===false ? 0 : T);                         // box depth (fronts in front of it)
@@ -171,10 +192,29 @@ function carcass(it, c){
     const sw=S.stretcher.w;
     dado('Front stretcher dado', stop, sw+cl, H-dw, H);
     dado('Rear stretcher dado', zbF-cl-sw, zbF-cl, H-dw, H);
-    P.push(part('Front stretcher','carcass','carcass',[T-e,H-T,zOf(sw),pw,T,sw],'y',{ex:[0,1,.4],
-      cnc:{ U:pw, V:sw, u:['right end','left end'], v:['front','back'], up:'underside', outline:notchedO(pw,sw,e,stop+cl,0), ops:[], at:at([T-e+pw,H-T,zOf(0)],[-1,0,0],[0,0,-1],[0,-1,0]) } }));
-    P.push(part('Rear stretcher','carcass','carcass',[T-e,H-T,zOf(zbF-cl),pw,T,sw],'y',{ex:[0,1,-.4],
-      cnc:{ U:pw, V:sw, u:['right end','left end'], v:['front','back'], up:'underside', outline:rectO(pw,sw), ops:[], at:at([T-e+pw,H-T,zOf(zbF-cl-sw)],[-1,0,0],[0,0,-1],[0,-1,0]) } }));
+    // a sink base with a sink docked: both stretchers are narrowed over the sink's hole (+ clearance), keeping their full
+    // width `sinkBase.keep` in from each side; where too little would be left, the middle comes out and the two ends stay
+    const cut=sinkCutOf(it, c, { T, e, pw, D, zbF, cl, sw });
+    const stretcher=(name, x0u, U, outline, atO, ex, z0)=>part(name,'carcass','carcass',[atO[0]-U,H-T,z0,U,T,sw],'y',{ex,
+      cnc:{ U, V:sw, u:['right end','left end'], v:['front','back'], up:'underside', outline, ops:[], at:at(atO,[-1,0,0],[0,0,-1],[0,-1,0]) } });
+    const front=notchedO(pw,sw,e,stop+cl,0), rear=rectO(pw,sw), xR=T-e+pw;
+    const pieces=(name, base, keepV, fromFront, z0, ex)=>{
+      if(!cut || keepV>=sw-1e-6){ P.push(stretcher(name, 0, pw, base, [xR,H-T,fromFront?zOf(0):zOf(zbF-cl-sw)], ex, z0)); return; }
+      const [ua,ub]=cut.u;
+      if(keepV>=S.sinkBase.minStrip){   // narrowed over the sink
+        const o = fromFront ? [[e,0],[pw-e,0],[pw-e,stop+cl],[pw,stop+cl],[pw,sw],[ub,sw],[ub,keepV],[ua,keepV],[ua,sw],[0,sw],[0,stop+cl],[e,stop+cl]]
+                            : [[0,0],[ua,0],[ua,sw-keepV],[ub,sw-keepV],[ub,0],[pw,0],[pw,sw],[0,sw]];
+        const p=stretcher(name, 0, pw, o, [xR,H-T,fromFront?zOf(0):zOf(zbF-cl-sw)], ex, z0);
+        p.note=`Narrowed to ${fx3(keepV)} over the sink, full width ${fx3(Math.min(ua, pw-ub)+T-e)} in from each side`; P.push(p); return; }
+      // the middle comes out: two ends
+      const zO=fromFront?zOf(0):zOf(zbF-cl-sw);
+      const r=fromFront ? [[e,0],[ua,0],[ua,sw],[0,sw],[0,stop+cl],[e,stop+cl]] : rectO(ua,sw);
+      const lU=pw-ub, l=fromFront ? [[0,0],[lU-e,0],[lU-e,stop+cl],[lU,stop+cl],[lU,sw],[0,sw]] : rectO(lU,sw);
+      const pr=stretcher(name.replace('stretcher','stretcher, right end'), 0, ua, r, [xR,H-T,zO], ex, z0);
+      const pl=stretcher(name.replace('stretcher','stretcher, left end'), 0, lU, l, [xR-ub,H-T,zO], ex, z0);
+      pr.note=pl.note='The middle is cut out for the sink: only the ends are fitted'; P.push(pr, pl); };
+    pieces('Front stretcher', front, cut?cut.keepF:sw, true, zOf(sw), [0,1,.4]);
+    pieces('Rear stretcher', rear, cut?cut.keepR:sw, false, zOf(zbF-cl), [0,1,-.4]);
   } else {
     dado('Top dado', stop, zbF-cl, H-dw, H);
     P.push(part('Top','carcass','carcass',[T-e,H-T,zOf(zbF),pw,T,zbF],'y',{ex:[0,1,0],
@@ -523,9 +563,23 @@ def({ k:'FP', cat:'fire', name:'Fireplace surround, linear electric', w:72, h:40
     return P; } });
 
 /* countertops */
-def({ k:'CT', cat:'counter', name:'Countertop', w:48, h:1.25, d:25.5, wR:[12,144], sizes:[24,36,48,60,72,96,120], dSizes:[22,25.5,26], opts:[['sink','Sink cut-out',['none','30″ undermount','24″ undermount']],['splash','Backsplash',['none','4″']]], opt:{sink:'none', splash:'none'},
-  build: it => { const P=[{ ...solid('Countertop','top',[0,0,0,it.w,it.h,it.d],[0,1,0]), note:`${S.counter.name} ${fmtU(it.h)}${it.opt.sink!=='none'?`, ${it.opt.sink} sink cut-out (template)`:''}` }];
-    if(it.opt.splash==='4″') P.push({ ...solid('Backsplash','top',[0,it.h,0,it.w,4,0.75],[0,1.6,-.6]), note:S.counter.name });
+/* countertops: ½″ FormX by default (shop settings). Placed on base cabinets, they fit themselves (furniture.js):
+   back to the wall, ⅛″ past each end that isn't against a wall or a tall unit (a range end too), 1″ past the front
+   of the boxes (so the doors are still about ¼″ under). Sinks docked under them get their hole, exact for the CNC:
+   it.sinks = [{ x0, x1, z0, z1, mount, name }] in the countertop's own coordinates (x from its left end, z from the back). */
+def({ k:'CT', cat:'counter', name:'Countertop', w:48, h:0.5, d:24.625, wR:[12,144], hR:[0.25,2], dR:[12,40], sizes:[24,36,48,60,72,96,120], dSizes:[22,24.625,25.5,26], opts:[['splash','Backsplash',['none','4″']]], opt:{splash:'none'},
+  sized: it => ({ h:S.counter.t }),
+  build: it => { const T=it.h, W=it.w, D=it.d, holes=(it.sinks||[]).filter(h=>h.x1>h.x0+1 && h.z1>h.z0+1);
+    const name=`${S.counter.name}`;
+    const top=part('Countertop','top','counter',[0,0,0,W,T,D],'y',{ ex:[0,1,0],
+      note:`${name} ${fmtU(T)}${holes.length?' · '+holes.map(h=>`${h.mount==='top'?'top mount':'bottom mount'} sink: hole ${fx3(h.x1-h.x0)} × ${fx3(h.z1-h.z0)}`).join(' · '):''}`,
+      cnc:{ U:W, V:D, u:['left end','right end'], v:['front','back'], up:'top face', outline:rectO(W,D),
+        ops: holes.map(h=>({ k:'cutout', u0:r4(h.x0), u1:r4(h.x1), v0:r4(D-h.z1), v1:r4(D-h.z0), thru:true, depth:T, tool:'FormX', side:'A',
+          what:`Sink cut-out, ${h.mount==='top'?`top mount (${fmtU(S.counter.lap)} in from the sink's edge)`:'bottom mount (the bowl opening)'}${h.name?` · ${h.name}`:''}` })),
+        at:at([0,T,D],[1,0,0],[0,0,-1],[0,1,0]) } });
+    top.counter=true;
+    const P=[top];
+    if(it.opt.splash==='4″') P.push({ ...solid('Backsplash','top',[0,T,0,W,4,T],[0,1.6,-.6]), note:name });
     return P; } });
 
 /* appliances: common models (sizes from the makers' spec sheets; always check the current sheet before ordering) */
@@ -626,7 +680,7 @@ def({ k:'LV-WH', cat:'bath', name:'Bathroom sink, wall hung 20 × 17', w:20, h:6
 def({ k:'LPG-SH-L', cat:'bath', name:'LifePodGo shower · left hand', w:42.56, h:87.13, d:35.5, fixed:true, note:'Cubit stock, drawn from the LifePodGo STEP file. Left hand: the deep side wall is on the left, seen from the front. In stock both hands', build:it=>meshParts('lpgShower', it) });
 def({ k:'LPG-SH-R', cat:'bath', name:'LifePodGo shower · right hand', w:42.56, h:87.13, d:35.5, fixed:true, mirrored:true, note:'Cubit stock, drawn from the LifePodGo STEP file. Right hand: the deep side wall is on the right, seen from the front. In stock both hands', build:it=>meshParts('lpgShower', it) });
 /* kitchen and utility sinks: they sit in the countertop (top of the rim at the counter top), 2″ off the wall */
-const sinkY = h => () => 35.5 + (S.counter?.t ?? 1.25) - h + 0.2;
+const sinkY = h => () => 35.5 + (S.counter?.t ?? 0.5) - h + 0.2;
 const sink1 = it => basin('Bowl','steel',[0,0,0,it.w,it.h,it.d],1);
 const sink2 = (split=0.5) => it => { const a=it.w*split; return [ ...basin('Left bowl','steel',[0,0,0,a+0.5,it.h,it.d],1,[-.5,0,0]), ...basin('Right bowl','steel',[a-0.5,0,0,it.w-a+0.5,it.h,it.d],1,[.5,0,0]) ]; };
 def({ k:'SK-1-25', cat:'sink', name:'Kitchen sink, single bowl 25 × 22 drop-in', w:25, h:8,  d:22, gap:1.5, y:sinkY(8),  fixed:true, note:BATH_NOTE+' · fits a 30″ sink base', build:sink1 });
@@ -638,6 +692,24 @@ def({ k:'SK-FH-30', cat:'sink', name:'Farmhouse (apron) sink 30″', w:30, h:10,
 def({ k:'SK-FH-33', cat:'sink', name:'Farmhouse (apron) sink 33″', w:33, h:10, d:21, gap:2, y:sinkY(10), fixed:true, note:BATH_NOTE+' · needs a farmhouse sink base', build:it=>[ ...basin('Bowl','porcelain',[0,0,0,it.w,it.h,it.d],1.25), fx('Apron','porcelain',[0,0,it.d-0.75,it.w,it.h,0.75],{ex:[0,0,1]}) ] });
 def({ k:'SK-BAR', cat:'sink', name:'Bar / prep sink 15 × 15', w:15, h:7, d:15, gap:3, y:sinkY(7), fixed:true, note:BATH_NOTE, build:sink1 });
 def({ k:'SK-LAU', cat:'sink', name:'Laundry tub, freestanding 24 × 22', w:24, h:34, d:22, y:0, fixed:true, note:BATH_NOTE, build:it=>[ ...basin('Tub','acrylic',[0,22,0,it.w,12,it.d],1.25,[0,.6,0]), ...[[1,1],[it.w-2.5,1],[1,it.d-2.5],[it.w-2.5,it.d-2.5]].map(([x,z],i)=>fx(`Leg ${i+1}`,'steel',[x,0,z,1.5,22,1.5],{ex:[x<it.w/2?-.6:.6,-.4,z<it.d/2?-.6:.6]})) ] });
+/* sinks that sit in a countertop: how they're mounted and how wide their rim is.
+   Top mount (drop-in): the rim sits on the countertop, and the hole is cut `counter.lap` (¼″) in from the sink's edge
+   all the way round. Bottom mount (undermount): the sink hangs under the countertop, and the hole is the bowl's
+   opening (inside the rim), less `counter.reveal` each side where the countertop runs over the bowl.
+   They dock into a sink base (furniture.js): its centre, or against either side (the hole `sinkBase.keep` in). */
+ITEMS.filter(d=>d.cat==='sink' && d.k!=='SK-LAU').forEach(d=>{ const top=/drop-in/.test(d.name) || d.k==='SK-2-60';
+  d.mount=top?'top':'bottom'; d.rim=top?1.25:1; d.dock=true;
+  d.opts=[...(d.opts||[]), ['mount','Mount',['top','bottom']]]; d.opt={ ...(d.opt||{}), mount:d.mount }; });
+/* the hole a sink needs in the countertop (centred on the sink): { w, d, mount } */
+function sinkHole(it){ const d=itemDef(it.k); if(!d?.dock) return null;
+  const mount=it.opt?.mount || d.mount, c=S.counter;
+  if(mount==='top') return { w:r4(it.w-2*c.lap), d:r4(it.d-2*c.lap), mount };
+  const rim=d.rim||1; return { w:r4(it.w-2*rim-2*(c.reveal||0)), d:r4(it.d-2*rim-2*(c.reveal||0)), mount };
+}
+/* the narrowest sink base for a sink: its hole plus the full-width stretcher ends and clearance each side,
+   but never narrower than the sink itself plus the two ends */
+function sinkBaseMin(sink){ const h=sinkHole(sink); if(!h) return 0; const T=T_(), SB=S.sinkBase;
+  return Math.ceil(Math.max(h.w+2*(T+SB.clear+0.25), sink.w+2*T)*4)/4; }
 
 const itemDef = k => ITEMS.find(i=>i.k===k);
 const catOf = k => CATS.find(c=>c.k===k);
@@ -673,7 +745,7 @@ function cutList(it){
   const rows=new Map();
   partsOf(it).filter(p=>!p.hw && !p.solid).forEach(p=>{
     const key=[p.name.replace(/, (left|right)$/,'').replace(/^(Left|Right) end$/,'End').replace(/ \d+( |$)/,' # '),p.cutL,p.cutW,p.band.long,p.band.short,sigOf(p)].join('|');
-    const r=rows.get(key); if(r){ r.qty++; r.parts.push(p); } else rows.set(key,{ name:p.name, nom:nomOf(), T:p.T, L:p.cutL, W:p.cutW, fL:p.L, fW:p.W, band:p.band, ops:p.ops, qty:1, parts:[p] });
+    const r=rows.get(key); if(r){ r.qty++; r.parts.push(p); } else rows.set(key,{ name:p.name, nom:p.counter?S.counter.name:nomOf(), T:p.T, L:p.cutL, W:p.cutW, fL:p.L, fW:p.W, band:p.band, ops:p.ops, qty:1, parts:[p] });
   });
   return [...rows.values()];
 }
@@ -689,7 +761,7 @@ function hardwareOf(it){
 /* totals for a list of placed items: sheet area, banding length */
 function totals(items){
   const area={}, band={len:0};
-  items.forEach(it=>partsOf(it).filter(p=>!p.hw && !p.solid).forEach(p=>{ const n=nomOf(); area[n]=(area[n]||0)+p.cutL*p.cutW/144; band.len+=p.bandLen; }));
+  items.forEach(it=>partsOf(it).filter(p=>!p.hw && !p.solid && !p.counter).forEach(p=>{ const n=nomOf(); area[n]=(area[n]||0)+p.cutL*p.cutW/144; band.len+=p.bandLen; }));
   const sheet=S.mat.sheet[0]*S.mat.sheet[1]/144;
   return { area, sheets:Object.fromEntries(Object.entries(area).map(([n,a])=>[n, Math.ceil(a*1.12/sheet)])), bandFt:Math.ceil(band.len/12*1.1) };
 }
@@ -700,4 +772,4 @@ function csv(it, name){
   rows.unshift([`${name} — ${fmt(it.w)} W × ${fmt(it.h)} H × ${fmt(it.d)} D (inches)`]);
   return rows.map(r=>r.map(v=>/[",\n]/.test(String(v))?`"${String(v).replace(/"/g,'""')}"`:v).join(',')).join('\n');
 }
-export { fx3, hingeSpec, runnerSpec, handleById, SETTINGS_V, loadFixtures, DEFAULTS, MM, CATS, ITEMS, itemDef, catOf, newItem, partsOf, cutList, hardwareOf, totals, csv, fmt, fmtU, settings, loadSettings, saveSettings, th, nomOf };
+export { sinkHole, sinkBaseMin, fx3, hingeSpec, runnerSpec, handleById, SETTINGS_V, loadFixtures, DEFAULTS, MM, CATS, ITEMS, itemDef, catOf, newItem, partsOf, cutList, hardwareOf, totals, csv, fmt, fmtU, settings, loadSettings, saveSettings, th, nomOf };

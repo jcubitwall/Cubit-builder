@@ -9,7 +9,7 @@
 import { state, save } from './state.js';
 import { checkpoint } from './history.js';
 import { ensureDraft } from './pods.js';
-import { itemDef, newItem, CATS } from './casework.js';
+import { itemDef, newItem, CATS, settings as cwSettings, sinkHole, sinkBaseMin, th } from './casework.js';
 import { itemModel } from './casework3d.js';
 
 const FT=12;
@@ -92,7 +92,19 @@ function podAt(pt, pods){ return pods.find(p=>pt.x>=p.x-0.01 && pt.x<=p.x+p.w+0.
 /* lockA: one touch, one wall. While a drag goes on, the item keeps the wall it started on (its back to it): it slides
    along it and stops at the corner instead of flipping onto the other wall. Only when it's pulled out into the room,
    beyond that wall's reach (its depth + 1.6′), can another wall take it. */
+/* a sink dropped on a sink base docks in it (centre or either side, whichever is nearest the finger); anywhere else
+   it's placed like any other item and is no longer docked */
 function snap(it, pt, wallGroups, homeGroup, keepA=null, lockA=null){
+  if(!itemDef(it.k)?.dock) return snapItem(it, pt, wallGroups, homeGroup, keepA, lockA);
+  const p=podAt(pt,lastPods), f=p && frames[p.i];
+  if(f){ let R=f; while(R.parent) R=R.parent; R.updateMatrixWorld(true);
+    const l=f.worldToLocal(homeGroup.localToWorld(pt.clone())), cab=baseUnder(p.i, l.x, l.z, it.id);
+    if(cab){ const fresh=it.dock?.cab!==cab.id, cw={ ...cab, w:Math.max(cab.w, sinkBaseMin(it)) };
+      const at=dockAt(it, cw, toItem(cw, l.x, l.z).x*FT), P=dockPose(it, cw, at);
+      if(P) return { pod:p.i, u:P.u, v:P.v, a:P.a, y:P.y, wall:cab.wall||null, dock:{ cab:cab.id, at, ...(fresh?{fresh:true}:{}) } }; } }
+  const r=snapItem(it, pt, wallGroups, homeGroup, keepA, lockA); return r ? { ...r, dock:null } : r;
+}
+function snapItem(it, pt, wallGroups, homeGroup, keepA=null, lockA=null){
   const p=podAt(pt,lastPods); if(!p || !frames[p.i]) return null;
   const f=frames[p.i]; { let R=f; while(R.parent) R=R.parent; R.updateMatrixWorld(true); }   // walls just rebuilt may not have been drawn yet
   const W=wallMeshes(wallGroups), world=homeGroup.localToWorld(pt.clone());
@@ -309,9 +321,9 @@ function ungroup(gid){ checkpoint(); ensureDraft(); groupMembers(gid).forEach(it
 function relinkGroup(gid){ checkpoint(); ensureDraft(); const L=list().filter(it=>it.was?.id===gid); L.forEach(it=>{ it.grp=it.was; delete it.was; }); save(); return L.length; }
 function renameGroup(gid, name){ checkpoint(); ensureDraft(); groupMembers(gid).forEach(it=>{ it.grp.name=name; }); save(); }
 function setGroupFrom(gid, from){ groupMembers(gid).forEach(it=>{ it.grp.from=from; }); save(); }
-function removeGroup(gid){ checkpoint(); ensureDraft(); const L=list(); for(let i=L.length-1;i>=0;i--) if(L[i].grp?.id===gid) L.splice(i,1); if(byId(state.selFurn)==null) state.selFurn=null; save(); }
+function removeGroup(gid){ checkpoint(); ensureDraft(); const L=list(); for(let i=L.length-1;i>=0;i--) if(L[i].grp?.id===gid) L.splice(i,1); if(byId(state.selFurn)==null) state.selFurn=null; changed(); }
 /* several items moved at once (a group dragged): one undo step */
-function setMany(updates){ checkpoint(); ensureDraft(); updates.forEach(([id,patch])=>{ const it=byId(id); if(it){ Object.assign(it, patch); delete it.free; } }); save(); }
+function setMany(updates){ checkpoint(); ensureDraft(); updates.forEach(([id,patch])=>{ const it=byId(id); if(it){ Object.assign(it, patch); delete it.free; } }); changed(); }
 /* the live preview while a group is dragged: move the 3D holders without rebuilding them */
 function moveHolder(id, u, v, a){ const o=models.get(id); if(o){ o.holder.position.set(u, 0, v); o.holder.rotation.y=(a||0)*Math.PI/180; } }
 /* a group as a recipe: each item relative to the anchor (sizes, options, where it sits from the anchor's back-middle) */
@@ -326,7 +338,7 @@ function placeRecipe(recipe, at){
 function addRecipe(recipe, at, name, from){
   checkpoint(); ensureDraft(); const gid=newGid(), L=list();
   placeRecipe(recipe, at).forEach(x=>{ L.push({ id:newId(), ...x, grp:{id:gid, name, from} }); const c=itemDef(x.k)?.cat; if(c && state.show['cw-'+c]===false) state.show['cw-'+c]=true; });
-  save(); return gid;
+  changed(); return gid;
 }
 
 /* ---------------------------------------------------------------- the ghost while dragging */
@@ -343,15 +355,118 @@ function showFurnGhost(it, at){
 const hideFurnGhost = () => { if(fg) fg.visible=false; };
 const setHolderVisible = (id, v) => { const m=models.get(id); if(m) m.holder.visible = v && shownCat(m.holder.userData.cat); };
 
+/* ---------------------------------------------------------------- kitchens: sinks, sink bases, countertops
+   After every change (changed()):
+     · a sink docked in a sink base (sink.dock = { cab, at:'L'|'C'|'R' }) sits in it: centred, or its hole
+       `sinkBase.keep` (3″) in from either side; 2″… (the sink's own gap) off the wall; its rim at the countertop.
+       The base is never narrower than the sink needs (sinkBaseMin): it grows to it when the sink docks, and can be
+       made wider, not narrower. The base's stretchers are narrowed over the sink's hole (cab.sinkCut, casework.js).
+     · a countertop on base cabinets fits them: back to the wall, ⅛″ past each end unless that end is against a wall
+       or a tall unit (a range end gets the ⅛″ too), 1″ past the front of the boxes, sitting on them, the shop's
+       thickness. The sinks under it give it its holes (ct.sinks). */
+const KF = () => cwSettings();
+const isBase = o => { const c=itemDef(o.k)?.cat; return c==='base' || c==='vanity'; };
+const underCounter = o => isBase(o) || /^(DW|FR24U)/.test(o.k||'');
+const isTallAt = (o, top) => { const c=itemDef(o.k)?.cat; if(/^RG/.test(o.k||'')) return false;   // a range: the countertop still runs ⅛″ past
+  return ['tall','linen','wardrobe'].includes(c) || ((o.y||0)+o.h > top+2 && (o.y||0) < top); };
+const sameA = (a,b) => Math.abs((((a||0)-(b||0))%360+540)%360-180)<1;
+/* where a docked sink goes in its base: { u, v, a, y, x (hole centre from the base's middle, in), hole } */
+function dockPose(sink, cab, at){
+  const SB=KF().sinkBase, hole=sinkHole(sink); if(!hole) return null;
+  let x=0; const side=cab.w/2-SB.keep-hole.w/2;
+  if(at==='L') x=-Math.max(0,side); else if(at==='R') x=Math.max(0,side);
+  const gap=itemDef(sink.k)?.gap ?? 2, p=toPod(cab, x/FT, gap/FT);
+  const top=(cab.y||0)+cab.h;   // top mount: the rim sits on the countertop · bottom mount: the sink hangs under it
+  return { u:p.u, v:p.v, a:cab.a||0, y:+(hole.mount==='top' ? top+KF().counter.t-sink.h+0.2 : top-sink.h).toFixed(4), x, hole, gap };
+}
+/* which of L / C / R a point (inches across the base from its middle) is nearest */
+function dockAt(sink, cab, xIn){ const SB=KF().sinkBase, hole=sinkHole(sink); if(!hole) return 'C';
+  const side=Math.max(0, cab.w/2-SB.keep-hole.w/2), opts=[['L',-side],['C',0],['R',side]];
+  return opts.sort((p,q)=>Math.abs(p[1]-xIn)-Math.abs(q[1]-xIn))[0][0]; }
+/* the sink base under a point in a pod (feet, pod frame), for a sink being dropped */
+function baseUnder(pod, x, z, notId){
+  const L=list().filter(o=>o.pod===pod && o.id!==notId && itemDef(o.k)?.cat==='base' && !o.grp?.locked);
+  const hit=L.filter(o=>{ const q=toItem(o,x,z); return Math.abs(q.x)<=o.w/2/FT && q.z>=-0.05 && q.z<=o.d/FT+0.05; });
+  return hit.sort((a,b)=>(b.k==='BS')-(a.k==='BS'))[0] || null;
+}
+/* a cabinet made wider or narrower in a run: its left end stays, and the units butted on its right move along with
+   its right end (countertops and docked sinks fit themselves afterwards) */
+function resizeInRun(cab, w){
+  const dW=w-cab.w; if(Math.abs(dW)<1e-6) return;
+  const L=list(), right=cab.w/2/FT;
+  const line=L.filter(o=>o.id!==cab.id && o.pod===cab.pod && sameA(o.a,cab.a) && itemDef(o.k)?.cat!=='counter' && !o.dock).map(o=>{
+    const c=toItem(cab, o.u, o.v); return { o, z:c.z, x0:c.x-o.w/2/FT, x1:c.x+o.w/2/FT }; }).filter(r=>Math.abs(r.z)<4/FT).sort((a,b)=>a.x0-b.x0);
+  const move=[]; let edge=right; line.forEach(r=>{ if(r.x0>=edge-0.5/FT && r.x0<=edge+0.5/FT){ move.push(r.o); edge=r.x1; } });
+  const shift=(o,d)=>{ const p0=toPod(cab,0,0), p1=toPod(cab,d/FT,0); o.u+=p1.u-p0.u; o.v+=p1.v-p0.v; };
+  move.forEach(o=>shift(o,dW));
+  shift(cab, dW/2); cab.w=+w.toFixed(4);
+}
+/* a sink base back to the narrowest its sink allows */
+function fitBaseToSink(id){ checkpoint(); ensureDraft(); const cab=byId(id); if(!cab?.sinkMin) return; resizeInRun(cab, cab.sinkMin); changed(); }
+function fitSinks(){
+  const L=list();
+  L.forEach(o=>{ if(o.sinkCut && !L.some(s=>s.dock?.cab===o.id)){ delete o.sinkCut; delete o.sinkMin; } });
+  const docked=L.filter(s=>{ if(!s.dock) return false; const cab=byId(s.dock.cab);
+    if(!cab || cab.pod!==s.pod || !itemDef(s.k)?.dock){ delete s.dock; return false; } return true; });
+  // the base is never narrower than its sink needs: it grows to it (its neighbours on the right move along)
+  docked.forEach(s=>{ const cab=byId(s.dock.cab), min=sinkBaseMin(s); cab.sinkMin=min; delete s.dock.fresh; if(cab.w<min-1e-6) resizeInRun(cab, min); });
+  docked.forEach(s=>{ const cab=byId(s.dock.cab);
+    const P=dockPose(s, cab, s.dock.at||'C'); if(!P) return;
+    Object.assign(s, { u:P.u, v:P.v, a:P.a, y:P.y, wall:cab.wall||null });
+    const xc=cab.w/2+P.x, z0=P.gap+(s.d-P.hole.d)/2;
+    cab.sinkCut={ x0:+(xc-P.hole.w/2).toFixed(4), x1:+(xc+P.hole.w/2).toFixed(4), z0:+z0.toFixed(4), z1:+(z0+P.hole.d).toFixed(4) }; });
+}
+function fitCounters(){
+  const C=KF().counter, L=list(), T=th();
+  L.filter(o=>itemDef(o.k)?.cat==='counter').forEach(ct=>{
+    ct.h=C.t;
+    // the under-counter units on the countertop's back line, in its frame (feet)
+    const on=L.filter(o=>o.pod===ct.pod && o.id!==ct.id && underCounter(o) && sameA(o.a,ct.a)).map(o=>{
+      const p=toItem(ct, ...Object.values(toPod(o,-o.w/2/FT,0))), q=toItem(ct, ...Object.values(toPod(o,o.w/2/FT,0)));
+      return { o, x0:Math.min(p.x,q.x), x1:Math.max(p.x,q.x), z:(p.z+q.z)/2 }; }).filter(r=>Math.abs(r.z)<4/FT).sort((a,b)=>a.x0-b.x0);
+    if(!on.length) return;
+    const runs=[]; on.forEach(r=>{ const g=runs[runs.length-1]; if(g && r.x0<=g.x1+0.5/FT){ g.x1=Math.max(g.x1,r.x1); g.its.push(r); } else runs.push({ x0:r.x0, x1:r.x1, its:[r] }); });
+    const hw=ct.w/2/FT, ov=g=>Math.min(g.x1,hw)-Math.max(g.x0,-hw);
+    const run=runs.filter(g=>ov(g)>0).sort((a,b)=>ov(b)-ov(a))[0]; if(!run) return;
+    const cabs=run.its.filter(r=>isBase(r.o)).map(r=>r.o);
+    const top=cabs.length ? Math.max(...cabs.map(o=>(o.y||0)+o.h)) : 35.5;
+    const box=cabs.length ? Math.max(...cabs.map(o=>o.d-T)) : 23.625;
+    // each end: against a wall or a tall unit → flush; otherwise ⅛″ past
+    const f=frames[ct.pod]; if(f){ let R=f; while(R.parent) R=R.parent; R.updateMatrixWorld(true); }
+    const h=(top+0.25)/FT, zm=box/2/FT;
+    const endHit = (x, dir) => {
+      if(f){ const p0=toPod(ct, x+dir*0.01/FT, zm), p1=toPod(ct, x+dir, zm), hit=podCast(f, p0.u, p0.v, p1.u-p0.u, p1.v-p0.v, h); if(hit && hit.dist<0.6/FT) return true; }
+      return L.some(o=>{ if(o.pod!==ct.pod || o.id===ct.id || !isTallAt(o, top)) return false;
+        const pts=[[-o.w/2,0],[o.w/2,0],[o.w/2,o.d],[-o.w/2,o.d]].map(([a,b])=>{ const pp=toPod(o,a/FT,b/FT); return toItem(ct,pp.u,pp.v); });
+        const xs=pts.map(p=>p.x), zs=pts.map(p=>p.z); if(Math.max(...zs)<=0.02 || Math.min(...zs)>=box/FT) return false;
+        return dir<0 ? Math.abs(Math.max(...xs)-x)<0.6/FT : Math.abs(Math.min(...xs)-x)<0.6/FT; }); };
+    const oL=endHit(run.x0,-1)?0:C.end, oR=endHit(run.x1,1)?0:C.end;
+    const x0=run.x0-oL/FT, x1=run.x1+oR/FT, cx=(x0+x1)/2, P=toPod(ct, cx, run.its[0].z);
+    Object.assign(ct, { w:+((x1-x0)*FT).toFixed(4), d:+(box+C.over).toFixed(4), y:+top.toFixed(4), u:P.u, v:P.v, wall:run.its.find(r=>r.o.wall)?.o.wall||ct.wall||null });
+    // the sinks in it: their holes in the countertop's own coordinates (in, x from its left end, z from the back)
+    ct.sinks=L.filter(s=>s.pod===ct.pod && itemDef(s.k)?.dock && sameA(s.a,ct.a)).map(s=>{ const hole=sinkHole(s), c=toPod(s,0,s.d/2/FT), q=toItem(ct,c.u,c.v);
+      const X=q.x*FT+ct.w/2, Z=q.z*FT; return { x0:+(X-hole.w/2).toFixed(4), x1:+(X+hole.w/2).toFixed(4), z0:+(Z-hole.d/2).toFixed(4), z1:+(Z+hole.d/2).toFixed(4), mount:hole.mount, name:itemDef(s.k).name }; })
+      .filter(hh=>hh.x0>=-0.01 && hh.x1<=ct.w+0.01 && hh.z0>=-0.01 && hh.z1<=ct.d+0.01);
+    if(!ct.sinks.length) delete ct.sinks;
+  });
+}
+/* after every change: kitchens fit themselves, the items that moved are drawn again, then it's saved */
+function fitKitchen(){
+  const L=list(), before=new Map(L.map(o=>[o.id, JSON.stringify(o)]));
+  try{ fitSinks(); fitCounters(); }catch(e){ console.warn('kitchen fit', e); }
+  return L.filter(o=>before.get(o.id)!==JSON.stringify(o)).map(o=>o.id);
+}
+function changed(){ const moved=fitKitchen(); save(); if(group) moved.forEach(id=>refreshItem(byId(id))); }
+
 /* ---------------------------------------------------------------- edits */
 function addItem(k, at){ checkpoint(); ensureDraft(); const it={ id:newId(), ...newItem(k), ...at }; delete it.free; list().push(it);
   const cat=itemDef(k)?.cat; if(cat && state.show['cw-'+cat]===false){ state.show['cw-'+cat]=true; import('./layers.js').then(m=>m.renderLayers?.()).catch(()=>{}); }   // dragged in while its layer was off: switch it on
-  save(); return it; }
-function updateItem(id, patch){ checkpoint(); ensureDraft(); const it=byId(id); if(!it) return null; Object.assign(it, patch); delete it.free; save(); return it; }
-function removeItem(id){ checkpoint(); ensureDraft(); const L=list(), i=L.findIndex(f=>f.id===id); if(i>=0) L.splice(i,1); if(state.selFurn===id) state.selFurn=null; save(); }
+  changed(); return it; }
+function updateItem(id, patch){ checkpoint(); ensureDraft(); const it=byId(id); if(!it) return null; Object.assign(it, patch); delete it.free; changed(); return it; }
+function removeItem(id){ checkpoint(); ensureDraft(); const L=list(), i=L.findIndex(f=>f.id===id); if(i>=0) L.splice(i,1); if(state.selFurn===id) state.selFurn=null; changed(); }
 function duplicateItem(id){ checkpoint(); ensureDraft(); const it=byId(id); if(!it) return null; const c={...JSON.parse(JSON.stringify(it)), id:newId()};
-  const r=(c.a||0)*Math.PI/180; c.u+=Math.cos(r)*c.w/FT; c.v-=Math.sin(r)*c.w/FT; list().push(c); save(); return c; }
-function turnItem(id, dir=1){ checkpoint(); ensureDraft(); const it=byId(id); if(!it) return; const c=centreOf(it), a=norm180((it.a||0)-90*dir); Object.assign(it, settle(it, { ...poseAbout(it, c, a), a })); save(); }
+  const r=(c.a||0)*Math.PI/180; c.u+=Math.cos(r)*c.w/FT; c.v-=Math.sin(r)*c.w/FT; list().push(c); changed(); return c; }
+function turnItem(id, dir=1){ checkpoint(); ensureDraft(); const it=byId(id); if(!it) return; const c=centreOf(it), a=norm180((it.a||0)-90*dir); Object.assign(it, settle(it, { ...poseAbout(it, c, a), a })); changed(); }
 /* when a pod goes, its items go with it; later pods move down one */
 function podRemoved(k, i){ const L=list(k); for(let j=L.length-1;j>=0;j--){ if(L[j].pod===i) L.splice(j,1); else if(L[j].pod>i) L[j].pod--; } }
 /* deepest unit on each wall (inches), for the pot-light rule */
@@ -359,4 +474,4 @@ const DEPTH_CATS=new Set(['base','upper','tall','linen','wardrobe','vanity','app
 function wallDepths(k=state.model){ const out={}; list(k).forEach(it=>{ if(it.wall && DEPTH_CATS.has(itemDef(it.k)?.cat)) out[it.wall]=Math.max(out[it.wall]||0, it.d); }); return out; }
 
 const podsShown = () => lastPods;
-export { turnStart, turnTo, freeSpot, clash, setWalls, handleMeshes, roomBeyond, stretchTo, updateHandles, onFurnApplied, setCabExplode, resetCabExplode, cabExploded, explodeFurniture, furnHolder, podsShown, showFurnGhost, hideFurnGhost, setHolderVisible, list as furnitureOf, byId as furnById, buildFurniture, refreshItem, applyFurniture, furnMeshes, snap, podAt, addItem, updateItem, removeItem, duplicateItem, turnItem, podRemoved, wallDepths, shownCat, CATS as FURN_CATS , cabExplodeGoal , rotXZ, groupMembers, makeGroup, ungroup, relinkGroup, renameGroup, setGroupFrom, removeGroup, setMany, moveHolder, groupRecipe, placeRecipe, addRecipe };
+export { fitBaseToSink, dockAt, turnStart, turnTo, freeSpot, clash, setWalls, handleMeshes, roomBeyond, stretchTo, updateHandles, onFurnApplied, setCabExplode, resetCabExplode, cabExploded, explodeFurniture, furnHolder, podsShown, showFurnGhost, hideFurnGhost, setHolderVisible, list as furnitureOf, byId as furnById, buildFurniture, refreshItem, applyFurniture, furnMeshes, snap, podAt, addItem, updateItem, removeItem, duplicateItem, turnItem, podRemoved, wallDepths, shownCat, CATS as FURN_CATS , cabExplodeGoal , rotXZ, groupMembers, makeGroup, ungroup, relinkGroup, renameGroup, setGroupFrom, removeGroup, setMany, moveHolder, groupRecipe, placeRecipe, addRecipe };

@@ -6,7 +6,7 @@ import { cabinetJob, jobZip, sheetSVG, CAB_CNC } from './cabcnc.js';
 import { MODELS } from './data.js';
 import { itemModel } from './casework3d.js';
 import { frontSVG } from './casework-svg.js';
-import { furnitureOf, furnById, updateItem, removeItem, duplicateItem, turnItem, refreshItem, addItem, snap, applyFurniture, podsShown, freeSpot, groupMembers, makeGroup, ungroup, relinkGroup, renameGroup, setGroupFrom, removeGroup, groupRecipe } from './furniture.js';
+import { fitBaseToSink, furnitureOf, furnById, updateItem, removeItem, duplicateItem, turnItem, refreshItem, addItem, snap, applyFurniture, podsShown, freeSpot, groupMembers, makeGroup, ungroup, relinkGroup, renameGroup, setGroupFrom, removeGroup, groupRecipe } from './furniture.js';
 import { kitchenById, newKitchenId, saveKitchen } from './kitchens.js';
 import { state, save } from './state.js';
 import { canSave, canEdit } from './role.js';
@@ -190,6 +190,8 @@ function openCnc(items, title){
     out.innerHTML=`<h3>2 · ${J.sheets.length} sheet${J.sheets.length>1?'s':''} · ${J.pieces.length} parts · at ${fx3(t,'in')}</h3>
       ${J.tooBig.length?`<p class="wb-warn">Too big for a ${CAB_CNC.sheet[0]} × ${CAB_CNC.sheet[1]} sheet: ${J.tooBig.map(q=>esc(q.label)).join(', ')}</p>`:''}
       <p class="note">Load each sheet <b>good face down</b> and run its program. Every part's inside face is up, so no sheet needs turning over. The cut-throughs are last in each program.</p>
+      ${J.counters?.length?`<p class="note"><b>Countertops:</b> ${J.counters.length} × ${esc(settings().counter.name)}, one program each with the FormX bit (T${settings().counter.cnc.T} ${esc(settings().counter.cnc.name)}), top face up: ${J.counters.map(f=>`${esc(f.label)} ${fx3(f.U,'in')} × ${fx3(f.V,'in')}${f.holes?` · ${f.holes} sink hole${f.holes>1?'s':''}`:''} <code>${esc(f.name)}</code>`).join(' · ')}</p>`:''}
+      ${(J.counters||[]).filter(f=>f.long).map(f=>`<p class="wb-warn">${esc(f.label)} is longer than the FormX stock (${settings().counter.cnc.sheet?.[1]||144}″): it needs a joint.</p>`).join('')}
       <div class="row"><button class="btn" id="ccZip">Download the programs (.zip)</button></div>
       <div class="cc-sheets">${J.sheets.map((sh,i)=>`<figure><figcaption><b>Sheet ${i+1}</b> · ${sh.placed.length} parts · ${(sh.yield*100).toFixed(0)}% used · <code>${esc(J.files.filter(f=>f.sheet===i).map(f=>f.name).join(', '))}</code></figcaption>${sheetSVG(sh,{px:720})}</figure>`).join('')}</div>`;
     out.querySelector('#ccZip').onclick=async()=>{ const b=await jobZip(J); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=`${J.job.replace(/[^\w .+-]+/g,'')} cabinets.zip`; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },500); };
@@ -284,7 +286,14 @@ const SECTIONS = [
   ['Drawer boxes', '16 mm sides, front and back; the front and back have tongues in ¼″ dados in the sides and sit on the bottom; the bottom slides in a groove in the sides.', [
     F('drawer.groove','Bottom groove up from the side’s lower edge'), F('drawer.grooveDepth','Bottom groove depth'), F('drawer.dadoIn','Front / back dado in from the end'), F('drawer.dadoW','Dado width (¼″ bit)'), F('drawer.dadoDepth','Dado depth'), F('drawer.tongue','Tongue thickness'), F('drawer.topDrop','Front / back below the side’s top') ]],
   ['Handles', 'Pick a handle on a cabinet to drill its holes on the CNC; “Drill later” leaves them off.', [ F('handles','Handles','handles') ]],
-  ['Fasteners and tops', '', [ F('screw.name','Assembly fastener','text'), F('rod.name','Closet rod','text'), F('counter.name','Countertop','text'), F('counter.t','Countertop thickness'), F('counter.over','Front overhang') ]],
+  ['Fasteners', '', [ F('screw.name','Assembly fastener','text'), F('rod.name','Closet rod','text') ]],
+  ['Countertops', 'Most of what Cubit makes is ½″ FormX solid surface. A countertop fits the cabinets under it: back to the wall, past each free end (a range end too) and past the front of the boxes by these amounts.', [
+    F('counter.name','Countertop material','text'), F('counter.t','Thickness'), F('counter.over','Past the front of the boxes'), F('counter.end','Past a free end'),
+    F('counter.lap','Top-mount sink: hole in from the sink’s edge'), F('counter.reveal','Bottom-mount sink: countertop over the bowl') ]],
+  ['Countertop CNC (FormX)', 'FormX has its own bit, speeds and feeds. Each countertop gets its own program: the sink holes first (the bit inside the line), then the outline (outside the line), stepping down each pass.', [
+    F('counter.cnc.T','Tool number','num'), F('counter.cnc.name','Tool name','text'), F('counter.cnc.dia','Bit diameter'), F('counter.cnc.S','Spindle (RPM)','num'), F('counter.cnc.feed','Feed (in/min)','num'), F('counter.cnc.plunge','Plunge (in/min)','num'), F('counter.cnc.step','Depth per pass'), F('counter.cnc.margin','In from the table corner') ]],
+  ['Sink bases', 'A sink docked in a sink base: the stretchers keep their full width this far in from each side and are narrowed over the sink, clear of its hole.', [
+    F('sinkBase.keep','Full width in from each side'), F('sinkBase.clear','Clearance round the sink hole'), F('sinkBase.minStrip','Narrowest strip left (less: the middle comes out)') ]],
 ];
 const LABEL = { cup:'Cup diameter', depth:'Cup and dowel depth', edge:'Cup centre from the door edge', dowel:'Dowel hole', dowelApart:'Dowel holes apart', dowelBack:'Dowels behind the cup centre', bottom:'Lowest cup above the door bottom', top:'Highest cup below the door top', plateX:'Plate marks in from the front', plateApart:'Plate marks apart',
   clear:'Clearance, both sides together', lens:'Lengths (inches)', front:'Front holes from the front (mm)', rear:'Back holes before the runner end (mm)', holeDepth:'Hole depth', rowAbove:'Hole row above the box bottom', boxPlus:'Box longer than the runner by' };
@@ -394,6 +403,18 @@ function saveGroupDialog(it){
     go.onclick=async()=>{ go.disabled=true; try{ await saveKitchen({ id:src.id, name:src.name, note:src.note||'', items:recipe }, true); d.close(); renderSide(); toast(`“${src.name}” updated in the kitchen library`); }catch(err){ toast('Not saved: '+err.message); go.disabled=false; } }; };
   step1(); d.showModal();
 }
+/* sinks, sink bases and countertops: what fits what */
+function kitchenNote(it, d, ed){
+  if(d.dock){
+    if(!it.dock) return `<p class="note">Drag it onto a sink base to dock it there: the base takes its size and the countertop gets its hole.</p>`;
+    const at=it.dock.at||'C';
+    return `<div class="cw-opt"><span>In the sink base</span><div class="seg">${[['L','Left'],['C','Centre'],['R','Right']].map(([k,l])=>`<button data-dock="${k}" aria-pressed="${at===k}" ${ed?'':'disabled'}>${l}</button>`).join('')}</div></div>
+      <p class="note">${(it.opt?.mount||d.mount)==='top'?`Top mount: the hole is cut ${show(settings().counter.lap)}${unitSign()} in from the sink's edge all the way round.`:'Bottom mount: the hole is the bowl opening; the sink hangs under the countertop.'}</p>`; }
+  if(it.sinkMin) return `<p class="note">Holds a sink: at least ${show(it.sinkMin)}${unitSign()} wide (it can be made wider, not narrower). Its stretchers are narrowed over the sink.</p>${ed && it.w>it.sinkMin+0.01?`<div class="row"><button class="btn ghost sm" id="fFitSink">Fit to the sink (${show(it.sinkMin)}${unitSign()})</button></div>`:''}`;
+  if(d.cat==='counter'){ const C=settings().counter, H=it.sinks||[];
+    return `<p class="note">${esc(C.name)} ${show(it.h)}${unitSign()}. It fits the cabinets under it: back to the wall, ${show(C.end)}${unitSign()} past a free end (a range end too), ${show(C.over)}${unitSign()} past the boxes at the front.${H.length?` Sink hole${H.length>1?'s':''}: ${H.map(h=>`${show(h.x1-h.x0)} × ${show(h.z1-h.z0)}${unitSign()} (${h.mount==='top'?'top':'bottom'} mount)`).join(', ')}.`:''}</p>`; }
+  return '';
+}
 function furnSide(sideH, sideB){
   if(state.multiSel) return pickSide(sideH, sideB);
   const it=furnById(state.selFurn); if(!it) return false;
@@ -413,6 +434,7 @@ function furnSide(sideH, sideB){
       ${['w','h','d','y'].map(k=>`<label class="cw-f"><span>${{w:'Width',h:'Height',d:'Depth',y:'Off the floor'}[k]}</span><input data-fl="${k}" value="${esc(show(it[k]||0))}" inputmode="decimal" ${!ed||(d.fixed&&k!=='y')?'disabled':''}><i>${unitSign()}</i></label>`).join('')}
     </div>
     ${(d.opts||[]).map(([k,l,vals])=>`<div class="cw-opt"><span>${l}</span><div class="seg wrap">${vals.map(v=>`<button data-fo="${k}" data-v="${esc(v)}" aria-pressed="${String((it.opt||{})[k] ?? d.opt?.[k])===String(v)}" ${ed?'':'disabled'}>${esc(v)}</button>`).join('')}</div></div>`).join('')}
+    ${kitchenNote(it, d, ed)}
     <p class="note">Drag it in the plan (Build) to move it along the walls; it backs onto the nearest wall and butts up to the cabinets beside it. Drag the round green handle at its front corner to turn it, 45° at a time.${it.wall?' Its depth counts for the pot lights along this wall.':''}</p>`;
   const ch=patch=>{ updateItem(it.id, patch); if(d.sized && patch.opt) Object.assign(it, d.sized(it)); refreshItem(it); renderSide(); };
   sideB.querySelector('#fOpen').onclick=()=>openCaseLib({edit:it.id});
@@ -423,7 +445,11 @@ function furnSide(sideH, sideB){
   sideB.querySelector('#fMir')?.addEventListener('click',()=>{ ch({mirror:!it.mirror}); toast(it.mirror?'Mirrored':'Back as drawn'); });
   sideB.querySelector('#fDup')?.addEventListener('click',()=>{ const c=duplicateItem(it.id); state.selFurn=c.id; refreshItem(c); applyFurniture(); renderSide(); toast('Duplicated · drag it where it goes'); });
   sideB.querySelector('#fRm')?.addEventListener('click',e=>{ const b=e.target; if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to remove'; return; } removeItem(it.id); refreshItem({id:it.id}); renderSide(); toast('Removed'); });
-  sideB.querySelectorAll('[data-fl]').forEach(inp=>inp.onchange=()=>{ const v=parseLen(inp.value); if(isFinite(v) && v>=0) ch({[inp.dataset.fl]:v}); else inp.value=show(it[inp.dataset.fl]||0); });
+  sideB.querySelectorAll('[data-fl]').forEach(inp=>inp.onchange=()=>{ const v=parseLen(inp.value), k=inp.dataset.fl;
+    if(k==='w' && it.sinkMin && v<it.sinkMin-1e-6){ toast(`The sink needs this base at least ${show(it.sinkMin)}${unitSign()} wide`); inp.value=show(it.w); return; }
+    if(isFinite(v) && v>=0) ch({[k]:v}); else inp.value=show(it[k]||0); });
+  sideB.querySelector('#fFitSink')?.addEventListener('click',()=>{ fitBaseToSink(it.id); refreshItem(it); renderSide(); toast('Sink base fitted to its sink'); });
+  sideB.querySelectorAll('[data-dock]').forEach(b=>b.onclick=()=>{ ch({ dock:{ ...(it.dock||{}), at:b.dataset.dock } }); });
   sideB.querySelectorAll('[data-fo]').forEach(b=>b.onclick=()=>{ const raw=b.dataset.v; ch({opt:{...(it.opt||{}), [b.dataset.fo]:isNaN(+raw)?raw:+raw}}); });
   return true;
 }
