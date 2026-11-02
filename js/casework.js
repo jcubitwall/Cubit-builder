@@ -717,6 +717,7 @@ const libertyTS = it => { const W=60, D=34, H=88, rim=20, t=3.8, wt=1.5, dr=LIB_
     fx('Tub spout, left','steel',[wt,vw.spout-0.6,vw.z-0.9,5,1.2,1.8],{ ex:[-.6,0,0], note:'spout, bought separately' }),
     fx('Shower arm, left','steel',[wt,vw.head-0.4,vw.z-0.4,6,0.8,0.8],{ ex:[-.6,0,0], note:'shower arm, bought separately' }),
     fx('Shower head, left','steel',[wt+5,vw.head-2.5,vw.z-2,1.2,3,4],{ ex:[-.6,0,0] }));
+  P.forEach(p=>{ p.ex=[0,0,0]; });   // one piece: it doesn't come apart in the exploded view
   return P; };
 const LIB_NOTE = 'Mirolin Liberty, one piece acrylic tub-shower for a 60″ alcove: 60 × 34 × 88, 20″ threshold, 16″ deep bathing well, 6 shelves, 177 lb, rough-in above the floor. From Mirolin’s data sheet';
 def({ k:'TS-MIR-LIB-L', cat:'bath', name:'Mirolin Liberty tub-shower 60 × 34 · left hand drain (TS5L)', w:60, h:88, d:34, fixed:true, plumb:LIB_PLUMB, note:LIB_NOTE+'. Left hand: drain, valve and shower on the left end, seen from the front', build:libertyTS });
