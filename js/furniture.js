@@ -383,6 +383,7 @@ const isBase = o => { const c=itemDef(o.k)?.cat; return c==='base' || c==='vanit
 const underCounter = o => isBase(o) || /^(DW|FR24U)/.test(o.k||'');
 const isTallAt = (o, top) => { const c=itemDef(o.k)?.cat; if(/^RG/.test(o.k||'')) return false;   // a range: the countertop still runs ⅛″ past
   return ['tall','linen','wardrobe'].includes(c) || ((o.y||0)+o.h > top+2 && (o.y||0) < top); };
+const COUNTER_MAX = 40;   // a unit whose top is higher than this isn't under a countertop
 const sameA = (a,b) => Math.abs((((a||0)-(b||0))%360+540)%360-180)<1;
 /* where a docked sink goes in its base: { u, v, a, y, x (hole centre from the base's middle, in), hole } */
 function dockPose(sink, cab, at){
@@ -435,7 +436,10 @@ function fitCounters(){
   L.filter(o=>itemDef(o.k)?.cat==='counter').forEach(ct=>{
     ct.h=C.t;
     // the under-counter units on the countertop's back line, in its frame (feet)
-    const on=L.filter(o=>o.pod===ct.pod && o.id!==ct.id && underCounter(o) && sameA(o.a,ct.a)).map(o=>{
+    // only units at counter height (on the floor, top 40″ or lower): a base made tall or stacked up isn't under the
+    // countertop; like a tall unit, it's where the countertop stops (flush)
+    const atCounter = o => (o.y||0)<6 && (o.y||0)+o.h<=COUNTER_MAX;
+    const on=L.filter(o=>o.pod===ct.pod && o.id!==ct.id && underCounter(o) && atCounter(o) && sameA(o.a,ct.a)).map(o=>{
       const p=toItem(ct, ...Object.values(toPod(o,-o.w/2/FT,0))), q=toItem(ct, ...Object.values(toPod(o,o.w/2/FT,0)));
       return { o, x0:Math.min(p.x,q.x), x1:Math.max(p.x,q.x), z:(p.z+q.z)/2 }; }).filter(r=>Math.abs(r.z)<4/FT).sort((a,b)=>a.x0-b.x0);
     if(!on.length) return;
