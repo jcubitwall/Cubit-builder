@@ -522,3 +522,11 @@ seen from inside, the heights, ½″ PEX hot and cold), shown on the fixture, on
 · no window or door where the valve, spout or shower arm go.
 Electrical: no receptacle within 500 mm of any tub or shower (across the floor, same room); hand-placed ones there are
 flagged.
+
+### Drain holes follow the fixture (floor cassette)
+A placed fixture with a mapped rough-in cuts its drain hole in the interior floor cassette under it (plumbing.js
+`withCuts`, used for the 3D floor and the floor layer sheets, like the ceiling lights). Move, turn, mirror or remove the
+fixture and the hole goes with it. Mapped: toilets (3″ drain on the standard 12″ rough-in, 4½″ hole for a 4 × 3
+flange), the MAAX Biarritz (5″ round on its centre drain, typical) and the Mirolin Liberty (8 × 12 at its drain end,
+typical). Typical sizes are marked "typical size, confirm" on the sheet. Flagged: a hole at the cassette's edge or across
+a panel joint, and any tub, shower or toilet with no rough-in mapped (its hole isn't cut: mark it on site).

@@ -666,13 +666,16 @@ function meshParts(key, it, role='acrylic'){
     return { ...fx(pt.name,role,[mn[0],mn[1],mn[2],mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]],{ex:pt.ex}), mesh:pt, meshQ:F.q }; });
 }
 const BATH_NOTE='Typical size, check the model you buy';
+/* toilets: 3″ drain on the standard 12″ rough-in (centre 12″ from the finished wall behind), a 4½″ hole for a 4 × 3
+   closet flange */
+const WC_PLUMB = w => ({ src:'standard 12″ toilet rough-in', drain:{ x:w/2, z:12, dia:3 }, hole:{ shape:'round', dia:4.5, note:'for a 4″ × 3″ closet flange; 12″ rough-in' } });
 const toilet = (seatH, tankH) => it => { const W=it.w, D=it.d, cx=W/2;
   return [ fx('Tank','porcelain',[cx-W/2,seatH,0.5,W,tankH-seatH,8],{ex:[0,.4,-.6]}), fx('Tank lid','porcelain',[cx-W/2-0.25,tankH,0.25,W+0.5,1,8.5],{ex:[0,1.2,-.6]}),
     fx('Pedestal','porcelain',[cx-4.5,0,7,9,seatH-2,11],{shape:'cyl',ex:[0,-.4,0]}), fx('Bowl','porcelain',[cx-7.25,seatH-6,6,14.5,5,D-6.5],{shape:'cyl',ex:[0,0,.4]}),
     fx('Seat','porcelain',[cx-7.25,seatH-1,6.5,14.5,1,D-7],{shape:'cyl',ex:[0,.8,.4]}) ]; };
-def({ k:'WC-R',  cat:'bath', name:'Toilet, round front',             w:20.5, h:29, d:27.5, fixed:true, note:BATH_NOTE, build:toilet(15,29) });
-def({ k:'WC-E',  cat:'bath', name:'Toilet, elongated comfort height', w:20.5, h:31, d:30,   fixed:true, note:BATH_NOTE, build:toilet(17,31) });
-def({ k:'WC-C',  cat:'bath', name:'Toilet, compact elongated',        w:18,   h:30, d:26.5, fixed:true, note:BATH_NOTE, build:toilet(16.5,30) });
+def({ k:'WC-R',  cat:'bath', name:'Toilet, round front',             w:20.5, h:29, d:27.5, fixed:true, plumb:WC_PLUMB(20.5), note:BATH_NOTE, build:toilet(15,29) });
+def({ k:'WC-E',  cat:'bath', name:'Toilet, elongated comfort height', w:20.5, h:31, d:30,   fixed:true, plumb:WC_PLUMB(20.5), note:BATH_NOTE, build:toilet(17,31) });
+def({ k:'WC-C',  cat:'bath', name:'Toilet, compact elongated',        w:18,   h:30, d:26.5, fixed:true, plumb:WC_PLUMB(18), note:BATH_NOTE, build:toilet(16.5,30) });
 def({ k:'WC-W',  cat:'bath', name:'Toilet, wall hung (in-wall carrier)', w:14.5, h:16, d:21, y:0, fixed:true, note:BATH_NOTE+'. Needs a 2×6 or carrier wall', build: it=>[ fx('Bowl','porcelain',[0,11,1,14.5,5,20],{shape:'cyl',ex:[0,0,.4]}), fx('Seat','porcelain',[0,15.5,1.5,14.5,0.75,19],{shape:'cyl',ex:[0,.8,.4]}), fx('Flush plate','steel',[2.25,40,0,10,6.5,0.4],{ex:[0,0,.6]}) ] });
 const oneShower = (pan=6) => it => { const W=it.w, D=it.d, H=it.h, t=1.5;
   return [ ...basin('Shower base','acrylic',[0,0,0,W,pan,D],2.5,[0,-.6,0]),
@@ -703,7 +706,7 @@ def({ k:'LPG-SH-R', cat:'bath', name:'LifePodGo shower · right hand', w:42.56, 
 const LIB_PLUMB = { src:'Mirolin TS5L data sheet', alcove:true,
   drain:{ x:6.75, z:18.25, dia:2, below:2.75 },
   overflow:{ x:4, z:18.25, y:17, dia:2.5 },
-  hole:{ w:8, d:12, note:'typical, check the Mirolin installation guide before cutting the floor' },
+  hole:{ w:8, d:12, typical:true, note:'typical size: check the Mirolin installation guide' },
   wall:{ side:'left', z:18.25, valve:30, spout:24, head:78, std:true },
   supply:'½″ PEX hot and cold to the valve' };
 const libertyTS = it => { const W=60, D=34, H=88, rim=20, t=3.8, wt=1.5, dr=LIB_PLUMB.drain, ov=LIB_PLUMB.overflow, vw=LIB_PLUMB.wall;
@@ -729,6 +732,7 @@ def({ k:'TS-MIR-LIB-R', cat:'bath', name:'Mirolin Liberty tub-shower 60 × 34 ·
    for the right), shower arm 78″ (above the surround). */
 const BIA_PLUMB = { src:'MAAX Biarritz dimension drawing', alcove:true,
   drain:{ x:14.875, z:14.875, dia:2, below:1 },
+  hole:{ shape:'round', dia:5, typical:true, note:'typical size: check the MAAX installation guide' },
   wall:{ side:'left', z:16, valve:48, head:78, std:true },
   supply:'½″ PEX hot and cold to the valve' };
 def({ k:'SH-MAAX-BIA', cat:'bath', name:'MAAX Biarritz P40 one piece shower 30 × 32 × 75 (no door)', w:29.75, h:74.25, d:32, fixed:true, plumb:BIA_PLUMB,

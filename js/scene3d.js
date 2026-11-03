@@ -7,7 +7,7 @@ import { crossesJoint, notchedOutline, panelCells, panelCount, panelNum, wallLen
 import { w3 } from './sheets.js';
 import { renderSide } from './sidebar.js';
 import { pickFor, pickLayer, state } from './state.js';
-import { withLights } from './lights.js';
+import { withCuts } from './plumbing.js';
 import { sealRole, sealsFor, SEAL } from './seals.js';
 import { getBearing } from './orient.js';
 import { symbol, unitFor, pairOf, doorOwner } from './units.js';
@@ -336,7 +336,7 @@ function buildHome(){
   // floor and ceiling layers (exterior floor, interior floor, interior ceiling, roof) + ground screws
   roofGroup=new THREE.Group(); ceilGroup=new THREE.Group(); floorGroup=new THREE.Group(); homeGroup.add(floorGroup);
   layerSlotsFor(state.model).forEach(ls=>{
-    const L=withLights(pickLayer(ls), ls); const isFloor=ls.kind.startsWith('floor');
+    const L=withCuts(pickLayer(ls), ls); const isFloor=ls.kind.startsWith('floor');
     // ceiling + roof stay see-through so they never hide the walls; floors go see-through when the ground screws show
     const mat=new THREE.MeshStandardMaterial({color:LAYER_COLOR[ls.kind], roughness:0.85, transparent:!isFloor, opacity: isFloor ? 1 : 0.42, depthWrite: isFloor});
     if(isFloor) floorMats.push(mat);

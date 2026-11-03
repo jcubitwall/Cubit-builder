@@ -486,7 +486,8 @@ function sPlumbing(ctx, sh){
     const [d, what]=DRAIN(I); cnt[what]=(cnt[what]||0)+1;
     const pl=plumbOf(I.it);   // a fixture with its plumbing mapped: the drain where it really is, its floor opening and valve wall
     const c=xf.P(pl?.drain ? I.f(pl.drain.lx, pl.drain.lz) : I.f(0, I.it.d/2)), sgn = i%2 ? 1 : -1, lx=c[0]+sgn*60, ly=c[1]-36-(i%3)*12;
-    if(pl?.hole){ const h=pl.hole; g+=poly([[-h.w/2,-h.d/2],[h.w/2,-h.d/2],[h.w/2,h.d/2],[-h.w/2,h.d/2]].map(([x,z])=>xf.P(I.f(h.lx+x, h.lz+z))), {stroke:BLUE, sw:0.5, dash:'2 1.5'}); }
+    if(pl?.hole){ const h=pl.hole; if(h.shape==='round'){ const C=xf.P(I.f(h.lx,h.lz)), E=xf.P(I.f(h.lx+h.dia/2,h.lz)); g+=`<circle cx="${C[0].toFixed(1)}" cy="${C[1].toFixed(1)}" r="${Math.hypot(E[0]-C[0],E[1]-C[1]).toFixed(2)}" fill="none" stroke="${BLUE}" stroke-width="0.5" stroke-dasharray="2 1.5"/>`; }
+      else g+=poly([[-h.w/2,-h.d/2],[h.w/2,-h.d/2],[h.w/2,h.d/2],[-h.w/2,h.d/2]].map(([x,z])=>xf.P(I.f(h.lx+x, h.lz+z))), {stroke:BLUE, sw:0.5, dash:'2 1.5'}); }
     if(pl?.wall){ const v=pl.wall, W0=xf.P(I.f(v.lx, v.lz)), W1=xf.P(I.f(v.lx+(v.side==='left'?6:-6), v.lz)), q=4;
       g+=poly([[W0[0],W0[1]],[W1[0],W1[1]]], {stroke:BLUE, sw:1.2, close:false})+rect(W0[0]-q/2, W0[1]-q/2, q, q, {fill:BLUE, stroke:BLUE, sw:0.4});
       const vx=W0[0]-sgn*50, vy=W0[1]+30+(i%3)*10;
@@ -494,7 +495,7 @@ function sPlumbing(ctx, sh){
         +tx(vx-sgn*2, vy+11, '1/2" PEX H & C TO VALVE', {size:6, fill:BLUE, anchor:sgn>0?'end':'start'}); }
     g+=circ(c[0],c[1],2.2,{fill:BLUE,stroke:BLUE})+line(c[0],c[1],lx,ly,0.5,BLUE)+line(lx,ly,lx+sgn*8,ly,0.5,BLUE)
       +tx(lx+sgn*10, ly-1.5, d, {size:7.5, weight:'bold', fill:BLUE, anchor:sgn>0?'start':'end'})+tx(lx+sgn*10, ly+8, `(${what})`, {size:6.5, fill:BLUE, anchor:sgn>0?'start':'end'})
-      +(pl?.drain ? tx(lx+sgn*10, ly+16, `${fin(pl.drain.x)} FROM ${pl.wall?.side==='right'?'R.H.':'L.H.'} END, ${fin(pl.drain.z)} FROM BACK${pl.hole?` · FLOOR OPENING ${pl.hole.w}" x ${pl.hole.d}"`:''}`, {size:6, fill:BLUE, anchor:sgn>0?'start':'end'}) : ''); });
+      +(pl?.drain ? tx(lx+sgn*10, ly+16, `${fin(pl.drain.x)} FROM ${pl.wall?.side==='right'?'R.H.':'L.H.'} END, ${fin(pl.drain.z)} FROM BACK${pl.hole?` · FLOOR HOLE ${pl.hole.shape==='round'?`${pl.hole.dia}" DIA.`:`${pl.hole.w}" x ${pl.hole.d}"`}${pl.hole.typical?' (TYPICAL, CONFIRM)':''}`:''}`, {size:6, fill:BLUE, anchor:sgn>0?'start':'end'}) : ''); });
   g+=elevMarkers(H_, xf)+northArrow(AREA.x1-40, AREA.y0+40)+scaleBar(AREA.x0+10, AREA.y1-14, xf.k)+viewTitle(AREA.x0+(AREA.x1-AREA.x0)/2-90, AREA.y1-10, '1', sh.no, 'MAIN LEVEL PLUMBING PLAN', label);
   let lx=AREA.x0+10, ly=AREA.y0+20; const rows=Object.entries(cnt);
   g+=rect(lx-6, ly-14, 250, 34+Math.max(1,rows.length)*15+52, {fill:'#fff', stroke:BLUE, sw:0.6})+tx(lx, ly, 'PLUMBING FIXTURES', {size:11, weight:'bold', fill:BLUE}); ly+=18;

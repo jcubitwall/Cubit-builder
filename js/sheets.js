@@ -21,7 +21,7 @@ import { unitFor, symbol, unitLabel, pairOf, doorOwner } from './units.js';
 const sheetSlotNow = () => slotsFor(state.model).find(x=>x.id===state.sheetSlot);
 import { wallListHTML } from './sidebar.js';
 import { pickFor, pickLayer, state, setFace } from './state.js';
-import { withLights } from './lights.js';
+import { withCuts } from './plumbing.js';
 import { sealRole, sealsFor, SEAL } from './seals.js';
 import { partnerOf } from './layout.js';
 import { panelPlan, homePlans, stackTableHTML, labelsPDF, faceFor, faceShort } from './labels.js';
@@ -362,7 +362,7 @@ function floorBuildHTML(ls){
 }
 /* ---------- floor / ceiling layer sheet: plan from above, panels, holes ---------- */
 function renderLayerSheet(el, ls){
-  const L=withLights(pickLayer(ls), ls), K=LAYER_KINDS[ls.kind], len=L.len*FT, wid=96;
+  const L=withCuts(pickLayer(ls), ls), K=LAYER_KINDS[ls.kind], len=L.len*FT, wid=96;
   const cuts=[0,...(L.seams&&L.seams.length?L.seams:[...Array(Math.ceil(len/PW)-1)].map((_,i)=>(i+1)*PW)),len];
   const panels=cuts.slice(0,-1).map((a,i)=>[a,cuts[i+1]]);
   // which face the assemblers see on the upright table: the room side or the outside. Floors show their room
@@ -403,7 +403,7 @@ function renderLayerSheet(el, ls){
   let t=`<table class="boxes"><thead><tr><th>Hole</th><th>From left end</th><th>From top edge</th><th>Size</th><th>Panel</th><th>Made</th></tr></thead><tbody>`;
   const pn=h=>panels.findIndex(([a,b])=>h.x+h.w/2>=a&&h.x+h.w/2<b)+1;
   other.forEach((h,i)=>{ const hm=handOf(h);
-    t+=`<tr class="${hm?'hand-row':''}"><td>H${i+1}</td><td>${fin(below?len-h.x-h.w:h.x)}</td><td>${fin(h.z)}</td><td>${h.shape==='round'?'⌀ '+fin(h.dia):h.shape==='slot'?'slot '+fin(h.sw)+' wide':(h.shape==='poly'?'shaped, ':'')+fin(h.w)+' × '+fin(h.d)}${h.depth?` · ${fin(h.depth)} deep from the ${h.face}`:''}</td><td>${pn(h)}</td>
+    t+=`<tr class="${hm?'hand-row':''}"><td>H${i+1}${h.drain?`<br><small>${esc(h.name.replace(/^Drain hole: /,'drain: '))}${h.typical?' · <b>typical size, confirm</b>':''}</small>`:''}</td><td>${fin(below?len-h.x-h.w:h.x)}</td><td>${fin(h.z)}</td><td>${h.shape==='round'?'⌀ '+fin(h.dia):h.shape==='slot'?'slot '+fin(h.sw)+' wide':(h.shape==='poly'?'shaped, ':'')+fin(h.w)+' × '+fin(h.d)}${h.depth?` · ${fin(h.depth)} deep from the ${h.face}`:''}</td><td>${pn(h)}</td>
       <td>${hm==='auto'?'<b class="hand-t">By hand</b> <small>(smaller than the bit)</small>':canMark&&h._f?`<label class="hand-ck"><input type="checkbox" data-hand="layers|${esc(lid)}|${h._f}" ${hm?'checked':''}> By hand</label>`:hm?'<b class="hand-t">By hand</b>':'CNC'}</td></tr>`; });
   if(lights.length) t+=`<tr><td colspan="6" style="color:#8a6d00"><b>Pot lights L1–L${lights.length}</b> (yellow): ⌀ 4″ pocket ${fin(lights[0].depth)} deep from the room side, with a ¾″ wire hole through the middle. ${L.auto?'Placed by the lighting rules.':''}</td></tr>`;
   lights.forEach((h,i)=>{ t+=`<tr><td>L${i+1}</td><td>${fin(below?len-h.x-h.w/2:h.x+h.w/2)} (centre)</td><td>${fin(h.z+h.d/2)} (centre)</td><td>pot light ⌀ 4″</td><td>${pn(h)}</td><td>CNC</td></tr>`; });
