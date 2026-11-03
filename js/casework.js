@@ -642,7 +642,7 @@ def({ k:'CTB', cat:'furniture', name:'Coffee table', w:44, h:17, d:24, build: it
    Generic sizes of common stock fixtures (always check the model you buy), plus Cubit's own stock pieces drawn from
    their STEP files (loaded at start: data/fixtures-*.json, one mesh per solid so they explode). */
 const FIX = {};
-const FIX_FILES = { lpgShower:'data/fixtures-lifepodgo-shower.json', maaxBiarritz:'data/fixtures-maax-biarritz.json' };
+const FIX_FILES = { lpgShower:'data/fixtures-lifepodgo-shower.json', maaxBiarritz:'data/fixtures-maax-biarritz.json', maaxBiarritz85:'data/fixtures-maax-biarritz-85.json' };
 async function loadFixtures(){ await Promise.all(Object.entries(FIX_FILES).map(async([k,u])=>{ try{ const r=await fetch(u); if(r.ok) FIX[k]=await r.json(); }catch(e){} }));
   await loadStepSinks(); }
 /* sinks uploaded as STEP files (Upload STEP → Sink; tools/step-import/sink_import.py): data/sinks.json lists them, each
@@ -737,6 +737,12 @@ const BIA_PLUMB = { src:'MAAX Biarritz dimension drawing', alcove:true,
   supply:'½″ PEX hot and cold to the valve' };
 def({ k:'SH-MAAX-BIA', cat:'bath', name:'MAAX Biarritz P40 one piece shower 30 × 32 × 75 (no door)', w:29.75, h:74.25, d:32, fixed:true, plumb:BIA_PLUMB,
   note:'MAAX Biarritz P40, one piece fibreglass / AcrylX shower, alcove, 2 built-in shelves, model 100726-000-002-000: 29 3/4 wide × 32 deep × 74 1/4 high, 23 3/4 door opening (68 1/2 max door height), 5″ curb, centre drain. Drawn from the MAAX dimension drawing', build:it=>meshParts('maaxBiarritz', it).map(p=>({ ...p, ex:[0,0,0] })) });   // stays together in the exploded view
+/* MAAX Biarritz 85, the same one piece shower 36 × 35 (model 100973-000-002, Home Depot 1001927075), from its MAAX
+   drawing: 35 5/8 × 34 7/8 × 74 3/4, 27 1/2 door opening (69 1/4 high), 32″ inside, 4 3/8 threshold, drain 17 3/4
+   from the left and 16 1/8 from the back; the 2 corner shelves ~41 3/8 up. Valve as on the P40. */
+const BIA85_PLUMB = { ...BIA_PLUMB, src:'MAAX Biarritz 85 dimension drawing', drain:{ x:17.75, z:16.125, dia:2, below:1 }, wall:{ ...BIA_PLUMB.wall, z:17.5 } };
+def({ k:'SH-MAAX-BIA36', cat:'bath', name:'MAAX Biarritz 85 one piece shower 36 × 35 × 75 (no door)', w:35.625, h:74.75, d:34.875, fixed:true, plumb:BIA85_PLUMB,
+  note:'MAAX Biarritz 85, one piece AcrylX shower, alcove, 2 built-in corner shelves, model 100973-000-002: 35 5/8 wide × 34 7/8 deep × 74 3/4 high, 27 1/2 door opening (69 1/4 max door height), 4 3/8 threshold, centre drain. Drawn from the MAAX dimension drawing', build:it=>meshParts('maaxBiarritz85', it).map(p=>({ ...p, ex:[0,0,0] })) });
 /* a fixture's plumbing in its own frame, mirrored if it is: lx from its middle, lz from its back, y up (inches) */
 function plumbOf(it){
   const d=itemDef(it.k), P=d?.plumb; if(!P) return null;

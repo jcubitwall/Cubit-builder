@@ -1,17 +1,19 @@
-"""Cubit Builder - the MAAX Biarritz 30 x 32 x 75 shower kit (model 100726-000-002-000), drawn from MAAX's dimension
-drawing (Home Depot 1000161589) as a two-solid STEP: the shower base and the wall surround.
+"""Cubit Builder - MAAX Biarritz one piece alcove showers, drawn from MAAX's dimension drawings as STEP files.
 
-    python3 -I tools/step-import/make_biarritz.py out.step
+    python3 -I tools/step-import/make_biarritz.py p40 out.step     # Biarritz P40, 30 x 32 (100726-000-002-000)
+    python3 -I tools/step-import/make_biarritz.py p85 out.step     # Biarritz 85, 36 x 35 (100973-000-002)
 
-Inches (written as mm). X across the front (29 3/4), Y from the back (32), Z up (74 1/4). The kit is symmetric, so it
-reads the same either way round.
-From the drawing: 29 3/4 x 32 outside; 74 1/4 high with a 3/4 nailing flange at the top; 23 3/4 door opening between
-3" front returns 3/4 thick; base curb 5" high, 2 1/4" deep; drain centred, 14 7/8 from the left and from the back,
-1" drain clearance; the lower walls (corner seats) end in a ledge 39 5/8 up; the back corners of the base and lower
-walls are rounded (the curve meets the sides 9 5/8 from the back); above the ledge the back corners are chamfered.
-Read off the drawing where it gives no figure (wall faces, chamfer, floor depth): close, not to the 1/16.
+Inches (written as mm). X across the front, Y from the back, Z up. Symmetric, so it reads the same either way round.
+Two solids, the base and the walls, though it's one piece (the app keeps them together).
+
+The shape, the same on both (from the drawings and MAAX's photos):
+  · a curb at the front, a 3/4 thick return each side of the door opening, a nailing flange at the top;
+  · each back corner: a rounded column from the base up to a ledge (its top is one of the 2 built-in shelves,
+    curved at the front), then an angled corner panel above it, square again near the top;
+  · centre drain.
+Read off the drawings where they give no figure (wall faces, column radius, chamfer, floor fall): close, not exact.
 """
-import sys, math
+import sys
 from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox, BRepPrimAPI_MakeCylinder, BRepPrimAPI_MakePrism
 from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse, BRepAlgoAPI_Cut
 from OCP.BRepBuilderAPI import BRepBuilderAPI_MakePolygon, BRepBuilderAPI_MakeFace
@@ -22,15 +24,16 @@ from OCP.STEPControl import STEPControl_Writer, STEPControl_AsIs
 from OCP.Interface import Interface_Static
 
 MM = 25.4
-W, D, H = 29.75, 32.0, 74.25
-CURB_H, CURB_D = 5.0, 2.25          # base curb at the front
-RET_W, RET_T = 3.0, 0.75            # front returns: (29 3/4 - 23 3/4) / 2 wide
-SIDE, BACK = 2.0, 1.5               # inside faces of the side and back walls, from the outside
-LEDGE = 39.625                      # top of the lower walls (corner seats)
-R = 8.125                           # back corners of the base well and lower walls: meets the sides 9 5/8 from the back
-CH = 4.4                            # chamfer of the upper back corners (3 1/8 across the corner)
-FLOOR = 2.0                         # base floor, at the walls
-DRAIN = (14.875, 14.875); DRAIN_R = 1.75
+PRESETS = {
+  # P40: 29 3/4 x 32 x 74 1/4 (3/4 flange), door 23 3/4, curb 5 high 2 1/4 deep, ledge 39 5/8, drain 14 7/8 / 14 7/8
+  'p40': dict(W=29.75, D=32.0, H=74.25, DOOR=23.75, CURB_H=5.0, CURB_D=2.25, LEDGE=39.625, CH_TOP=73.5,
+              SIDE=1.8125, BACK=1.25, R=7.25, CH=5.0, DRAIN=(14.875, 14.875)),
+  # 85: 35 5/8 x 34 7/8 x 74 3/4 (1" flange), door 27 1/2, 32 inside, threshold 4 3/8, drain 17 3/4 / 16 1/8,
+  # ledge ~41 3/8, the angled corners stop ~71 up
+  'p85': dict(W=35.625, D=34.875, H=74.75, DOOR=27.5, CURB_H=4.375, CURB_D=3.75, LEDGE=41.375, CH_TOP=70.875,
+              SIDE=1.8125, BACK=1.25, R=9.5, CH=8.0, DRAIN=(17.75, 16.125)),
+}
+RET_T, FLOOR, DRAIN_R = 0.75, 2.0, 1.75
 
 
 def box(x0, y0, z0, x1, y1, z1):
@@ -56,42 +59,35 @@ def prism(pts, z0, z1):
     p = BRepBuilderAPI_MakePolygon()
     for x, y in pts: p.Add(gp_Pnt(x*MM, y*MM, z0*MM))
     p.Close()
-    f = BRepBuilderAPI_MakeFace(p.Wire()).Face()
-    return BRepPrimAPI_MakePrism(f, gp_Vec(0, 0, (z1-z0)*MM)).Shape()
+    return BRepPrimAPI_MakePrism(BRepBuilderAPI_MakeFace(p.Wire()).Face(), gp_Vec(0, 0, (z1-z0)*MM)).Shape()
 
 
-def rounded_back(x0, y0, x1, y1, r, z0, z1, rf=0.0):
-    """a rectangle with its two back corners (y0) rounded r (and the front ones rf), as a prism z0..z1"""
-    parts = [box(x0+r, y0, z0, x1-r, y1, z1), box(x0, y0+r, z0, x1, y1-rf, z1), cyl(x0+r, y0+r, z0, r, z1-z0), cyl(x1-r, y0+r, z0, r, z1-z0)]
-    if rf: parts += [box(x0+rf, y1-rf, z0, x1-rf, y1, z1), cyl(x0+rf, y1-rf, z0, rf, z1-z0), cyl(x1-rf, y1-rf, z0, rf, z1-z0)]
-    return fuse(*parts)
+def build(P):
+    W, D, H, S, B, R, C = P['W'], P['D'], P['H'], P['SIDE'], P['BACK'], P['R'], P['CH']
+    ret = (W-P['DOOR'])/2
+    inner = lambda z0, z1, front: box(S, B, z0, W-S, front, z1)
+    cols = lambda z0, z1: [cyl(S, B, z0, R, z1-z0), cyl(W-S, B, z0, R, z1-z0)]      # the rounded corner columns
+    # base: the curb and a well whose back corners go round the columns, the floor falling to the drain
+    base = cut(box(0, 0, 0, W, D, P['CURB_H']),
+               cut(inner(FLOOR, P['CURB_H']+0.01, D-P['CURB_D']), *cols(FLOOR-0.01, P['CURB_H']+0.02)),
+               cyl(*P['DRAIN'], FLOOR-0.25, 6.0, 0.26), cyl(*P['DRAIN'], -0.01, DRAIN_R, FLOOR+0.02))
+    # walls: columns up to the ledge (the shelves), angled corners above, square near the top
+    front = D-RET_T+0.01
+    low = cut(inner(P['CURB_H']-0.01, P['LEDGE'], front), *cols(P['CURB_H']-0.02, P['LEDGE']+0.01))
+    mid = prism([(S+C, B), (W-S-C, B), (W-S, B+C), (W-S, front), (S, front), (S, B+C)], P['LEDGE']-0.01, P['CH_TOP'])
+    top = inner(P['CH_TOP']-0.01, H+0.01, front)
+    door = box(ret, D-RET_T-0.02, P['CURB_H']-0.01, W-ret, D+0.01, H+0.01)
+    walls = cut(box(0, 0, P['CURB_H'], W, D, H), low, mid, top, door)
+    return base, walls
 
 
-def base():
-    b = box(0, 0, 0, W, D, CURB_H)
-    well = rounded_back(SIDE, BACK, W-SIDE, D-CURB_D, R, FLOOR, CURB_H+0.01, rf=1.0)
-    dish = cyl(DRAIN[0], DRAIN[1], FLOOR-0.25, 6.0, 0.26)          # the floor falls to the drain
-    hole = cyl(DRAIN[0], DRAIN[1], -0.01, DRAIN_R, FLOOR+0.02)
-    return cut(b, well, dish, hole)
-
-
-def walls():
-    s = box(0, 0, CURB_H, W, D, H)
-    # inside: below the ledge the back corners are rounded (corner seats); above it they're chamfered
-    low = rounded_back(SIDE, BACK, W-SIDE, D-RET_T+0.01, R, CURB_H-0.01, LEDGE)
-    up = prism([(SIDE+CH, BACK), (W-SIDE-CH, BACK), (W-SIDE, BACK+CH), (W-SIDE, D-RET_T+0.01), (SIDE, D-RET_T+0.01), (SIDE, BACK+CH)], LEDGE-0.01, H+0.01)
-    door = box(RET_W, D-RET_T-0.02, CURB_H-0.01, W-RET_W, D+0.01, H+0.01)       # 23 3/4 door opening between the returns
-    # outside: the walls are a shell on the studs; the space behind the corner seats is hollow
-    return cut(s, low, up, door)
-
-
-def main(out):
-    c = TopoDS_Compound(); bld = BRep_Builder(); bld.MakeCompound(c)
-    bld.Add(c, base()); bld.Add(c, walls())
+def main(name, out):
+    base, walls = build(PRESETS[name])
+    c = TopoDS_Compound(); bld = BRep_Builder(); bld.MakeCompound(c); bld.Add(c, base); bld.Add(c, walls)
     Interface_Static.SetCVal_s('write.step.unit', 'MM')
     w = STEPControl_Writer(); w.Transfer(c, STEPControl_AsIs); w.Write(out)
-    print('ok', out)
+    print('ok', name, out)
 
 
 if __name__ == '__main__':
-    main(sys.argv[1])
+    main(sys.argv[1], sys.argv[2])
