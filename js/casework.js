@@ -731,8 +731,8 @@ const BIA_PLUMB = { src:'MAAX Biarritz dimension drawing', alcove:true,
   drain:{ x:14.875, z:14.875, dia:2, below:1 },
   wall:{ side:'left', z:16, valve:48, head:78, std:true },
   supply:'½″ PEX hot and cold to the valve' };
-def({ k:'SH-MAAX-BIA', cat:'bath', name:'MAAX Biarritz shower kit 30 × 32 × 75 (base + walls, no door)', w:29.75, h:74.25, d:32, fixed:true, plumb:BIA_PLUMB,
-  note:'MAAX Biarritz 2-in-1 shower kit, model 100726-000-002-000: 29 3/4 wide × 32 deep × 74 1/4 high, 23 3/4 door opening (68 1/2 max door height), 5″ curb, centre drain. Drawn from the MAAX dimension drawing', build:it=>meshParts('maaxBiarritz', it).map(p=>({ ...p, ex:[0,0,0] })) });   // stays together in the exploded view
+def({ k:'SH-MAAX-BIA', cat:'bath', name:'MAAX Biarritz P40 one piece shower 30 × 32 × 75 (no door)', w:29.75, h:74.25, d:32, fixed:true, plumb:BIA_PLUMB,
+  note:'MAAX Biarritz P40, one piece fibreglass / AcrylX shower, alcove, 2 built-in shelves, model 100726-000-002-000: 29 3/4 wide × 32 deep × 74 1/4 high, 23 3/4 door opening (68 1/2 max door height), 5″ curb, centre drain. Drawn from the MAAX dimension drawing', build:it=>meshParts('maaxBiarritz', it).map(p=>({ ...p, ex:[0,0,0] })) });   // stays together in the exploded view
 /* a fixture's plumbing in its own frame, mirrored if it is: lx from its middle, lz from its back, y up (inches) */
 function plumbOf(it){
   const d=itemDef(it.k), P=d?.plumb; if(!P) return null;
