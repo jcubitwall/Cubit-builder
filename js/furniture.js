@@ -383,7 +383,6 @@ const isBase = o => { const c=itemDef(o.k)?.cat; return c==='base' || c==='vanit
 const underCounter = o => isBase(o) || /^(DW|FR24U)/.test(o.k||'');
 const isTallAt = (o, top) => { const c=itemDef(o.k)?.cat; if(/^RG/.test(o.k||'')) return false;   // a range: the countertop still runs ⅛″ past
   return ['tall','linen','wardrobe'].includes(c) || ((o.y||0)+o.h > top+2 && (o.y||0) < top); };
-const COUNTER_MAX = 40;   // a unit whose top is higher than this isn't under a countertop
 const sameA = (a,b) => Math.abs((((a||0)-(b||0))%360+540)%360-180)<1;
 /* where a docked sink goes in its base: { u, v, a, y, x (hole centre from the base's middle, in), hole } */
 function dockPose(sink, cab, at){
@@ -436,14 +435,14 @@ function fitCounters(){
   L.filter(o=>itemDef(o.k)?.cat==='counter').forEach(ct=>{
     ct.h=C.t;
     // the under-counter units on the countertop's back line, in its frame (feet)
-    // only units at counter height (on the floor, top 40″ or lower): a base made tall or stacked up isn't under the
-    // countertop; like a tall unit, it's where the countertop stops (flush)
-    const atCounter = o => (o.y||0)<6 && (o.y||0)+o.h<=COUNTER_MAX;
-    const on=L.filter(o=>o.pod===ct.pod && o.id!==ct.id && underCounter(o) && atCounter(o) && sameA(o.a,ct.a)).map(o=>{
+    // a run is cabinets side by side with the same top (a dishwasher or under-counter fridge joins any run): a taller
+    // dresser or bar run gets its countertop at its own height, and a taller unit beside a run is where it stops (flush)
+    const on=L.filter(o=>o.pod===ct.pod && o.id!==ct.id && underCounter(o) && sameA(o.a,ct.a)).map(o=>{
       const p=toItem(ct, ...Object.values(toPod(o,-o.w/2/FT,0))), q=toItem(ct, ...Object.values(toPod(o,o.w/2/FT,0)));
-      return { o, x0:Math.min(p.x,q.x), x1:Math.max(p.x,q.x), z:(p.z+q.z)/2 }; }).filter(r=>Math.abs(r.z)<4/FT).sort((a,b)=>a.x0-b.x0);
+      return { o, x0:Math.min(p.x,q.x), x1:Math.max(p.x,q.x), z:(p.z+q.z)/2, top:isBase(o) ? (o.y||0)+o.h : null }; }).filter(r=>Math.abs(r.z)<4/FT).sort((a,b)=>a.x0-b.x0);
     if(!on.length) return;
-    const runs=[]; on.forEach(r=>{ const g=runs[runs.length-1]; if(g && r.x0<=g.x1+0.5/FT){ g.x1=Math.max(g.x1,r.x1); g.its.push(r); } else runs.push({ x0:r.x0, x1:r.x1, its:[r] }); });
+    const sameTop = (g, r) => g.top==null || r.top==null || Math.abs(g.top-r.top)<0.5;
+    const runs=[]; on.forEach(r=>{ const g=runs[runs.length-1]; if(g && r.x0<=g.x1+0.5/FT && sameTop(g, r)){ g.x1=Math.max(g.x1,r.x1); g.its.push(r); g.top ??= r.top; } else runs.push({ x0:r.x0, x1:r.x1, its:[r], top:r.top }); });
     const hw=ct.w/2/FT, ov=g=>Math.min(g.x1,hw)-Math.max(g.x0,-hw);
     const run=runs.filter(g=>ov(g)>0).sort((a,b)=>ov(b)-ov(a))[0]; if(!run) return;
     const cabs=run.its.filter(r=>isBase(r.o)).map(r=>r.o);
