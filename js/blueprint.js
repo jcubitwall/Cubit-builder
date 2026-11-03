@@ -490,7 +490,7 @@ function sPlumbing(ctx, sh){
     if(pl?.wall){ const v=pl.wall, W0=xf.P(I.f(v.lx, v.lz)), W1=xf.P(I.f(v.lx+(v.side==='left'?6:-6), v.lz)), q=4;
       g+=poly([[W0[0],W0[1]],[W1[0],W1[1]]], {stroke:BLUE, sw:1.2, close:false})+rect(W0[0]-q/2, W0[1]-q/2, q, q, {fill:BLUE, stroke:BLUE, sw:0.4});
       const vx=W0[0]-sgn*50, vy=W0[1]+30+(i%3)*10;
-      g+=line(W0[0],W0[1],vx,vy,0.5,BLUE)+tx(vx-sgn*2, vy+3, `VALVE @ ${v.valve}" / SPOUT @ ${v.spout}" / SHOWER ARM @ ${v.head}" A.F.F.`, {size:6.5, weight:'bold', fill:BLUE, anchor:sgn>0?'end':'start'})
+      g+=line(W0[0],W0[1],vx,vy,0.5,BLUE)+tx(vx-sgn*2, vy+3, `VALVE @ ${v.valve}"${v.spout?` / SPOUT @ ${v.spout}"`:''} / SHOWER ARM @ ${v.head}" A.F.F.`, {size:6.5, weight:'bold', fill:BLUE, anchor:sgn>0?'end':'start'})
         +tx(vx-sgn*2, vy+11, '1/2" PEX H & C TO VALVE', {size:6, fill:BLUE, anchor:sgn>0?'end':'start'}); }
     g+=circ(c[0],c[1],2.2,{fill:BLUE,stroke:BLUE})+line(c[0],c[1],lx,ly,0.5,BLUE)+line(lx,ly,lx+sgn*8,ly,0.5,BLUE)
       +tx(lx+sgn*10, ly-1.5, d, {size:7.5, weight:'bold', fill:BLUE, anchor:sgn>0?'start':'end'})+tx(lx+sgn*10, ly+8, `(${what})`, {size:6.5, fill:BLUE, anchor:sgn>0?'start':'end'})

@@ -47,10 +47,10 @@ function compute(k){
     if(p.wall){ const v=p.wall, at=wallAt(Hm, I.it.pod, I.f(v.lx, v.lz));
       F.wall={ ...v, at, P:I.f(v.lx, v.lz) };
       const end = v.side==='left' ? 'left' : 'right';
-      if(!at) flags.push(`The valve end (${end}) isn’t against a wall: the valve, spout and shower arm need one`);
+      if(!at) flags.push(`The valve end (${end}) isn’t against a wall: the valve and shower arm need one`);
       else {
         if(at.W.s.type==='ext') flags.push(`The valve end (${end}) is on an outside wall (${at.W.s.label}): no supply pipes in a SIP wall. Mirror it or turn it so the valve end is on an inside wall, or fur out a chase`);
-        const y0=Math.min(v.spout, v.valve)-CLEAR, y1=v.head+CLEAR, a=at.a;
+        const y0=Math.min(v.spout??v.valve, v.valve)-CLEAR, y1=v.head+CLEAR, a=at.a;
         const hit=(at.W.w.openings||[]).find(o=>a+CLEAR>o.x && a-CLEAR<o.x+o.w && y1>o.y && y0<o.y+o.h);
         if(hit) flags.push(`A ${hit.kind==='window'?'window':hit.kind==='door'||hit.kind==='patio'?'door':'opening'} in ${at.W.s.label} is where the valve / shower arm go`);
       }
@@ -80,10 +80,10 @@ function plumbNote(it){
   const F=fixtureOf(it.id); if(!F) return '';
   const p=F.p, v=F.wall, dr=p.drain, end=v?.side||"left";
   const rows=[];
-  if(dr) rows.push(`<b>Drain</b> ${fin(dr.dia)} · centre ${fin(dr.x)} from the ${end} end, ${fin(dr.z)} from the back${dr.below?` · ${fin(dr.below)} clear under the tub`:''}`);
+  if(dr) rows.push(`<b>Drain</b> ${fin(dr.dia)} · centre ${fin(dr.x)} from the ${end} end, ${fin(dr.z)} from the back${dr.below?` · ${fin(dr.below)} drain clearance under it`:''}`);
   if(p.hole) rows.push(`<b>Floor opening</b> ${fin(p.hole.w)} × ${fin(p.hole.d)} on the drain (${esc(p.hole.note)})`);
   if(p.overflow) rows.push(`<b>Overflow</b> ${fin(p.overflow.dia)}, ${fin(p.overflow.y)} up on the ${end} end`);
-  if(v) rows.push(`<b>Valve wall</b> ${v.at ? `${esc(v.at.W.s.label)}${v.at.W.s.type==='ext'?' (outside)':''}, ${fin(v.at.xin)} from the left seen from inside` : 'none'} · valve ${fin(v.valve)}, spout ${fin(v.spout)}, shower arm ${fin(v.head)} up${v.std?' (usual heights: check the trim you buy)':''}`);
+  if(v) rows.push(`<b>Valve wall</b> ${v.at ? `${esc(v.at.W.s.label)}${v.at.W.s.type==='ext'?' (outside)':''}, ${fin(v.at.xin)} from the left seen from inside` : 'none'} · valve ${fin(v.valve)}${v.spout?`, spout ${fin(v.spout)}`:''}, shower arm ${fin(v.head)} up${v.std?' (usual heights: check the trim you buy)':''}`);
   if(p.supply) rows.push(`<b>Supplies</b> ${esc(p.supply)}`);
   return `<div class="el-box"><div class="eyebrow">Plumbing</div>${rows.map(r=>`<p class="note">${r}</p>`).join('')}
     ${F.flags.length?`<div class="el-tags">${flagsHTML(F)}</div>`:'<p class="note"><span class="el-ok">Plumbing rules met</span></p>'}
@@ -93,7 +93,7 @@ function plumbNote(it){
 function plumbWallBlock(s){
   const F=plumbing().fixtures.filter(F=>F.wall?.at?.W.s.id===s.id); if(!F.length) return '';
   return `<div class="el-box"><div class="eyebrow">Plumbing in this wall</div>${F.map(f=>{ const v=f.wall;
-    return `<p class="note"><b>${esc(f.name)}</b>: valve ${fin(v.valve)}, spout ${fin(v.spout)}, shower arm ${fin(v.head)} up, ${fin(v.at.xin)} from the left (seen from inside). ${esc(f.p.supply||'')}</p>${f.flags.length?`<div class="el-tags">${flagsHTML(f)}</div>`:''}`; }).join('')}</div>`;
+    return `<p class="note"><b>${esc(f.name)}</b>: valve ${fin(v.valve)}${v.spout?`, spout ${fin(v.spout)}`:''}, shower arm ${fin(v.head)} up, ${fin(v.at.xin)} from the left (seen from inside). ${esc(f.p.supply||'')}</p>${f.flags.length?`<div class="el-tags">${flagsHTML(f)}</div>`:''}`; }).join('')}</div>`;
 }
 
 export { plumbing, fixtureOf, plumbNote, plumbWallBlock };

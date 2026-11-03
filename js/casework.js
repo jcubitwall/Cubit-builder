@@ -642,7 +642,7 @@ def({ k:'CTB', cat:'furniture', name:'Coffee table', w:44, h:17, d:24, build: it
    Generic sizes of common stock fixtures (always check the model you buy), plus Cubit's own stock pieces drawn from
    their STEP files (loaded at start: data/fixtures-*.json, one mesh per solid so they explode). */
 const FIX = {};
-const FIX_FILES = { lpgShower:'data/fixtures-lifepodgo-shower.json' };
+const FIX_FILES = { lpgShower:'data/fixtures-lifepodgo-shower.json', maaxBiarritz:'data/fixtures-maax-biarritz.json' };
 async function loadFixtures(){ await Promise.all(Object.entries(FIX_FILES).map(async([k,u])=>{ try{ const r=await fetch(u); if(r.ok) FIX[k]=await r.json(); }catch(e){} }));
   await loadStepSinks(); }
 /* sinks uploaded as STEP files (Upload STEP → Sink; tools/step-import/sink_import.py): data/sinks.json lists them, each
@@ -722,6 +722,17 @@ const libertyTS = it => { const W=60, D=34, H=88, rim=20, t=3.8, wt=1.5, dr=LIB_
 const LIB_NOTE = 'Mirolin Liberty, one piece acrylic tub-shower for a 60″ alcove: 60 × 34 × 88, 20″ threshold, 16″ deep bathing well, 6 shelves, 177 lb, rough-in above the floor. From Mirolin’s data sheet';
 def({ k:'TS-MIR-LIB-L', cat:'bath', name:'Mirolin Liberty tub-shower 60 × 34 · left hand drain (TS5L)', w:60, h:88, d:34, fixed:true, plumb:LIB_PLUMB, note:LIB_NOTE+'. Left hand: drain, valve and shower on the left end, seen from the front', build:libertyTS });
 def({ k:'TS-MIR-LIB-R', cat:'bath', name:'Mirolin Liberty tub-shower 60 × 34 · right hand drain (TS5R)', w:60, h:88, d:34, fixed:true, mirrored:true, plumb:LIB_PLUMB, note:LIB_NOTE+'. Right hand: drain, valve and shower on the right end, seen from the front', build:libertyTS });
+/* MAAX Biarritz 30 × 32 × 75 two-piece shower kit (base + wall surround, no door; model 100726-000-002-000, Home Depot
+   1000161589), drawn from MAAX's dimension drawing (tools/step-import/make_biarritz.py → STEP → mesh): 29 3/4 × 32 ×
+   74 1/4, 23 3/4 door opening, 5″ curb, corner seats to a ledge 39 5/8 up, drain centred 14 7/8 from the left and the
+   back with 1″ drain clearance. The valve isn't on the drawing: a shower valve 48″ up on the left side wall (mirror it
+   for the right), shower arm 78″ (above the surround). */
+const BIA_PLUMB = { src:'MAAX Biarritz dimension drawing', alcove:true,
+  drain:{ x:14.875, z:14.875, dia:2, below:1 },
+  wall:{ side:'left', z:16, valve:48, head:78, std:true },
+  supply:'½″ PEX hot and cold to the valve' };
+def({ k:'SH-MAAX-BIA', cat:'bath', name:'MAAX Biarritz shower kit 30 × 32 × 75 (base + walls, no door)', w:29.75, h:74.25, d:32, fixed:true, plumb:BIA_PLUMB,
+  note:'MAAX Biarritz 2-in-1 shower kit, model 100726-000-002-000: 29 3/4 wide × 32 deep × 74 1/4 high, 23 3/4 door opening (68 1/2 max door height), 5″ curb, centre drain. Base and wall surround: two pieces. Drawn from the MAAX dimension drawing', build:it=>meshParts('maaxBiarritz', it) });
 /* a fixture's plumbing in its own frame, mirrored if it is: lx from its middle, lz from its back, y up (inches) */
 function plumbOf(it){
   const d=itemDef(it.k), P=d?.plumb; if(!P) return null;
