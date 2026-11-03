@@ -1133,3 +1133,18 @@ dialog.lib-dlg.el-dlg{max-width:min(640px,calc(100vw - 24px))}
 .el-rules{padding-left:18px;margin:6px 0}.el-rules li{margin:4px 0}
 @media (prefers-color-scheme: dark){ .el-warn{background:transparent} }
 .el-dlg .eyebrow{margin-top:14px}
+
+/* 📏 tape (panel builder) */
+.tp-dot{fill:#0a84ff;fill-opacity:.45;pointer-events:none}
+.tp-pt{stroke:#fff;stroke-width:.5;pointer-events:none}
+.tp-pt.a{fill:#ff3b30}.tp-pt.b{fill:#ff9f0a}
+.tp-leg{stroke:#ff3b30;stroke-width:.4;stroke-dasharray:1.4 .9;pointer-events:none}
+.tp-line{stroke:#ff3b30;stroke-width:.55;pointer-events:none}
+.tp-t{font:700 3.6px var(--mono);fill:#ff3b30;text-anchor:middle;paint-order:stroke;stroke:#fff;stroke-width:.9px;pointer-events:none}
+.tp-t.tp-d{fill:#b42318}
+.tp-box{border:1px solid #ff3b30;border-radius:10px;padding:8px 10px;margin:8px 0;background:color-mix(in srgb,#ff3b30 6%,transparent)}
+.tp-read{display:flex;gap:16px;flex-wrap:wrap;margin:6px 0}
+.tp-read span{display:flex;flex-direction:column}
+.tp-read small{font-size:11px;color:var(--muted)}
+.tp-read b{font:700 20px var(--mono)}
+.wb-stage svg.tp-on{cursor:crosshair}

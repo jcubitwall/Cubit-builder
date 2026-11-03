@@ -22,6 +22,7 @@ import { SHAPELIB, placeItem, regionsOf, shapeThumb } from './shapes.js';
 import { openShapeStudio } from './shape-studio.js';
 import { flatten, bboxAll } from './geom2d.js';
 import { makeRefTool } from './refmeasure.js';
+import { makeTape } from './tape.js';
 import { attachZoom, pinching } from './zoompan.js';
 const ZW={ k:1, x:0, y:0 };   // pinch zoom of the drawing (kept across redraws)
 import { makeHistory, histButtons, bindHistory } from './local-history.js';
@@ -138,11 +139,19 @@ function itemLabel(k, it, i){
   if(k==='sh') return `shape ${it.name||i+1}`;
   return `${(it.name||'box').toLowerCase()} (${k})`;
 }
+const refLines = () => { const flip=x=>view==='inside'?L()-x:x;
+  return [ ...seamsOut().map(s=>[{x:flip(s)}, 'panel joint']), ...chaseList().map(c=>[{x:flip(c)}, 'chase']),
+    [{x:cutSeen()}, 'left end'], [{x:L()-(view==='outside'?fitR():fitL())}, 'right end'], [{y:H}, 'floor'], [{y:0}, 'top of the wall'] ]; };
+/* the tape: between any two points (every item, the picked one too, and every joint, chase and end) */
+const TP = makeTape({
+  items: () => ['op','sh','inside','outside'].flatMap(k=>listOf(k).map((it,i)=>({ ...geomOf(k,it), label:itemLabel(k,it,i) }))),
+  lines: () => refLines(),
+  extent: () => ({ x0:cutSeen(), x1:L()-(view==='outside'?fitR():fitL()), y0:0, y1:H }),
+  rerender: () => render(), pinching: () => pinching(),
+});
 const RF = makeRefTool({
   items: () => ['op','sh','inside','outside'].flatMap(k=>listOf(k).map((it,i)=>(sel && sel.k===k && sel.i===i) ? null : { ...geomOf(k,it), label:itemLabel(k,it,i) })).filter(Boolean),
-  lines: () => { const flip=x=>view==='inside'?L()-x:x;
-    return [ ...seamsOut().map(s=>[{x:flip(s)}, 'panel joint']), ...chaseList().map(c=>[{x:flip(c)}, 'chase']),
-      [{x:cutSeen()}, 'left end'], [{x:L()-(view==='outside'?fitR():fitL())}, 'right end'], [{y:H}, 'floor'], [{y:0}, 'top of the wall'] ]; },
+  lines: () => refLines(),
   extent: () => ({ x0:0, x1:L(), y0:0, y1:H }),
   box: () => geomOf(sel.k, listOf(sel.k)[sel.i]),
   moveBy: (dx, dy) => { const k=sel.k, it=listOf(k)[sel.i], g=geomOf(k,it), no=[];
@@ -207,7 +216,7 @@ function elevation(){
   if(sel){ const it=listOf(sel.k)[sel.i]; if(it){ const op=sel.k==='op'||sel.k==='sh', [w0,h0]=sizeOf(sel.k,it), w=op?w0:0, h=op?h0:0, x=drawX(sel.k,it), xl = x, yb = it.y;
     const c0=cutSeen(); g+=`<line x1="${c0}" y1="${H-yb-h/2}" x2="${xl}" y2="${H-yb-h/2}" class="wb-dim"/><text x="${(c0+xl)/2}" y="${H-yb-h/2-1.5}" class="wb-dimt">${fin(xl-c0)}</text>`;
     g+=`<line x1="${xl+w/2}" y1="${H}" x2="${xl+w/2}" y2="${H-yb}" class="wb-dim"/><text x="${xl+w/2+1.5}" y="${H-yb/2}" class="wb-dimt" text-anchor="start">${fin(yb)}</text>`; } }
-  return `<svg class="wb-svg" viewBox="${-pad} ${-pad} ${len+2*pad} ${H+2*pad+8}" role="img" aria-label="The wall seen from ${view}">${g}${RF.overlay()}
+  return `<svg class="wb-svg" viewBox="${-pad} ${-pad} ${len+2*pad} ${H+2*pad+8}" role="img" aria-label="The wall seen from ${view}">${g}${RF.overlay()}${TP.overlay()}
     <text x="0" y="${H+7}" class="wb-end">◀ left end seen from ${view}</text><text x="0" y="${H+12}" class="wb-end">${fitL()||fitR() ? `${fin(netL())} long (${W.len}′ less its ends)` : `${W.len}′ full length`} · ${W.t}″ thick · 96″ high</text></svg>`;
 }
 function fields(){
@@ -263,8 +272,9 @@ function render(){
     <div class="wb-body">
       <div class="wb-view">
         <div class="cw-vh"><div class="seg"><button data-view="outside" aria-pressed="${view==='outside'}">Outside</button><button data-view="inside" aria-pressed="${view==='inside'}">Inside</button></div>
-          <span class="spacer"></span>${histButtons(HIST)}<button class="btn ghost sm" id="wbFlip" title="Turn the wall around: the outside becomes the inside">Flip</button><button class="btn ghost sm" id="wbMir" title="Swap left and right">Mirror</button></div>
+          <span class="spacer"></span>${histButtons(HIST)}${TP.button()}<button class="btn ghost sm" id="wbFlip" title="Turn the wall around: the outside becomes the inside">Flip</button><button class="btn ghost sm" id="wbMir" title="Swap left and right">Mirror</button></div>
         <div class="wb-stage">${elevation()}</div>
+        ${TP.panel()}
         ${P.length?`<ul class="wb-warn">${P.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>`:''}
       </div>
       <div class="cw-side wb-side">
@@ -337,7 +347,7 @@ function bind(){
   dlg.querySelectorAll('[data-relock]').forEach(b=>b.onclick=e=>{ e.preventDefault(); const it=listOf(sel.k)[sel.i]; relock(sel.k,it,b.dataset.relock); render(); });
   bindRules();
   dlg.querySelectorAll('[data-nm]').forEach(inp=>inp.onchange=()=>{ const it=listOf(sel.k)[sel.i]; if(!it) return; const v=inp.value.trim().slice(0,60); if(v) it[inp.dataset.nm]=v; else delete it[inp.dataset.nm]; render(); });
-  RF.bind(dlg);
+  RF.bind(dlg); TP.bind(dlg);
   dlg.querySelectorAll('[data-cut]').forEach(b=>b.onclick=()=>{ const [i,v]=b.dataset.cut.split(':'); W.cutSide=[...(W.cutSide||[])]; W.cutSide[+i]=v; for(let k=0;k<W.cutSide.length;k++) W.cutSide[k] ||= 'left'; resnapAll(); render(); });
   $('#wbGap')?.addEventListener('change', e=>{ const it=listOf('op')[sel.i]; it.gap = e.target.checked ? true : false; resnapAll(); render(); });
   $('#wbShape')?.addEventListener('click',()=>{ shapePick=!shapePick; render(); });
@@ -357,6 +367,7 @@ function bind(){
   attachZoom(svg, ZW);
   const toWall=e=>{ const p=svg.createSVGPoint(); p.x=e.clientX; p.y=e.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()); };
   svg.addEventListener('pointerdown', e=>{
+    if(TP.handle(e)) return;          // the tape takes every tap while it's out
     if(RF.handle(e)) return;
     if(RF.mode()==='pick'){ e.preventDefault(); return; }       // measuring: only the reference points answer
     const t=e.target.closest('[data-k]');
@@ -376,7 +387,7 @@ function bind(){
     if(drag.k==='sh'){ el.setAttribute('transform', `translate(${(drawX('sh',it)-drag.x0).toFixed(2)} ${(-(it.y-drag.y0)).toFixed(2)})`); }
     else if(el.tagName==='circle'){ el.setAttribute('cx', drag.k==='op' ? x+it.w/2 : x); el.setAttribute('cy', drag.k==='op' ? H-it.y-it.h/2 : H-it.y); }
     else if(drag.k==='op'){ el.setAttribute('x',x); el.setAttribute('y',H-it.y-it.h); } else { el.setAttribute('x',x-w/2); el.setAttribute('y',H-it.y-h/2); } });
-  svg.addEventListener('pointerup', e=>{ if(emptyDown){ const tap=!pinching() && Math.hypot(e.clientX-emptyDown[0], e.clientY-emptyDown[1])<8; emptyDown=null; if(tap){ if(sel){ sel=null; render(); } } return; } if(!drag) return; const m=drag.moved; drag=null; if(m) render(); });
+  svg.addEventListener('pointerup', e=>{ if(TP.release(e, svg)) return; if(emptyDown){ const tap=!pinching() && Math.hypot(e.clientX-emptyDown[0], e.clientY-emptyDown[1])<8; emptyDown=null; if(tap){ if(sel){ sel=null; render(); } } return; } if(!drag) return; const m=drag.moved; drag=null; if(m) render(); });
 }
 /* after the panels move (length, ends, mirror, flip): everything on the chases goes to its nearest chase again */
 function resnapAll(){ W.openings.forEach(o=>{ snapToChase('op',o); snapToJoint('op',o); }); ['inside','outside'].forEach(k=>W[k].forEach(b=>snapToChase(k,b))); }

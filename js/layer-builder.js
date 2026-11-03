@@ -28,6 +28,7 @@ import { openShapeStudio } from './shape-studio.js';
 import { flatten, bboxAll } from './geom2d.js';
 import { makeHistory, histButtons, bindHistory } from './local-history.js';
 import { makeRefTool } from './refmeasure.js';
+import { makeTape } from './tape.js';
 import { attachZoom, pinching } from './zoompan.js';
 const ZL={ k:1, x:0, y:0 };   // pinch zoom of the drawing (kept across redraws)
 
@@ -73,6 +74,13 @@ const kindName = h => `${h.shape==='round'?'Round':'Rectangular'} ${cutOf(h)==='
 /* measuring from a point of reference (refmeasure.js): drawing coords, x right, y down = z */
 const holeBox = h => { const x=sx(h); return { x0:x, x1:x+h.w, y0:h.z, y1:h.z+h.d, round:h.shape==='round' }; };
 const shapeBox = it => { const x=ssx(it); return { x0:x, x1:x+it.w, y0:it.z, y1:it.z+it.h }; };
+const holeLabel = (h,i) => isLight(h) ? 'pot light' : h.label || `${kindName(h).toLowerCase()} ${i+1}`;
+const TP = makeTape({
+  items: () => [ ...Lr.holes.map((h,i)=>({ ...holeBox(h), label:holeLabel(h,i) })), ...(Lr.shapes||[]).map((it,i)=>({ ...shapeBox(it), label:`shape ${it.name||i+1}` })) ],
+  lines: () => [ ...seams().map(q=>[{x:view==='top'?q:L()-q}, 'panel joint']), [{x:0}, 'left end'], [{x:L()}, 'right end'], [{y:0}, 'top edge'], [{y:WID}, 'bottom edge'] ],
+  extent: () => ({ x0:0, x1:L(), y0:0, y1:WID }),
+  rerender: () => render(), pinching: () => pinching(), words:{ across:'Along', updown:'Across' },
+});
 const RF = makeRefTool({
   items: () => [ ...Lr.holes.map((h,i)=>i===sel ? null : { ...holeBox(h), label: isLight(h) ? 'pot light' : h.label || `${kindName(h).toLowerCase()} ${i+1}` }),
                  ...(Lr.shapes||[]).map((it,i)=>i===ssel ? null : { ...shapeBox(it), label:`shape ${it.name||i+1}` }) ].filter(Boolean),
@@ -143,7 +151,7 @@ function plan(){
   const lx = view==='top' ? E.x0 : E.x1, rx = view==='top' ? E.x1 : E.x0;
   g+=`<text x="${len/2}" y="-3" class="wb-end" text-anchor="middle">${esc(E.z0||'this edge')}</text><text x="${len/2}" y="${WID+6}" class="wb-end" text-anchor="middle">${esc(E.z1||'')}</text>`;
   g+=`<text x="-3" y="${WID/2}" class="wb-end" text-anchor="middle" transform="rotate(-90 -3 ${WID/2})">${esc(lx)}</text><text x="${len+3}" y="${WID/2}" class="wb-end" text-anchor="middle" transform="rotate(90 ${len+3} ${WID/2})">${esc(rx)}</text>`;
-  return `<svg class="wb-svg" viewBox="${-pad} ${-pad} ${len+2*pad} ${WID+2*pad+8}" role="img" aria-label="The ${esc(K().label.toLowerCase())} seen from ${view==='top'?'above':'below'}">${g}${RF.overlay()}
+  return `<svg class="wb-svg" viewBox="${-pad} ${-pad} ${len+2*pad} ${WID+2*pad+8}" role="img" aria-label="The ${esc(K().label.toLowerCase())} seen from ${view==='top'?'above':'below'}">${g}${RF.overlay()}${TP.overlay()}
     <text x="0" y="${WID+12}" class="wb-end">seen from ${view==='top'?'above':'below'} · ${Lr.len}′ × 8′ · ${fin(T())} thick</text></svg>`;
 }
 function fields(){
@@ -179,8 +187,9 @@ function render(){
     <div class="wb-body">
       <div class="wb-view">
         <div class="cw-vh"><div class="seg"><button data-view="top" aria-pressed="${view==='top'}">From above</button><button data-view="bottom" aria-pressed="${view==='bottom'}">From below</button></div>
-          <span class="spacer"></span>${histButtons(HIST)}<button class="btn ghost sm" id="lbMir" title="Turn it end for end">Mirror</button><button class="btn ghost sm" id="lbFlip" title="Turn it front to back">Flip</button></div>
+          <span class="spacer"></span>${histButtons(HIST)}${TP.button()}<button class="btn ghost sm" id="lbMir" title="Turn it end for end">Mirror</button><button class="btn ghost sm" id="lbFlip" title="Turn it front to back">Flip</button></div>
         <div class="wb-stage">${plan()}</div>
+        ${TP.panel()}
         ${P.length?`<ul class="wb-warn">${P.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>`:''}
       </div>
       <div class="cw-side wb-side">
@@ -227,7 +236,7 @@ function bind(){
   const $=s=>dlg.querySelector(s);
   $('.cw-x').onclick=()=>dlg.close();
   bindHistory(dlg, HIST, render);
-  RF.bind(dlg);
+  RF.bind(dlg); TP.bind(dlg);
   dlg.querySelectorAll('[data-nm]').forEach(inp=>inp.onchange=()=>{ const h=Lr.holes[sel]; if(!h) return; const v=inp.value.trim().slice(0,60); if(v) h.label=v; else delete h.label; render(); });
   dlg.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{ view=b.dataset.view; render(); });
   dlg.querySelectorAll('[data-pkind]').forEach(b=>b.onclick=()=>{ const k=b.dataset.pkind; if(k==='wall'){ switchKind('wall', { len:Lr.len, close:()=>dlg.close() }); return; } Lr.kind=k; Lr.t=K().t; Lr.z=K().z; render(); });
@@ -259,6 +268,7 @@ function bind(){
   attachZoom(svg, ZL);
   const toP=e=>{ const p=svg.createSVGPoint(); p.x=e.clientX; p.y=e.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()); };
   svg.addEventListener('pointerdown', e=>{
+    if(TP.handle(e)) return;          // the tape takes every tap while it's out
     if(RF.handle(e)) return;
     if(RF.mode()==='pick'){ e.preventDefault(); return; }       // measuring: only the reference points answer
     const t=e.target.closest('[data-k]');
@@ -283,7 +293,7 @@ function bind(){
     const el=svg.querySelector(`[data-i="${drag.i}"]:not(.wb-hit)`), x=sx(h);
     if(el.tagName==='circle'){ el.setAttribute('cx', x+h.w/2); el.setAttribute('cy', h.z+h.d/2); }
     else if(el.tagName==='rect'){ el.setAttribute('x', x); el.setAttribute('y', h.z); } });
-  svg.addEventListener('pointerup', e=>{ if(emptyDown){ const tap=!pinching() && Math.hypot(e.clientX-emptyDown[0], e.clientY-emptyDown[1])<8; emptyDown=null; if(tap){ if(sel!=null || ssel!=null){ sel=null; ssel=null; render(); } } return; } if(!drag) return; const m=drag.moved; drag=null; if(m) render(); });
+  svg.addEventListener('pointerup', e=>{ if(TP.release(e, svg)) return; if(emptyDown){ const tap=!pinching() && Math.hypot(e.clientX-emptyDown[0], e.clientY-emptyDown[1])<8; emptyDown=null; if(tap){ if(sel!=null || ssel!=null){ sel=null; ssel=null; render(); } } return; } if(!drag) return; const m=drag.moved; drag=null; if(m) render(); });
 }
 const nextId=prefix=>{ let n=1; while(LAYERLIB.some(x=>x.id===`${prefix}-${String(n).padStart(2,'0')}`)) n++; return `${prefix}-${String(n).padStart(2,'0')}`; };
 async function saveLayer(asNew){

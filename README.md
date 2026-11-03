@@ -530,3 +530,10 @@ fixture and the hole goes with it. Mapped: toilets (3″ drain on the standard 1
 flange), the MAAX Biarritz (5″ round on its centre drain, typical) and the Mirolin Liberty (8 × 12 at its drain end,
 typical). Typical sizes are marked "typical size, confirm" on the sheet. Flagged: a hole at the cassette's edge or across
 a panel joint, and any tub, shower or toilet with no rough-in mapped (its hole isn't cut: mark it on site).
+
+## 📏 Tape (panel builder)
+In the panel builder (walls, floors, ceilings, roofs), tap **📏 Tape**, then two points on the drawing. Each tap clicks
+onto the nearest corner, edge middle or centre of a window, door, hole, box, pocket or shape (the picked one too), else
+onto a panel joint, chase, end, the floor or the top (keeping where you tapped along it), else lands where you tapped.
+It shows across, up / down and straight, drawn on the panel and in a readout under it. A third tap starts again; Done
+puts it away. Measuring only: nothing moves (to place something at a distance, pick it and use Measure from…).
