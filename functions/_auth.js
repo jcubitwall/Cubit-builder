@@ -42,6 +42,8 @@ async function verify(token, env){
      sales    + customers, swap walls, add / move pods, basic choices with a client, save to Purgatory / a customer
      editor   + everything that changes homes and libraries (panel builder, windows, plugs, delete, adopt into Cubit Homes)
      admin    + app settings, the team list, STEP uploads
+   On top of any role, an admin can tick "Prices" for someone (an inventory person): they may change the price book,
+   whatever their role. Editors and admins always may.
    ADMIN_EMAILS (Cloudflare setting) are always admins. Everyone else gets the role an admin gave them in the app
    (⋯ → Team, kept in R2 at catalog/team.json); anyone else who can log in is a user. */
 export const RANK = { user:0, sales:1, editor:2, admin:3 };
@@ -60,12 +62,15 @@ export async function whoIs(request, env){
   if(!claims?.email) return { email:null, role:'none' };
   const mail = claims.email.toLowerCase();
   const admins = (env.ADMIN_EMAILS||'').toLowerCase().split(',').map(s=>s.trim()).filter(Boolean);
-  if(admins.includes(mail)) return { email: claims.email, role:'admin', fixed:true };
+  if(admins.includes(mail)) return { email: claims.email, role:'admin', fixed:true, prices:true };
   const t = (await teamOf(env))[mail];
-  return { email: claims.email, role: RANK[t?.role] != null ? t.role : 'user' };
+  const role = RANK[t?.role] != null ? t.role : 'user';
+  return { email: claims.email, role, prices: RANK[role] >= RANK.editor || !!t?.prices };
 }
+/* may change the price book: editors, admins, and anyone given "Prices" in the team list */
+export const canPrice = me => atLeast(me,'editor') || !!me?.prices;
 /* at least this role? */
 export const atLeast = (me, role) => (RANK[me?.role] ?? -1) >= RANK[role];
-const WHO = { sales:'salespeople, editors and admins', editor:'editors and admins', admin:'admins' };
+const WHO = { sales:'salespeople, editors and admins', editor:'editors and admins', admin:'admins', prices:'editors, admins and people given Prices in the team list' };
 export const denied = role => new Response(JSON.stringify({ error:`Only ${WHO[role]} can do that.` }), { status:403, headers:{ 'content-type':'application/json', 'cache-control':'no-store' } });
 export const json = (obj, status=200) => new Response(JSON.stringify(obj), { status, headers:{ 'content-type':'application/json', 'cache-control':'no-store' } });

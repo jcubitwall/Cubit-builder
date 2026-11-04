@@ -1,20 +1,21 @@
-/* GET  /api/prices                       the price book (salespeople and up): { items:{ key:{ cost, unit?, name?, by, at, prev } } }
-   POST /api/prices { set:{ key: { cost, unit?, name? } | null } }   editors and admins: change some prices
+/* GET  /api/prices                       the price book (salespeople and up, and anyone given Prices): { items:{ key:{ cost, unit?, name?, by, at, prev } } }
+   POST /api/prices { set:{ key: { cost, unit?, name? } | null } }   editors, admins and anyone given Prices (an inventory
+                                                                    person, whatever their role): change some prices
    Cubit's costs (what Cubit pays), one per product. A save sends only the prices that changed and they're merged into
    the book as it is on the server, so two people pricing at once never undo each other. Each price keeps who set it,
    when, and its last 5 values. Kept in the R2 bucket (binding STEPS) as prices/book.json. */
-import { whoIs, json, atLeast, denied } from '../_auth.js';
+import { whoIs, json, atLeast, denied, canPrice } from '../_auth.js';
 import { atomic, getJSON } from '../_store.js';
 const KEY = 'prices/book.json';
 const empty = () => ({ items:{} });
 const MAX = 4000;
 export async function onRequestGet({ request, env }){
-  const me = await whoIs(request, env); if(!atLeast(me,'sales')) return denied('sales');
+  const me = await whoIs(request, env); if(!atLeast(me,'sales') && !canPrice(me)) return denied('sales');
   if(!env.STEPS) return json(empty());
   return json(await getJSON(env, KEY, empty));
 }
 export async function onRequestPost({ request, env }){
-  const me = await whoIs(request, env); if(!atLeast(me,'editor')) return denied('editor');
+  const me = await whoIs(request, env); if(!canPrice(me)) return denied('prices');
   if(!env.STEPS) return json({ error:'Storage is not set up (R2 binding STEPS).' }, 500);
   const b = await request.json().catch(()=>null);
   const set = b?.set;

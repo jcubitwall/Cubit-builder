@@ -544,7 +544,8 @@ prices/book.json via /api/prices). Products come from the app itself, so the lis
 and door, every bought catalogue item (fixtures, sinks, appliances, furniture, fireplace inserts), cabinet sheet
 stock, banding, FormX and hardware, the six SIP panel types, every line the shopping list buys (lumber and LVL by
 length, EPS, OSB, steel, ACM, screws, ground screws, concrete, seals, SilverBack), labour rates per trade and the
-standard hours per job. Editors and admins (give the inventory person the Editor role) type a cost and it saves on
+standard hours per job. Editors, admins and anyone given **Prices** in ⋯ → Team (an inventory person: e.g. a User with Prices, who can
+keep prices up to date without being able to change homes or libraries) type a cost and it saves on
 its own; only the changed prices are sent, so two people can price at once. Each price shows who set it, when, and
 what it was. Download the list as a spreadsheet (CSV), change the cost column, upload it back. Salespeople can look.
 Sheets → **Cost to build**: the home's quantities × the price book, by group, with every unpriced line in red and a

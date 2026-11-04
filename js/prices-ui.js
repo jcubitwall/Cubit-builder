@@ -1,11 +1,11 @@
 /* Cubit Builder — prices-ui.js : the Price book (⋯ → Price book) and the home's Cost to build sheet.
 
    Price book: every product the app knows (prices.js products()), grouped, with a search and a "not priced" filter.
-   Editors and admins type a cost straight into the list; it saves on its own a moment later (only what changed).
+   Editors, admins and anyone given Prices in the team list (an inventory person) type a cost straight into the list; it saves on its own a moment later (only what changed).
    Each price shows who set it and when. A spreadsheet (CSV) goes out and comes back in: change the cost column in
    Excel or Numbers and upload it; rows are matched by their key (or by the product's name). Salespeople can look. */
 import { loadPrices, book, savePrices, isLocal, products, forgetProducts, homeCost, money } from './prices.js';
-import { canEdit } from './role.js';
+import { canPrice } from './role.js';
 import { state } from './state.js';
 import { MODELS } from './data.js';
 
@@ -32,7 +32,7 @@ async function openPriceBook(){
   forgetProducts(); P=products(); render();
 }
 function render(){
-  const ed=canEdit(), B=book().items, groups=[...new Set(P.map(p=>p.group))];
+  const ed=canPrice(), B=book().items, groups=[...new Set(P.map(p=>p.group))];
   const unpriced=P.filter(p=>typeof B[p.key]?.cost!=='number').length;
   const match=p=>(!q || (p.name+' '+p.group+' '+p.key).toLowerCase().includes(q.toLowerCase())) && (show==='all' || (show==='none' ? typeof B[p.key]?.cost!=='number' : p.group===show));
   const list=P.filter(match);
@@ -41,7 +41,7 @@ function render(){
       return `<div class="pb-row${c===''?' none':''}"><div class="pb-n"><b>${esc(p.name)}</b><small>${esc(p.unit)}${v?.at?` · ${esc(v.by||'')} · ${when(v.at)}`:''}${v?.prev?.length?` · was ${money(v.prev[0].cost)}`:''}</small></div>
         ${ed?`<label class="pb-c"><i>$</i><input data-key="${esc(p.key)}" inputmode="decimal" value="${c===''?'':c.toFixed(2)}" placeholder="—" aria-label="Cost of ${esc(p.name)}"></label>`:`<span class="pb-c ro">${money(c===''?null:c)}</span>`}</div>`; }).join('')}</div>`; }).join('');
   dlg.innerHTML=`<div class="dlg pb"><div class="dlg-h"><h2>Price book</h2><span class="spacer"></span><span class="pb-st" id="pbSt">${saving?'Saving…':Object.keys(pending).length?'Not saved yet':''}</span><button class="btn ghost" id="pbX">Done</button></div>
-    <p class="note">What Cubit pays for each product, used for every home's <b>Cost to build</b> sheet. ${ed?'Type a cost and it saves on its own.':'Editors and admins change prices.'}${isLocal()?' <b>Local server: saved in this browser only.</b>':''}</p>
+    <p class="note">What Cubit pays for each product, used for every home's <b>Cost to build</b> sheet. ${ed?'Type a cost and it saves on its own.':'Editors, admins and people given Prices in the team list change prices.'}${isLocal()?' <b>Local server: saved in this browser only.</b>':''}</p>
     <div class="pb-bar"><input type="search" id="pbQ" placeholder="Search products" value="${esc(q)}">
       <div class="seg wrap sm"><button data-show="all" aria-pressed="${show==='all'}">All ${P.length}</button><button data-show="none" aria-pressed="${show==='none'}">Not priced ${unpriced}</button>${groups.map(g=>`<button data-show="${esc(g)}" aria-pressed="${show===g}">${esc(g.replace(/^Build materials · /,''))}</button>`).join('')}</div></div>
     <div class="pb-list">${body || '<p class="note">Nothing matches.</p>'}</div>
@@ -108,6 +108,6 @@ function refreshSheet(){ if(sheetEl && sheetEl.isConnected && state.sheetSlot===
 
 /* ⋯ → Price book */
 { const pop=document.getElementById('morePop');
-  if(pop && !document.getElementById('bPrices')){ const b=document.createElement('button'); b.setAttribute('role','menuitem'); b.id='bPrices'; b.className='edit-only'; b.textContent='Price book'; pop.insertBefore(b, document.getElementById('bUpload')); b.onclick=()=>{ pop.hidden=true; openPriceBook(); }; } }
+  if(pop && !document.getElementById('bPrices')){ const b=document.createElement('button'); b.setAttribute('role','menuitem'); b.id='bPrices'; b.className='edit-only price-menu'; b.textContent='Price book'; pop.insertBefore(b, document.getElementById('bUpload')); b.onclick=()=>{ pop.hidden=true; openPriceBook(); }; } }
 
 export { openPriceBook, renderCostSheet };

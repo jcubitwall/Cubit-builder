@@ -1174,3 +1174,6 @@ dialog.lib-dlg.el-dlg{max-width:min(640px,calc(100vw - 24px))}
 .cost-sum .warn b,.note.warn{color:#b42318}
 .cost-t td:nth-child(n+2),.cost-t th:nth-child(n+2){text-align:right;white-space:nowrap}
 .cost-t tr.none td{color:#b42318}
+/* a User given Prices (an inventory person) still gets ⋯ → Price book */
+html.role-user.can-price .price-menu, html.role-viewer.can-price .price-menu{display:block!important}
+.tm-pr{display:inline-flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap}

@@ -1,5 +1,6 @@
-/* GET  /api/team   admins: who has which role  { members:{ email:{role, by, at} }, admins:[from ADMIN_EMAILS] }
-   POST /api/team   admins: {op:'set', email, role}  ·  {op:'remove', email}
+/* GET  /api/team   admins: who has which role  { members:{ email:{role, prices?, by, at} }, admins:[from ADMIN_EMAILS] }
+   POST /api/team   admins: {op:'set', email, role, prices?}  ·  {op:'remove', email}
+   prices: may change the price book whatever the role (an inventory person); left out, it stays as it was.
    Roles: admin · editor · sales · user (see _auth.js). Kept in R2 at catalog/team.json. ADMIN_EMAILS (Cloudflare
    setting) are always admins and can't be changed here, so nobody can lock the admins out. */
 import { whoIs, json, atLeast, denied, ROLES, TEAM_KEY, forgetTeam } from '../_auth.js';
@@ -21,7 +22,9 @@ export async function onRequestPost({ request, env }){
   if(b.op==='set' && !ROLES.includes(b.role)) return json({ error:'Unknown role.' }, 400);
   const r = await atomic(env, TEAM_KEY, ()=>({ members:{} }), v=>{
     const m = { ...(v.members||{}) };
-    if(b.op==='set') m[mail] = { role:b.role, by:me.email, at:new Date().toISOString() }; else delete m[mail];
+    if(b.op==='set'){ const pr = typeof b.prices==='boolean' ? b.prices : !!m[mail]?.prices;
+      m[mail] = { role:b.role, ...(pr ? { prices:true } : {}), by:me.email, at:new Date().toISOString() }; }
+    else delete m[mail];
     return { value:{ members:m } };
   });
   if(r.response) return r.response;
