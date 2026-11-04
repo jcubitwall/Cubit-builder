@@ -537,3 +537,15 @@ onto the nearest corner, edge middle or centre of a window, door, hole, box, poc
 onto a panel joint, chase, end, the floor or the top (keeping where you tapped along it), else lands where you tapped.
 It shows across, up / down and straight, drawn on the panel and in a readout under it. A third tap starts again; Done
 puts it away. Measuring only: nothing moves (to place something at a distance, pick it and use Measure from…).
+
+## Price book and Cost to build
+⋯ → **Price book**: what Cubit pays for every product (cost only, no markup), shared by the team (R2
+prices/book.json via /api/prices). Products come from the app itself, so the list is always complete: every window
+and door, every bought catalogue item (fixtures, sinks, appliances, furniture, fireplace inserts), cabinet sheet
+stock, banding, FormX and hardware, the six SIP panel types, every line the shopping list buys (lumber and LVL by
+length, EPS, OSB, steel, ACM, screws, ground screws, concrete, seals, SilverBack), labour rates per trade and the
+standard hours per job. Editors and admins (give the inventory person the Editor role) type a cost and it saves on
+its own; only the changed prices are sent, so two people can price at once. Each price shows who set it, when, and
+what it was. Download the list as a spreadsheet (CSV), change the cost column, upload it back. Salespeople can look.
+Sheets → **Cost to build**: the home's quantities × the price book, by group, with every unpriced line in red and a
+CSV download.

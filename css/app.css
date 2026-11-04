@@ -1148,3 +1148,29 @@ dialog.lib-dlg.el-dlg{max-width:min(640px,calc(100vw - 24px))}
 .tp-read small{font-size:11px;color:var(--muted)}
 .tp-read b{font:700 20px var(--mono)}
 .wb-stage svg.tp-on{cursor:crosshair}
+
+/* price book and cost to build */
+.pb-dlg .dlg.pb{max-width:860px}
+.pb-bar{display:flex;flex-direction:column;gap:8px;margin:8px 0}
+.pb-bar input[type=search]{font-size:16px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+.pb-list{max-height:58vh;overflow:auto;border-top:1px solid var(--line)}
+.pb-g{padding:8px 0}
+.pb-g .eyebrow small{opacity:.6;margin-left:4px}
+.pb-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 2px;border-bottom:1px solid color-mix(in srgb,var(--line) 60%,transparent)}
+.pb-row.none .pb-n b{color:#b42318}
+.pb-n{display:flex;flex-direction:column;min-width:0}
+.pb-n small{color:var(--muted);font-size:12px}
+.pb-c{display:flex;align-items:center;gap:4px;flex:0 0 auto}
+.pb-c i{font-style:normal;color:var(--muted)}
+.pb-c input{width:110px;font:600 16px var(--mono);text-align:right;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+.pb-c.ro{font:600 15px var(--mono)}
+.pb-st{font-size:13px;color:var(--muted);margin-right:8px}
+.pb-io{margin-top:10px}
+.pb-in{cursor:pointer}
+.cost-sum{display:flex;gap:20px;flex-wrap:wrap;margin:8px 0 12px}
+.cost-sum span{display:flex;flex-direction:column}
+.cost-sum small{font-size:11px;color:var(--muted)}
+.cost-sum b{font:700 22px var(--mono)}
+.cost-sum .warn b,.note.warn{color:#b42318}
+.cost-t td:nth-child(n+2),.cost-t th:nth-child(n+2){text-align:right;white-space:nowrap}
+.cost-t tr.none td{color:#b42318}
