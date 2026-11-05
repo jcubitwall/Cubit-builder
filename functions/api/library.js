@@ -2,14 +2,15 @@
    POST /api/library   admins only: {op:'rename', kind, id, name} · {op:'delete', kind, id} · {op:'restore', kind, id}
                        · {op:'newfam', name}  a new model name (it gets an id from its name)
                        · {op:'hand', kind, id, feat, on}  (a hole / chase / feature made by hand, not by the CNC)
-   Renames and deletions of library items (model names, homes, pods, walls, floor/ceiling/roof layers, decks) are kept as one
+   Renames and deletions of library items (model names, homes, pods, walls, floor/ceiling/roof layers, decks,
+   cabinets / appliances / fixtures and windows / doors) are kept as one
    small JSON file in the R2 bucket (binding STEPS, key catalog/library-edits.json) and laid over the library
    files when the app loads. A deleted item is hidden from every list; homes already using it keep working, and
    it can be brought back. */
 import { whoIs, json, atLeast, denied } from '../_auth.js';
 import { atomic } from '../_store.js';
 const KEY = 'catalog/library-edits.json';
-const KINDS = ['families','models','pods','walls','layers','decks'];
+const KINDS = ['families','models','pods','walls','layers','decks','casework','units'];   // casework = cabinets, appliances, fixtures …; units = windows and doors
 const FIXED = ['lifepod','nest','haven','cove','panorama','expanse'];   // the model names in data/families.json
 async function read(env){
   const o = await env.STEPS.get(KEY); const empty = { names:{}, gone:{}, hand:{}, fams:[] };

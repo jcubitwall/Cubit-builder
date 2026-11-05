@@ -1,5 +1,6 @@
 /* Cubit Builder — viewer3d.js : a full-screen 3D look at anything in the Library (tap its row).
-   Homes, pods, walls, floors / ceilings / roofs and decks, each in its own window with its own camera:
+   ⛶ Full screen hides the header too (F; Exit full screen to come back).
+   Homes, pods, walls, floors / ceilings / roofs, decks, cabinets / appliances / fixtures and windows / doors, each in its own window with its own camera:
      · Exploded view: homes and pods come apart the way they do in Build (pods, then walls, floors and roofs);
        a wall's panels pull apart; a floor or deck spreads out from its middle.
      · The side cube (top right) turns with the view. Tap a face and the view flies to that side and LOCKS there,
@@ -10,6 +11,10 @@ import { MODELS, LIB, LAYERLIB, PODLIB, DECKLIB, podById } from './data.js';
 import { state } from './state.js';
 import { buildWallMesh, buildLayerMesh, buildDeckMesh, buildHome, explodeAt, themeColors, DECK_MAT, LAYER_COLOR } from './scene3d.js';
 import * as S3 from './scene3d.js';
+import { buildUnit } from './scene3d.js';
+import { itemModel } from './casework3d.js';
+import { newItem, itemDef } from './casework.js';
+import { UNITLIB, TYPES } from './units.js';
 
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const DIRS={ top:[0,1,0], bottom:[0,-1,0], front:[0,0,-1], back:[0,0,1], right:[1,0,0], left:[-1,0,0] };
@@ -28,12 +33,14 @@ function ensure(){
   dlg.innerHTML=`<header class="cw-h"><h2 id="v3T">3D</h2><span class="note" id="v3Sub"></span><span class="spacer"></span>
       <span class="seg v3-labs" role="group" aria-label="Labels"><button id="v3Let" aria-pressed="true">Letters</button><button id="v3Num" aria-pressed="true">Numbers</button></span>
       <button class="btn ghost" id="v3Ex" aria-pressed="false">Exploded view</button>
+      <button class="btn ghost" id="v3Full" title="Full screen: only the 3D, nothing else (F)">⛶ Full screen</button>
       <button class="btn ghost cw-x" aria-label="Close">✕</button></header>
     <div class="v3-stage" id="v3Stage">
       <div class="v3-cube"><div class="vcube" role="group" aria-label="Side cube: tap a side to lock the view to it, double-tap to turn freely">
         <div class="vc-cube">${Object.keys(NAMES).map(k=>`<button class="vc-f vc-${k}" data-v="${k}" aria-label="${NAMES[k]} side">${NAMES[k]}</button>`).join('')}</div></div>
         <button class="btn ghost sm v3-lock" id="v3Lock" hidden></button></div>
       <p class="v3-hint" id="v3Hint">${HINT}</p>
+      <button class="btn v3-exitfs" id="v3ExitFs" aria-label="Leave full screen">✕ Exit full screen</button>
     </div>`;
   document.body.appendChild(dlg);
   R=new THREE.WebGLRenderer({antialias:true}); R.setPixelRatio(Math.min(2, devicePixelRatio||1));
@@ -65,6 +72,21 @@ function ensure(){
     const f=e.target.closest('[data-v]'); if(!f) return; const v=f.dataset.v;
     setTimeout(()=>{ if(last===now) lockTo(v); }, 240); });
   new ResizeObserver(size).observe(dlg.querySelector('#v3Stage'));
+  // full screen: the header goes, the 3D takes the whole display (the browser's own full screen on a computer)
+  dlg.querySelector('#v3Full').onclick=()=>setFull(true);
+  dlg.querySelector('#v3ExitFs').onclick=()=>setFull(false);
+  dlg.addEventListener('keydown', e=>{ if(e.key==='f' || e.key==='F'){ if(e.target.closest('input,textarea')) return; setFull(!dlg.classList.contains('v3-full')); } });
+  dlg.addEventListener('close', ()=>setFull(false));
+  document.addEventListener('fullscreenchange', ()=>{ if(!document.fullscreenElement && dlg.classList.contains('v3-full') && fsAsked) setFull(false); });
+}
+let fsAsked=false;
+const touchFirst = matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches;
+function setFull(on){
+  if(!dlg) return;
+  dlg.classList.toggle('v3-full', on);
+  if(on && !touchFirst && dlg.requestFullscreen && !document.fullscreenElement){ fsAsked=true; dlg.requestFullscreen().catch(()=>{ fsAsked=false; }); }
+  if(!on && fsAsked){ fsAsked=false; if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); }
+  requestAnimationFrame(size);
 }
 
 function setGoal(v){ goal=v; dlg.querySelector('#v3Ex').setAttribute('aria-pressed', goal>0.5); }
@@ -98,6 +120,19 @@ function showWall(w){
 function showLayer(L){
   const mat=new THREE.MeshStandardMaterial({color:LAYER_COLOR[L.kind]||0xb9b2a0, roughness:0.85, side:THREE.DoubleSide});
   const g=buildLayerMesh(L, mat); content=new THREE.Group(); content.add(g); radial(g, 0.35);
+}
+/* a cabinet, appliance or fixture: the Library's own model (inches), its parts come apart along their explode lines */
+function showCase(it){
+  const M=itemModel(it, { edges:true, tenons:true }), g=M.group, k=Math.max(it.w,it.h,it.d)*0.34;
+  g.scale.setScalar(1/12); g.position.set(-it.w/24, 0, -it.d/24);
+  content=new THREE.Group(); content.add(g);
+  spread(g.children, c=>{ const [a,b,e]=c.userData.ex||[0,0,0]; return new THREE.Vector3(a*k, b*k, e*k); });
+}
+/* a window or door, standing in a rough opening just bigger than it */
+function showUnit(u){
+  const o={ x:0, y:0, w:u.w+0.25, h:u.h+0.25, kind:TYPES[u.type]?.cat||'window' };
+  const g=buildUnit(o, { unit:u, hand:u.hand||'L', swing:u.swing||'in' }, Math.max(0.4,(u.d||4.5)/12+0.05), u.place==='int');
+  content=new THREE.Group(); content.add(g);
 }
 function showDeck(D){ const g=buildDeckMesh(D, DECK_MAT); content=new THREE.Group(); content.add(g); radial(g, 0.6); }
 /* a home (or one pod on its own): built by Build, copied with its exploded positions, then Build is put back */
@@ -171,6 +206,8 @@ function openViewer(kind, id, opts={}){
     else if(kind==='pods'){ const p=podById(id); if(!p) return; title=p.name; sub=`${p.len}′ pod`; showPod(p); }
     else if(kind==='walls'){ const w=LIB.find(x=>x.id===id); if(!w) return; title=w.name; sub=`${w.id} · ${w.len}′ ${w.type==='int'?'interior':'exterior'} wall`; showWall(w); }
     else if(kind==='layers'){ const L=LAYERLIB.find(x=>x.id===id); if(!L) return; title=L.name; sub=`${L.id} · ${LAYER_NAME[L.kind]||L.kind} · ${L.len}′`; showLayer(L); }
+    else if(kind==='casework'){ const d=itemDef(id); if(!d) return; const it=newItem(id); title=d.name; sub=`${id} · ${it.w} × ${it.h} × ${it.d}″`; showCase(it); }
+    else if(kind==='units'){ const u=UNITLIB.find(x=>x.id===id); if(!u) return; title=u.name; sub=`${u.id} · ${TYPES[u.type]?.label||u.type}${u.place==='int'?' · interior':''} · ${u.w} × ${u.h}″`; showUnit(u); }
     else if(kind==='decks'){ const D=DECKLIB.find(x=>x.id===id); if(!D) return; title=D.name; sub=`${D.id} · ${D.w}′ × ${D.d}′ deck`; showDeck(D); }
   }catch(e){ console.error(e); }
   if(!content){ return; }

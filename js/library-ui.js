@@ -12,14 +12,16 @@ const when = at => { const d=new Date(at); return isNaN(d) ? '' : d.toLocaleDate
 import { state, save } from './state.js';
 import { thumbSVG } from './panels.js';
 import { familyOf, familyById, FAMILIES, variantsOf } from './catalog.js';
+import { ITEMS } from './casework.js';
+import { UNITLIB } from './units.js';
 import { renderModels, renderSide, toast } from './sidebar.js';
 import { buildHome } from './scene3d.js';
 import { canSave, canEdit } from './role.js';
 import { openViewer } from './viewer3d.js';
 
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const KIND = { families:'model name', models:'home', pods:'pod', walls:'wall', layers:'layer', decks:'deck' };
-const find = (kind,id) => kind==='models' ? MODELS[id] : ({families:FAMILIES, walls:LIB, layers:LAYERLIB, pods:PODLIB, decks:DECKLIB}[kind]||[]).find(x=>x.id===id);
+const KIND = { families:'model name', models:'home', pods:'pod', walls:'wall', layers:'layer', decks:'deck', casework:'library item', units:'window / door' };
+const find = (kind,id) => kind==='models' ? MODELS[id] : ({families:FAMILIES, walls:LIB, layers:LAYERLIB, pods:PODLIB, decks:DECKLIB, casework:ITEMS, units:UNITLIB}[kind]||[]).find(x=>(x.id??x.k)===id);
 const fail = e => toast(`Couldn't save: ${e.message||e}`);
 
 function refresh(after){ renderModels(); renderSide(); if(after) after(); if(dlg?.open) render(); }

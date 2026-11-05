@@ -10,18 +10,21 @@
    anywhere, not even there. */
 import { MODELS, LIB, LAYERLIB, PODLIB, DECKLIB, clearMirrors } from './data.js';
 import { FAMILIES } from './catalog.js';
+import { ITEMS } from './casework.js';
+import { UNITLIB } from './units.js';
 
 const LOCAL_KEY = 'cubit-library-edits';
 const KEEP_MS = 14*24*3600*1000;   // deleted things can come back for two weeks
 let remote = false, ED = { names:{}, gone:{}, hand:{}, fams:[] };
 const ORIG = new Map();          // "kind:id" → the name it had before any rename
 
-const lists = () => ({ walls:LIB, layers:LAYERLIB, pods:PODLIB, decks:DECKLIB, families:FAMILIES });
+const lists = () => ({ walls:LIB, layers:LAYERLIB, pods:PODLIB, decks:DECKLIB, families:FAMILIES, casework:ITEMS, units:UNITLIB });
+const idOf = x => x.id ?? x.k;   // cabinets, appliances and fixtures are known by their k
 function itemsOf(kind){
   if(kind==='models') return Object.entries(MODELS).map(([id,m])=>({id, ref:m}));
-  return (lists()[kind]||[]).map(x=>({id:x.id, ref:x}));
+  return (lists()[kind]||[]).map(x=>({id:idOf(x), ref:x}));
 }
-function find(kind, id){ return kind==='models' ? MODELS[id] : (lists()[kind]||[]).find(x=>x.id===id); }
+function find(kind, id){ return kind==='models' ? MODELS[id] : (lists()[kind]||[]).find(x=>idOf(x)===id); }
 
 async function loadEdits(){
   try{ const r=await fetch('api/library',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ ED=await r.json(); remote=true; } }catch(e){}
@@ -33,7 +36,7 @@ async function loadEdits(){
 function applyEdits(){
   // model names the team added (Homes → Cubit Homes → ＋ New model name)
   (ED.fams||[]).forEach(f=>{ if(!FAMILIES.find(x=>x.id===f.id)) FAMILIES.push({ id:f.id, name:f.name, base:null, added:true }); });
-  ['families','models','pods','walls','layers','decks'].forEach(kind=>itemsOf(kind).forEach(({id,ref})=>{
+  ['families','models','pods','walls','layers','decks','casework','units'].forEach(kind=>itemsOf(kind).forEach(({id,ref})=>{
     const k=`${kind}:${id}`;
     // drafts and team homes (Purgatory, customers) carry their own names, renamed on their own: never put back
     if(kind==='models' && (ref.custom || ref.project)){ ORIG.set(k, ref.name); }
@@ -87,7 +90,7 @@ function usedBy(kind, id, state){
   if(kind==='models') return [];
   if(kind==='families') return Object.entries(MODELS).filter(([k,m])=>!m.deleted && !m.project && (m.family===id || m.sub && JSON.stringify(m).includes(`"family":"${id}"`))).map(([,m])=>m.name);
   const pat = kind==='pods' ? new RegExp(`"(src|lib)":"${id.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}"`) : new RegExp(`"${id.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}(~m)?"`);
-  const homes = Object.entries(MODELS).filter(([k,m])=>!m.deleted && (pat.test(JSON.stringify(m)) || pat.test(JSON.stringify([state?.picks?.[k], state?.layerPicks?.[k]])))).map(([,m])=>m.name);
+  const homes = Object.entries(MODELS).filter(([k,m])=>!m.deleted && (pat.test(JSON.stringify(m)) || pat.test(JSON.stringify([state?.picks?.[k], state?.layerPicks?.[k], state?.furniture?.[k], state?.units?.[k]])))).map(([,m])=>m.name);
   const pods = kind==='walls'||kind==='layers' ? PODLIB.filter(p=>!p.deleted && pat.test(JSON.stringify(p))).map(p=>p.name) : [];
   return [...new Set(homes)].concat(pods.map(n=>`pod ${n}`));
 }

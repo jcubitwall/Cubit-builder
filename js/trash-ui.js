@@ -5,12 +5,15 @@
      Homes       Cubit Homes originals and variations · Purgatory homes · customers' homes · my drafts
      Model names the model names homes are filed under (LifePod, Nest …, and any the team added)
      Building    walls · floors, ceilings & roofs · decks · pods
+     Windows & doors · Inside (cabinets, appliances, bathroom, plumbing, electrical, heating, furniture)
 
    How long things stay: library items, model names, Cubit Homes originals, customers and drafts for two weeks
    (then gone for good); Purgatory and customers' homes for as long as their saves are kept on the server (always).
    Bringing something back needs an editor or admin, except your own drafts. */
 import { MODELS, LIB, LAYERLIB, DECKLIB, PODLIB } from './data.js';
 import { FAMILIES } from './catalog.js';
+import { ITEMS, CATS } from './casework.js';
+import { UNITLIB, TYPES } from './units.js';
 import { CUSTOMERS, customerById, restoreCustomer } from './customers.js';
 import { deletedDrafts, restoreDraft } from './drafts.js';
 import { deletedProjects, restoreDeleted } from './projects.js';
@@ -27,7 +30,7 @@ const gone = L => L.filter(x=>x.deleted && !x.purged);
 /* the groups: [group, [[id, name, rows()]]]; a row is { key, name, sub, at, keep, restore() } */
 let PROJ = [];   // deleted team homes, fetched when the window opens
 function groups(){
-  const lib = (kind, L, sub) => gone(L).map(x=>({ key:`${kind}:${x.id}`, name:x.name, sub:sub(x), at:x.deletedAt, keep:true, restore:()=>restoreItem(kind, x.id) }));
+  const lib = (kind, L, sub) => gone(L).map(x=>{ const id=x.id ?? x.k; return { key:`${kind}:${id}`, name:x.name, sub:sub(x), at:x.deletedAt, keep:true, restore:()=>restoreItem(kind, id) }; });
   const orig = Object.entries(MODELS).filter(([k,m])=>m.deleted && !m.purged && !m.custom && !m.project)
     .map(([k,m])=>({ key:`models:${k}`, name:m.name, sub:[m.sub?'variation':'original', m.size].filter(Boolean).join(' · '), at:m.deletedAt, keep:true, restore:()=>restoreItem('models', k) }));
   const proj = cust => PROJ.filter(p=>!!p.customer===cust).map(p=>({ key:`proj:${p.id}`, name:p.name,
@@ -42,6 +45,8 @@ function groups(){
       ['layers', 'Floors, ceilings & roofs', lib('layers', LAYERLIB, x=>`${x.kind||''} · ${x.len||''}′`)],
       ['decks', 'Decks', lib('decks', DECKLIB, x=>`${x.w||''}′ × ${x.d||''}′`)],
       ['pods', 'Pods', lib('pods', PODLIB, x=>x.size||'')]]],
+    ['Windows & doors', [['units', 'Windows & doors', lib('units', UNITLIB, x=>[TYPES[x.type]?.label, x.place==='int'?'interior':'', `${x.w} × ${x.h}″`].filter(Boolean).join(' · '))]]],
+    ['Inside', [['casework', 'Cabinets, appliances & fixtures', lib('casework', ITEMS, x=>[CATS.find(c=>c.k===x.cat)?.name, x.k].filter(Boolean).join(' · '))]]],
   ];
 }
 

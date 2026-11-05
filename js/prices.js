@@ -71,8 +71,8 @@ const JOBS = { // job → [name, per, trade]
 /* every product there is (for the price book): [{ key, group, name, unit }] */
 function products(){
   const out=[], seen=new Set(), add=(key, group, name, unit)=>{ if(seen.has(key)) return; seen.add(key); out.push({ key, group, name, unit }); };
-  UNITLIB.forEach(u=>add(`unit:${u.id}`, 'Windows & doors', `${u.name} (${u.id})`, 'each'));
-  ITEMS.forEach(d=>{ let it; try{ it=newItem(d.k); }catch(e){ return; } if(!bought(it)) return;
+  UNITLIB.filter(u=>!u.deleted).forEach(u=>add(`unit:${u.id}`, 'Windows & doors', `${u.name} (${u.id})`, 'each'));
+  ITEMS.filter(d=>!d.deleted).forEach(d=>{ let it; try{ it=newItem(d.k); }catch(e){ return; } if(!bought(it)) return;
     add(`item:${d.k}`, cwCat(d.cat)?.name || 'Bought items', made(it) ? `${d.name} (bought parts)` : d.name, 'each'); });
   const S=settings();
   add('cab:sheet', 'Cabinet stock & hardware', `${S.mat?.name||'Cabinet sheet'} sheet ${S.mat?.sheet?.join(' × ')||'48 × 96'}`, 'sheet');

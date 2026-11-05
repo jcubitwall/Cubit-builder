@@ -46,8 +46,12 @@ const isRound = o => o.shape==='round';
 const fits = (u,o) => !!TYPES[u.type]?.round===isRound(o) && u.w<=o.w+0.125 && u.h<=o.h+0.125 && o.w-u.w<=2 && o.h-u.h<=2;
 // a sample unit drops out of an opening's list as soon as a real unit (a Cubit standard or an upload) fits that opening;
 // openings no real unit fits yet (interior doors, older homes' taller windows) keep their sample
-const unitsFor = o => { const c=catOf(o), real=UNITLIB.some(u=>!u.sample && TYPES[u.type]?.cat===c && !!TYPES[u.type]?.round===isRound(o) && fits(u,o));
-  return UNITLIB.filter(u=>TYPES[u.type]?.cat===c && !!TYPES[u.type]?.round===isRound(o) && !(real && u.sample))
+/* place: 'int' = an interior door (only offered in interior walls; where one fits there, only those are offered) */
+const unitsFor = (o, slot=null) => { const c=catOf(o), int=slot ? bodyWall(slot, pickFor(slot))?.type==='int' : null;
+  let pool=UNITLIB.filter(u=>!u.deleted && TYPES[u.type]?.cat===c && !!TYPES[u.type]?.round===isRound(o) && (int || u.place!=='int'));
+  if(int && pool.some(u=>u.place==='int' && fits(u,o))) pool=pool.filter(u=>u.place==='int');
+  const real=pool.some(u=>!u.sample && fits(u,o));
+  return pool.filter(u=>!(real && u.sample))
   .map(u=>({u, fit:fits(u,o)})).sort((a,b)=>(b.fit-a.fit) || (a.u.name>b.u.name?1:-1)); };
 const okey = o => o.key ?? `${o.kind}@${Math.round(o.x)}`;
 
@@ -96,7 +100,7 @@ function unitFor(slot, o){
   if(pick===false) return null;
   if(!pick && pairOf(slot,o) && doorOwner(slot,o).id!==slot.id) return null;   // the door is in the neighbour's wall
   if(pick && unitById(pick.u)){ const u=unitById(pick.u); return { unit:u, hand:pick.hand||u.hand||'L', swing:pick.swing||u.swing||'in', how: state.units?.[state.model]?.[slot.id]?.[k]?'chosen':'home' }; }
-  const fitting = unitsFor(o).filter(x=>x.fit);
+  const fitting = unitsFor(o, slot).filter(x=>x.fit);
   if(fitting.length===1){ const u=fitting[0].u; return { unit:u, hand:u.hand||'L', swing:u.swing||'in', how:'auto' }; }
   return null;
 }

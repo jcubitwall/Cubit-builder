@@ -1215,3 +1215,9 @@ html.phone #hLibrary, html.phone #hCabLib, html.phone #hTrash{display:inline-fle
 .chip.fam.new{border-style:dashed}
 .fam-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0}
 .fam-bar .note{margin:0;margin-right:auto}
+
+/* 3D quick view: full screen = the 3D only */
+.v3-exitfs{display:none;position:absolute;top:max(12px, env(safe-area-inset-top,0px));left:max(12px, env(safe-area-inset-left,0px));z-index:3}
+dialog.v3-dlg.v3-full > .cw-h{display:none}
+dialog.v3-dlg.v3-full .v3-exitfs{display:inline-flex}
+dialog.v3-dlg.v3-full .v3-cube{top:max(12px, env(safe-area-inset-top,0px));right:max(12px, env(safe-area-inset-right,0px))}

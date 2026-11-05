@@ -41,6 +41,7 @@ function download(name, text, type='text/csv'){ const a=document.createElement('
 let dlg=null, view={ tab:'lib', cat:'base', item:null, edit:null, explode:0, sel:null };
 import { makeHistory, histButtons, bindHistory } from './local-history.js';
 import { LIB, LAYERLIB, DECKLIB } from './data.js';
+import { UNITLIB, TYPES, unitSVG } from './units.js';
 import { thumbSVG } from './panels.js';
 import { layerThumb } from './sidebar.js';
 import { rules, saveRules, sharedRules } from './wall-rules.js';
@@ -52,6 +53,7 @@ import { rules, saveRules, sharedRules } from './wall-rules.js';
    heights and locks), the electrical / plumbing / heating rules. */
 const NAV = [
   ['Building', [['b:walls','Walls'],['b:layers','Floors, ceilings & roofs'],['b:decks','Decks']]],
+  ['Windows & doors', [['u:win','Windows'],['u:ext','Exterior doors'],['u:int','Interior doors']]],
   ['Cabinets & wardrobes', ['base','upper','tall','linen','wardrobe','vanity','bench','shelf','counter']],
   ['Kitchen & laundry', ['appliance']],
   ['Bathroom', ['bath']],
@@ -74,8 +76,11 @@ function setTab(cat){
 const B_LIST = { 'b:walls':()=>LIB, 'b:layers':()=>LAYERLIB, 'b:decks':()=>DECKLIB };
 const B_KIND = { 'b:walls':'walls', 'b:layers':'layers', 'b:decks':'decks' };
 const LAYER_NAME = {'floor-ext':'Exterior floor','floor-int':'Interior floor','ceiling-int':'Interior ceiling','roof':'Roof'};
-const countOf = c => c.startsWith('b:') ? B_LIST[c]().filter(x=>!x.deleted && !x.purged).length : ITEMS.filter(i=>i.cat===c).length;
-const navName = c => c.startsWith('b:') ? NAV[0][1].find(([k])=>k===c)[1] : (CATS.find(x=>x.k===c)?.name || c);
+/* windows & doors (units.js): windows · exterior doors (man doors and patio doors) · interior doors (place 'int') */
+const U_OF = { 'u:win':u=>TYPES[u.type]?.cat==='window', 'u:ext':u=>TYPES[u.type]?.cat!=='window' && u.place!=='int', 'u:int':u=>u.place==='int' };
+const live = x => !x.deleted && !x.purged;
+const countOf = c => c.startsWith('b:') ? B_LIST[c]().filter(live).length : c.startsWith('u:') ? UNITLIB.filter(u=>U_OF[c](u) && live(u)).length : ITEMS.filter(i=>i.cat===c && live(i)).length;
+const navName = c => (c.startsWith('b:')||c.startsWith('u:')) ? NAV.flatMap(([,cs])=>cs).find(x=>Array.isArray(x) && x[0]===c)[1] : (CATS.find(x=>x.k===c)?.name || c);
 let showGone=false;
 /* undo / redo of the item on screen: its sizes, options and mirror */
 const pickIt = it => it ? JSON.parse(JSON.stringify({ w:it.w, h:it.h, d:it.d, y:it.y||0, opt:it.opt||{}, mirror:!!it.mirror })) : null;
@@ -112,11 +117,26 @@ function render(){
   if(view.tab==='set'){ if(st[1]==='shop'){ renderSettings(body); return; } body.innerHTML=nav+`<section class="cw-rules">${rulesFor(st[1])}</section>`; bindNav(body); bindRules(body); return; }
   if(view.item){ renderDetail(body); return; }
   if(view.cat.startsWith('b:')){ body.innerHTML=nav+buildingGrid(view.cat); bindNav(body); bindBuilding(body); return; }
-  const items=ITEMS.filter(i=>i.cat===view.cat);
+  // every other card: tap to open it; 3D quick view, and (editors) Rename and Delete, on each
+  const unitCat=view.cat.startsWith('u:'), kind=unitCat?'units':'casework';
+  const all=unitCat ? UNITLIB.filter(u=>U_OF[view.cat](u) && !u.purged) : ITEMS.filter(i=>i.cat===view.cat && !i.purged);
+  const items=all.filter(x=>!x.deleted), gone=all.length-items.length;
+  const acts=id=>`<div class="cw-bact"><button class="btn ghost sm" data-c3d="${esc(id)}">3D</button><button class="btn ghost sm editor-only" data-cren="${esc(id)}">Rename</button><button class="btn ghost sm danger editor-only" data-cdel="${esc(id)}">Delete</button></div>`;
+  const card = unitCat
+    ? u=>`<div class="cw-card cw-bcard" data-uid="${esc(u.id)}"><div class="cw-thumb">${unitSVG(u.type, u.hand||'L', u.w, u.h, 120, u.place==='int', TYPES[u.type]?.round)}</div><b>${esc(u.name)}</b><small><code>${esc(u.id)}</code> · ${esc(TYPES[u.type]?.label||u.type)} · ${u.w} × ${u.h}″${u.sample?' · sample':''}</small>${acts(u.id)}</div>`
+    : d=>{ const it=newItem(d.k); return `<div class="cw-card cw-bcard" data-k="${d.k}"><div class="cw-thumb">${frontSVG(it)}</div><b>${esc(d.name)}</b><small>${sizeTxt(it)}${d.fixed?' · fixed size':''}</small>${acts(d.k)}</div>`; };
   body.innerHTML=nav+`
-    <section class="cw-grid">${items.map(d=>{ const it=newItem(d.k); return `<button class="cw-card" data-k="${d.k}"><div class="cw-thumb">${frontSVG(it)}</div><b>${esc(d.name)}</b><small>${sizeTxt(it)}${d.fixed?' · fixed size':''}</small></button>`; }).join('')}</section>`;
+    <section class="cw-grid cw-bgrid"><div class="cw-bbar"><input type="search" id="cwQ" placeholder="Search names and IDs" aria-label="Search">${gone?`<button class="linkbtn editor-only" id="cwGone" title="⋯ → Deleted items">Deleted (${gone})</button>`:''}</div>
+    ${items.map(card).join('') || `<p class="note">${unitCat?'None yet. Add one with ⋯ → Upload STEP → Window / door.':'Empty.'}</p>`}</section>`;
   bindNav(body);
-  body.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{ view.item=newItem(b.dataset.k); view.edit=null; view.explode=0; view.sel=null; HIST.reset(); render(); });
+  const again=()=>render(), lib=()=>import('./library-ui.js');
+  body.querySelector('#cwGone')?.addEventListener('click', ()=>import('./trash-ui.js').then(m=>m.openTrash(kind)));
+  const q=body.querySelector('#cwQ'); if(q) q.oninput=()=>{ const Q=q.value.toLowerCase(); body.querySelectorAll('.cw-bcard').forEach(c=>{ c.hidden=!!Q && !(c.textContent+' '+(c.dataset.k||c.dataset.uid||'')).toLowerCase().includes(Q); }); };
+  body.querySelectorAll('[data-c3d]').forEach(b=>b.onclick=()=>import('./viewer3d.js').then(m=>m.openViewer(kind, b.dataset.c3d)));
+  body.querySelectorAll('[data-cren]').forEach(b=>b.onclick=()=>lib().then(m=>m.askRename(kind, b.dataset.cren, again)));
+  body.querySelectorAll('[data-cdel]').forEach(b=>b.onclick=()=>lib().then(m=>m.askDelete(b, kind, b.dataset.cdel, again)));
+  body.querySelectorAll('.cw-bcard[data-uid]').forEach(c=>c.onclick=e=>{ if(e.target.closest('button')) return; import('./viewer3d.js').then(m=>m.openViewer('units', c.dataset.uid)); });
+  body.querySelectorAll('.cw-bcard[data-k]').forEach(c=>c.onclick=e=>{ if(e.target.closest('button')) return; view.item=newItem(c.dataset.k); view.edit=null; view.explode=0; view.sel=null; HIST.reset(); render(); });
 }
 
 function bindNav(body){ body.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{ view.cat=b.dataset.cat; view.item=null; showGone=false; if(view.tab==='set' && !setTab(view.cat)) view.tab='lib'; render(); }); }

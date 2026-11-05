@@ -393,6 +393,14 @@ Everything deleted is in one window, sorted into groups, each row with **Restore
 
 Deleted things disappear from every list and picker straight away. Library items, model names, Cubit Homes originals, customers and drafts can come back for 14 days, then they're gone for good (`KEEP_MS` in libedit.js; drafts are kept in this browser, `cubit-draft-trash`). Purgatory and customers' homes keep every save on the server, so they can always come back: a deletion is noted in `projects/deleted.json` (`GET api/projects?deleted=1`, editors) and Restore brings back its last save. Restoring needs an editor or admin, except your own drafts. The Library's walls, floors and decks lists show a **Deleted (n)** link that opens this window.
 
+## Every Library card: 3D, Rename, Delete
+Every card in the Library (walls, floors / ceilings / roofs, decks, windows and doors, cabinets, appliances, bathroom fixtures, plumbing, electrical, heating, furniture) has **3D** (the full-screen quick view), and for editors **Rename** and **Delete**. A deleted item leaves every list, picker, the tray and the price book at once; homes that already use it keep it. It goes to ⋯ → Deleted items for 2 weeks. Renames and deletions of cabinets and fixtures (`casework:<k>`) and windows / doors (`units:<id>`) are kept with the other library edits.
+
+The 3D quick view has **⛶ Full screen** (or F): the header goes and the 3D takes the whole display (the browser's own full screen on a computer); **✕ Exit full screen** comes back.
+
+## Windows & doors in the Library
+Three categories: **Windows**, **Exterior doors** (man doors, patio doors) and **Interior doors** (units with `"place": "int"` in data/units.json). An interior door is only offered in interior walls, and where one fits there only interior doors are offered (so an interior opening no longer picks the steel exterior man door by itself). Two interior door samples (34 × 80 and 36 × 82 prehung) stand in until the real units are uploaded.
+
 ## New model names
 Homes → Cubit Homes → **＋ New model name** (editors and admins). It shows as a chip for the whole team at once and in the Save window's model list, empty until a home is adopted into it from Purgatory (Adopt into Cubit Homes, pick the model name). Open a model name's chip to **Rename** or **Delete** it; homes under a deleted model name show under "Not filed yet" until it's restored. Added names are kept with the library edits (`fams` in `catalog/library-edits.json`, `{op:'newfam', name}` on `api/library`); the six first ones stay in `data/families.json`.
 
