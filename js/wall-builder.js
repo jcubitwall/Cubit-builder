@@ -23,7 +23,7 @@ import { openShapeStudio } from './shape-studio.js';
 import { flatten, bboxAll } from './geom2d.js';
 import { makeRefTool } from './refmeasure.js';
 import { makeTape } from './tape.js';
-import { boxesOn, moveBox, resetBox, ELEC_NAME, slotAuto } from './electrical.js';
+import { boxesOn, moveBox, resetBox, ELEC_NAME, slotAuto, setGang, GANG } from './electrical.js';
 import { attachZoom, pinching } from './zoompan.js';
 const ZW={ k:1, x:0, y:0 };   // pinch zoom of the drawing (kept across redraws)
 import { makeHistory, histButtons, bindHistory } from './local-history.js';
@@ -115,15 +115,16 @@ function openWallBuilder({ from=null, slot=null, len, type }={}){
 function loadHB(){
   HB=[]; if(!forSlot) return;
   let L0=null; try{ L0=boxesOn(forSlot); }catch(e){ L0=null; }
-  (L0||[]).forEach(b=>{ const k=b.face==='in'?'inside':'outside', off=(forSlot.trim?.[b.face==='in'?1:0])||0, big=b.rk==='double';
-    HB.push({ id:b.id, rk:b.rk, k, name:b.name||ELEC_NAME[b.rk]||'Box', w:big?4.125:2.375, h:big?3.625:3.375, off, Lin:b.a+b.x, x:b.x+off, y:b.y, x0:b.x+off, y0:b.y,
+  (L0||[]).forEach(b=>{ const k=b.face==='in'?'inside':'outside', off=(forSlot.trim?.[b.face==='in'?1:0])||0, g=b.g||1;
+    HB.push({ id:b.id, rk:b.rk, k, name:b.name||ELEC_NAME[b.rk]||'Box', g, g0:g, w:GANG[g].w, h:GANG[g].h, off, Lin:b.a+b.x, x:b.x+off, y:b.y, x0:b.x+off, y0:b.y,
       lock:b.lock, moved:b.moved, user:b.user, why:b.why||'', flags:b.flags||[] }); });
 }
-const hbDirty = () => HB.filter(b=>Math.abs(b.x-b.x0)>1e-6 || Math.abs(b.y-b.y0)>1e-6 || b.reset);
+const hbDirty = () => HB.filter(b=>Math.abs(b.x-b.x0)>1e-6 || Math.abs(b.y-b.y0)>1e-6 || b.reset || b.g!==b.g0);
 /* put the moved boxes on this home (only this home) */
 function saveHB(){
   const D=hbDirty(); if(!D.length) return 0;
-  D.forEach(b=>{ if(b.reset && Math.abs(b.x-b.x0)<1e-6 && Math.abs(b.y-b.y0)<1e-6){ resetBox(b.id); return; }
+  D.forEach(b=>{ if(b.g!==b.g0) setGang(b.id, b.g);
+    if(Math.abs(b.x-b.x0)<1e-6 && Math.abs(b.y-b.y0)<1e-6){ if(b.reset) resetBox(b.id); return; }
     const xb=b.x-b.off, a=b.k==='inside' ? b.Lin-xb : xb; moveBox(b.id, +a.toFixed(3), +b.y.toFixed(3)); });
   buildHome(); renderSide(); loadHB(); return D.length;
 }
@@ -139,6 +140,11 @@ function hbNudge(it, dir){
     else it.x=fromDrawX('hb',it, x+sg*st); }
   render();
 }
+/* single / double / triple box (any receptacle, switch or data box) */
+const GANGS=[[1,'Single'],[2,'Double'],[3,'Triple']];
+const gangSeg = (g, attr) => `<div class="cw-opt"><span>Box size</span><div class="seg sm" role="group" aria-label="Box size">${GANGS.map(([v,l])=>`<button ${attr}="${v}" aria-pressed="${g===v}" title="${l} gang · ${fin(GANG[v].w)} × ${fin(GANG[v].h)}">${l}</button>`).join('')}</div></div>`;
+const gangOfItem = it => it.gang || (Math.abs((it.w||0)-GANG[3].w)<0.01 ? 3 : Math.abs((it.w||0)-GANG[2].w)<0.01 ? 2 : 1);
+const isRcptBox = it => it && it.kind==='box' && it.shape==='rect' && ['plug','switch','double','data','counter','gfci','appl','wp'].includes(it.rk||rkOf('inside',it));
 function hbFields(it){
   const x=drawX('hb',it), moved=Math.abs(it.x-it.x0)>1e-6||Math.abs(it.y-it.y0)>1e-6, onChase=chaseList().some(c=>Math.abs((it.k==='inside'?L()-it.x:it.x)-c)<0.01);
   const f=(id,label,v)=>`<label class="cw-f${it.lock?' locked':''}"><span>${label}</span><input data-hf="${id}" inputmode="decimal" value="${Math.round(v*16)/16}" ${it.lock?'readonly':''}><i>″</i></label>`;
@@ -150,6 +156,7 @@ function hbFields(it){
       <button class="btn ghost" data-hn="left" aria-label="Left">◀</button><button class="btn ghost" data-hn="right" aria-label="Right">▶</button>
       <button class="btn ghost" data-hn="down" aria-label="Down">▼</button></div>
       <div class="cw-opt"><span>Each tap</span><div class="seg sm">${[['chase','Chase to chase'],['1','1″'],['0.5','½″'],['0.125','⅛″']].map(([v,l])=>`<button data-hstep="${v}" aria-pressed="${hbStep===v}">${l}</button>`).join('')}</div></div>`}
+    ${it.lock?'':gangSeg(it.g, 'data-hg')}
     <div class="cw-fs">${f('x','Centre from the left end', x-cutSeen())}${f('y','Centre from the floor', it.y)}</div>
     ${!onChase && it.k==='inside' ? '<p class="note wb-rule">Off the electrical chases: the wire has to reach it another way.</p>' : ''}
     <div class="row">${moved?'<button class="btn ghost sm" id="hbUndo">Put it back</button>':''}${it.moved&&!it.lock?'<button class="btn ghost sm" id="hbRule">Back to the rule</button>':''}</div>
@@ -295,6 +302,7 @@ function fields(){
   const yNote = r && locked(k,it,'y') && Math.abs(ruleY(k,it)-r.y)>0.01 ? `<p class="note wb-rule">The rule says ${fin(r.y)}; this one was placed before. <button class="linkbtn" data-relock="y">Move it to ${fin(r.y)}</button></p>` : '';
   return `<div class="wb-sel"><div class="eyebrow">${isOp ? (round?(it.kind==='window'?'Round window · 32″ window, 33″ R.O.':'Round hole through the wall'):it.kind==='opening'?'Cased opening':it.kind==='window'?'Window opening':'Door opening') : (it.name||(round?'Round pocket':'Box'))+` · ${sel.k} face`}</div>
     <label class="cw-f wb-name"><span>Name <small>(optional, shown on the sheets)</small></span><input data-nm="${isOp?'name':'label'}" value="${esc(isOp?it.name||'':it.label||'')}" placeholder="${esc(isOp?(round?(it.kind==='window'?'Round window':'Round hole'):it.kind==='opening'?'Cased opening':it.kind==='window'?'Window':'Door'):(it.name||'Box'))}" maxlength="60"></label>
+    ${!isOp && isRcptBox(it) ? gangSeg(gangOfItem(it), 'data-wg') : ''}
     <div class="cw-fs">${round && it.kind==='window' ? `<p class="note">Round window: 32″ across, so the rough opening is a fixed ⌀ 33″ circle. Set where it sits.</p>` : round ? f('d','Diameter',it.d) : f('w','Width',w)+f('h','Height',h)}
       ${f('x', isOp?'Left edge from the left end':'Centre from the left end', x-cutSeen())}
       ${centred(k,it) ? f('y','Centre from the floor', ruleY(k,it)) : f('y','Bottom from the floor', it.y)}
@@ -424,6 +432,8 @@ function bind(){
   $('#wbName')?.addEventListener('change', e=>{ W.name=e.target.value.trim(); });
   $('#wbSave')?.addEventListener('click',()=>saveWall(false));
   dlg.querySelectorAll('[data-hn]').forEach(b=>b.onclick=()=>{ const it=HB[sel?.i]; if(it) hbNudge(it, b.dataset.hn); });
+  dlg.querySelectorAll('[data-hg]').forEach(b=>b.onclick=()=>{ const it=HB[sel?.i]; if(!it) return; it.g=+b.dataset.hg; it.w=GANG[it.g].w; it.h=GANG[it.g].h; render(); });
+  dlg.querySelectorAll('[data-wg]').forEach(b=>b.onclick=()=>{ const it=listOf(sel.k)[sel.i]; if(!it) return; const g=+b.dataset.wg; it.gang=g; it.w=GANG[g].w; it.h=GANG[g].h; render(); });
   dlg.querySelectorAll('[data-hstep]').forEach(b=>b.onclick=()=>{ hbStep=b.dataset.hstep; render(); });
   dlg.querySelectorAll('[data-hf]').forEach(inp=>inp.onchange=()=>{ const it=HB[sel?.i]; if(!it||it.lock) return; const v=parseFloat(inp.value); if(!isFinite(v)) return;
     if(inp.dataset.hf==='x') it.x=fromDrawX('hb',it,v+cutSeen()); else it.y=Math.max(it.h/2, Math.min(H-it.h/2, v)); render(); });

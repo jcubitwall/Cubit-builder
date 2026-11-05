@@ -48,6 +48,9 @@ const R_WALL = 70.866, R_COUNTER = 35.433, MIN_RUN = 35.433, MIN_COUNTER = 11.8,
 const NUDGE = 2;   // a box up to 2″ either side of a chase's centre still counts as on it (centre first)
 const SW_OFF = 6, CORNER = 3, JOINT = 2.9, STUD = 1.5, BOX_GAP = 4;
 const BOX = { std:{w:2.375, h:3.375}, double:{w:4.125, h:3.625} };
+/* box size by gang (single / double / triple): any box can be set to any of them, per home (ov.g) */
+const GANG = { 1:{w:2.375, h:3.375}, 2:{w:4.125, h:3.625}, 3:{w:5.875, h:3.625} };
+const gangOf = b => b.g || (b.rk==='double' ? 2 : 1);
 const NAME = { plug:'Plug box', counter:'Counter plug box', gfci:'GFCI plug box', appl:'Appliance plug box', switch:'Switch box', double:'Double switch box', data:'Data box', wp:'Outside plug (WP)', jbox:'Junction box (hardwired)' };
 /* receptacles (not switches) never go under a window: anywhere below its sill, from 1½″ outside one side to 1½″
    outside the other */
@@ -430,16 +433,17 @@ function compute(k){
   const out=[];
   boxes.forEach(b=>{ if(!b.id) return; if(b.lock){ out.push(b); return; }   // a locked box (the fireplace's) ignores hand changes
     if(ov.del?.[b.id]){ b.removed=true; return; }
+    if(ov.g?.[b.id]) b.g=ov.g[b.id];
     const mv=ov.mv?.[b.id]; if(mv){ if(mv.a!=null) b.a=mv.a; if(mv.y!=null) b.y=mv.y; b.moved=true; b.chase=onChase(b.W,b.a); b.flags=b.flags.filter(f=>f!=='needs a chase'); if(!b.chase) b.flags.push('needs a chase'); if(RCPT.has(b.rk) && underWindow(b.W,b.a,b.y)) b.flags.push('under a window'); if(b.face==='in' && RCPT.has(b.rk) && nearTub(tubs,b.W,b.a,BOX.std.w/2)) b.flags.push('within 500 mm of the tub / shower'); }
     out.push(b); });
   (ov.add||[]).forEach(u=>{ const W=byKey[u.w]; if(!W) return; const chase=onChase(W,u.a);
-    out.push({ id:u.id, W, face:u.face||'in', a:u.a, y:u.y, rk:u.rk, chase, user:true, note:u.note||'', why:'added by hand', flags:[...(chase||u.face==='out'?[]:['needs a chase']), ...(RCPT.has(u.rk) && underWindow(W,u.a,u.y)?['under a window']:[]), ...((u.face||'in')==='in' && RCPT.has(u.rk) && nearTub(tubs,W,u.a,BOX.std.w/2)?['within 500 mm of the tub / shower']:[])] }); });
+    out.push({ id:u.id, W, face:u.face||'in', a:u.a, y:u.y, rk:u.rk, ...(u.g?{ g:u.g }:{}), chase, user:true, note:u.note||'', why:'added by hand', flags:[...(chase||u.face==='out'?[]:['needs a chase']), ...(RCPT.has(u.rk) && underWindow(W,u.a,u.y)?['under a window']:[]), ...((u.face||'in')==='in' && RCPT.has(u.rk) && nearTub(tubs,W,u.a,BOX.std.w/2)?['within 500 mm of the tub / shower']:[])] }); });
 
   /* ---- into the walls */
   const byWall={};
-  out.forEach(b=>{ const {w,h}=sz(b.rk), W=b.W, o=(byWall[W.s.id] ||= { inside:[], outside:[] });
+  out.forEach(b=>{ const {w,h}=GANG[gangOf(b)]||sz(b.rk), W=b.W, o=(byWall[W.s.id] ||= { inside:[], outside:[] });
     const nm = b.rk==='switch' && b.way>1 ? `${b.way}-way switch box` : NAME[b.rk] || 'Box';
-    const item={ kind:'box', shape:'rect', w, h, depth:3, x:+(b.face==='in' ? W.Lin-b.a : b.a).toFixed(4), y:b.y, rk:b.rk==='wp'?'plug':b.rk, name:nm, auto:b.id, ...(b.chase?{}:{ offChase:true }) };
+    const item={ kind:'box', shape:'rect', w, h, depth:3, x:+(b.face==='in' ? W.Lin-b.a : b.a).toFixed(4), y:b.y, rk:b.rk==='wp'?'plug':b.rk, name:nm, gang:gangOf(b), auto:b.id, ...(b.chase?{}:{ offChase:true }) };
     (b.face==='in' ? o.inside : o.outside).push(item); b.name=nm; });
   const removed=boxes.filter(b=>b.removed);
   return { byWall, boxes:out, removed, flags, confirms, rooms:Object.values(rooms).map(R=>({ key:R.key, name:R.name, entries:R.entries.length, bath:R.bath, kitchen:R.kitchen, bed:R.bed })) };
@@ -464,6 +468,10 @@ function restoreBox(id){ return editElec(E=>{ if(E.ov?.del) delete E.ov.del[id];
 function moveBox(id, a, y){ return editElec(E=>{ E.ov ||= {};
   const u=(E.ov.add||[]).find(x=>x.id===id); if(u){ if(a!=null) u.a=a; if(y!=null) u.y=y; return; }
   const m=((E.ov.mv ||= {})[id] ||= {}); if(a!=null) m.a=+a.toFixed(3); if(y!=null) m.y=y; }); }
+/* single / double / triple: this home only */
+function setGang(id, g){ g=[1,2,3].includes(+g) ? +g : 1; return editElec(E=>{ E.ov ||= {};
+  const u=(E.ov.add||[]).find(x=>x.id===id); if(u){ u.g=g; return; }
+  (E.ov.g ||= {})[id]=g; }); }
 function resetBox(id){ return editElec(E=>{ if(E.ov?.mv) delete E.ov.mv[id]; }); }
 function addBox(slot, rk, a, y, face='in'){ let id='u-'+Date.now().toString(36);
   editElec(E=>{ ((E.ov ||= {}).add ||= []).push({ id, w:wkey(slot), rk, a:+a.toFixed(3), y:y ?? H[rk] ?? 16, face }); }); return id; }
@@ -472,7 +480,7 @@ function ruleWall(slot, on=true){ return editElec(E=>{ if(on) (E.walls ||= {})[w
 /* this wall's boxes, for the wall panel: [{ id, rk, name, a (from the left seen from that face), y, chase, flags, note }] */
 function boxesOn(slot){
   const P=planFor(); if(!P) return null;
-  return P.boxes.filter(b=>b.W.s.id===slot.id).map(b=>({ id:b.id, rk:b.rk, name:b.name, face:b.face, a:b.a, x:b.face==='in'?b.W.Lin-b.a:b.a, y:b.y, chase:b.chase, flags:b.flags, note:b.note, why:b.why, user:!!b.user, moved:!!b.moved, lock:!!b.lock, way:b.way||1, nudge:b.chase&&b.face==='in'&&b.W.chases.length ? +Math.min(...b.W.chases.map(c=>Math.abs(c-b.a))).toFixed(3) : 0 }))
+  return P.boxes.filter(b=>b.W.s.id===slot.id).map(b=>({ id:b.id, rk:b.rk, g:gangOf(b), name:b.name, face:b.face, a:b.a, x:b.face==='in'?b.W.Lin-b.a:b.a, y:b.y, chase:b.chase, flags:b.flags, note:b.note, why:b.why, user:!!b.user, moved:!!b.moved, lock:!!b.lock, way:b.way||1, nudge:b.chase&&b.face==='in'&&b.W.chases.length ? +Math.min(...b.W.chases.map(c=>Math.abs(c-b.a))).toFixed(3) : 0 }))
     .sort((p,q)=>(p.face===q.face?0:p.face==='in'?-1:1) || p.x-q.x);
 }
 /* the next chase from a, one way (dir ±1); a from the left seen from outside */
@@ -482,4 +490,4 @@ function nextChase(slot, bw, a, dir){
 }
 const summary = (k=state.model) => { if(!usesRules(k)) return null; const P=planFor(k); const c={}; P.boxes.forEach(b=>{ c[b.rk]=(c[b.rk]||0)+1; }); return { counts:c, flags:P.flags, confirms:P.confirms, offChase:P.boxes.filter(b=>!b.chase && b.face==='in'), needs:P.boxes.filter(b=>b.flags.some(f=>f!=='confirm 3-way')), removed:P.removed, rooms:P.rooms, boxes:P.boxes }; };
 
-export { H as ELEC_H, NAME as ELEC_NAME, usesRules, homeAuto, slotAuto, planFor, relay, setData, setThreeWay, removeBox, restoreBox, moveBox, resetBox, addBox, boxesOn, ruleWall, nextChase, summary, elecOf, fin as elecFin };
+export { setGang, GANG, gangOf, H as ELEC_H, NAME as ELEC_NAME, usesRules, homeAuto, slotAuto, planFor, relay, setData, setThreeWay, removeBox, restoreBox, moveBox, resetBox, addBox, boxesOn, ruleWall, nextChase, summary, elecOf, fin as elecFin };

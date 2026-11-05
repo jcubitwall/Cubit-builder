@@ -401,6 +401,8 @@ The 3D quick view has **⛶ Full screen** (or F): the header goes and the 3D tak
 ## Moving a home's plugs and switches in the panel builder
 Open the panel builder from a wall of a home (the wall's panel → Panel builder). The home's own plugs and switches, laid out by the electrical rules, show in green (orange once moved, grey when locked to a fireplace). Tap one, then drag it, type where it goes, or use the arrows: ◀ ▶ jump chase to chase and ▲ ▼ go 1″ (or pick 1″, ½″ or ⅛″ steps for every arrow). **Save … to this home only** (or Save to library, which also saves them) keeps the moves on that home only (`elec.ov.mv`, electrical.js), over the rules' defaults; the wall in the library is unchanged. **Put it back** drops an unsaved move; **Back to the rule** clears a saved one. The library wall's own plugs show faded where the home's rules replace them.
 
+**Box size:** pick any plug, switch or data box (panel builder or a wall's panel in Build) and set it to **Single** (2⅜ × 3⅜), **Double** (4⅛ × 3⅝) or **Triple** (5⅞ × 3⅝). For a home's own boxes it's kept on that home (`elec.ov.g`); for a library wall's boxes it's part of the wall.
+
 The same moves are in Build: pick a wall in 3D, then tap a plug or switch in its panel (Plugs & switches). It gets the same arrows (chase to chase, or 1″ / ½″ / ⅛″) and typed position, is ringed in orange in the 3D view, and each move goes on the home at once so you see it against the furniture (Undo takes it back).
 
 ## Holes through both floor layers
@@ -495,7 +497,7 @@ Where two pods meet, each pod keeps its own interior wall, always 4½″. Doors,
 - **Let the two differ** (`joint.free`) stops a pair matching. Use it only when the two walls really must have different openings.
 
 ## Plugs and switches by rule (electrical)
-New homes take no plugs or switches from the wall library. `js/electrical.js` lays them out from the rooms, the doors and the cabinets every time something changes, and they're cut into the walls like any other box (3D, panel sheets, CNC, blueprint E11). In an older home, the same happens to any wall swapped in and every wall of a pod added; ⋯ → **Electrical** → **Re-lay electrical** moves the whole home onto the rules (one wall at a time: **Lay this wall out by the rules** on its panel).
+New homes take no plugs or switches from the wall library. `js/electrical.js` lays them out from the rooms, the doors and the cabinets every time something changes, and they're cut into the walls like any other box (3D, panel sheets, CNC, blueprint E11). In an older home, the same happens to any wall swapped in and every wall of a pod added; Library → Electrical → Electrical rules → **This home's electrical** → **Re-lay electrical** moves the whole home onto the rules (one wall at a time: **Lay this wall out by the rules** on its panel).
 
 Rules (CEC as used in Nova Scotia; heights to the box centre):
 - Plugs 16″, with no point along usable wall more than 1.8 m from one. Every stretch of 900 mm or more gets a plug. Doorways, full-height glass, the wall behind a door swung open and walls behind fixed cabinets, appliances, tubs and showers break the run. The run carries on round corners. Bathrooms get only the basin GFCI.

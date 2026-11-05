@@ -187,7 +187,8 @@ const HEAT_RULES = `<h3>Heating rules</h3><ul class="el-rules">
   <li>Heat pump wall units: high on the wall, about 6″ under the ceiling; line set, condensate and power through the wall behind.</li></ul>`;
 function rulesFor(kind){
   if(kind==='walls') return wallRulesHTML();
-  if(kind==='elec') return `<h3>Electrical rules</h3><p class="note">Heights and locks of plug and switch boxes are in Walls → Wall rules.</p>${elecRules()}`;
+  if(kind==='elec') return `<h3>Electrical rules</h3><p class="note">Heights and locks of plug and switch boxes are in Walls → Wall rules.</p>
+    <div class="row"><button class="btn ghost sm" id="cwElecHome">This home's electrical…</button><span class="note">what was placed, 3-way switches to confirm, data boxes, re-lay</span></div>${elecRules()}`;
   if(kind==='plumb') return PLUMB_RULES;
   if(kind==='heat') return HEAT_RULES;
   return '';
@@ -196,6 +197,7 @@ let elecRules=()=>'';
 import('./electrical-ui.js').then(m=>{ elecRules=()=>m.rulesHTML().replace('<details class="help">','<details class="help" open>'); });
 function bindRules(body){
   const box=body.querySelector('.cw-rules'); if(!box) return;
+  box.querySelector('#cwElecHome')?.addEventListener('click', ()=>import('./electrical-ui.js').then(m=>{ dlg.close(); m.openElectrical(); }));
   box.querySelectorAll('[data-r]').forEach(i=>i.onchange=()=>{ const [k,f]=i.dataset.r.split(':'), v=parseFloat(i.value); if(isFinite(v) && v>=0) RD[k][f]=v; render(); });
   box.querySelectorAll('[data-rl]').forEach(b=>b.onclick=()=>{ const [k,f]=b.dataset.rl.split(':'); RD[k][f]=!RD[k][f]; render(); });
   box.querySelectorAll('[data-rs]').forEach(b=>b.onclick=()=>{ const [k,v]=b.dataset.rs.split(':'); RD[k].side=v; render(); });

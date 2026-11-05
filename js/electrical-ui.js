@@ -1,5 +1,5 @@
 /* Cubit Builder — electrical-ui.js : the plugs and switches laid out by rule (electrical.js), on screen.
-   · ⋯ → Electrical (and the line on the home panel): the whole home — what was placed, what to confirm (3-way
+   · Library → Electrical → Electrical rules → This home's electrical (and the line on the home panel): the whole home — what was placed, what to confirm (3-way
      switches), what needs a chase, data boxes on or off, Re-lay electrical (older homes onto the rules).
    · A wall's panel: its boxes, each moved chase to chase, removed or put back; add a box. */
 import { MODELS } from './data.js';
@@ -8,7 +8,7 @@ import { slotsFor } from './layout.js';
 import { bodyWall } from './panels.js';
 import { canSave } from './role.js';
 import { fin } from './format.js';
-import { usesRules, homeAuto, slotAuto, summary, relay, setData, setThreeWay, removeBox, restoreBox, moveBox, resetBox, addBox, boxesOn, ruleWall, nextChase, elecOf, ELEC_H, ELEC_NAME } from './electrical.js';
+import { usesRules, homeAuto, slotAuto, summary, relay, setData, setThreeWay, removeBox, restoreBox, moveBox, resetBox, setGang, GANG, addBox, boxesOn, ruleWall, nextChase, elecOf, ELEC_H, ELEC_NAME } from './electrical.js';
 
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const SHORT = { plug:'Plug', counter:'Counter plug', gfci:'GFCI plug', appl:'Appliance plug', jbox:'Junction box', switch:'Switch', double:'Double switch', data:'Data', wp:'Outside plug' };
@@ -25,6 +25,7 @@ function editor(b){
   const f=(id,label,v)=>`<label class="cw-f"><span>${label}</span><input data-ef="${id}" inputmode="decimal" value="${Math.round(v*16)/16}"><i>″</i></label>`;
   return `<div class="el-ed edit-only"><p class="note">Moves go on this home only, over the rule; the wall in the library doesn't change.</p>
     <div class="wb-pad" role="group" aria-label="Move it"><button class="btn ghost" data-en="up" aria-label="Up">▲</button><button class="btn ghost" data-en="left" aria-label="Left">◀</button><button class="btn ghost" data-en="right" aria-label="Right">▶</button><button class="btn ghost" data-en="down" aria-label="Down">▼</button></div>
+    <div class="cw-opt"><span>Box size</span><div class="seg sm" role="group" aria-label="Box size">${[[1,'Single'],[2,'Double'],[3,'Triple']].map(([v,l])=>`<button data-eg="${v}" aria-pressed="${(b.g||1)===v}" title="${l} gang · ${fin(GANG[v].w)} × ${fin(GANG[v].h)}">${l}</button>`).join('')}</div></div>
     <div class="cw-opt"><span>Each tap</span><div class="seg sm">${STEPS.map(([v,l])=>`<button data-estep="${v}" aria-pressed="${step===v}">${l}</button>`).join('')}</div></div>
     <div class="cw-fs">${f('x', `Centre from the left${b.face==='in'?' (seen from inside)':''}`, b.x)}${f('y','Centre from the floor', b.y)}</div></div>`;
 }
@@ -44,7 +45,7 @@ function elecWallBlock(s){
   const P=summary(), gone=(P?.removed||[]).filter(b=>b.W.s.id===s.id);
   const row=b=>{ const tags=[b.chase||b.face==='out'?`<span class="el-ok">on a chase${b.nudge>0.01?` · ${fin(b.nudge)} off centre`:''}</span>`:'<span class="el-warn">needs a chase</span>', ...b.flags.filter(f=>f!=='needs a chase').map(f=>`<span class="el-warn">${esc(f)}</span>`), b.moved?'<span class="el-tag">moved</span>':'', b.user?'<span class="el-tag">added</span>':''].filter(Boolean).join(' ');
     return `<div class="el-row${pickId===b.id?' on':''}" data-id="${esc(b.id)}" data-face="${b.face}" data-a="${b.a}" data-x="${b.x}" data-y="${b.y}" ${b.lock?'':'data-pick="1"'}>
-      <div><b>${esc(b.way>1 ? `${b.way}-way switch` : SHORT[b.rk]||b.name)}</b>${b.face==='out'?' · outside':''} <small>${fin(b.x)} from the left${b.face==='in'?' (seen from inside)':''} · ${fin(b.y)} up${b.note?` · ${esc(b.note)}`:''}</small><div class="el-tags">${tags}</div></div>
+      <div><b>${esc(b.way>1 ? `${b.way}-way switch` : SHORT[b.rk]||b.name)}</b>${(b.g||1)>1?` · ${b.g===3?'triple':'double'} box`:''}${b.face==='out'?' · outside':''} <small>${fin(b.x)} from the left${b.face==='in'?' (seen from inside)':''} · ${fin(b.y)} up${b.note?` · ${esc(b.note)}`:''}</small><div class="el-tags">${tags}</div></div>
       ${b.lock?`<div class="el-act"><span class="el-ok" title="It goes where the fireplace goes: move the fireplace, or change its Power (Plug / Hardwired)">🔒 with the fireplace</span></div>`:`<div class="el-act edit-only"><button class="btn ghost sm" data-mv="-1" title="Next chase to the left" aria-label="Next chase to the left">◀</button><button class="btn ghost sm" data-mv="1" title="Next chase to the right" aria-label="Next chase to the right">▶</button>${b.moved?'<button class="btn ghost sm" data-reset title="Back to where the rule put it" aria-label="Reset">↺</button>':''}<button class="btn ghost sm" data-rm title="Remove" aria-label="Remove">✕</button></div>`}</div>${pickId===b.id && !b.lock ? editor(b) : ''}`; };
   const adds=['plug','switch','counter','data', ...(s.type==='ext'?['wp']:[])];
   if(!on) return `<div class="el-box"><div class="eyebrow">Plugs & switches</div>
@@ -64,6 +65,7 @@ function bindElecWall(root, s){
   setTimeout(()=>markBox(s), 0);
   root.querySelectorAll('.el-row[data-pick]').forEach(r=>r.addEventListener('click', e=>{ if(e.target.closest('button,input')) return; pickId = pickId===r.dataset.id ? null : r.dataset.id; refreshSide(); }));
   const cur=()=>(boxesOn(s)||[]).find(b=>b.id===pickId);
+  root.querySelectorAll('[data-eg]').forEach(btn=>btn.onclick=()=>{ const b=cur(); if(!b) return; setGang(b.id, +btn.dataset.eg); refresh(); });
   root.querySelectorAll('[data-estep]').forEach(b=>b.onclick=()=>{ step=b.dataset.estep; refreshSide(); });
   root.querySelectorAll('[data-en]').forEach(btn=>btn.onclick=()=>{ const b=cur(); if(!b) return; const d=btn.dataset.en, st=step==='chase'?1:+step;
     if(d==='up'||d==='down'){ moveBox(b.id, null, +Math.max(2, Math.min(94, b.y+(d==='up'?st:-st))).toFixed(3)); refresh(); return; }
@@ -141,6 +143,5 @@ function openElectrical(){
   if(!dlg){ dlg=document.createElement('dialog'); dlg.className='lib-dlg el-dlg'; dlg.innerHTML=`<div class="dlg"><div class="dlg-h"><h2>Electrical</h2><button class="btn ghost" id="elX">Done</button></div><div id="elBody"></div></div>`; document.body.appendChild(dlg); dlg.querySelector('#elX').onclick=()=>dlg.close(); }
   render(); dlg.showModal();
 }
-{ const pop=document.getElementById('morePop');
-  if(pop && !document.getElementById('bElec')){ const b=document.createElement('button'); b.setAttribute('role','menuitem'); b.id='bElec'; b.textContent='Electrical'; pop.insertBefore(b, document.getElementById('bUpload')); b.onclick=()=>{ pop.hidden=true; openElectrical(); }; } }
+/* (no ⋯ menu item: Electrical lives in the Library → Electrical → Electrical rules, and on the home and wall panels) */
 export { elecWallBlock, bindElecWall, elecHomeLine, bindElecHome, openElectrical };
