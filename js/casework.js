@@ -382,6 +382,9 @@ const CATS = [
   { k:'bath',      name:'Bathroom fixtures', y:0 },
   { k:'sink',      name:'Sinks',             y:27 },
   { k:'furniture', name:'Furniture',         y:0 },
+  { k:'heat',      name:'Heat pumps & baseboards', y:0 },
+  { k:'plumb',     name:'Water heaters & plumbing', y:0 },
+  { k:'elec',      name:'Electrical panels', y:48 },
 ];
 const W_STD = [9,12,15,18,21,24,27,30,33,36];
 const ITEMS = [];
@@ -753,6 +756,29 @@ def({ k:'SH-MAAX-BIA', cat:'bath', name:'MAAX Biarritz P40 one piece shower 30 �
 const BIA85_PLUMB = { ...BIA_PLUMB, src:'MAAX Biarritz 85 dimension drawing', drain:{ x:17.75, z:16.125, dia:2, below:1 }, wall:{ ...BIA_PLUMB.wall, z:17.5 } };
 def({ k:'SH-MAAX-BIA36', cat:'bath', name:'MAAX Biarritz 85 one piece shower 36 × 35 × 75 (no door)', w:35.625, h:74.75, d:34.875, fixed:true, plumb:BIA85_PLUMB,
   note:'MAAX Biarritz 85, one piece AcrylX shower, alcove, 2 built-in corner shelves, model 100973-000-002: 35 5/8 wide × 34 7/8 deep × 74 3/4 high, 27 1/2 door opening (69 1/4 max door height), 4 3/8 threshold, centre drain. Drawn from the MAAX dimension drawing', build:it=>meshParts('maaxBiarritz85', it).map(p=>({ ...p, ex:[0,0,0] })) });
+/* heating, plumbing and electrical equipment, at their usual sizes (check the model you buy) */
+const white = 'porcelain';
+// ductless heat pump wall head: high on an outside wall, line set and condensate out through the wall behind it
+[['HP-09','Heat pump wall unit 9 000 BTU (typical)',31.4,11.6,9.1],['HP-12','Heat pump wall unit 12 000 BTU (typical)',31.4,11.6,9.1],['HP-18','Heat pump wall unit 18 000 BTU (typical)',39.4,12.8,10.1]].forEach(([k,name,w,h,d])=>
+  def({ k, cat:'heat', name, w, h, d, y:82, fixed:true, note:'Ductless mini-split indoor head (e.g. Mitsubishi, Fujitsu): keep about 6″ under the ceiling and clear to each side; line set, condensate and power through the wall behind it. Check the model',
+    build:it=>[ fx('Unit',white,[0,0,0,it.w,it.h,it.d],{ note:'indoor head' }), fx('Vane','steel',[1.5,0.4,it.d-0.3,it.w-3,1.2,0.4]) ] }));
+// electric baseboard heaters, 240 V: usually under a window; no plug above one
+[[24,500],[36,750],[48,1000],[60,1250],[72,1500]].forEach(([w,watt])=>
+  def({ k:`BB-${w}`, cat:'heat', name:`Baseboard heater ${w}″ · ${watt} W (typical)`, w, h:7.5, d:3.25, y:1, fixed:true, note:`Electric baseboard, 240 V, ${watt} W; its own thermostat or a wall one. Usually under a window. No plug above it`,
+    build:it=>[ fx('Heater',white,[0,0,0,it.w,it.h,it.d]), fx('Grille','steel',[2,it.h-1.6,it.d-0.2,it.w-4,1.2,0.25]) ] }));
+// water heaters and the laundry box
+def({ k:'WH-40', cat:'plumb', name:'Water heater, electric 40 gal (typical)', w:20.25, h:50, d:20.25, fixed:true, note:'Tank, about 20¼″ across, 50″ high: cold in, hot out on top, relief valve and drain pan. Check the model and its clearances',
+  build:it=>[ fx('Tank',white,[0,0,0,it.w,it.h,it.d],{ shape:'cyl' }), fx('Pipes','steel',[it.w/2-3,it.h,it.d/2-0.5,6,4,1]) ] });
+def({ k:'WH-60', cat:'plumb', name:'Water heater, electric 60 gal (typical)', w:24, h:58, d:24, fixed:true, note:'Tank, about 24″ across, 58″ high. Check the model and its clearances',
+  build:it=>[ fx('Tank',white,[0,0,0,it.w,it.h,it.d],{ shape:'cyl' }), fx('Pipes','steel',[it.w/2-3,it.h,it.d/2-0.5,6,4,1]) ] });
+def({ k:'WH-TL', cat:'plumb', name:'Water heater, tankless electric (typical)', w:14, h:22, d:4.5, y:48, fixed:true, note:'On the wall; needs its own large circuit(s). Check the model',
+  build:it=>[ fx('Unit',white,[0,0,0,it.w,it.h,it.d]) ] });
+def({ k:'WOB', cat:'plumb', name:'Washer outlet box, recessed (typical)', w:8.5, h:9.5, d:3.5, y:42, fixed:true, note:'Hot and cold valves and the 2″ drain for the washer, recessed in the wall behind it',
+  build:it=>[ fx('Box',white,[0,0,0,it.w,it.h,it.d]), fx('Valves','steel',[1,it.h-3,it.d-0.4,it.w-2,1.5,1]) ] });
+// electrical panel
+[['EP-100','Electrical panel 100 A (typical)',14.5,29.5],['EP-200','Electrical panel 200 A (typical)',14.5,38]].forEach(([k,name,w,h])=>
+  def({ k, cat:'elec', name, w, h, d:3.75, y:42, fixed:true, note:'Load centre, surface or recessed: keep 1 m clear in front, not in a bathroom or clothes closet. Check the model and the electrician’s layout',
+    build:it=>[ fx('Panel','steel',[0,0,0,it.w,it.h,it.d]), fx('Door','steel',[0.5,0.5,it.d-0.1,it.w-1,it.h-1,0.15],{ ex:[0,0,1] }) ] }));
 /* a fixture's plumbing in its own frame, mirrored if it is: lx from its middle, lz from its back, y up (inches) */
 function plumbOf(it){
   const d=itemDef(it.k), P=d?.plumb; if(!P) return null;

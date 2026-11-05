@@ -9,7 +9,7 @@ import { podList, slotsFor, layerSlotsFor } from './layout.js';
 
 import { CATS as CW_CATS } from './casework.js';
 import { applyFurniture, resetCabExplode, cabExploded } from './furniture.js';
-const CW_COL={base:'#dcc39a',upper:'#e4cfa4',tall:'#cdb287',linen:'#d8bd8c',wardrobe:'#c9a978',vanity:'#e6d3ae',bench:'#b98f60',shelf:'#ead9b6',fire:'#8a8f94',counter:'#8f9493',appliance:'#c9cdd1',furniture:'#8e978a',bath:'#e9ece9',sink:'#b7bcc1'};
+const CW_COL={base:'#dcc39a',upper:'#e4cfa4',tall:'#cdb287',linen:'#d8bd8c',wardrobe:'#c9a978',vanity:'#e6d3ae',bench:'#b98f60',shelf:'#ead9b6',fire:'#8a8f94',counter:'#8f9493',appliance:'#c9cdd1',furniture:'#8e978a',bath:'#e9ece9',sink:'#b7bcc1',heat:'#e9ecef',plumb:'#d5dde2',elec:'#9aa3ab'};
 const CW_ROWS = CW_CATS.map(c=>['cw-'+c.k, c.name, CW_COL[c.k]]);
 /* top down, the way the home is built: roof first, the ground screws and foundation last */
 /* the switches in groups that fold away (tap a group's name); the group's own switch turns all of it on or off */

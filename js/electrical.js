@@ -184,6 +184,7 @@ function compute(k){
     if((W.w.openings||[]).some(op=>a+hw+STUD>op.x && a-hw-STUD<op.x+op.w && y+hh+STUD>op.y && y-hh-STUD<op.y+op.h)) return false;
     if(RCPT.has(rk) && underWindow(W, a, y, hw)) return false;   // never under a window: the nearest chase beside it instead
     if(face==='in' && RCPT.has(rk) && nearTub(tubs, W, a, hw)) return false;   // 500 mm clear of a tub or shower
+    if(face==='in' && RCPT.has(rk) && W.items.some(it=>/^BB-/.test(it.I.it.k||'') && a+hw>it.a0-1 && a-hw<it.a1+1)) return false;   // never above a baseboard heater
     if(W.joints.some(j=>Math.abs(a-j)<JOINT)) return false;
     if(face==='in' && W.items.some(it=>it.I!==o.ignore && blocks(it.I) && a+hw>it.a0-0.5 && a-hw<it.a1+0.5 && y+hh>it.y0 && y-hh<it.y1)) return false;
     if(boxes.some(b=>b.W===W && b.face===face && Math.abs(b.a-a)<BOX_GAP && Math.abs(b.y-y)<BOX_GAP+2)) return false;
