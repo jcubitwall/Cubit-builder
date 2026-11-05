@@ -12,13 +12,17 @@
    that length; opened from a pod's layer, saving also puts it on that pod.
    Same data as the scanned layers: holes { x, z, w, d } by their corner, x along the pod (0..length), z across
    (0..96), as seen from above; round ones add shape:'round', dia; pockets add depth and face 'top' | 'bottom'.
-   On a ceiling the pot lights stay with the light rules (and Lights by hand); they show here faintly. */
+   On a ceiling the pot lights stay with the light rules (and Lights by hand); they show here faintly.
+   Floors (opened from a pod): a hole right through can go through BOTH floor layers, the interior and the exterior
+   floor of that pod (same place: both are laid out in the pod's own frame, seen from above). Saving cuts the matching
+   hole in the other floor too (that floor is saved and put on the pod). Removing a linked hole asks whether its twin
+   in the other floor goes as well. Roofs and ceilings: never (a roof only gets holes if a pod goes on top; later). */
 import { LAYERLIB, layerById, mirrorLayer, forgetLayerMirrors, saveLayerLib } from './data.js';
-import { state, chooseLayer } from './state.js';
+import { state, chooseLayer, pickLayer } from './state.js';
 import { canSave, canEdit } from './role.js';
 import { buildHome } from './scene3d.js';
 import { renderSide, toast } from './sidebar.js';
-import { slotsFor } from './layout.js';
+import { slotsFor, layerSlotsFor } from './layout.js';
 import { edgeSides, isDrawnLight } from './lights.js';
 import { LAYER_KINDS } from './config.js';
 import { fin } from './format.js';
@@ -37,6 +41,23 @@ const clone = o => JSON.parse(JSON.stringify(o));
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const r8 = v => Math.round(v*8)/8;
 let Lr=null, view='top', sel=null, dlg=null, origin=null, forSlot=null, ssel=null, shapePick=false;
+let delBoth=[];   // twins to take out of the other floor when this one is saved: [{ link, geo }]
+const OTHER_FLOOR = { 'floor-int':'floor-ext', 'floor-ext':'floor-int' };
+const otherName = () => OTHER_FLOOR[Lr.kind]==='floor-ext' ? 'exterior floor' : 'interior floor';
+/* the same pod's other floor layer (only when opened from a pod) */
+const partnerSlot = () => forSlot && OTHER_FLOOR[Lr?.kind] && forSlot.kind===Lr.kind ? layerSlotsFor(state.model).find(l=>l.pod.i===forSlot.pod.i && l.kind===OTHER_FLOOR[Lr.kind]) || null : null;
+const geoKey = h => [h.shape||'rect', +(+h.x).toFixed(2), +(+h.z).toFixed(2), +(+h.w).toFixed(2), +(+h.d).toFixed(2)].join(':');
+const isThru = h => !h.depth || h.depth >= (+(Lr.t || LAYER_KINDS[Lr.kind].t))-0.0625;
+/* the other floor's hole matching this one: same link, else the same place and size (a hole cut before links existed) */
+function twinOf(h){ const ps=partnerSlot(); if(!ps) return null; const P=pickLayer(ps); if(!P || P.blank) return null;
+  return (P.holes||[]).find(q=>h.link && q.link===h.link) || (P.holes||[]).find(q=>geoKey(q)===geoKey(h)) || null; }
+/* ask: the twin too? → 'both' | 'one' | null (cancel) */
+function askBoth(title, msg){
+  return new Promise(res=>{ const d=document.createElement('dialog'); d.className='lib-dlg';
+    d.innerHTML=`<form method="dialog" class="dlg"><div class="dlg-h"><h2>${esc(title)}</h2></div><p>${msg}</p>
+      <div class="row"><button class="btn" value="both">Both floors</button><button class="btn ghost" value="one">Only this floor</button><button class="btn ghost" value="cancel" formnovalidate>Cancel</button></div></form>`;
+    document.body.appendChild(d); d.addEventListener('close', ()=>{ const v=d.returnValue; d.remove(); res(v==='both'||v==='one'?v:null); }); d.returnValue=''; d.showModal(); });
+}
 /* placed shapes: screen x of the left edge of the box, and back */
 const ssx = it => view==='top' ? it.x : L()-it.x-it.w;
 const fromSsx = (it, x) => view==='top' ? x : L()-x-it.w;
@@ -54,6 +75,7 @@ function openLayerBuilder({ from=null, slot=null, len, kind }={}){
   else { Lr=blank(len||slot?.len||24, kind||slot?.kind||'ceiling-int'); origin=null; }
   Lr.holes = (Lr.holes||[]).map(h=>{ const c={...h}; delete c._f; if(c.hand===false) delete c.hand; return c; });   // drop what the 3D view adds
   view = Lr.kind==='ceiling-int' ? 'bottom' : 'top';
+  delBoth=[];
   sel=null; ssel=null; shapePick=false; ensure(); HIST.reset(); render(); if(!dlg.open) dlg.showModal();
 }
 function ensure(){
@@ -176,7 +198,24 @@ function fields(){
       ${c!=='thru' ? f('depth','Depth', h.depth) : ''}</div>
     <div class="rf-wrap">${RF.panel()}</div>
     ${c!=='thru' ? `<p class="note">${fin(T()-h.depth)} of the panel left at the ${h.face==='bottom'?'top':'bottom'}. As deep as the panel (${fin(T())}) = right through.</p>` : ''}
+    ${bothHTML(h, c)}
     <div class="row"><button class="btn ghost sm" id="lbDup">Duplicate</button><button class="btn ghost sm" id="lbDel">Remove</button></div></div>`;
+}
+/* floors: through this floor only, or through both floor layers of the pod */
+function bothHTML(h, c){
+  if(!OTHER_FLOOR[Lr.kind]) return '';
+  const ps=partnerSlot();
+  if(!ps) return `<p class="note">To cut a hole through both floor layers, open this floor from a pod (its floor's panel → Panel builder).</p>`;
+  if(c!=='thru') return `<p class="note">A pocket stays in this floor. Make it right through to cut it through both floors.</p>`;
+  return `<label class="wb-chk lb-both"><input type="checkbox" id="lbBoth" ${h.both?'checked':''}> Through both floor layers: also cut it in the ${otherName()} of ${esc(ps.pod.label)}</label>
+    ${h.both?`<p class="note">Saving cuts the same hole in the ${otherName()} too (it's saved and put on ${esc(ps.pod.label)}).</p>`:''}`;
+}
+async function setBoth(h, on){
+  if(on){ h.both=true; h.link ||= 'hl-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5); delBoth=delBoth.filter(d=>d.link!==h.link); render(); return; }
+  const tw=twinOf(h);
+  if(tw){ const a=await askBoth('Through this floor only', `Also delete the matching hole in the ${otherName()}?`); if(!a){ render(); return; }
+    if(a==='both') delBoth.push({ link:h.link||tw.link||null, geo:geoKey(tw) }); }
+  h.both=false; delete h.link; render();
 }
 function render(){
   HIST.track();
@@ -226,8 +265,9 @@ function setField(f, v){
   ['x','z','w','d','dia','depth'].forEach(k=>{ if(h[k]!=null) h[k]=Math.round(h[k]*10000)/10000; });
   render();
 }
-function setCut(c){
+async function setCut(c){
   const h=Lr.holes[sel]; if(!h) return;
+  if(c!=='thru' && h.both){ await setBoth(h, false); }
   if(c==='thru'){ delete h.depth; delete h.face; }
   else { h.face=c; if(!h.depth || h.depth>=T()-0.0625) h.depth=Math.min(2, T()/2); }
   render();
@@ -255,8 +295,13 @@ function bind(){
     const it=Lr.shapes[ssel]; if(inp.dataset.sf==='x') it.x=+fromSsx(it,v).toFixed(4); else it.z=v; render(); });
   $('#lbSDel')?.addEventListener('click',()=>{ Lr.shapes.splice(ssel,1); ssel=null; render(); });
   $('#lbSDup')?.addEventListener('click',()=>{ const it=clone(Lr.shapes[ssel]); it.x += view==='top' ? it.w+6 : -(it.w+6); Lr.shapes.push(it); ssel=Lr.shapes.length-1; render(); });
-  $('#lbDel')?.addEventListener('click',()=>{ Lr.holes.splice(sel,1); sel=null; render(); });
-  $('#lbDup')?.addEventListener('click',()=>{ const h=clone(Lr.holes[sel]); h.x += view==='top' ? h.w+6 : -(h.w+6); if(h.path) h.path=h.path.map(([a,b])=>[a+(view==='top'?h.w+6:-(h.w+6)),b]); Lr.holes.push(h); sel=Lr.holes.length-1; render(); });
+  $('#lbBoth')?.addEventListener('change', e=>{ const h=Lr.holes[sel]; if(h) setBoth(h, e.target.checked); });
+  $('#lbDel')?.addEventListener('click', async()=>{ const h=Lr.holes[sel]; if(!h) return;
+    const tw=OTHER_FLOOR[Lr.kind] ? twinOf(h) : null;
+    if(tw || h.both){ const a=await askBoth('Remove the hole', `Delete the matching hole in the ${otherName()} too?`); if(!a) return;
+      if(a==='both') delBoth.push({ link:h.link||tw?.link||null, geo:tw?geoKey(tw):geoKey(h) }); }
+    Lr.holes.splice(sel,1); sel=null; render(); });
+  $('#lbDup')?.addEventListener('click',()=>{ const h=clone(Lr.holes[sel]); if(h.link) h.link='hl-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5); h.x += view==='top' ? h.w+6 : -(h.w+6); if(h.path) h.path=h.path.map(([a,b])=>[a+(view==='top'?h.w+6:-(h.w+6)),b]); Lr.holes.push(h); sel=Lr.holes.length-1; render(); });
   const turn=(mx,mz,msg)=>{ const m=mirrorLayer({...Lr, id:'X', name:''}, mx, mz, 'X'); Lr.holes=m.holes; Lr.seams=m.seams; if(m.shapes) Lr.shapes=m.shapes; sel=null; ssel=null; render(); toast(msg); };
   $('#lbMir').onclick=()=>turn(true,false,'Turned end for end');
   $('#lbFlip').onclick=()=>turn(false,true,'Turned front to back');
@@ -306,17 +351,53 @@ async function saveLayer(asNew){
   if(asNew || !origin) l.id=nextId(`${K().code}${String(l.len).padStart(2,'0')}`); else l.id=origin;
   l.source=`Layer builder ${new Date().toISOString().slice(0,10)}`;
   let shared=false;
-  try{ const r=await fetch('api/layers',{method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({op:'save', layer:l})});
-    if(r.ok && (r.headers.get('content-type')||'').includes('json')) shared=true; else if(r.status!==404 && r.status!==405 && r.status!==501){ const o=await r.json().catch(()=>({})); if(o.error) throw new Error(o.error); } }
+  try{ shared=await putLayer(l); }
   catch(e){ toast(`Couldn't save: ${e.message||e}`); return; }
+  origin=l.id; Lr.id=l.id; Lr.name=l.name;
+  if(forSlot && forSlot.kind===l.kind && forSlot.len===l.len) chooseLayer(forSlot, l.id);
+  let twin='';
+  try{ twin=await saveTwinFloor(l); }catch(e){ toast(`Saved, but the ${otherName()} wasn't: ${e.message||e}`); }
+  buildHome(); renderSide(); render();
+  toast(`${l.id} saved to the layer library${shared?' (for the whole team)':' (in this browser)'}${forSlot && forSlot.kind===l.kind && forSlot.len===l.len?` · on ${forSlot.label}`:''}${twin}`, twin?5000:undefined);
+}
+/* into the layer library: the team's when the server has one, else this browser; true = shared */
+async function putLayer(l){
+  let shared=false;
+  const r=await fetch('api/layers',{method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({op:'save', layer:l})});
+  if(r.ok && (r.headers.get('content-type')||'').includes('json')) shared=true; else if(r.status!==404 && r.status!==405 && r.status!==501){ const o=await r.json().catch(()=>({})); if(o.error) throw new Error(o.error); }
   const i=LAYERLIB.findIndex(x=>x.id===l.id), entry={...l, src: shared?'team':'saved'};
   if(i>=0) LAYERLIB[i]=entry; else LAYERLIB.push(entry);
   forgetLayerMirrors(l.id);
   if(!shared) saveLayerLib();
-  origin=l.id; Lr.id=l.id; Lr.name=l.name;
-  if(forSlot && forSlot.kind===l.kind && forSlot.len===l.len) chooseLayer(forSlot, l.id);
-  buildHome(); renderSide(); render();
-  toast(`${l.id} saved to the layer library${shared?' (for the whole team)':' (in this browser)'}${forSlot && forSlot.kind===l.kind && forSlot.len===l.len?` · on ${forSlot.label}`:''}`);
+  return shared;
+}
+/* the pod's other floor: the holes marked "through both floors" cut there too, the twins asked for taken out.
+   A team layer made in the builder is saved over; a standard, scanned or mirrored one becomes a new layer. */
+async function saveTwinFloor(l){
+  const ps=partnerSlot(); const both=l.holes.filter(h=>h.both && isThru(h));
+  if(!ps || (!both.length && !delBoth.length)) return '';
+  const cur=pickLayer(ps), P=clone(cur || {});
+  const K2=LAYER_KINDS[ps.kind];
+  let holes=(P.blank ? [] : (P.holes||[])).map(h=>{ const c={...h}; delete c._f; return c; });
+  const gone=new Set(delBoth.map(d=>d.link).filter(Boolean)), goneGeo=new Set(delBoth.map(d=>d.geo));
+  holes=holes.filter(h=>!(h.link && gone.has(h.link)) && !(!h.link && goneGeo.has(geoKey(h))));
+  let added=0, moved=0;
+  both.forEach(h=>{ const q={ ...clone(h) }; delete q.depth; delete q.face;
+    const i=holes.findIndex(x=>x.link===h.link); const j = i>=0 ? i : holes.findIndex(x=>!x.link && geoKey(x)===geoKey(h));
+    if(j>=0){ if(geoKey(holes[j])!==geoKey(q)) moved++; holes[j]=q; } else { holes.push(q); added++; } });
+  const removed=(P.blank?0:(P.holes||[]).length)+added-holes.length;
+  if(!added && !moved && removed<=0){ delBoth=[]; return ''; }
+  const canOver = !P.blank && P.src==='team' && !P.std && !P.mirrorOf && !String(P.id||'').includes('~m');
+  const t={ ...P, kind:ps.kind, len:ps.len, t:P.t||K2.t, z:P.z ?? K2.z, holes, std:false, cnc:holes.length>0,
+    id: canOver ? P.id : nextId(`${K2.code}${String(ps.len).padStart(2,'0')}`),
+    name: canOver ? P.name : `${ps.len}′ ${K2.label.toLowerCase()} · holes through both floors`,
+    source:`Layer builder ${new Date().toISOString().slice(0,10)} · holes through both floors with ${l.id}` };
+  delete t.blank; delete t.src; delete t.mirrorOf; delete t.by; delete t.saved;
+  if(!t.build){ const std=LAYERLIB.find(x=>x.std && x.kind===t.kind && x.build); if(std) t.build=clone(std.build); }
+  await putLayer(t);
+  chooseLayer(ps, t.id); delBoth=[];
+  const bits=[added&&`${added} cut`, moved&&`${moved} moved`, removed>0&&`${removed} removed`].filter(Boolean).join(', ');
+  return ` · ${otherName()} (${t.id}): ${bits}`;
 }
 window.addEventListener('cubit:shapes', ()=>{ if(dlg?.open){ shapePick=true; render(); } });
 export { openLayerBuilder };

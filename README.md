@@ -403,6 +403,9 @@ Open the panel builder from a wall of a home (the wall's panel → Panel builder
 
 The same moves are in Build: pick a wall in 3D, then tap a plug or switch in its panel (Plugs & switches). It gets the same arrows (chase to chase, or 1″ / ½″ / ⅛″) and typed position, is ringed in orange in the 3D view, and each move goes on the home at once so you see it against the furniture (Undo takes it back).
 
+## Holes through both floor layers
+In the panel builder for a pod's interior or exterior floor (opened from the pod), a hole right through has **Through both floor layers**: saving cuts the same hole in the pod's other floor too (both floors use the pod's own frame, seen from above), and that floor is saved and put on the pod. A linked pair keeps one `link` id, so moving or resizing the hole moves its twin on the next save. Removing a hole that has a twin in the other floor (linked, or the same place and size) asks **Both floors** or **Only this floor**; turning the switch off or making it a pocket asks the same. A team layer made in the builder is saved over; a standard, scanned or mirrored floor becomes a new layer. Roofs and ceilings don't have this (a roof only gets holes if a pod goes on top; rules for that later).
+
 ## Windows & doors in the Library
 Three categories: **Windows**, **Exterior doors** (man doors, patio doors) and **Interior doors** (units with `"place": "int"` in data/units.json). An interior door is only offered in interior walls, and where one fits there only interior doors are offered (so an interior opening no longer picks the steel exterior man door by itself). Two interior door samples (34 × 80 and 36 × 82 prehung) stand in until the real units are uploaded.
 
