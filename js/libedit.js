@@ -12,13 +12,14 @@ import { MODELS, LIB, LAYERLIB, PODLIB, DECKLIB, clearMirrors } from './data.js'
 import { FAMILIES } from './catalog.js';
 import { ITEMS } from './casework.js';
 import { UNITLIB } from './units.js';
+import { DEVICES } from './devices.js';
 
 const LOCAL_KEY = 'cubit-library-edits';
 const KEEP_MS = 14*24*3600*1000;   // deleted things can come back for two weeks
 let remote = false, ED = { names:{}, gone:{}, hand:{}, fams:[] };
 const ORIG = new Map();          // "kind:id" → the name it had before any rename
 
-const lists = () => ({ walls:LIB, layers:LAYERLIB, pods:PODLIB, decks:DECKLIB, families:FAMILIES, casework:ITEMS, units:UNITLIB });
+const lists = () => ({ walls:LIB, layers:LAYERLIB, pods:PODLIB, decks:DECKLIB, families:FAMILIES, casework:ITEMS, units:UNITLIB, devices:DEVICES });
 const idOf = x => x.id ?? x.k;   // cabinets, appliances and fixtures are known by their k
 function itemsOf(kind){
   if(kind==='models') return Object.entries(MODELS).map(([id,m])=>({id, ref:m}));
@@ -36,7 +37,7 @@ async function loadEdits(){
 function applyEdits(){
   // model names the team added (Homes → Cubit Homes → ＋ New model name)
   (ED.fams||[]).forEach(f=>{ if(!FAMILIES.find(x=>x.id===f.id)) FAMILIES.push({ id:f.id, name:f.name, base:null, added:true }); });
-  ['families','models','pods','walls','layers','decks','casework','units'].forEach(kind=>itemsOf(kind).forEach(({id,ref})=>{
+  ['families','models','pods','walls','layers','decks','casework','units','devices'].forEach(kind=>itemsOf(kind).forEach(({id,ref})=>{
     const k=`${kind}:${id}`;
     // drafts and team homes (Purgatory, customers) carry their own names, renamed on their own: never put back
     if(kind==='models' && (ref.custom || ref.project)){ ORIG.set(k, ref.name); }

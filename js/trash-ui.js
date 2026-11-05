@@ -14,6 +14,7 @@ import { MODELS, LIB, LAYERLIB, DECKLIB, PODLIB } from './data.js';
 import { FAMILIES } from './catalog.js';
 import { ITEMS, CATS } from './casework.js';
 import { UNITLIB, TYPES } from './units.js';
+import { DEVICES } from './devices.js';
 import { CUSTOMERS, customerById, restoreCustomer } from './customers.js';
 import { deletedDrafts, restoreDraft } from './drafts.js';
 import { deletedProjects, restoreDeleted } from './projects.js';
@@ -46,6 +47,7 @@ function groups(){
       ['decks', 'Decks', lib('decks', DECKLIB, x=>`${x.w||''}′ × ${x.d||''}′`)],
       ['pods', 'Pods', lib('pods', PODLIB, x=>x.size||'')]]],
     ['Windows & doors', [['units', 'Windows & doors', lib('units', UNITLIB, x=>[TYPES[x.type]?.label, x.place==='int'?'interior':'', `${x.w} × ${x.h}″`].filter(Boolean).join(' · '))]]],
+    ['Plugs & switches', [['devices', 'Plugs & switches', lib('devices', DEVICES, x=>({sw:'switch',rc:'plug',dt:'data / TV'}[x.kind]||''))]]],
     ['Inside', [['casework', 'Cabinets, appliances & fixtures', lib('casework', ITEMS, x=>[CATS.find(c=>c.k===x.cat)?.name, x.k].filter(Boolean).join(' · '))]]],
   ];
 }

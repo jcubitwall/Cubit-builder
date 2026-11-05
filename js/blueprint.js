@@ -451,8 +451,8 @@ function sElectrical(ctx, sh){
   let g=deckSVG(H_, xf)+planFurniture(ctx, xf, { tone:'#b7bccb', label:false })+drawWalls(H_, xf, { light:true, labels:false })+roomLabels(H_, xf, { dims:false });
   const s=Math.max(0.8, Math.min(1.3, xf.k/18)), cnt={};
   H_.lights.forEach(L=>{ const [x,y]=xf.P(L.p); g+=ELEC.pot(x,y,s); cnt.pot=(cnt.pot||0)+1; });
-  const SW=[], SWP={};
-  wallBoxes(H_).forEach(({b,p,ext})=>{ const [x,y]=xf.P(p); const kind=b.kind==='light'?'light':(boxKind(b, ext)||b.kind);
+  const SW=[], SWP={}, DEVN={};
+  wallBoxes(H_).forEach(({b,p,ext})=>{ (b.devs||[]).forEach(n=>{ DEVN[n]=(DEVN[n]||0)+1; }); const [x,y]=xf.P(p); const kind=b.kind==='light'?'light':(boxKind(b, ext)||b.kind);
     const c1=c=>{ cnt[c]=(cnt[c]||0)+1; };
     if(kind==='wp' || ((kind==='plug'||kind==='counter'||kind==='appl'||kind==='gfci') && ext)){ g+=ELEC.outlet(x,y,s,true); c1('wp'); }
     else if(kind==='plug'){ g+=ELEC.outlet(x,y,s,false); c1('outlet'); }
@@ -474,7 +474,8 @@ function sElectrical(ctx, sh){
   // legend
   const LG=[['pot','pot',`4" POT LIGHT (CEILING)`],['outlet','outlet','DUPLEX RECEPTACLE @ 16"'],['counter','outlet','COUNTER RECEPTACLE @ 42"'],['gfci','outlet','GFCI RECEPTACLE @ 42"'],['appl','outlet','APPLIANCE RECEPTACLE'],['jbox','box','JUNCTION BOX (HARDWIRED)'],['tvr','outlet','RECESSED TV BOX (BEHIND TV)'],['wp','outlet','EXTERIOR WP RECEPTACLE'],['switch','switch','SWITCH @ 48"'],['double','switch','DOUBLE SWITCH @ 48"'],['sw3','switch','3-WAY / 4-WAY SWITCH'],['data','data','DATA / COMMS'],['xl','light','EXTERIOR WALL LIGHT'],['box','box','JUNCTION / DEVICE BOX']].filter(([c])=>cnt[c]);
   const swSeen=new Set(), swRows=SW.filter(b=>!swSeen.has(b.sn) && swSeen.add(b.sn)).sort((p,q)=>+p.sn.slice(1)-+q.sn.slice(1)), swLines=swRows.reduce((n,b)=>n+wrap(`${b.sn}: ${b.uses||''}`.toUpperCase(), 236, 7).length, 0);
-  const swH = swRows.length ? 20 + (swRows.some(b=>(b.links||[]).length)?11:0) + swLines*9 + 6 : 0;
+  const devRows=Object.entries(DEVN).sort((p,q)=>q[1]-p[1]), devLines=devRows.reduce((n,[nm,c])=>n+wrap(`${c} × ${nm}`.toUpperCase(), 236, 7).length, 0);
+  const swH = (swRows.length ? 20 + (swRows.some(b=>(b.links||[]).length)?11:0) + swLines*9 + 6 : 0) + (devRows.length ? 22 + devLines*9 : 0);
   let lx=AREA.x0+10, ly=AREA.y0+20; g+=rect(lx-6, ly-14, 250, 30+LG.length*18+44+swH, {fill:'#fff', stroke:BLUE, sw:0.6})+tx(lx, ly, 'ELECTRICAL LEGEND', {size:11, weight:'bold', fill:BLUE}); ly+=20;
   LG.forEach(([c,sym,t])=>{ g+=ELEC[sym](lx+8, ly-3, 1.2, c==='wp')+tx(lx+24, ly, t, {size:8.5, fill:BLUE})+tx(lx+236, ly, String(cnt[c]), {size:8.5, anchor:'end', weight:'bold', fill:BLUE}); ly+=18; });
   wrap('CIRCUITING, PANEL SCHEDULE AND CABLE SIZES BY THE ELECTRICIAN UNLESS SHOWN ON E-SERIES SHEETS. ALL WORK TO THE CANADIAN ELECTRICAL CODE.', 236, 7).forEach(l=>{ g+=tx(lx, ly+2, l, {size:7, fill:GREY}); ly+=9; });
@@ -483,6 +484,9 @@ function sElectrical(ctx, sh){
     ly+=8; g+=tx(lx, ly, 'SWITCH SCHEDULE', {size:9.5, weight:'bold', fill:BLUE}); ly+=12;
     if(rows.some(b=>(b.links||[]).length)){ g+=`<path d="M${lx} ${ly-3} Q${lx+9} ${ly-9} ${lx+18} ${ly-3}" fill="none" stroke="${RED}" stroke-width="0.8" stroke-dasharray="4 2.5"/>`+tx(lx+24, ly, 'DASHED ARC = SWITCHES TIED AS 3-WAY / 4-WAY', {size:7, fill:BLUE}); ly+=11; }
     rows.forEach(b=>{ wrap(`${b.sn}: ${b.uses||''}`.toUpperCase(), 236, 7).forEach((l,i)=>{ g+=tx(lx+(i?10:0), ly, l, {size:7, fill:BLUE}); ly+=9; }); }); }
+  // the devices in the boxes (switches, receptacles, data): how many of each
+  if(devRows.length){ ly+=10; g+=tx(lx, ly, 'DEVICES', {size:9.5, weight:'bold', fill:BLUE}); ly+=12;
+    devRows.forEach(([nm,c])=>{ wrap(`${c} × ${nm}`.toUpperCase(), 236, 7).forEach((l,i)=>{ g+=tx(lx+(i?10:0), ly, l, {size:7, fill:BLUE}); ly+=9; }); }); }
   return g;
 }
 /* P11: fixtures in blue with drain sizes */

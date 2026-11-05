@@ -1264,3 +1264,12 @@ dialog.v3-dlg.v3-full .v3-cube{top:max(12px, env(safe-area-inset-top,0px));right
 .sw-sched td{padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:top}
 
 .sw-chip{display:inline-block;font:700 10px var(--mono);color:#fff;background:var(--c);border-radius:999px;padding:1px 7px;margin:0 3px;vertical-align:1px}
+
+.sw-devrow{width:100%;padding-left:26px}
+.sw-dev{max-width:100%}
+.sw-and{font-size:12px;color:var(--muted)}
+
+.dev-dlg label{display:flex;flex-direction:column;gap:3px;font-size:13px;margin:6px 0}
+.dev-dlg input,.dev-dlg select{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+.dv-feats{border:1px solid var(--line);border-radius:8px;display:flex;flex-wrap:wrap;gap:4px 12px;padding:6px 10px}
+.dv-feats .chk{flex-direction:row;align-items:center;gap:5px;margin:0}

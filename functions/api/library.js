@@ -10,7 +10,7 @@
 import { whoIs, json, atLeast, denied } from '../_auth.js';
 import { atomic } from '../_store.js';
 const KEY = 'catalog/library-edits.json';
-const KINDS = ['families','models','pods','walls','layers','decks','casework','units'];   // casework = cabinets, appliances, fixtures …; units = windows and doors
+const KINDS = ['families','models','pods','walls','layers','decks','casework','units','devices'];   // casework = cabinets, appliances, fixtures …; units = windows and doors
 const FIXED = ['lifepod','nest','haven','cove','panorama','expanse'];   // the model names in data/families.json
 async function read(env){
   const o = await env.STEPS.get(KEY); const empty = { names:{}, gone:{}, hand:{}, fams:[] };

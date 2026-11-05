@@ -23,6 +23,8 @@ import { MODELS } from './data.js';
 import { state } from './state.js';
 import { ITEMS, itemDef, catOf as cwCat, partsOf, totals, hardwareOf, newItem, settings } from './casework.js';
 import { UNITLIB, TYPES, unitFor, catOf as opCat } from './units.js';
+import { DEVICES } from './devices.js';
+import { deviceCounts } from './electrical.js';
 import { slotsFor, layerSlotsFor, podList } from './layout.js';
 import { bodyWall } from './panels.js';
 import { pickFor } from './state.js';
@@ -72,6 +74,7 @@ const JOBS = { // job → [name, per, trade]
 function products(){
   const out=[], seen=new Set(), add=(key, group, name, unit)=>{ if(seen.has(key)) return; seen.add(key); out.push({ key, group, name, unit }); };
   UNITLIB.filter(u=>!u.deleted).forEach(u=>add(`unit:${u.id}`, 'Windows & doors', `${u.name} (${u.id})`, 'each'));
+  DEVICES.filter(d=>!d.deleted).forEach(d=>add(`dev:${d.id}`, 'Plugs & switches', `${d.name} (${d.id})`, 'each'));
   ITEMS.filter(d=>!d.deleted).forEach(d=>{ let it; try{ it=newItem(d.k); }catch(e){ return; } if(!bought(it)) return;
     add(`item:${d.k}`, cwCat(d.cat)?.name || 'Bought items', made(it) ? `${d.name} (bought parts)` : d.name, 'each'); });
   const S=settings();
@@ -106,6 +109,8 @@ function homeCost(k=state.model){
     // windows and doors (one per opening, the unit chosen there)
     const u={}; slotsFor(k).forEach(s=>{ const w=bodyWall(s, pickFor(s)); (w?.openings||[]).filter(opCat).forEach(o=>{ const r=unitFor(s,o); if(r) (u[r.unit.id] ||= { n:0, name:`${r.unit.name} (${r.unit.id})` }).n++; }); });
     Object.entries(u).forEach(([id,x])=>add('Windows & doors', `unit:${id}`, x.name, x.n, 'each'));
+    // plugs, switches and data jacks in the boxes laid out by the electrical rules (the devices chosen in each)
+    try{ deviceCounts(k).forEach(x=>add('Plugs & switches', `dev:${x.id}`, x.name, x.n, 'each')); }catch(e){}
     // SIP panels: walls (a cut panel takes a whole one) and the floor, ceiling and roof layers (one per 4′ of pod)
     const walls={}; homePlans().forEach(pl=>{ const t=pl.slot.type==='int'?'wall-int':'wall-ext'; walls[t]=(walls[t]||0)+pl.panels.length; });
     Object.entries(walls).forEach(([t,n])=>add('SIP panels', `sip:${t}`, SIP[t], n, 'each'));

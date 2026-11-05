@@ -15,6 +15,7 @@ import { buildUnit } from './scene3d.js';
 import { itemModel } from './casework3d.js';
 import { newItem, itemDef } from './casework.js';
 import { UNITLIB, TYPES } from './units.js';
+import { deviceById, deviceSVG } from './devices.js';
 
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const DIRS={ top:[0,1,0], bottom:[0,-1,0], front:[0,0,-1], back:[0,0,1], right:[1,0,0], left:[-1,0,0] };
@@ -134,6 +135,19 @@ function showUnit(u){
   const g=buildUnit(o, { unit:u, hand:u.hand||'L', swing:u.swing||'in' }, Math.max(0.4,(u.d||4.5)/12+0.05), u.place==='int');
   content=new THREE.Group(); content.add(g);
 }
+/* a switch / plug / data device: its cover plate (2¾ × 4½″, one gang) with the front view on it */
+function showDevice(d){
+  const g=new THREE.Group(), W=2.75/12, H=4.5/12, T=0.25/12;
+  const back=new THREE.Mesh(new THREE.BoxGeometry(W*1.0, H*1.0, T), new THREE.MeshStandardMaterial({ color:0xf1efe8, roughness:0.5 })); g.add(back);
+  const img=new Image(), cv=document.createElement('canvas'); cv.width=256; cv.height=256; const tex=new THREE.CanvasTexture(cv);
+  img.onload=()=>{ const x=cv.getContext('2d'); x.fillStyle='#f1efe8'; x.fillRect(0,0,256,256); x.drawImage(img, 14*4, 4*4, 36*4, 56*4, 0, 0, 256, 256); tex.needsUpdate=true; };   // just the plate of the front view
+  img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(deviceSVG(d, 256).replace('<svg ','<svg xmlns="http://www.w3.org/2000/svg" '));
+  const face=new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshBasicMaterial({ map:tex, transparent:false }));
+  face.position.z=T/2+0.0005; g.add(face);
+  const box=new THREE.Mesh(new THREE.BoxGeometry(2/12, 3/12, 2.5/12), new THREE.MeshStandardMaterial({ color:0x4a6fa5, roughness:0.7, transparent:true, opacity:0.35 })); box.position.z=-1.25/12-T/2; g.add(box);
+  g.rotation.y=Math.PI;   // its face toward the camera
+  content=new THREE.Group(); content.add(g); spread([box], ()=>new THREE.Vector3(0,0,0.25));
+}
 function showDeck(D){ const g=buildDeckMesh(D, DECK_MAT); content=new THREE.Group(); content.add(g); radial(g, 0.6); }
 /* a home (or one pod on its own): built by Build, copied with its exploded positions, then Build is put back */
 function showHome(modelKey){
@@ -208,6 +222,7 @@ function openViewer(kind, id, opts={}){
     else if(kind==='layers'){ const L=LAYERLIB.find(x=>x.id===id); if(!L) return; title=L.name; sub=`${L.id} · ${LAYER_NAME[L.kind]||L.kind} · ${L.len}′`; showLayer(L); }
     else if(kind==='casework'){ const d=itemDef(id); if(!d) return; const it=newItem(id); title=d.name; sub=`${id} · ${it.w} × ${it.h} × ${it.d}″`; showCase(it); }
     else if(kind==='units'){ const u=UNITLIB.find(x=>x.id===id); if(!u) return; title=u.name; sub=`${u.id} · ${TYPES[u.type]?.label||u.type}${u.place==='int'?' · interior':''} · ${u.w} × ${u.h}″`; showUnit(u); }
+    else if(kind==='devices'){ const d=deviceById(id); if(!d) return; title=d.name; sub=`${d.id} · ${d.kind==='sw'?'switch':d.kind==='rc'?'plug (receptacle)':'data / TV'} · with its box behind`; showDevice(d); }
     else if(kind==='decks'){ const D=DECKLIB.find(x=>x.id===id); if(!D) return; title=D.name; sub=`${D.id} · ${D.w}′ × ${D.d}′ deck`; showDeck(D); }
   }catch(e){ console.error(e); }
   if(!content){ return; }

@@ -8,7 +8,8 @@ import { slotsFor } from './layout.js';
 import { bodyWall } from './panels.js';
 import { canSave } from './role.js';
 import { fin } from './format.js';
-import { usesRules, homeAuto, slotAuto, summary, relay, setData, setThreeWay, removeBox, restoreBox, moveBox, resetBox, setGang, GANG, CONTROLS, setSwitchUse, pairSwitch, unpairSwitch, switchSchedule, switchLinks, addBox, boxesOn, ruleWall, nextChase, elecOf, ELEC_H, ELEC_NAME } from './electrical.js';
+import { devicesOf, deviceById } from './devices.js';
+import { usesRules, homeAuto, slotAuto, summary, relay, setData, setThreeWay, removeBox, restoreBox, moveBox, resetBox, setGang, GANG, CONTROLS, setSwitchUse, pairSwitch, unpairSwitch, switchSchedule, switchLinks, setDevice, deviceCounts, addBox, boxesOn, ruleWall, nextChase, elecOf, ELEC_H, ELEC_NAME } from './electrical.js';
 
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const SHORT = { plug:'Plug', counter:'Counter plug', gfci:'GFCI plug', appl:'Appliance plug', jbox:'Junction box', switch:'Switch', double:'Double switch', data:'Data', wp:'Outside plug', tvr:'TV box (recessed)' };
@@ -28,10 +29,19 @@ function editor(b){
     <div class="cw-opt"><span>Box size</span><div class="seg sm" role="group" aria-label="Box size">${[[1,'Single'],[2,'Double'],[3,'Triple']].map(([v,l])=>`<button data-eg="${v}" aria-pressed="${(b.g||1)===v}" title="${l} gang · ${fin(GANG[v].w)} × ${fin(GANG[v].h)}">${l}</button>`).join('')}</div></div>
     <div class="cw-opt"><span>Each tap</span><div class="seg sm">${STEPS.map(([v,l])=>`<button data-estep="${v}" aria-pressed="${step===v}">${l}</button>`).join('')}</div></div>
     <div class="cw-fs">${f('x', `Centre from the left${b.face==='in'?' (seen from inside)':''}`, b.x)}${f('y','Centre from the floor', b.y)}</div>
-    ${switchUsesHTML(b)}</div>`;
+    ${switchUsesHTML(b)}${plugDevicesHTML(b)}</div>`;
 }
 /* a switch box: what each switch in it does, and 3-way pairs (any two switches, in one room or across an open space).
    Changes go on this home at once (shared with the panel builder). */
+const devSel = (kinds, cur, i) => `<select data-dev="${i}" class="sw-dev" aria-label="Device ${i+1}">${kinds.map(k=>`<optgroup label="${k==='sw'?'Switches':k==='rc'?'Plugs (receptacles)':'Data & TV'}">${devicesOf(k).map(d=>`<option value="${esc(d.id)}" ${d.id===cur?'selected':''}>${esc(d.name)}</option>`).join('')}</optgroup>`).join('')}</select>`;
+/* a plug, data or TV box: the device in each gang */
+function plugDevicesHTML(b){
+  if(b.sn || !b.devs || b.rk==='jbox') return '';
+  const kinds = b.rk==='data' ? ['dt','rc'] : b.rk==='tvr' ? ['rc','dt'] : ['rc','dt'];
+  return `<div class="sw-uses"><div class="eyebrow">Device${b.devs.length>1?'s':''} · what goes in the box</div>
+    ${b.devs.map((id,i)=>`<div class="sw-u"><span class="sw-n">${b.devs.length>1?i+1:'•'}</span>${devSel(kinds, id, i)}</div>`).join('')}
+    <p class="note">Plugs &amp; switches in the Library: every type, and ＋ New to add one.</p></div>`;
+}
 function switchUsesHTML(b){
   if(!b.sn || !b.uses) return '';
   const others=switchSchedule().filter(x=>x.id!==b.id);
@@ -39,6 +49,8 @@ function switchUsesHTML(b){
     ${b.uses.map((u,i)=>`<div class="sw-u" data-swi="${i}"><span class="sw-n">${b.uses.length>1?i+1:'•'}</span>
       ${linkChip(u)}<select data-swc="${i}" aria-label="Switch ${i+1} controls">${Object.entries(CONTROLS).map(([k,l])=>`<option value="${k}" ${u.c===k?'selected':''}>${esc(l)}</option>`).join('')}</select>
       ${u.c==='other'?`<input data-swt="${i}" value="${esc(u.t||'')}" placeholder="What it switches" maxlength="40">`:''}
+      ${(u.n||1)>1?`<span class="sw-and">and</span><select data-swc2="${i}" aria-label="Its second switch controls">${Object.entries(CONTROLS).map(([k,l])=>`<option value="${k}" ${(u.c2||'none')===k?'selected':''}>${esc(l)}</option>`).join('')}</select>`:''}
+      <div class="sw-devrow">${devSel(['sw'], b.devs?.[i]||u.dev, i)}</div>
       <div class="seg sm" role="group" aria-label="Way"><button data-sww="${i}" data-v="1" aria-pressed="${(u.way||1)===1}">1-way</button><button data-sww="${i}" data-v="3" aria-pressed="${u.way>1}">${u.way===4?'4-way':'3-way'}</button></div>
       ${u.way>1?`<span class="sw-with">with ${u.with.map(id=>{ const o=others.find(x=>x.id===id); return o?`<b>${esc(o.sn)}</b> <small>${esc(o.wall)}</small>`:''; }).filter(Boolean).join(', ')||'<span class="el-warn">pick the other switch</span>'}
         <select data-swp="${i}" aria-label="3-way with"><option value="">＋ pair with…</option>${others.filter(o=>!u.with.includes(o.id)).map(o=>`<option value="${esc(o.id)}">${esc(o.sn)} · ${esc(o.wall)}${o.why?` · ${esc(o.why.replace(/^switch, /,''))}`:''}</option>`).join('')}</select></span>`:''}
@@ -46,6 +58,8 @@ function switchUsesHTML(b){
     <p class="note">More switches in one box: make it Double or Triple above. Pair any two switches as a 3-way (three or more: 4-way in the middle), in one room or across an open space.</p></div>`;
 }
 function bindSwitchUses(root, id, after){
+  root.querySelectorAll('[data-dev]').forEach(el=>el.onchange=()=>{ setDevice(id, +el.dataset.dev, el.value); after(); });
+  root.querySelectorAll('[data-swc2]').forEach(el=>el.onchange=()=>{ setSwitchUse(id, +el.dataset.swc2, { c2:el.value }); after(); });
   root.querySelectorAll('[data-swc]').forEach(el=>el.onchange=()=>{ setSwitchUse(id, +el.dataset.swc, { c:el.value }); after(); });
   root.querySelectorAll('[data-swt]').forEach(el=>el.onchange=()=>{ setSwitchUse(id, +el.dataset.swt, { t:el.value.trim() }); after(); });
   root.querySelectorAll('[data-sww]').forEach(el=>el.onclick=()=>{ const i=+el.dataset.sww; if(el.dataset.v==='1') unpairSwitch(id, i); else setSwitchUse(id, i, { way:3 }); after(); });
@@ -117,7 +131,7 @@ function elecWallBlock(s){
   const P=summary(), gone=(P?.removed||[]).filter(b=>b.W.s.id===s.id);
   const row=b=>{ const tags=[b.chase||b.face==='out'?`<span class="el-ok">on a chase${b.nudge>0.01?` · ${fin(b.nudge)} off centre`:''}</span>`:'<span class="el-warn">needs a chase</span>', ...b.flags.filter(f=>f!=='needs a chase').map(f=>`<span class="el-warn">${esc(f)}</span>`), b.moved?'<span class="el-tag">moved</span>':'', b.user?'<span class="el-tag">added</span>':''].filter(Boolean).join(' ');
     return `<div class="el-row${pickId===b.id?' on':''}" data-id="${esc(b.id)}" data-face="${b.face}" data-a="${b.a}" data-x="${b.x}" data-y="${b.y}" ${b.lock?'':'data-pick="1"'}>
-      <div><b>${esc(b.way>1 ? `${b.way}-way switch` : SHORT[b.rk]||b.name)}</b>${b.sn?` <span class="sw-sn">${esc(b.sn)}</span>`:''}${(b.g||1)>1?` · ${b.g===3?'triple':'double'} box`:''}${(b.uses||[]).map(linkChip).join('')}${b.useText?`<small class="sw-txt">${esc(b.useText)}</small>`:''}${b.face==='out'?' · outside':''} <small>${fin(b.x)} from the left${b.face==='in'?' (seen from inside)':''} · ${fin(b.y)} up${b.note?` · ${esc(b.note)}`:''}</small><div class="el-tags">${tags}</div></div>
+      <div><b>${esc(b.way>1 ? `${b.way}-way switch` : SHORT[b.rk]||b.name)}</b>${b.sn?` <span class="sw-sn">${esc(b.sn)}</span>`:''}${(b.g||1)>1?` · ${b.g===3?'triple':'double'} box`:''}${(b.uses||[]).map(linkChip).join('')}${b.useText?`<small class="sw-txt">${esc(b.useText)}</small>`:(b.devs||[]).length?`<small class="sw-txt">${esc((b.devs||[]).map(id=>deviceById(id)?.name).filter(Boolean).join(' · '))}</small>`:''}${b.face==='out'?' · outside':''} <small>${fin(b.x)} from the left${b.face==='in'?' (seen from inside)':''} · ${fin(b.y)} up${b.note?` · ${esc(b.note)}`:''}</small><div class="el-tags">${tags}</div></div>
       ${b.lock?`<div class="el-act"><span class="el-ok" title="It goes where the fireplace goes: move the fireplace, or change its Power (Plug / Hardwired)">🔒 with the fireplace</span></div>`:`<div class="el-act edit-only"><button class="btn ghost sm" data-mv="-1" title="Next chase to the left" aria-label="Next chase to the left">◀</button><button class="btn ghost sm" data-mv="1" title="Next chase to the right" aria-label="Next chase to the right">▶</button>${b.moved?'<button class="btn ghost sm" data-reset title="Back to where the rule put it" aria-label="Reset">↺</button>':''}<button class="btn ghost sm" data-rm title="Remove" aria-label="Remove">✕</button></div>`}</div>${pickId===b.id && !b.lock ? editor(b) : ''}`; };
   const adds=['plug','switch','counter','data', ...(s.type==='ext'?['wp']:[])];
   if(!on) return `<div class="el-box"><div class="eyebrow">Plugs & switches</div>
@@ -193,6 +207,7 @@ function render(){
     <p>${all?'Every wall of this home gets its':'Some walls of this home (swapped in or on added pods) get their'} plugs and switches from the rules. ${cnt}</p>
     ${conf?`<div class="eyebrow">Confirm · rooms with more than one entrance</div>${conf}`:''}
     ${(()=>{ const S=switchSchedule(k); return S.length ? `<div class="eyebrow">Switch schedule · for the electrician</div><table class="sw-sched"><tbody>${S.map(x=>`<tr><th>${esc(x.sn)}</th><td><button class="linkbtn el-flag-l" data-slot="${esc(x.slot)}">${esc(x.wall)}</button>${x.g>1?` · ${x.g===3?'triple':'double'}`:''}</td><td>${(x.uses||[]).map(linkChip).join('')} ${esc(x.text)}</td></tr>`).join('')}</tbody></table><p class="note">Tap a wall to go to it; pick a switch there to say what each one does.</p>` : ''; })()}
+    ${(()=>{ const D=deviceCounts(k); return D.length ? `<details class="help"><summary>Devices to buy (${D.reduce((t,x)=>t+x.n,0)})</summary><table class="sw-sched"><tbody>${D.map(x=>`<tr><th>${x.n} ×</th><td>${esc(x.name)}</td></tr>`).join('')}</tbody></table></details>` : ''; })()}
     <div class="eyebrow">Options</div>
     <label class="el-opt"><input type="checkbox" id="elData" ${E.data?'checked':''}> Data boxes (network / TV): the TV wall in front of a sofa and opposite each bed</label>
     ${(P.flags||[]).length?`<div class="eyebrow">Couldn't follow the rules</div>${P.flags.map(f=>`<button class="el-flag" ${f.w?`data-slot="${esc(f.w)}"`:''}>${esc(f.t)}</button>`).join('')}`:''}
@@ -222,4 +237,4 @@ function openElectrical(){
   render(); dlg.showModal();
 }
 /* (no ⋯ menu item: Electrical lives in the Library → Electrical → Electrical rules, and on the home and wall panels) */
-export { switchUsesHTML, bindSwitchUses, elecWallBlock, bindElecWall, elecHomeLine, bindElecHome, openElectrical };
+export { plugDevicesHTML, switchUsesHTML, bindSwitchUses, elecWallBlock, bindElecWall, elecHomeLine, bindElecHome, openElectrical };

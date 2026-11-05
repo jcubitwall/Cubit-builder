@@ -43,6 +43,7 @@ import { makeHistory, histButtons, bindHistory } from './local-history.js';
 import { LIB, LAYERLIB, DECKLIB } from './data.js';
 import { UNITLIB, TYPES, unitSVG } from './units.js';
 import { itemRules, unitRules, rulesBox } from './item-rules.js';
+import { DEVICES, deviceSVG, saveDevice, newDeviceId, deviceById } from './devices.js';
 import { thumbSVG } from './panels.js';
 import { layerThumb } from './sidebar.js';
 import { rules, saveRules, sharedRules } from './wall-rules.js';
@@ -55,6 +56,7 @@ import { rules, saveRules, sharedRules } from './wall-rules.js';
 const NAV = [
   ['Building', [['b:walls','Walls'],['b:layers','Floors, ceilings & roofs'],['b:decks','Decks']]],
   ['Windows & doors', [['u:win','Windows'],['u:ext','Exterior doors'],['u:int','Interior doors']]],
+  ['Plugs & switches', [['d:sw','Switches'],['d:rc','Plugs (receptacles)'],['d:dt','Data & TV']]],
   ['Cabinets & wardrobes', ['base','upper','tall','linen','wardrobe','vanity','bench','shelf','counter']],
   ['Kitchen & laundry', ['appliance']],
   ['Bathroom', ['bath']],
@@ -71,7 +73,7 @@ function setTab(cat){
   if(cat==='elec') return ['Electrical rules','elec'];
   if(cat==='bath' || cat==='plumb') return ['Plumbing rules','plumb'];
   if(cat==='heat') return ['Heating rules','heat'];
-  if(cat==='appliance') return ['Electrical rules','elec'];
+  if(cat==='appliance' || cat.startsWith('d:')) return ['Electrical rules','elec'];
   return null;
 }
 const B_LIST = { 'b:walls':()=>LIB, 'b:layers':()=>LAYERLIB, 'b:decks':()=>DECKLIB };
@@ -80,8 +82,8 @@ const LAYER_NAME = {'floor-ext':'Exterior floor','floor-int':'Interior floor','c
 /* windows & doors (units.js): windows · exterior doors (man doors and patio doors) · interior doors (place 'int') */
 const U_OF = { 'u:win':u=>TYPES[u.type]?.cat==='window', 'u:ext':u=>TYPES[u.type]?.cat!=='window' && u.place!=='int', 'u:int':u=>u.place==='int' };
 const live = x => !x.deleted && !x.purged;
-const countOf = c => c.startsWith('b:') ? B_LIST[c]().filter(live).length : c.startsWith('u:') ? UNITLIB.filter(u=>U_OF[c](u) && live(u)).length : ITEMS.filter(i=>i.cat===c && live(i)).length;
-const navName = c => (c.startsWith('b:')||c.startsWith('u:')) ? NAV.flatMap(([,cs])=>cs).find(x=>Array.isArray(x) && x[0]===c)[1] : (CATS.find(x=>x.k===c)?.name || c);
+const countOf = c => c.startsWith('d:') ? DEVICES.filter(d=>d.kind===c.slice(2) && live(d)).length : c.startsWith('b:') ? B_LIST[c]().filter(live).length : c.startsWith('u:') ? UNITLIB.filter(u=>U_OF[c](u) && live(u)).length : ITEMS.filter(i=>i.cat===c && live(i)).length;
+const navName = c => (c.startsWith('b:')||c.startsWith('u:')||c.startsWith('d:')) ? NAV.flatMap(([,cs])=>cs).find(x=>Array.isArray(x) && x[0]===c)[1] : (CATS.find(x=>x.k===c)?.name || c);
 let showGone=false;
 /* undo / redo of the item on screen: its sizes, options and mirror */
 const pickIt = it => it ? JSON.parse(JSON.stringify({ w:it.w, h:it.h, d:it.d, y:it.y||0, opt:it.opt||{}, mirror:!!it.mirror })) : null;
@@ -118,6 +120,7 @@ function render(){
   if(view.tab==='set'){ if(st[1]==='shop'){ renderSettings(body); return; } body.innerHTML=nav+`<section class="cw-rules">${rulesFor(st[1])}</section>`; bindNav(body); bindRules(body); return; }
   if(view.item){ renderDetail(body); return; }
   if(view.cat.startsWith('b:')){ body.innerHTML=nav+buildingGrid(view.cat); bindNav(body); bindBuilding(body); return; }
+  if(view.cat.startsWith('d:')){ body.innerHTML=nav+deviceGrid(view.cat); bindNav(body); bindDevices(body); return; }
   // every other card: tap to open it; 3D quick view, and (editors) Rename and Delete, on each
   const unitCat=view.cat.startsWith('u:'), kind=unitCat?'units':'casework';
   const all=unitCat ? UNITLIB.filter(u=>U_OF[view.cat](u) && !u.purged) : ITEMS.filter(i=>i.cat===view.cat && !i.purged);
@@ -162,6 +165,50 @@ function bindBuilding(body){
   body.querySelectorAll('[data-bren]').forEach(b=>b.onclick=()=>lib().then(m=>m.askRename(kind, b.dataset.bren, again)));
   body.querySelectorAll('[data-bdel]').forEach(b=>b.onclick=()=>lib().then(m=>m.askDelete(b, kind, b.dataset.bdel, again)));
   body.querySelectorAll('[data-bres]').forEach(b=>b.onclick=()=>import('./libedit.js').then(async m=>{ try{ await m.restoreItem(kind, b.dataset.bres); toast('Restored'); render(); }catch(e){ toast(e.message); } }));
+}
+/* plugs & switches (devices.js): cards with a front view; 3D, Rename, Delete; ＋ New and Edit (team-added ones) */
+const FEATS = ['TR','WR','GFCI','AFCI','USB-A','USB-C','dimmer','smart','lighted','pilot','timer','sensor','fan','split','switched','240 V','outdoor','neutral'];
+const LOOKS = { sw:['rocker','toggle','double','triple','dimmer','rotary','smart','sensor','timer','fan','push','combo','therm'], rc:['decora','duplex','single','gfci','usb','big'], dt:['jack','coax','brush'] };
+function deviceGrid(cat){
+  const kind=cat.slice(2), all=DEVICES.filter(d=>d.kind===kind && !d.purged), items=all.filter(d=>!d.deleted), gone=all.length-items.length;
+  const word = kind==='sw'?'switch':kind==='rc'?'plug':'data jack';
+  return `<section class="cw-grid cw-bgrid"><div class="cw-bbar"><input type="search" id="cwQ" placeholder="Search names, IDs and features" aria-label="Search"><button class="btn sm editor-only" id="cwNewDev">＋ New ${word}</button>${gone?`<button class="linkbtn editor-only" id="cwGone">Deleted (${gone})</button>`:''}</div>
+    ${items.map(d=>`<div class="cw-card cw-bcard" data-did="${esc(d.id)}"><div class="cw-thumb">${deviceSVG(d, 96)}</div><b>${esc(d.name)}</b>
+      <small><code>${esc(d.id)}</code>${d.way&&d.kind==='sw'?` · ${d.way===1?'single-pole':d.way+'-way'}`:''}${d.amp?` · ${d.amp} A`:''}${d.n>1?` · ${d.n} in one gang`:''}${(d.feats||[]).length?` · ${esc(d.feats.join(', '))}`:''}${d.custom?' · added by the team':''}</small>
+      ${d.note?`<small>${esc(d.note)}</small>`:''}
+      <div class="cw-bact"><button class="btn ghost sm" data-c3d="${esc(d.id)}">3D</button>${d.custom?`<button class="btn ghost sm editor-only" data-dedit="${esc(d.id)}">Edit</button>`:''}<button class="btn ghost sm editor-only" data-cren="${esc(d.id)}">Rename</button><button class="btn ghost sm danger editor-only" data-cdel="${esc(d.id)}">Delete</button></div></div>`).join('') || '<p class="note">None yet.</p>'}</section>`;
+}
+function bindDevices(body){
+  const kind=view.cat.slice(2), again=()=>render(), lib=()=>import('./library-ui.js');
+  const q=body.querySelector('#cwQ'); if(q) q.oninput=()=>{ const Q=q.value.toLowerCase(); body.querySelectorAll('.cw-bcard').forEach(c=>{ c.hidden=!!Q && !c.textContent.toLowerCase().includes(Q); }); };
+  body.querySelector('#cwGone')?.addEventListener('click', ()=>import('./trash-ui.js').then(m=>m.openTrash('devices')));
+  body.querySelector('#cwNewDev')?.addEventListener('click', ()=>editDevice(null, kind));
+  body.querySelectorAll('[data-dedit]').forEach(b=>b.onclick=()=>editDevice(deviceById(b.dataset.dedit), kind));
+  body.querySelectorAll('[data-c3d]').forEach(b=>b.onclick=()=>import('./viewer3d.js').then(m=>m.openViewer('devices', b.dataset.c3d)));
+  body.querySelectorAll('[data-cren]').forEach(b=>b.onclick=()=>lib().then(m=>m.askRename('devices', b.dataset.cren, again)));
+  body.querySelectorAll('[data-cdel]').forEach(b=>b.onclick=()=>lib().then(m=>m.askDelete(b, 'devices', b.dataset.cdel, again)));
+}
+/* a new switch / plug / data device (or edit one the team added) */
+function editDevice(d, kind){
+  if(!canEdit()){ toast('Only editors and admins add to the Library.'); return; }
+  const k=d?.kind||kind, D=document.createElement('dialog'); D.className='lib-dlg';
+  const f=d||{ kind:k, way:1, n:1, feats:k==='rc'?['TR']:[], look:LOOKS[k][0] };
+  D.innerHTML=`<form method="dialog" class="dlg dev-dlg"><div class="dlg-h"><h2>${d?'Edit':'New'} ${k==='sw'?'switch':k==='rc'?'plug (receptacle)':'data / TV jack'}</h2></div>
+    <label>Name<input id="dvName" value="${esc(f.name||'')}" maxlength="80" placeholder="${k==='sw'?'e.g. Decora smart dimmer, 3-way':k==='rc'?'e.g. Duplex 15 A TR + USB-C':'e.g. Cat 6A jack'}" required></label>
+    ${k==='sw'?`<label>Works as<select id="dvWay"><option value="1" ${f.way===1?'selected':''}>Single-pole only</option><option value="3" ${f.way===3?'selected':''}>Single-pole or 3-way</option><option value="4" ${f.way===4?'selected':''}>4-way</option></select></label>`:''}
+    ${k!=='rc'?`<label>${k==='sw'?'Switches':'Jacks'} in one gang<select id="dvN">${[1,2,3].map(n=>`<option ${ (f.n||1)===n?'selected':''}>${n}</option>`).join('')}</select></label>`:''}
+    <label>Amps<input id="dvAmp" inputmode="numeric" value="${f.amp||''}" placeholder="15"></label>
+    <label>Looks like<select id="dvLook">${LOOKS[k].map(l=>`<option ${f.look===l?'selected':''}>${l}</option>`).join('')}</select></label>
+    <fieldset class="dv-feats"><legend>Features</legend>${FEATS.map(x=>`<label class="chk"><input type="checkbox" value="${x}" ${(f.feats||[]).includes(x)?'checked':''}> ${x}</label>`).join('')}</fieldset>
+    <label>Note<input id="dvNote" value="${esc(f.note||'')}" maxlength="300" placeholder="where it's used, a model to buy"></label>
+    <div class="row"><button class="btn" value="ok">Save to the Library</button><button class="btn ghost" value="cancel" formnovalidate>Cancel</button></div></form>`;
+  document.body.appendChild(D);
+  D.addEventListener('close', async()=>{ const ok=D.returnValue==='ok', v=id=>D.querySelector(id)?.value; const name=(v('#dvName')||'').trim();
+    const item={ id:d?.id || newDeviceId(k, name), kind:k, name, way:k==='sw'?+v('#dvWay'):undefined, n:k!=='rc'?+v('#dvN'):undefined, amp:+v('#dvAmp')||undefined, look:v('#dvLook'),
+      feats:[...D.querySelectorAll('.dv-feats input:checked')].map(i=>i.value), note:(v('#dvNote')||'').trim() };
+    D.remove(); if(!ok || !name) return;
+    try{ await saveDevice(item); toast(`${name} ${d?'saved':'added to the Library'}`); render(); }catch(e){ toast('Not saved: '+(e.message||e)); } });
+  D.returnValue=''; D.showModal();
 }
 /* the rules of a category (the Settings tab) */
 let RD=null;
