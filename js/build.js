@@ -20,7 +20,8 @@ import { camera, controls, renderer, homeGroup, pickables, buildHome, highlight 
 import { addPod, movePod, rotatePod, addDeck, moveDeck, dockSpots, deckSpots, foot, deckFoot } from './pods.js';
 import { renderModels, renderSide, toast } from './sidebar.js';
 import { deckName } from './deckframe.js';
-import { furnMeshes, furnById, snap, addItem, updateItem, refreshItem, applyFurniture, showFurnGhost, hideFurnGhost, turnItem, setHolderVisible, handleMeshes, roomBeyond, stretchTo, rotXZ, turnStart, turnTo, groupMembers, setMany, moveHolder, addRecipe, furnitureOf } from './furniture.js';
+import { furnMeshes, furnById, snap, addItem, updateItem, refreshItem, applyFurniture, showFurnGhost, hideFurnGhost, turnItem, setHolderVisible, handleMeshes, roomBeyond, stretchTo, rotXZ, turnStart, turnTo, groupMembers, setMany, moveHolder, addRecipe, furnitureOf, onFurnChanged } from './furniture.js';
+import { planFor } from './electrical.js';
 import { KITCHENS, kitchenById } from './kitchens.js';
 import { fmt as fmtCw, settings as cwSettings } from './casework.js';
 const fmtIn = v => fmtCw(v)+(cwSettings().units==='mm'?' mm':'″');
@@ -441,5 +442,14 @@ tray.addEventListener('click', e=>{
 /* ---------------------------------------------------------------- start: the flat plan */
 initViewCube({ reset:()=>{ if(state.focusPod!=null) document.querySelector('.pod-badge')?.click(); flatten(true); }, after:()=>{ renderModels(); buildHome(); renderSide(); }, toast });
 function startBuild(){ controls.enableRotate=false;   /* one-finger turning is ours (above); OrbitControls keeps pan and zoom */
-  renderTray(); setTimeout(()=>{ flatten(true); badge(); }, 60); }
+  renderTray(); setTimeout(()=>{ flatten(true); badge(); elecSig=elecSigNow(); }, 60); }
+/* a bed, desk, fridge … brings its plugs with it (electrical.js): when placing, moving, turning or removing one
+   changes the plugs, the walls are redrawn so they show at once */
+let elecSig=null, elecT=0;
+const elecSigNow = () => { try{ return JSON.stringify([state.model, planFor().boxes.map(b=>[b.W.s.id, b.face, Math.round(b.a*4), b.y, b.rk])]); }catch(e){ return ''; } };
+onFurnChanged(()=>{ clearTimeout(elecT); elecT=setTimeout(function again(){
+  if(D){ elecT=setTimeout(again, 250); return; }                 // not mid-drag
+  const s=elecSigNow(); if(s===elecSig) return;
+  elecSig=s; buildHome(); highlight(); }, 150); });
+window.addEventListener('cubit:home', ()=>{ elecSig=elecSigNow(); });
 export { startBuild, flatten, isFlat, renderTray, set2D, is2D };

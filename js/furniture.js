@@ -476,7 +476,10 @@ function fitKitchen(){
   try{ fitSinks(); fitCounters(); }catch(e){ console.warn('kitchen fit', e); }
   return L.filter(o=>before.get(o.id)!==JSON.stringify(o)).map(o=>o.id);
 }
-function changed(){ const moved=fitKitchen(); save(); if(group) moved.forEach(id=>refreshItem(byId(id))); }
+/* anything placed changed: fit the kitchen, save, and tell whoever listens (build.js redraws the walls when the
+   plugs a bed, desk or fridge brings with it have moved) */
+let changeHook=null; const onFurnChanged = f => { changeHook=f; };
+function changed(){ const moved=fitKitchen(); save(); if(group) moved.forEach(id=>refreshItem(byId(id))); changeHook?.(); }
 
 /* ---------------------------------------------------------------- sinks and windows
    Home frame (feet, as the walls are drawn: slot.p0, slot.n) ⇄ a pod's own frame (the furniture's u, v). */
@@ -550,4 +553,4 @@ const DEPTH_CATS=new Set(['base','upper','tall','linen','wardrobe','vanity','app
 function wallDepths(k=state.model){ const out={}; list(k).forEach(it=>{ if(it.wall && DEPTH_CATS.has(itemDef(it.k)?.cat)) out[it.wall]=Math.max(out[it.wall]||0, it.d); }); return out; }
 
 const podsShown = () => lastPods;
-export { centreUnderWindow, sinksOnWall, windowsIn, fitBaseToSink, dockAt, turnStart, turnTo, freeSpot, clash, setWalls, handleMeshes, roomBeyond, stretchTo, updateHandles, onFurnApplied, setCabExplode, resetCabExplode, cabExploded, explodeFurniture, furnHolder, podsShown, showFurnGhost, hideFurnGhost, setHolderVisible, list as furnitureOf, byId as furnById, buildFurniture, refreshItem, applyFurniture, furnMeshes, snap, podAt, addItem, updateItem, removeItem, duplicateItem, turnItem, podRemoved, wallDepths, shownCat, CATS as FURN_CATS , cabExplodeGoal , rotXZ, groupMembers, makeGroup, ungroup, relinkGroup, renameGroup, setGroupFrom, removeGroup, setMany, moveHolder, groupRecipe, placeRecipe, addRecipe };
+export { onFurnChanged, centreUnderWindow, sinksOnWall, windowsIn, fitBaseToSink, dockAt, turnStart, turnTo, freeSpot, clash, setWalls, handleMeshes, roomBeyond, stretchTo, updateHandles, onFurnApplied, setCabExplode, resetCabExplode, cabExploded, explodeFurniture, furnHolder, podsShown, showFurnGhost, hideFurnGhost, setHolderVisible, list as furnitureOf, byId as furnById, buildFurniture, refreshItem, applyFurniture, furnMeshes, snap, podAt, addItem, updateItem, removeItem, duplicateItem, turnItem, podRemoved, wallDepths, shownCat, CATS as FURN_CATS , cabExplodeGoal , rotXZ, groupMembers, makeGroup, ungroup, relinkGroup, renameGroup, setGroupFrom, removeGroup, setMany, moveHolder, groupRecipe, placeRecipe, addRecipe };
