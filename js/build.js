@@ -52,8 +52,41 @@ function flatten(fit=false){
     if(k<1) anim=requestAnimationFrame(step); else { controls.enableDamping=true; badge(); } };
   step();
 }
+/* ---------------------------------------------------------------- 2D: a true flat top view (the 2D / 3D button)
+   Straight down through an almost parallel lens (2° instead of 40°, from 20× as far): walls stand straight up, the
+   plan reads like a drawing. Tilting is locked; one finger on empty space pans, two pinch and turn (quarter turns);
+   pods, decks and cabinets drag straight away, as in the plan. 3D brings back the normal lens and tips the view. */
+let TWO_D=false;
+const FOV3=40, FOV2=2, K2D=Math.tan(FOV3*Math.PI/360)/Math.tan(FOV2*Math.PI/360);
+const is2D = () => TWO_D;
+function set2D(on){
+  if(on===TWO_D) return; TWO_D=on;
+  cancelAnimationFrame(anim); controls.enableDamping=false;
+  const t=controls.target, o=camera.position.clone().sub(t);
+  if(on){ camera.fov=FOV2; camera.near=2; camera.far=60000; controls.minDistance=1.5*K2D; controls.maxDistance=400*K2D; o.multiplyScalar(K2D);
+    controls.maxPolarAngle=0.001; controls.touches.ONE=THREE.TOUCH.PAN; controls.mouseButtons.LEFT=THREE.MOUSE.PAN; }
+  else { camera.fov=FOV3; camera.near=0.5; camera.far=500; controls.minDistance=1.5; controls.maxDistance=400; o.divideScalar(K2D);
+    controls.maxPolarAngle=Math.PI*0.999; controls.touches.ONE=THREE.TOUCH.ROTATE; controls.mouseButtons.LEFT=THREE.MOUSE.ROTATE; }
+  camera.position.copy(t).add(o); camera.updateProjectionMatrix(); controls.update(); controls.enableDamping=true;
+  if(on) flatten();
+  else { // tip back into 3D, keeping the heading
+    const p0=camera.position.clone(), d=p0.distanceTo(t), off=p0.clone().sub(t); let az=Math.atan2(off.x, off.z); if(Math.abs(off.x)+Math.abs(off.z)<1e-6) az=0;
+    const phi=0.95, end=new THREE.Vector3(t.x+Math.sin(phi)*Math.sin(az)*d, t.y+Math.cos(phi)*d, t.z+Math.sin(phi)*Math.cos(az)*d), T=performance.now();
+    controls.enableDamping=false;
+    const step=()=>{ const k=Math.min(1,(performance.now()-T)/320), e=k*k*(3-2*k); camera.position.lerpVectors(p0,end,e); camera.lookAt(t); controls.update();
+      if(k<1) anim=requestAnimationFrame(step); else { controls.enableDamping=true; badge(); } }; step(); }
+  document.body.classList.toggle('two-d', on);
+  btn2D.textContent = on ? '3D' : '2D'; btn2D.setAttribute('aria-pressed', on); btn2D.title = on ? 'Back to the 3D view' : 'Flat top view (true 2D) for placing cabinets';
+  badge();
+}
+const btn2D=document.createElement('button'); btn2D.className='vc-b vc-2d'; btn2D.id='vc2D'; btn2D.textContent='2D'; btn2D.setAttribute('aria-pressed','false'); btn2D.title='Flat top view (true 2D) for placing cabinets';
+btn2D.onclick=()=>set2D(!TWO_D);
+document.querySelector('.vcube-wrap .vc-hist')?.appendChild(btn2D);
+// a face of the view cube other than Top (or Bottom) leaves 2D first, so the view can turn
+document.querySelector('.vcube-wrap .vcube')?.addEventListener('click', e=>{ const f=e.target.closest('[data-v]'); if(TWO_D && f && f.dataset.v!=='top') set2D(false); }, true);
+
 const flatBadge=document.createElement('div'); flatBadge.className='flat-badge'; stage.appendChild(flatBadge);
-function badge(){ const f=isFlat(); flatBadge.textContent = f ? 'PLAN · drag a pod or cabinet to move it · drag up on empty space to tilt into 3D' : '3D · double-tap a part to isolate it · drag down for the plan'; flatBadge.classList.toggle('three', !f); }
+function badge(){ const f=isFlat(); flatBadge.textContent = TWO_D ? '2D · drag a pod or cabinet to move it · drag empty space to slide the plan · tap 3D to tilt' : f ? 'PLAN · drag a pod or cabinet to move it · drag up on empty space to tilt into 3D' : '3D · double-tap a part to isolate it · drag down for the plan'; flatBadge.classList.toggle('three', !f); }
 setInterval(()=>{ if(state.view==='studio') badge(); }, 300);
 
 /* ---------------------------------------------------------------- picking */
@@ -179,7 +212,7 @@ stage.addEventListener('pointerdown', e=>{
       else if(it){ controls.enabled=false; D={mode:'stretch', id:it.id, side:hh.object.userData.handle, room:roomBeyond(it, hh.object.userData.handle), started:true}; document.body.classList.add('dragging'); return; } } }
     // in the flat plan a pod, deck or cabinet moves straight away; anywhere else the finger turns the view
     if(isFlat() && editable()){ const d=grabAt(e.clientX,e.clientY); if(d){ controls.enabled=false; D=d; return; } }
-    orbit={x:e.clientX, y:e.clientY};
+    if(!TWO_D) orbit={x:e.clientX, y:e.clientY};   // 2D: no tilting, OrbitControls pans with one finger
     // a long touch (held still): on a pod, deck or cabinet it picks it up to move it (in 3D too);
     // on empty space it opens the Layers list
     { const x=e.clientX, y=e.clientY;
@@ -409,4 +442,4 @@ tray.addEventListener('click', e=>{
 initViewCube({ reset:()=>{ if(state.focusPod!=null) document.querySelector('.pod-badge')?.click(); flatten(true); }, after:()=>{ renderModels(); buildHome(); renderSide(); }, toast });
 function startBuild(){ controls.enableRotate=false;   /* one-finger turning is ours (above); OrbitControls keeps pan and zoom */
   renderTray(); setTimeout(()=>{ flatten(true); badge(); }, 60); }
-export { startBuild, flatten, isFlat, renderTray };
+export { startBuild, flatten, isFlat, renderTray, set2D, is2D };

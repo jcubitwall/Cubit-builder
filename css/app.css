@@ -1177,3 +1177,10 @@ dialog.lib-dlg.el-dlg{max-width:min(640px,calc(100vw - 24px))}
 /* a User given Prices (an inventory person) still gets ⋯ → Price book */
 html.role-user.can-price .price-menu, html.role-viewer.can-price .price-menu{display:block!important}
 .tm-pr{display:inline-flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap}
+/* the compass folds to its dial (tap it for the bearing and the rest) */
+.compass.bc-compass.mini{padding:4px;border-radius:999px}
+.compass.bc-compass.mini .cb{display:none}
+.compass.bc-compass.mini .dial{width:40px;height:40px}
+/* 2D / 3D: shares the undo / redo row */
+.vc-b.vc-2d{font:800 12px var(--display);letter-spacing:.02em;min-width:40px}
+.vc-b.vc-2d[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
