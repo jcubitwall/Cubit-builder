@@ -36,19 +36,19 @@ import { MODELS, saveCustomModels } from './data.js';
 import { state, save, wkey } from './state.js';
 import { panelSpans, setElecHook, isElecBox } from './panels.js';
 import { homeModel, podInterior } from './blueprint.js';
-import { itemDef } from './casework.js';
+import { itemDef, firePower } from './casework.js';
 import { ensureDraft } from './pods.js';
 import { checkpoint } from './history.js';
 import { FT } from './config.js';
 import { fin } from './format.js';
 
 const H = { plug:16, counter:42, gfci:42, switch:48, double:48, data:16, wp:16 };
-const REACH = { plug:18, counter:18, gfci:18, appl:18, data:18, wp:18, switch:6, double:6 };
+const REACH = { plug:18, counter:18, gfci:18, appl:18, data:18, wp:18, switch:6, double:6, jbox:6 };
 const R_WALL = 70.866, R_COUNTER = 35.433, MIN_RUN = 35.433, MIN_COUNTER = 11.8, BASIN = 39.37;
 const NUDGE = 2;   // a box up to 2″ either side of a chase's centre still counts as on it (centre first)
 const SW_OFF = 6, CORNER = 3, JOINT = 2.9, STUD = 1.5, BOX_GAP = 4;
 const BOX = { std:{w:2.375, h:3.375}, double:{w:4.125, h:3.625} };
-const NAME = { plug:'Plug box', counter:'Counter plug box', gfci:'GFCI plug box', appl:'Appliance plug box', switch:'Switch box', double:'Double switch box', data:'Data box', wp:'Outside plug (WP)' };
+const NAME = { plug:'Plug box', counter:'Counter plug box', gfci:'GFCI plug box', appl:'Appliance plug box', switch:'Switch box', double:'Double switch box', data:'Data box', wp:'Outside plug (WP)', jbox:'Junction box (hardwired)' };
 /* receptacles (not switches) never go under a window: anywhere below its sill, from 1½″ outside one side to 1½″
    outside the other */
 const RCPT = new Set(['plug','counter','gfci','appl','data','wp']);
@@ -323,6 +323,17 @@ function compute(k){
     add(W,'in',s,y,'plug',`dk:${it.I.it.id}`,{ note:'desk, above the top', why:'desk', room:roomOf(W.s.pod.i).key });
     if(y<30) anchors[W.s.pod.i].push(uOf(W,s.a)); }));
 
+  /* ---- 5c. a fireplace insert: its plug, or its junction box if it's hardwired (the surround's Power), inside the
+     surround behind the insert, on its own circuit. Locked to the fireplace: it goes where the fireplace goes, and
+     can't be moved or removed by hand (move the fireplace, or change its Power). */
+  walls.forEach(W=>W.items.forEach(it=>{ const P=firePower(it.I.it); if(!P || !W.loop) return;
+    const c=(it.a0+it.a1)/2, rk=P.hard?'jbox':'appl', y=Math.round(it.y0+P.y);
+    const s=spotOnWall(W,'in',c+P.off,y,rk,{ ignore:it.I, within:a=>Math.abs(a-c)<=P.half, scan:2*P.half, furn:true });
+    if(!s){ flags.push({ t:`No spot behind the fireplace on ${W.s.label} for its ${P.hard?'junction box':'plug'}`, w:W.s.id }); return; }
+    add(W,'in',s,y,rk,`fp:${it.I.it.id}`,{ note:P.hard ? `fireplace insert, hardwired: junction box in the surround, dedicated circuit` : `fireplace insert plug, in the surround behind the insert, dedicated circuit`, why:'fireplace', room:roomOf(W.s.pod.i).key, lock:true });
+  }));
+  Hm.items.forEach(I=>{ if(I.it.k==='FP' && !walls.some(W=>W.items.some(it=>it.I===I))) flags.push({ t:'The fireplace isn’t against a wall: no plug or junction box placed for it' }); });
+
   /* ---- 6. data boxes (optional): the TV wall in front of a sofa, opposite each bed */
   if(E.data){
     Hm.items.filter(I=>I.it.k==='SOFA' || I.it.k==='BED').forEach(I=>{
@@ -416,7 +427,8 @@ function compute(k){
   /* ---- the team's own changes */
   const ov=E.ov||{}, byKey={}; walls.forEach(W=>{ byKey[W.key]=W; });
   const out=[];
-  boxes.forEach(b=>{ if(!b.id) return; if(ov.del?.[b.id]){ b.removed=true; return; }
+  boxes.forEach(b=>{ if(!b.id) return; if(b.lock){ out.push(b); return; }   // a locked box (the fireplace's) ignores hand changes
+    if(ov.del?.[b.id]){ b.removed=true; return; }
     const mv=ov.mv?.[b.id]; if(mv){ if(mv.a!=null) b.a=mv.a; if(mv.y!=null) b.y=mv.y; b.moved=true; b.chase=onChase(b.W,b.a); b.flags=b.flags.filter(f=>f!=='needs a chase'); if(!b.chase) b.flags.push('needs a chase'); if(RCPT.has(b.rk) && underWindow(b.W,b.a,b.y)) b.flags.push('under a window'); if(b.face==='in' && RCPT.has(b.rk) && nearTub(tubs,b.W,b.a,BOX.std.w/2)) b.flags.push('within 500 mm of the tub / shower'); }
     out.push(b); });
   (ov.add||[]).forEach(u=>{ const W=byKey[u.w]; if(!W) return; const chase=onChase(W,u.a);
@@ -459,7 +471,7 @@ function ruleWall(slot, on=true){ return editElec(E=>{ if(on) (E.walls ||= {})[w
 /* this wall's boxes, for the wall panel: [{ id, rk, name, a (from the left seen from that face), y, chase, flags, note }] */
 function boxesOn(slot){
   const P=planFor(); if(!P) return null;
-  return P.boxes.filter(b=>b.W.s.id===slot.id).map(b=>({ id:b.id, rk:b.rk, name:b.name, face:b.face, a:b.a, x:b.face==='in'?b.W.Lin-b.a:b.a, y:b.y, chase:b.chase, flags:b.flags, note:b.note, why:b.why, user:!!b.user, moved:!!b.moved, way:b.way||1, nudge:b.chase&&b.face==='in'&&b.W.chases.length ? +Math.min(...b.W.chases.map(c=>Math.abs(c-b.a))).toFixed(3) : 0 }))
+  return P.boxes.filter(b=>b.W.s.id===slot.id).map(b=>({ id:b.id, rk:b.rk, name:b.name, face:b.face, a:b.a, x:b.face==='in'?b.W.Lin-b.a:b.a, y:b.y, chase:b.chase, flags:b.flags, note:b.note, why:b.why, user:!!b.user, moved:!!b.moved, lock:!!b.lock, way:b.way||1, nudge:b.chase&&b.face==='in'&&b.W.chases.length ? +Math.min(...b.W.chases.map(c=>Math.abs(c-b.a))).toFixed(3) : 0 }))
     .sort((p,q)=>(p.face===q.face?0:p.face==='in'?-1:1) || p.x-q.x);
 }
 /* the next chase from a, one way (dir ±1); a from the left seen from outside */

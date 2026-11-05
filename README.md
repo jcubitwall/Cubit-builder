@@ -550,3 +550,10 @@ its own; only the changed prices are sent, so two people can price at once. Each
 what it was. Download the list as a spreadsheet (CSV), change the cost column, upload it back. Salespeople can look.
 Sheets → **Cost to build**: the home's quantities × the price book, by group, with every unpriced line in red and a
 CSV download.
+
+### Fireplace power (Plug / Hardwired)
+The fireplace surround has a **Power** choice: **Plug** puts an appliance receptacle, **Hardwired** a junction box, in
+the wall behind the surround, inside the insert's cavity, to one side of the insert and half way up it (on a chase
+when one is within reach), noted as a dedicated circuit. It's locked to the fireplace: it moves when the fireplace
+moves, changes with Power, and can't be moved or removed by hand (the wall panel shows 🔒 with the fireplace). E11
+shows the junction box as J. No wall behind the fireplace → flagged.

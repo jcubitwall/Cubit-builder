@@ -551,11 +551,12 @@ def({ k:'SF', cat:'shelf', name:'Floating shelf', w:48, h:2, d:10, y:60, wR:[12,
       part('Wall cleat','hw','buy',[0.5,t,0,W-1,H-2*t,1],'z',{ex:[0,0,-1.2], hw:true, note:'Hidden floating-shelf bracket, screwed to studs / blocking'}) ]; } });
 
 /* fireplaces: a plywood surround around a linear electric insert (follow the insert's manual for clearances) */
+const fireInsertY = (it, I) => Math.min(18, it.h-I.h-4);
 const INSERTS = { 50:{w:50, h:16.5, d:5.75}, 60:{w:60, h:16.5, d:5.75}, 72:{w:72, h:16.5, d:5.75} };
 def({ k:'FP', cat:'fire', name:'Fireplace surround, linear electric', w:72, h:40, d:16, wR:[48,120], sizes:[60,72,84,96], hSizes:[30,36,40,48,84,96], dSizes:[14,16,18],
-  opts:[['insert','Insert',['50','60','72']]], opt:{insert:'60'},
+  opts:[['insert','Insert',['50','60','72']], ['power','Power',['Plug','Hardwired']]], opt:{insert:'60', power:'Plug'},
   build: it => { const I=INSERTS[it.opt.insert]||INSERTS[60]; const W=it.w, H=it.h, t=th();
-    const iy=Math.min(18, H-I.h-4), fy=iy-t;
+    const iy=fireInsertY(it, I), fy=iy-t;
     const c=carcass(it,{kick:true, top:'full', fixed:[fy]}); const { parts:P, dc } = c;
     const fw=Math.min(I.w, W-2*t-2), fx=(W-fw)/2;
     const face=part('Face panel','front','carcass',[0,S.kick.h,dc,W,H-S.kick.h,th()],'z',{ex:[0,0,2], band:{long:2,short:2}, ops:[`Cut-out for the insert ${fmtU(fw)} × ${fmtU(I.h)} (check the insert's own cut-out size)`, 'Cut back face up']});
@@ -563,6 +564,15 @@ def({ k:'FP', cat:'fire', name:'Fireplace surround, linear electric', w:72, h:40
     P.push({ ...solid(`Electric insert ${I.w}″`, 'appliance', [fx, iy, dc-I.d+0.75, fw, I.h, I.d], [0,0,3.2]), note:'Generic linear electric insert, check the model’s size and clearances' });
     return P; } });
 
+/* the fireplace insert's power, where it goes in the wall behind the surround (electrical.js places it and it moves with
+   the fireplace): Plug → a receptacle, Hardwired → a junction box, either way inside the insert's cavity, to one
+   side of the insert, half way up it, on its own circuit. { hard, y (from the floor under the surround), off (from
+   the middle, along the wall), half (how far either side of the middle it may go) } */
+function firePower(it){
+  if(it.k!=='FP') return null;
+  const I=INSERTS[it.opt?.insert]||INSERTS[60], t=th(), fw=Math.min(I.w, it.w-2*t-2);
+  return { hard:/^hard/i.test(it.opt?.power||''), y:Math.round(fireInsertY(it, I)+I.h/2), off:Math.max(0, fw/2-6), half:Math.max(2, fw/2-2), insert:I.w };
+}
 /* countertops */
 /* countertops: ½″ FormX by default (shop settings). Placed on base cabinets, they fit themselves (furniture.js):
    back to the wall, ⅛″ past each end that isn't against a wall or a tall unit (a range end too), 1″ past the front
@@ -872,4 +882,4 @@ function csv(it, name){
   rows.unshift([`${name} — ${fmt(it.w)} W × ${fmt(it.h)} H × ${fmt(it.d)} D (inches)`]);
   return rows.map(r=>r.map(v=>/[",\n]/.test(String(v))?`"${String(v).replace(/"/g,'""')}"`:v).join(',')).join('\n');
 }
-export { plumbOf, sinkHole, sinkBaseMin, fx3, hingeSpec, runnerSpec, handleById, SETTINGS_V, loadFixtures, DEFAULTS, MM, CATS, ITEMS, itemDef, catOf, newItem, partsOf, cutList, hardwareOf, totals, csv, fmt, fmtU, settings, loadSettings, saveSettings, th, nomOf };
+export { firePower, plumbOf, sinkHole, sinkBaseMin, fx3, hingeSpec, runnerSpec, handleById, SETTINGS_V, loadFixtures, DEFAULTS, MM, CATS, ITEMS, itemDef, catOf, newItem, partsOf, cutList, hardwareOf, totals, csv, fmt, fmtU, settings, loadSettings, saveSettings, th, nomOf };

@@ -11,7 +11,7 @@ import { fin } from './format.js';
 import { usesRules, homeAuto, slotAuto, summary, relay, setData, setThreeWay, removeBox, restoreBox, moveBox, resetBox, addBox, boxesOn, ruleWall, nextChase, elecOf, ELEC_H, ELEC_NAME } from './electrical.js';
 
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const SHORT = { plug:'Plug', counter:'Counter plug', gfci:'GFCI plug', appl:'Appliance plug', switch:'Switch', double:'Double switch', data:'Data', wp:'Outside plug' };
+const SHORT = { plug:'Plug', counter:'Counter plug', gfci:'GFCI plug', appl:'Appliance plug', jbox:'Junction box', switch:'Switch', double:'Double switch', data:'Data', wp:'Outside plug' };
 const refresh = async () => { const [{ buildHome }, { renderSide }]=await Promise.all([import('./scene3d.js'), import('./sidebar.js')]); buildHome(); renderSide(); if(dlg?.open) render(); };
 const say = async t => { const { toast }=await import('./sidebar.js'); toast(t); };
 
@@ -22,7 +22,7 @@ function elecWallBlock(s){
   const row=b=>{ const tags=[b.chase||b.face==='out'?`<span class="el-ok">on a chase${b.nudge>0.01?` · ${fin(b.nudge)} off centre`:''}</span>`:'<span class="el-warn">needs a chase</span>', ...b.flags.filter(f=>f!=='needs a chase').map(f=>`<span class="el-warn">${esc(f)}</span>`), b.moved?'<span class="el-tag">moved</span>':'', b.user?'<span class="el-tag">added</span>':''].filter(Boolean).join(' ');
     return `<div class="el-row" data-id="${esc(b.id)}" data-face="${b.face}" data-a="${b.a}">
       <div><b>${esc(b.way>1 ? `${b.way}-way switch` : SHORT[b.rk]||b.name)}</b>${b.face==='out'?' · outside':''} <small>${fin(b.x)} from the left${b.face==='in'?' (seen from inside)':''} · ${fin(b.y)} up${b.note?` · ${esc(b.note)}`:''}</small><div class="el-tags">${tags}</div></div>
-      <div class="el-act edit-only"><button class="btn ghost sm" data-mv="-1" title="Next chase to the left" aria-label="Next chase to the left">◀</button><button class="btn ghost sm" data-mv="1" title="Next chase to the right" aria-label="Next chase to the right">▶</button>${b.moved?'<button class="btn ghost sm" data-reset title="Back to where the rule put it" aria-label="Reset">↺</button>':''}<button class="btn ghost sm" data-rm title="Remove" aria-label="Remove">✕</button></div></div>`; };
+      ${b.lock?`<div class="el-act"><span class="el-ok" title="It goes where the fireplace goes: move the fireplace, or change its Power (Plug / Hardwired)">🔒 with the fireplace</span></div>`:`<div class="el-act edit-only"><button class="btn ghost sm" data-mv="-1" title="Next chase to the left" aria-label="Next chase to the left">◀</button><button class="btn ghost sm" data-mv="1" title="Next chase to the right" aria-label="Next chase to the right">▶</button>${b.moved?'<button class="btn ghost sm" data-reset title="Back to where the rule put it" aria-label="Reset">↺</button>':''}<button class="btn ghost sm" data-rm title="Remove" aria-label="Remove">✕</button></div>`}</div>`; };
   const adds=['plug','switch','counter','data', ...(s.type==='ext'?['wp']:[])];
   if(!on) return `<div class="el-box"><div class="eyebrow">Plugs & switches</div>
       <p class="note">This wall keeps the plugs and switches drawn in the wall library. Furniture and appliances against it still get their own plugs${(list||[]).length?':':'.'}</p>

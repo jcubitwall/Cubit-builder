@@ -458,11 +458,12 @@ function sElectrical(ctx, sh){
     else if(kind==='gfci'){ g+=ELEC.outlet(x,y,s,false)+tx(x,y-6*s,'GFI',{size:5.5*s,anchor:'middle',fill:RED}); c1('gfci'); }
     else if(kind==='switch'||kind==='double'){ const w3=/^[34]-way/.test(b.name||''); g+=w3 ? tx(x,y+3*s,'S'+(b.name||'')[0],{size:8*s,anchor:'middle',fill:RED,weight:'bold'}) : ELEC.switch(x,y,s); c1(w3?'sw3':kind); }
     else if(kind==='data'){ g+=ELEC.data(x,y,s); c1('data'); }
+    else if(kind==='jbox'){ g+=ELEC.box(x,y,s)+tx(x,y-6*s,'J',{size:5.5*s,anchor:'middle',fill:RED,weight:'bold'}); c1('jbox'); }
     else if(kind==='light'){ g+=ELEC.light(x,y,s); c1('xl'); }
     else if(kind==='box'){ g+=ELEC.box(x,y,s); c1('box'); } });
   g+=elevMarkers(H_, xf)+northArrow(AREA.x1-40, AREA.y0+40)+scaleBar(AREA.x0+10, AREA.y1-14, xf.k)+viewTitle(AREA.x0+(AREA.x1-AREA.x0)/2-90, AREA.y1-10, '1', sh.no, 'MAIN LEVEL ELECTRICAL PLAN', label);
   // legend
-  const LG=[['pot','pot',`4" POT LIGHT (CEILING)`],['outlet','outlet','DUPLEX RECEPTACLE @ 16"'],['counter','outlet','COUNTER RECEPTACLE @ 42"'],['gfci','outlet','GFCI RECEPTACLE @ 42"'],['appl','outlet','APPLIANCE RECEPTACLE'],['wp','outlet','EXTERIOR WP RECEPTACLE'],['switch','switch','SWITCH @ 48"'],['double','switch','DOUBLE SWITCH @ 48"'],['sw3','switch','3-WAY / 4-WAY SWITCH'],['data','data','DATA / COMMS'],['xl','light','EXTERIOR WALL LIGHT'],['box','box','JUNCTION / DEVICE BOX']].filter(([c])=>cnt[c]);
+  const LG=[['pot','pot',`4" POT LIGHT (CEILING)`],['outlet','outlet','DUPLEX RECEPTACLE @ 16"'],['counter','outlet','COUNTER RECEPTACLE @ 42"'],['gfci','outlet','GFCI RECEPTACLE @ 42"'],['appl','outlet','APPLIANCE RECEPTACLE'],['jbox','box','JUNCTION BOX (HARDWIRED)'],['wp','outlet','EXTERIOR WP RECEPTACLE'],['switch','switch','SWITCH @ 48"'],['double','switch','DOUBLE SWITCH @ 48"'],['sw3','switch','3-WAY / 4-WAY SWITCH'],['data','data','DATA / COMMS'],['xl','light','EXTERIOR WALL LIGHT'],['box','box','JUNCTION / DEVICE BOX']].filter(([c])=>cnt[c]);
   let lx=AREA.x0+10, ly=AREA.y0+20; g+=rect(lx-6, ly-14, 250, 30+LG.length*18+44, {fill:'#fff', stroke:BLUE, sw:0.6})+tx(lx, ly, 'ELECTRICAL LEGEND', {size:11, weight:'bold', fill:BLUE}); ly+=20;
   LG.forEach(([c,sym,t])=>{ g+=ELEC[sym](lx+8, ly-3, 1.2, c==='wp')+tx(lx+24, ly, t, {size:8.5, fill:BLUE})+tx(lx+236, ly, String(cnt[c]), {size:8.5, anchor:'end', weight:'bold', fill:BLUE}); ly+=18; });
   wrap('CIRCUITING, PANEL SCHEDULE AND CABLE SIZES BY THE ELECTRICIAN UNLESS SHOWN ON E-SERIES SHEETS. ALL WORK TO THE CANADIAN ELECTRICAL CODE.', 236, 7).forEach(l=>{ g+=tx(lx, ly+2, l, {size:7, fill:GREY}); ly+=9; });
