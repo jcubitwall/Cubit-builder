@@ -18,7 +18,7 @@ const GROUPS = [
   ['build', 'Inside the panels', [['seals','Compression seals','#e8170f'], ['framing','Lumber & LVL','#e0b36a'], ['splines','OSB splines','#b7864a']]],
   ['cab',   'Cabinets & furniture', CW_ROWS],
   ['base',  'Floors & foundation', [['floors','Floors','#8d8f86'], ['decks','Decks','#a88f5d'], ['frames','Steel frame & ACM','#3d4247'], ['screws','Ground screws & foundation','#56606b']]],
-  ['view',  'View & labels', [['glass','See-through glass & doors'], ['letters','Wall letters'], ['nums','Panel numbers']]],
+  ['view',  'View & labels', [['glass','See-through glass & doors'], ['letters','Wall letters'], ['nums','Panel numbers'], ['swlinks','3-way switch links','#ff7a00']]],
 ];
 const ROWS = GROUPS.flatMap(g=>g[2]);
 const FOLD_KEY='cubit-layers-folded';

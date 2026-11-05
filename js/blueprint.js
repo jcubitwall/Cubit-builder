@@ -441,8 +441,9 @@ const ELEC = {
 };
 function wallBoxes(H_){
   const out=[]; H_.walls.forEach(W=>{
-    (W.w.inside||[]).forEach(b=>{ if(b.x==null) return; const p=W.at(W.L-b.x, W.t+0.45); out.push({ b, p, ext:false, W }); });
-    if(W.s.type==='ext') (W.w.outside||[]).forEach(b=>{ if(b.x==null) return; const p=W.at(b.x, -0.45); out.push({ b, p, ext:true, W }); });
+    // box x is in inches along the fitted wall (inside: from the inside-left end); W.at takes feet
+    (W.w.inside||[]).forEach(b=>{ if(b.x==null) return; const p=W.at(W.L-b.x/12, W.t+0.45); out.push({ b, p, ext:false, W }); });
+    if(W.s.type==='ext') (W.w.outside||[]).forEach(b=>{ if(b.x==null) return; const p=W.at(b.x/12, -0.45); out.push({ b, p, ext:true, W }); });
   }); return out;
 }
 function sElectrical(ctx, sh){
@@ -450,7 +451,7 @@ function sElectrical(ctx, sh){
   let g=deckSVG(H_, xf)+planFurniture(ctx, xf, { tone:'#b7bccb', label:false })+drawWalls(H_, xf, { light:true, labels:false })+roomLabels(H_, xf, { dims:false });
   const s=Math.max(0.8, Math.min(1.3, xf.k/18)), cnt={};
   H_.lights.forEach(L=>{ const [x,y]=xf.P(L.p); g+=ELEC.pot(x,y,s); cnt.pot=(cnt.pot||0)+1; });
-  const SW=[];
+  const SW=[], SWP={};
   wallBoxes(H_).forEach(({b,p,ext})=>{ const [x,y]=xf.P(p); const kind=b.kind==='light'?'light':(boxKind(b, ext)||b.kind);
     const c1=c=>{ cnt[c]=(cnt[c]||0)+1; };
     if(kind==='wp' || ((kind==='plug'||kind==='counter'||kind==='appl'||kind==='gfci') && ext)){ g+=ELEC.outlet(x,y,s,true); c1('wp'); }
@@ -458,21 +459,29 @@ function sElectrical(ctx, sh){
     else if(kind==='counter'||kind==='appl'){ g+=ELEC.outlet(x,y,s,false); c1(kind); }
     else if(kind==='gfci'){ g+=ELEC.outlet(x,y,s,false)+tx(x,y-6*s,'GFI',{size:5.5*s,anchor:'middle',fill:RED}); c1('gfci'); }
     else if(kind==='switch'||kind==='double'){ const w3=/^[34]-way/.test(b.name||''); g+=w3 ? tx(x,y+3*s,'S'+(b.name||'')[0],{size:8*s,anchor:'middle',fill:RED,weight:'bold'}) : ELEC.switch(x,y,s); c1(w3?'sw3':kind);
-      if(b.sn){ g+=tx(x+7*s,y-5*s,b.sn,{size:5.5*s,fill:RED,weight:'bold'}); SW.push(b); } }
+      if(b.sn){ g+=tx(x+7*s,y-5*s,b.sn,{size:5.5*s,fill:RED,weight:'bold'}); SW.push(b); SWP[b.sn]=[x,y]; } }
     else if(kind==='data'){ g+=ELEC.data(x,y,s); c1('data'); }
     else if(kind==='tvr'){ g+=ELEC.outlet(x,y,s,false)+tx(x,y-6*s,'TV',{size:5.5*s,anchor:'middle',fill:RED,weight:'bold'}); c1('tvr'); }
     else if(kind==='jbox'){ g+=ELEC.box(x,y,s)+tx(x,y-6*s,'J',{size:5.5*s,anchor:'middle',fill:RED,weight:'bold'}); c1('jbox'); }
     else if(kind==='light'){ g+=ELEC.light(x,y,s); c1('xl'); }
     else if(kind==='box'){ g+=ELEC.box(x,y,s); c1('box'); } });
+  // 3-way / 4-way links: a dashed arc from switch to switch along each tied group (the travellers)
+  { const done=new Set(); SW.forEach(b=>(b.links||[]).forEach(L=>{ if(done.has(L.grp)) return; done.add(L.grp);
+      for(let i=0;i+1<L.order.length;i++){ const A=SWP[L.order[i]], B=SWP[L.order[i+1]]; if(!A||!B) continue;
+        const mx=(A[0]+B[0])/2, my=(A[1]+B[1])/2, dx=B[0]-A[0], dy=B[1]-A[1], d=Math.hypot(dx,dy)||1, k=Math.min(40, d*0.22);
+        g+=`<path d="M${A[0].toFixed(1)} ${A[1].toFixed(1)} Q${(mx-dy/d*k).toFixed(1)} ${(my+dx/d*k).toFixed(1)} ${B[0].toFixed(1)} ${B[1].toFixed(1)}" fill="none" stroke="${RED}" stroke-width="${(0.8*s).toFixed(2)}" stroke-dasharray="${(4*s).toFixed(1)} ${(2.5*s).toFixed(1)}"/>`; } })); }
   g+=elevMarkers(H_, xf)+northArrow(AREA.x1-40, AREA.y0+40)+scaleBar(AREA.x0+10, AREA.y1-14, xf.k)+viewTitle(AREA.x0+(AREA.x1-AREA.x0)/2-90, AREA.y1-10, '1', sh.no, 'MAIN LEVEL ELECTRICAL PLAN', label);
   // legend
   const LG=[['pot','pot',`4" POT LIGHT (CEILING)`],['outlet','outlet','DUPLEX RECEPTACLE @ 16"'],['counter','outlet','COUNTER RECEPTACLE @ 42"'],['gfci','outlet','GFCI RECEPTACLE @ 42"'],['appl','outlet','APPLIANCE RECEPTACLE'],['jbox','box','JUNCTION BOX (HARDWIRED)'],['tvr','outlet','RECESSED TV BOX (BEHIND TV)'],['wp','outlet','EXTERIOR WP RECEPTACLE'],['switch','switch','SWITCH @ 48"'],['double','switch','DOUBLE SWITCH @ 48"'],['sw3','switch','3-WAY / 4-WAY SWITCH'],['data','data','DATA / COMMS'],['xl','light','EXTERIOR WALL LIGHT'],['box','box','JUNCTION / DEVICE BOX']].filter(([c])=>cnt[c]);
-  let lx=AREA.x0+10, ly=AREA.y0+20; g+=rect(lx-6, ly-14, 250, 30+LG.length*18+44, {fill:'#fff', stroke:BLUE, sw:0.6})+tx(lx, ly, 'ELECTRICAL LEGEND', {size:11, weight:'bold', fill:BLUE}); ly+=20;
+  const swSeen=new Set(), swRows=SW.filter(b=>!swSeen.has(b.sn) && swSeen.add(b.sn)).sort((p,q)=>+p.sn.slice(1)-+q.sn.slice(1)), swLines=swRows.reduce((n,b)=>n+wrap(`${b.sn}: ${b.uses||''}`.toUpperCase(), 236, 7).length, 0);
+  const swH = swRows.length ? 20 + (swRows.some(b=>(b.links||[]).length)?11:0) + swLines*9 + 6 : 0;
+  let lx=AREA.x0+10, ly=AREA.y0+20; g+=rect(lx-6, ly-14, 250, 30+LG.length*18+44+swH, {fill:'#fff', stroke:BLUE, sw:0.6})+tx(lx, ly, 'ELECTRICAL LEGEND', {size:11, weight:'bold', fill:BLUE}); ly+=20;
   LG.forEach(([c,sym,t])=>{ g+=ELEC[sym](lx+8, ly-3, 1.2, c==='wp')+tx(lx+24, ly, t, {size:8.5, fill:BLUE})+tx(lx+236, ly, String(cnt[c]), {size:8.5, anchor:'end', weight:'bold', fill:BLUE}); ly+=18; });
   wrap('CIRCUITING, PANEL SCHEDULE AND CABLE SIZES BY THE ELECTRICIAN UNLESS SHOWN ON E-SERIES SHEETS. ALL WORK TO THE CANADIAN ELECTRICAL CODE.', 236, 7).forEach(l=>{ g+=tx(lx, ly+2, l, {size:7, fill:GREY}); ly+=9; });
   // switch schedule: what each switch does (S1, S2 … as marked on the plan)
-  if(SW.length){ const seen=new Set(), rows=SW.filter(b=>!seen.has(b.sn) && seen.add(b.sn)).sort((p,q)=>+p.sn.slice(1)-+q.sn.slice(1));
+  if(swRows.length){ const rows=swRows;
     ly+=8; g+=tx(lx, ly, 'SWITCH SCHEDULE', {size:9.5, weight:'bold', fill:BLUE}); ly+=12;
+    if(rows.some(b=>(b.links||[]).length)){ g+=`<path d="M${lx} ${ly-3} Q${lx+9} ${ly-9} ${lx+18} ${ly-3}" fill="none" stroke="${RED}" stroke-width="0.8" stroke-dasharray="4 2.5"/>`+tx(lx+24, ly, 'DASHED ARC = SWITCHES TIED AS 3-WAY / 4-WAY', {size:7, fill:BLUE}); ly+=11; }
     rows.forEach(b=>{ wrap(`${b.sn}: ${b.uses||''}`.toUpperCase(), 236, 7).forEach((l,i)=>{ g+=tx(lx+(i?10:0), ly, l, {size:7, fill:BLUE}); ly+=9; }); }); }
   return g;
 }

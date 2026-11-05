@@ -319,6 +319,9 @@ function buildDeckMesh(L, mat){
   deckMembers(L).forEach(([nm,x0,x1,z0,z1])=>{ const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT,h/FT,(z1-z0)/FT),mat); m.position.set((x0+x1)/2/FT,h/2/FT,(z0+z1)/2/FT); g.add(m); });
   return g;
 }
+/* other modules add their own things to the home after it's built (electrical-ui.js: the 3-way switch links) */
+const builtHooks=[];
+const onBuilt = fn => { builtHooks.push(fn); };
 function buildHome(){
   scene.remove(homeGroup); homeGroup=new THREE.Group(); scene.add(homeGroup);
   wallGroups=[]; layerGroups=[]; deckGroups=[]; pickables=[]; floorMats=[]; framingMeshes=[]; plateMeshes=[];
@@ -507,6 +510,7 @@ function buildHome(){
   buildFurniture(homeGroup, pods);
   // faces sit a hair behind their own edge lines, so panel seams and outlines draw cleanly instead of flickering
   homeGroup.traverse(o=>{ const m=o.isMesh && o.material; if(m && !m.polygonOffset){ m.polygonOffset=true; m.polygonOffsetFactor=1; m.polygonOffsetUnits=1; } });
+  builtHooks.forEach(f=>{ try{ f(homeGroup, wallGroups); }catch(e){ console.warn('after build', e); } });
   applyLayers();
   highlight();
   // frame camera
@@ -609,6 +613,7 @@ function applyLayers(){
   isoHidden.forEach(o=>{ o.visible=true; }); isoHidden=[];   // put back what an isolate hid; the switches below decide the rest
   const S=state.show, F=state.focusPod, inPod = i => F==null || i===F;
   wallGroups.forEach(g=>g.visible=S.walls && inPod(g.userData.slot.pod.i));
+  homeGroup.children.forEach(o=>{ if(o.userData.swlinks) o.visible = S.swlinks!==false && S.walls && F==null; });
   floorGroup.visible=S.floors; ceilGroup.visible=S.ceiling; roofGroup.visible=S.roof;
   layerGroups.forEach(g=>g.visible=inPod(g.userData.pod));
   deckGroups.forEach(g=>g.visible=S.decks && F==null);
@@ -745,4 +750,4 @@ function setExplodeGoal(v){ explodeGoal=v; }
 function explodeAt(v){ explodeT=v; explodeGoal=v; applyExplode(); }
 
 
-export { buildUnit, northGroup, explodeAt, buildLayerMesh, buildDeckMesh, DECK_MAT, LAYER_COLOR, applyGhost, focusIsolated, isoTarget, stage, renderer, scene, camera, controls, sun, grid, homeGroup, wallGroups, themeColors, applyTheme, MAT, lineMat, numberSprite, buildWallMesh, buildHome, explodeT, applyExplode, highlight, resize, ray, loop, setExplodeGoal, applyLayers, focusCamera, podCentres, roofGroup, floorGroup, screwGroup, pickables, explodeGoal, mouse };
+export { onBuilt, buildUnit, northGroup, explodeAt, buildLayerMesh, buildDeckMesh, DECK_MAT, LAYER_COLOR, applyGhost, focusIsolated, isoTarget, stage, renderer, scene, camera, controls, sun, grid, homeGroup, wallGroups, themeColors, applyTheme, MAT, lineMat, numberSprite, buildWallMesh, buildHome, explodeT, applyExplode, highlight, resize, ray, loop, setExplodeGoal, applyLayers, focusCamera, podCentres, roofGroup, floorGroup, screwGroup, pickables, explodeGoal, mouse };

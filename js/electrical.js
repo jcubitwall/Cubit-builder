@@ -496,8 +496,11 @@ function compute(k){
     sws.forEach(b=>b.uses.forEach((u,i)=>{ if(u.way>1) root[key(b.id,i)]=key(b.id,i); }));
     sws.forEach(b=>b.uses.forEach((u,i)=>{ if(u.way<=1) return; (u.with||[]).forEach(id=>{ const B=outById[id]; if(!B?.uses) return; const j=gangOfLink(B,b.id,u.c); if(j<0) return; const x=fnd(key(b.id,i)), y=fnd(key(id,j)); if(x!==y) root[x]=y; }); }));
     const groups={}; Object.keys(root).forEach(k=>{ (groups[fnd(k)] ||= []).push(k); });
-    Object.values(groups).forEach(G=>{ const M=G.map(k=>{ const [id,i]=k.split('#'); return { b:outById[id], i:+i }; }).sort((p,q)=>+p.b.sn.slice(1)-+q.b.sn.slice(1));
-      M.forEach((m,n)=>{ const u=m.b.uses[m.i]; if(M.length<2){ u.with=[]; return; } u.way = n===0||n===M.length-1 ? 3 : 4; u.with=M.filter(x=>x.b!==m.b).map(x=>x.b.id); }); }); }
+    const snN=b=>+b.sn.slice(1); let gid=0;
+    Object.values(groups).map(G=>G.map(k=>{ const [id,i]=k.split('#'); return { b:outById[id], i:+i }; }).sort((p,q)=>snN(p.b)-snN(q.b)))
+      .sort((P,Q)=>snN(P[0].b)-snN(Q[0].b))
+      .forEach(M=>{ const g = M.length>1 ? ++gid : 0;   // each tied group gets a number (and a colour on screen)
+        M.forEach((m,n)=>{ const u=m.b.uses[m.i]; if(M.length<2){ u.with=[]; return; } u.way = n===0||n===M.length-1 ? 3 : 4; u.with=M.filter(x=>x.b!==m.b).map(x=>x.b.id); u.grp=g; u.order=M.map(x=>x.b.id); }); }); }
   sws.forEach(b=>{ b.way=Math.max(1, ...b.uses.map(u=>u.way||1)); });
   const useText = b => (b.uses||[]).map((u,i)=>`${(b.uses.length>1?(i+1)+' ':'')}${u.c==='other' && u.t ? u.t : CONTROLS[u.c]||u.c}${u.way>1?` (${u.way}-way with ${u.with.map(id=>outById[id]?.sn).filter(Boolean).join(', ')||'?'})`:''}`).join(' · ');
   sws.forEach(b=>{ b.useText=useText(b); if(b.uses.some(u=>u.c==='none')) b.flags.push('say what each switch does'); });
@@ -506,7 +509,7 @@ function compute(k){
   const byWall={};
   out.forEach(b=>{ const {w,h}=GANG[gangOf(b)]||sz(b.rk), W=b.W, o=(byWall[W.s.id] ||= { inside:[], outside:[] });
     const nm = b.rk==='switch' && b.way>1 ? `${b.way}-way switch box` : NAME[b.rk] || 'Box';
-    const item={ kind:'box', shape:'rect', w, h, depth:3, x:+(b.face==='in' ? W.Lin-b.a : b.a).toFixed(4), y:b.y, rk:b.rk==='wp'?'plug':b.rk, name:nm, gang:gangOf(b), ...(b.sn?{ sn:b.sn, uses:b.useText }:{}), auto:b.id, ...(b.chase?{}:{ offChase:true }) };
+    const item={ kind:'box', shape:'rect', w, h, depth:3, x:+(b.face==='in' ? W.Lin-b.a : b.a).toFixed(4), y:b.y, rk:b.rk==='wp'?'plug':b.rk, name:nm, gang:gangOf(b), ...(b.sn?{ sn:b.sn, uses:b.useText, links:b.uses.filter(u=>u.grp).map(u=>({ grp:u.grp, order:u.order.map(id=>outById[id]?.sn) })) }:{}), auto:b.id, ...(b.chase?{}:{ offChase:true }) };
     (b.face==='in' ? o.inside : o.outside).push(item); b.name=nm; });
   const removed=boxes.filter(b=>b.removed);
   return { byWall, boxes:out, removed, flags, confirms, rooms:Object.values(rooms).map(R=>({ key:R.key, name:R.name, entries:R.entries.length, bath:R.bath, kitchen:R.kitchen, bed:R.bed })) };
@@ -553,6 +556,11 @@ function unpairSwitch(a, i){
   return editElec(E=>{ E.ov ||= {}; const S=(E.ov.sw ||= {}); (S[a] ||= [])[i]={ ...(S[a][i]||{}), way:1, with:[] };
     (A.uses?.[i]?.with||[]).forEach(id=>{ const B=P.boxes.find(x=>x.id===id); const j=(B?.uses||[]).findIndex(u=>(u.with||[]).includes(a)); if(j<0) return;
       const rest=B.uses[j].with.filter(x=>x!==a); (S[id] ||= [])[j]={ ...(S[id][j]||{}), c:B.uses[j].c, way: rest.length ? 3 : 1, with:rest }; }); }); }
+/* the tied switches (3-way / 4-way groups), in order along the run: [{ grp, c, boxes:[box…] }] */
+const switchLinks = (k=state.model) => { const P=planFor(k); if(!P) return []; const by={}, out={};
+  P.boxes.forEach(b=>{ by[b.id]=b; });
+  P.boxes.forEach(b=>(b.uses||[]).forEach(u=>{ if(!u.grp || out[u.grp]) return; out[u.grp]={ grp:u.grp, c:u.c, t:u.t, boxes:u.order.map(id=>by[id]).filter(Boolean) }; }));
+  return Object.values(out).sort((p,q)=>p.grp-q.grp); };
 /* every switch box of the home, numbered, with what each switch does (the switch schedule) */
 const switchSchedule = (k=state.model) => { const P=planFor(k); if(!P) return []; return P.boxes.filter(b=>b.sn).sort((p,q)=>+p.sn.slice(1)-+q.sn.slice(1)).map(b=>({ id:b.id, sn:b.sn, wall:b.W.s.label, slot:b.W.s.id, why:b.why, g:gangOf(b), uses:b.uses, text:b.useText })); };
 function resetBox(id){ return editElec(E=>{ if(E.ov?.mv) delete E.ov.mv[id]; }); }
@@ -573,4 +581,4 @@ function nextChase(slot, bw, a, dir){
 }
 const summary = (k=state.model) => { if(!usesRules(k)) return null; const P=planFor(k); const c={}; P.boxes.forEach(b=>{ c[b.rk]=(c[b.rk]||0)+1; }); return { counts:c, flags:P.flags, confirms:P.confirms, offChase:P.boxes.filter(b=>!b.chase && b.face==='in'), needs:P.boxes.filter(b=>b.flags.some(f=>f!=='confirm 3-way')), removed:P.removed, rooms:P.rooms, boxes:P.boxes }; };
 
-export { CONTROLS, setSwitchUse, pairSwitch, unpairSwitch, switchSchedule, itemElecRules, setGang, GANG, gangOf, H as ELEC_H, NAME as ELEC_NAME, usesRules, homeAuto, slotAuto, planFor, relay, setData, setThreeWay, removeBox, restoreBox, moveBox, resetBox, addBox, boxesOn, ruleWall, nextChase, summary, elecOf, fin as elecFin };
+export { switchLinks, CONTROLS, setSwitchUse, pairSwitch, unpairSwitch, switchSchedule, itemElecRules, setGang, GANG, gangOf, H as ELEC_H, NAME as ELEC_NAME, usesRules, homeAuto, slotAuto, planFor, relay, setData, setThreeWay, removeBox, restoreBox, moveBox, resetBox, addBox, boxesOn, ruleWall, nextChase, summary, elecOf, fin as elecFin };

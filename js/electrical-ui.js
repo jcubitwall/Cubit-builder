@@ -8,7 +8,7 @@ import { slotsFor } from './layout.js';
 import { bodyWall } from './panels.js';
 import { canSave } from './role.js';
 import { fin } from './format.js';
-import { usesRules, homeAuto, slotAuto, summary, relay, setData, setThreeWay, removeBox, restoreBox, moveBox, resetBox, setGang, GANG, CONTROLS, setSwitchUse, pairSwitch, unpairSwitch, switchSchedule, addBox, boxesOn, ruleWall, nextChase, elecOf, ELEC_H, ELEC_NAME } from './electrical.js';
+import { usesRules, homeAuto, slotAuto, summary, relay, setData, setThreeWay, removeBox, restoreBox, moveBox, resetBox, setGang, GANG, CONTROLS, setSwitchUse, pairSwitch, unpairSwitch, switchSchedule, switchLinks, addBox, boxesOn, ruleWall, nextChase, elecOf, ELEC_H, ELEC_NAME } from './electrical.js';
 
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const SHORT = { plug:'Plug', counter:'Counter plug', gfci:'GFCI plug', appl:'Appliance plug', jbox:'Junction box', switch:'Switch', double:'Double switch', data:'Data', wp:'Outside plug', tvr:'TV box (recessed)' };
@@ -37,7 +37,7 @@ function switchUsesHTML(b){
   const others=switchSchedule().filter(x=>x.id!==b.id);
   return `<div class="sw-uses"><div class="eyebrow">${esc(b.sn)} · what each switch does</div>
     ${b.uses.map((u,i)=>`<div class="sw-u" data-swi="${i}"><span class="sw-n">${b.uses.length>1?i+1:'•'}</span>
-      <select data-swc="${i}" aria-label="Switch ${i+1} controls">${Object.entries(CONTROLS).map(([k,l])=>`<option value="${k}" ${u.c===k?'selected':''}>${esc(l)}</option>`).join('')}</select>
+      ${linkChip(u)}<select data-swc="${i}" aria-label="Switch ${i+1} controls">${Object.entries(CONTROLS).map(([k,l])=>`<option value="${k}" ${u.c===k?'selected':''}>${esc(l)}</option>`).join('')}</select>
       ${u.c==='other'?`<input data-swt="${i}" value="${esc(u.t||'')}" placeholder="What it switches" maxlength="40">`:''}
       <div class="seg sm" role="group" aria-label="Way"><button data-sww="${i}" data-v="1" aria-pressed="${(u.way||1)===1}">1-way</button><button data-sww="${i}" data-v="3" aria-pressed="${u.way>1}">${u.way===4?'4-way':'3-way'}</button></div>
       ${u.way>1?`<span class="sw-with">with ${u.with.map(id=>{ const o=others.find(x=>x.id===id); return o?`<b>${esc(o.sn)}</b> <small>${esc(o.wall)}</small>`:''; }).filter(Boolean).join(', ')||'<span class="el-warn">pick the other switch</span>'}
@@ -51,11 +51,61 @@ function bindSwitchUses(root, id, after){
   root.querySelectorAll('[data-sww]').forEach(el=>el.onclick=()=>{ const i=+el.dataset.sww; if(el.dataset.v==='1') unpairSwitch(id, i); else setSwitchUse(id, i, { way:3 }); after(); });
   root.querySelectorAll('[data-swp]').forEach(el=>el.onchange=()=>{ if(!el.value) return; pairSwitch(id, +el.dataset.swp, el.value); after(); });
 }
+/* ---------------------------------------------------------------- the 3-way links, seen in 3D
+   Each group of tied switches gets its own colour: an arched "wire" over the walls from switch to switch (in order
+   along the run), a glowing ring on each switch and its number. The same colour marks them in the wall panel and
+   the schedule. Picking a switch brings its group forward and fades the others. Layers → 3-way switch links. */
+const LINK_COLS = ['#ff7a00','#1e88e5','#8e24aa','#00a37a','#e53935','#c2185b','#6d4c41','#3949ab'];
+const linkCol = g => LINK_COLS[(g-1)%LINK_COLS.length];
+let linkObjs=[];
+function boxPoint(b, wallGroups){
+  const g=wallGroups.find(g=>g.userData.slot.id===b.W.s.id); if(!g) return null;
+  const z = b.face==='in' ? -(b.W.t||0.375)-0.06 : 0.06;   // W.t: the wall's thickness in feet
+  g.updateMatrix(); const P=new THREE.Vector3(b.a/12, b.y/12, z).applyMatrix4(g.matrix); P.q=g.quaternion; return P;
+}
+async function drawLinks(root, wallGroups){
+  linkObjs=[];
+  if(!('swlinks' in state.show)) state.show.swlinks=true;
+  const L=switchLinks(); if(!L.length) return;
+  const S3=await import('./scene3d.js');
+  const grp=new THREE.Group(); grp.userData.swlinks=true; root.add(grp);
+  L.forEach(G=>{ const col=new THREE.Color(linkCol(G.grp));
+    const mat=new THREE.MeshBasicMaterial({ color:col, transparent:true, opacity:0.95, depthTest:false });
+    const pts=G.boxes.map(b=>boxPoint(b, wallGroups)).filter(Boolean); if(pts.length<2) return;
+    for(let i=0;i+1<pts.length;i++){ const A=pts[i], B=pts[i+1], d=A.distanceTo(B), top=Math.max(A.y,B.y)+1.2+Math.min(4, d*0.18);
+      const c1=A.clone().lerp(B,0.25); c1.y=top; const c2=A.clone().lerp(B,0.75); c2.y=top;
+      const curve=new THREE.CubicBezierCurve3(A,c1,c2,B);
+      const m=new THREE.Mesh(new THREE.TubeGeometry(curve, 48, 0.07, 6, false), mat); m.renderOrder=998; grp.add(m);
+      // travellers: little beads moving along it so it reads as a link, not a wall line
+      for(let k=1;k<4;k++){ const bead=new THREE.Mesh(new THREE.SphereGeometry(0.13,10,8), mat); bead.position.copy(curve.getPoint(k/4)); bead.renderOrder=998; grp.add(bead); } }
+    G.boxes.forEach((b,i)=>{ const P=pts[i]; if(!P) return;
+      const ring=new THREE.Mesh(new THREE.TorusGeometry(0.32,0.06,8,28), mat); ring.position.copy(P); ring.quaternion.copy(P.q); ring.renderOrder=999; grp.add(ring);
+      const lab=pill(`${b.sn} · ${G.boxes.length>2 && i>0 && i<G.boxes.length-1 ? '4' : '3'}-way`, linkCol(G.grp)); lab.position.copy(P).add(new THREE.Vector3(0,0.9,0)); grp.add(lab); });
+    linkObjs.push({ grp:G.grp, ids:G.boxes.map(b=>b.id), mat, labs:grp.children.filter(o=>o.userData.pillMat && !o.userData.done).map(o=>{ o.userData.done=true; return o.userData.pillMat; }) });
+  });
+  styleLinks(); S3.applyLayers?.();
+}
+/* a coloured pill with white text, always facing the camera */
+function pill(text, col){
+  const c=document.createElement('canvas'), x=c.getContext('2d'), f=44; x.font=`700 ${f}px ui-monospace, Menlo, monospace`;
+  const w=Math.ceil(x.measureText(text).width)+40, h=f+28; c.width=w; c.height=h;
+  x.font=`700 ${f}px ui-monospace, Menlo, monospace`; x.fillStyle=col; const r=h/2;
+  x.beginPath(); x.moveTo(r,0); x.lineTo(w-r,0); x.arc(w-r,r,r,-Math.PI/2,Math.PI/2); x.lineTo(r,h); x.arc(r,r,r,Math.PI/2,Math.PI*1.5); x.fill();
+  x.fillStyle='#fff'; x.textAlign='center'; x.textBaseline='middle'; x.fillText(text, w/2, h/2+2);
+  const t=new THREE.CanvasTexture(c); const m=new THREE.SpriteMaterial({ map:t, depthTest:false, transparent:true });
+  const sp=new THREE.Sprite(m); const k=0.009; sp.scale.set(w*k, h*k, 1); sp.renderOrder=1000; sp.userData.pillMat=m; return sp;
+}
+function styleLinks(){ const on=linkObjs.find(o=>pickId && o.ids.includes(pickId));
+  linkObjs.forEach(o=>{ const v = !on || o===on ? 0.95 : 0.18; o.mat.opacity=v; (o.labs||[]).forEach(m=>{ m.opacity=v; }); }); }
+import('./scene3d.js').then(m=>m.onBuilt?.((root, walls)=>drawLinks(root, walls)));
+const linkChip = u => u.grp ? `<span class="sw-chip" style="--c:${linkCol(u.grp)}" title="3-way group ${u.grp}">${u.way===4?'4':'3'}-way</span>` : '';
+
 /* ring the picked box in the 3D view (wall-local feet: x from the outside-left end, y up, z 0 outside / -t inside) */
 let ring=null;
 async function markBox(s){
   const S3=await import('./scene3d.js');
   if(ring){ ring.parent?.remove(ring); ring=null; }
+  styleLinks();
   const b=pickId && s ? (boxesOn(s)||[]).find(x=>x.id===pickId) : null; if(!b) return;
   const g=S3.wallGroups.find(g=>g.userData.slot.id===s.id); if(!g) return;
   const t=(bodyWall(s, pickFor(s))?.t || (s.type==='int'?4.5:6.5))/12;
@@ -67,7 +117,7 @@ function elecWallBlock(s){
   const P=summary(), gone=(P?.removed||[]).filter(b=>b.W.s.id===s.id);
   const row=b=>{ const tags=[b.chase||b.face==='out'?`<span class="el-ok">on a chase${b.nudge>0.01?` · ${fin(b.nudge)} off centre`:''}</span>`:'<span class="el-warn">needs a chase</span>', ...b.flags.filter(f=>f!=='needs a chase').map(f=>`<span class="el-warn">${esc(f)}</span>`), b.moved?'<span class="el-tag">moved</span>':'', b.user?'<span class="el-tag">added</span>':''].filter(Boolean).join(' ');
     return `<div class="el-row${pickId===b.id?' on':''}" data-id="${esc(b.id)}" data-face="${b.face}" data-a="${b.a}" data-x="${b.x}" data-y="${b.y}" ${b.lock?'':'data-pick="1"'}>
-      <div><b>${esc(b.way>1 ? `${b.way}-way switch` : SHORT[b.rk]||b.name)}</b>${b.sn?` <span class="sw-sn">${esc(b.sn)}</span>`:''}${(b.g||1)>1?` · ${b.g===3?'triple':'double'} box`:''}${b.useText?`<small class="sw-txt">${esc(b.useText)}</small>`:''}${b.face==='out'?' · outside':''} <small>${fin(b.x)} from the left${b.face==='in'?' (seen from inside)':''} · ${fin(b.y)} up${b.note?` · ${esc(b.note)}`:''}</small><div class="el-tags">${tags}</div></div>
+      <div><b>${esc(b.way>1 ? `${b.way}-way switch` : SHORT[b.rk]||b.name)}</b>${b.sn?` <span class="sw-sn">${esc(b.sn)}</span>`:''}${(b.g||1)>1?` · ${b.g===3?'triple':'double'} box`:''}${(b.uses||[]).map(linkChip).join('')}${b.useText?`<small class="sw-txt">${esc(b.useText)}</small>`:''}${b.face==='out'?' · outside':''} <small>${fin(b.x)} from the left${b.face==='in'?' (seen from inside)':''} · ${fin(b.y)} up${b.note?` · ${esc(b.note)}`:''}</small><div class="el-tags">${tags}</div></div>
       ${b.lock?`<div class="el-act"><span class="el-ok" title="It goes where the fireplace goes: move the fireplace, or change its Power (Plug / Hardwired)">🔒 with the fireplace</span></div>`:`<div class="el-act edit-only"><button class="btn ghost sm" data-mv="-1" title="Next chase to the left" aria-label="Next chase to the left">◀</button><button class="btn ghost sm" data-mv="1" title="Next chase to the right" aria-label="Next chase to the right">▶</button>${b.moved?'<button class="btn ghost sm" data-reset title="Back to where the rule put it" aria-label="Reset">↺</button>':''}<button class="btn ghost sm" data-rm title="Remove" aria-label="Remove">✕</button></div>`}</div>${pickId===b.id && !b.lock ? editor(b) : ''}`; };
   const adds=['plug','switch','counter','data', ...(s.type==='ext'?['wp']:[])];
   if(!on) return `<div class="el-box"><div class="eyebrow">Plugs & switches</div>
@@ -142,7 +192,7 @@ function render(){
   B.innerHTML=`
     <p>${all?'Every wall of this home gets its':'Some walls of this home (swapped in or on added pods) get their'} plugs and switches from the rules. ${cnt}</p>
     ${conf?`<div class="eyebrow">Confirm · rooms with more than one entrance</div>${conf}`:''}
-    ${(()=>{ const S=switchSchedule(k); return S.length ? `<div class="eyebrow">Switch schedule · for the electrician</div><table class="sw-sched"><tbody>${S.map(x=>`<tr><th>${esc(x.sn)}</th><td><button class="linkbtn el-flag-l" data-slot="${esc(x.slot)}">${esc(x.wall)}</button>${x.g>1?` · ${x.g===3?'triple':'double'}`:''}</td><td>${esc(x.text)}</td></tr>`).join('')}</tbody></table><p class="note">Tap a wall to go to it; pick a switch there to say what each one does.</p>` : ''; })()}
+    ${(()=>{ const S=switchSchedule(k); return S.length ? `<div class="eyebrow">Switch schedule · for the electrician</div><table class="sw-sched"><tbody>${S.map(x=>`<tr><th>${esc(x.sn)}</th><td><button class="linkbtn el-flag-l" data-slot="${esc(x.slot)}">${esc(x.wall)}</button>${x.g>1?` · ${x.g===3?'triple':'double'}`:''}</td><td>${(x.uses||[]).map(linkChip).join('')} ${esc(x.text)}</td></tr>`).join('')}</tbody></table><p class="note">Tap a wall to go to it; pick a switch there to say what each one does.</p>` : ''; })()}
     <div class="eyebrow">Options</div>
     <label class="el-opt"><input type="checkbox" id="elData" ${E.data?'checked':''}> Data boxes (network / TV): the TV wall in front of a sofa and opposite each bed</label>
     ${(P.flags||[]).length?`<div class="eyebrow">Couldn't follow the rules</div>${P.flags.map(f=>`<button class="el-flag" ${f.w?`data-slot="${esc(f.w)}"`:''}>${esc(f.t)}</button>`).join('')}`:''}

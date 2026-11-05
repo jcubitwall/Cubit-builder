@@ -1262,3 +1262,5 @@ dialog.v3-dlg.v3-full .v3-cube{top:max(12px, env(safe-area-inset-top,0px));right
 .sw-sched{width:100%;border-collapse:collapse;font-size:13px;margin:4px 0}
 .sw-sched th{font:700 12px var(--mono);text-align:left;padding:4px 6px 4px 0;vertical-align:top;color:var(--accent)}
 .sw-sched td{padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+
+.sw-chip{display:inline-block;font:700 10px var(--mono);color:#fff;background:var(--c);border-radius:999px;padding:1px 7px;margin:0 3px;vertical-align:1px}
