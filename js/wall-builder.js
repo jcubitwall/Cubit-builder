@@ -24,6 +24,7 @@ import { flatten, bboxAll } from './geom2d.js';
 import { makeRefTool } from './refmeasure.js';
 import { makeTape } from './tape.js';
 import { boxesOn, moveBox, resetBox, ELEC_NAME, slotAuto, setGang, GANG } from './electrical.js';
+import { switchUsesHTML, bindSwitchUses } from './electrical-ui.js';
 import { attachZoom, pinching } from './zoompan.js';
 const ZW={ k:1, x:0, y:0 };   // pinch zoom of the drawing (kept across redraws)
 import { makeHistory, histButtons, bindHistory } from './local-history.js';
@@ -117,7 +118,7 @@ function loadHB(){
   let L0=null; try{ L0=boxesOn(forSlot); }catch(e){ L0=null; }
   (L0||[]).forEach(b=>{ const k=b.face==='in'?'inside':'outside', off=(forSlot.trim?.[b.face==='in'?1:0])||0, g=b.g||1;
     HB.push({ id:b.id, rk:b.rk, k, name:b.name||ELEC_NAME[b.rk]||'Box', g, g0:g, w:GANG[g].w, h:GANG[g].h, off, Lin:b.a+b.x, x:b.x+off, y:b.y, x0:b.x+off, y0:b.y,
-      lock:b.lock, moved:b.moved, user:b.user, why:b.why||'', flags:b.flags||[] }); });
+      lock:b.lock, moved:b.moved, user:b.user, why:b.why||'', flags:b.flags||[], sn:b.sn, uses:b.uses }); });
 }
 const hbDirty = () => HB.filter(b=>Math.abs(b.x-b.x0)>1e-6 || Math.abs(b.y-b.y0)>1e-6 || b.reset || b.g!==b.g0);
 /* put the moved boxes on this home (only this home) */
@@ -160,6 +161,7 @@ function hbFields(it){
     <div class="cw-fs">${f('x','Centre from the left end', x-cutSeen())}${f('y','Centre from the floor', it.y)}</div>
     ${!onChase && it.k==='inside' ? '<p class="note wb-rule">Off the electrical chases: the wire has to reach it another way.</p>' : ''}
     <div class="row">${moved?'<button class="btn ghost sm" id="hbUndo">Put it back</button>':''}${it.moved&&!it.lock?'<button class="btn ghost sm" id="hbRule">Back to the rule</button>':''}</div>
+    ${it.sn?`<div class="hb-sw">${switchUsesHTML(it)}<p class="note muted">What each switch does is saved to this home straight away.</p></div>`:''}
     ${D&&canSave()?`<div class="row"><button class="btn sm" id="hbSave">Save ${D} box move${D>1?'s':''} to this home</button></div>`:''}</div>`;
 }
 function ensure(){
@@ -434,6 +436,7 @@ function bind(){
   dlg.querySelectorAll('[data-hn]').forEach(b=>b.onclick=()=>{ const it=HB[sel?.i]; if(it) hbNudge(it, b.dataset.hn); });
   dlg.querySelectorAll('[data-hg]').forEach(b=>b.onclick=()=>{ const it=HB[sel?.i]; if(!it) return; it.g=+b.dataset.hg; it.w=GANG[it.g].w; it.h=GANG[it.g].h; render(); });
   dlg.querySelectorAll('[data-wg]').forEach(b=>b.onclick=()=>{ const it=listOf(sel.k)[sel.i]; if(!it) return; const g=+b.dataset.wg; it.gang=g; it.w=GANG[g].w; it.h=GANG[g].h; render(); });
+  { const it=sel?.k==='hb' ? HB[sel.i] : null, box=dlg.querySelector('.hb-sw'); if(it && box) bindSwitchUses(box, it.id, ()=>{ const keep=HB.map(b=>({ id:b.id, x:b.x, y:b.y, g:b.g })); buildHome(); renderSide(); loadHB(); HB.forEach(b=>{ const o=keep.find(q=>q.id===b.id); if(o){ b.x=o.x; b.y=o.y; b.g=o.g; b.w=GANG[b.g].w; b.h=GANG[b.g].h; } }); render(); }); }
   dlg.querySelectorAll('[data-hstep]').forEach(b=>b.onclick=()=>{ hbStep=b.dataset.hstep; render(); });
   dlg.querySelectorAll('[data-hf]').forEach(inp=>inp.onchange=()=>{ const it=HB[sel?.i]; if(!it||it.lock) return; const v=parseFloat(inp.value); if(!isFinite(v)) return;
     if(inp.dataset.hf==='x') it.x=fromDrawX('hb',it,v+cutSeen()); else it.y=Math.max(it.h/2, Math.min(H-it.h/2, v)); render(); });

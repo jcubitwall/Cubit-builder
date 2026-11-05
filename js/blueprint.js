@@ -450,13 +450,15 @@ function sElectrical(ctx, sh){
   let g=deckSVG(H_, xf)+planFurniture(ctx, xf, { tone:'#b7bccb', label:false })+drawWalls(H_, xf, { light:true, labels:false })+roomLabels(H_, xf, { dims:false });
   const s=Math.max(0.8, Math.min(1.3, xf.k/18)), cnt={};
   H_.lights.forEach(L=>{ const [x,y]=xf.P(L.p); g+=ELEC.pot(x,y,s); cnt.pot=(cnt.pot||0)+1; });
+  const SW=[];
   wallBoxes(H_).forEach(({b,p,ext})=>{ const [x,y]=xf.P(p); const kind=b.kind==='light'?'light':(boxKind(b, ext)||b.kind);
     const c1=c=>{ cnt[c]=(cnt[c]||0)+1; };
     if(kind==='wp' || ((kind==='plug'||kind==='counter'||kind==='appl'||kind==='gfci') && ext)){ g+=ELEC.outlet(x,y,s,true); c1('wp'); }
     else if(kind==='plug'){ g+=ELEC.outlet(x,y,s,false); c1('outlet'); }
     else if(kind==='counter'||kind==='appl'){ g+=ELEC.outlet(x,y,s,false); c1(kind); }
     else if(kind==='gfci'){ g+=ELEC.outlet(x,y,s,false)+tx(x,y-6*s,'GFI',{size:5.5*s,anchor:'middle',fill:RED}); c1('gfci'); }
-    else if(kind==='switch'||kind==='double'){ const w3=/^[34]-way/.test(b.name||''); g+=w3 ? tx(x,y+3*s,'S'+(b.name||'')[0],{size:8*s,anchor:'middle',fill:RED,weight:'bold'}) : ELEC.switch(x,y,s); c1(w3?'sw3':kind); }
+    else if(kind==='switch'||kind==='double'){ const w3=/^[34]-way/.test(b.name||''); g+=w3 ? tx(x,y+3*s,'S'+(b.name||'')[0],{size:8*s,anchor:'middle',fill:RED,weight:'bold'}) : ELEC.switch(x,y,s); c1(w3?'sw3':kind);
+      if(b.sn){ g+=tx(x+7*s,y-5*s,b.sn,{size:5.5*s,fill:RED,weight:'bold'}); SW.push(b); } }
     else if(kind==='data'){ g+=ELEC.data(x,y,s); c1('data'); }
     else if(kind==='tvr'){ g+=ELEC.outlet(x,y,s,false)+tx(x,y-6*s,'TV',{size:5.5*s,anchor:'middle',fill:RED,weight:'bold'}); c1('tvr'); }
     else if(kind==='jbox'){ g+=ELEC.box(x,y,s)+tx(x,y-6*s,'J',{size:5.5*s,anchor:'middle',fill:RED,weight:'bold'}); c1('jbox'); }
@@ -468,6 +470,10 @@ function sElectrical(ctx, sh){
   let lx=AREA.x0+10, ly=AREA.y0+20; g+=rect(lx-6, ly-14, 250, 30+LG.length*18+44, {fill:'#fff', stroke:BLUE, sw:0.6})+tx(lx, ly, 'ELECTRICAL LEGEND', {size:11, weight:'bold', fill:BLUE}); ly+=20;
   LG.forEach(([c,sym,t])=>{ g+=ELEC[sym](lx+8, ly-3, 1.2, c==='wp')+tx(lx+24, ly, t, {size:8.5, fill:BLUE})+tx(lx+236, ly, String(cnt[c]), {size:8.5, anchor:'end', weight:'bold', fill:BLUE}); ly+=18; });
   wrap('CIRCUITING, PANEL SCHEDULE AND CABLE SIZES BY THE ELECTRICIAN UNLESS SHOWN ON E-SERIES SHEETS. ALL WORK TO THE CANADIAN ELECTRICAL CODE.', 236, 7).forEach(l=>{ g+=tx(lx, ly+2, l, {size:7, fill:GREY}); ly+=9; });
+  // switch schedule: what each switch does (S1, S2 … as marked on the plan)
+  if(SW.length){ const seen=new Set(), rows=SW.filter(b=>!seen.has(b.sn) && seen.add(b.sn)).sort((p,q)=>+p.sn.slice(1)-+q.sn.slice(1));
+    ly+=8; g+=tx(lx, ly, 'SWITCH SCHEDULE', {size:9.5, weight:'bold', fill:BLUE}); ly+=12;
+    rows.forEach(b=>{ wrap(`${b.sn}: ${b.uses||''}`.toUpperCase(), 236, 7).forEach((l,i)=>{ g+=tx(lx+(i?10:0), ly, l, {size:7, fill:BLUE}); ly+=9; }); }); }
   return g;
 }
 /* P11: fixtures in blue with drain sizes */

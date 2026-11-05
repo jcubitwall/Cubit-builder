@@ -1250,3 +1250,15 @@ dialog.v3-dlg.v3-full .v3-cube{top:max(12px, env(safe-area-inset-top,0px));right
 .ir-list{margin:6px 0 2px;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:6px;font-size:12.5px;line-height:1.35}
 .ir-a{display:inline-block;font:700 10px var(--mono);text-transform:uppercase;color:var(--accent);margin-right:6px;letter-spacing:.04em}
 .cw-bcard .ir-box{margin:6px 0 0;font-size:12px}
+
+/* what each switch does (electrical-ui.js) */
+.sw-uses{border-top:1px solid var(--line);margin-top:8px;padding-top:8px}
+.sw-u{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:6px 0}
+.sw-u select,.sw-u input{font:inherit;font-size:13px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink)}
+.sw-n{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--ink);color:var(--bg);font:700 11px var(--mono)}
+.sw-with{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12.5px;width:100%;padding-left:26px}
+.sw-sn{font:700 11px var(--mono);color:var(--accent);margin-left:4px}
+.sw-txt{display:block}
+.sw-sched{width:100%;border-collapse:collapse;font-size:13px;margin:4px 0}
+.sw-sched th{font:700 12px var(--mono);text-align:left;padding:4px 6px 4px 0;vertical-align:top;color:var(--accent)}
+.sw-sched td{padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:top}
