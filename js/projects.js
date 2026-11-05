@@ -75,7 +75,7 @@ function register(p, force=false){
   if(!force && TEAM[p.id] && TEAM[p.id]!==p) return;          // the team's copy wins over a browser's or the repo's
   addLibrary(p.library);
   MODELS[keyOf(p)] = { ...clone(p.model), name:p.name, size:p.model.size||'', project:p.id, shared:!!p.shared || !!TEAM[p.id], team:!!TEAM[p.id], by:p.by||'', saved:p.saved, custom:false,
-    customer:p.customer||null, locked:p.locked||null, unlocks:p.unlocks||[] };
+    customer:p.customer||null, locked:p.locked||null, unlocks:p.unlocks||[], ...(p.from && p.from!==keyOf(p) && MODELS[p.from] && !MODELS[p.from].custom && !MODELS[p.from].project ? { from:p.from } : {}) };
 }
 function persist(){ if(!canSave()) return; try{ localStorage.setItem(KEY, JSON.stringify(PROJECTS)); }catch(e){} }
 
@@ -85,7 +85,8 @@ function snapshot(name, id, k=state.model){
   if(model.base===undefined) delete model.base;
   if(m.base) model.base=m.base;
   const own = f => clone(state[f]?.[k]||{});
-  return { id, name, saved:new Date().toISOString(), from:m.project ? (MODELS[k].from||k) : k, model,
+  return { id, name, saved:new Date().toISOString(), from:m.project ? (MODELS[k].from||k) : (m.custom && m.from) || k, model,   // the Cubit Home it came from, for Replace from Purgatory
+   
     picks: own('picks'), layerPicks: own('layerPicks'), wallA: own('wallA'), faces: own('faces'), inset: state.inset, bearing: getBearing(k), found: foundationOf(k), deckOC: deckOCOf(k), units: own('units'), cabinets: own('cabinets'), furniture: clone(state.furniture?.[k]||[]), lights: own('lights'), names: own('names') };
 }
 /* Save: updates the open project, or makes a new one. On the team's server when there is one. */

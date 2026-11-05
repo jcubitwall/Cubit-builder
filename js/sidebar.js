@@ -76,7 +76,7 @@ function renderModels(){
     const list = openFam!=='none' && openFam!==undefined ? famList(openFam) : null;
     const fo = openFam ? familyById(openFam) : null;
     if(list && fo && canEdit()) h+=`<div class="fam-bar"><span class="note">Model name <b>${esc(fo.name)}</b></span><button class="btn ghost sm" data-fren="${esc(fo.id)}">Rename</button><button class="btn ghost sm danger" data-fdel="${esc(fo.id)}">Delete</button></div>`;
-    if(list) h+=`<div class="fam-list" role="listbox">${list.length ? list.map(k=>item(k, MODELS[k].sub ? `variation · ${MODELS[k].size||''}` : `standard · ${MODELS[k].size||''}`)).join('') : '<p class="note">No original under this model name yet. Editors adopt one into it from Purgatory or a draft (Save → Cubit Homes, pick this model name).</p>'}</div>`;
+    if(list) h+=`<div class="fam-list" role="listbox">${list.length ? list.map(k=>item(k, MODELS[k].sub ? `variation · ${MODELS[k].size||''}` : `standard · ${MODELS[k].size||''}`)).join('') : '<p class="note">No original under this model name yet. Editors adopt one into it from Purgatory (open the home there → Adopt into Cubit Homes, pick this model name).</p>'}</div>`;
   } else if(homeCat==='drafts'){
     h+=`<div class="fam-list" role="listbox">${canSave()?'<button class="fam-it new" data-new="1"><b>＋ New home</b><small>start from scratch</small></button>':''}${drafts.map(k=>item(k, MODELS[k].from&&MODELS[k].from!==k&&MODELS[MODELS[k].from] ? `from ${MODELS[MODELS[k].from].name}` : 'only you see it')).join('') || '<p class="note">No drafts. Change any home and your copy lands here.</p>'}</div>`;
   } else if(homeCat==='purg'){
@@ -105,8 +105,8 @@ function renderModels(){
 }
 /* a new model name: it shows as a chip at once, empty until a home is adopted into it */
 async function newFamily(){
-  const v=await askName({ title:'New model name', current:'', placeholder:'e.g. Summit', note:'Shown as a model name in Cubit Homes and the Save window for the whole team. Homes are filed under it when they are adopted into Cubit Homes.' }); if(v==null || !v.trim()) return;
-  try{ const id=await addFamily(v); openFam=id; renderModels(); toast(`“${v.trim()}” added. Adopt a home into it from a draft or Purgatory (Save → Cubit Homes).`); }
+  const v=await askName({ title:'New model name', current:'', placeholder:'e.g. Summit', note:'Shown as a model name in Cubit Homes and the Save window for the whole team. Homes are filed under it when they are adopted into Cubit Homes from Purgatory.' }); if(v==null || !v.trim()) return;
+  try{ const id=await addFamily(v); openFam=id; renderModels(); toast(`“${v.trim()}” added. Adopt a home into it from Purgatory (Adopt into Cubit Homes).`); }
   catch(e){ toast('Not added: '+(e.message||e)); }
 }
 const showHomeCat = c => { homeCat=c; renderModels(); };
