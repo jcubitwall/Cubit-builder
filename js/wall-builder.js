@@ -9,20 +9,21 @@
    in the wall library (shared by the team), ready to pick for any wall of that length and type.
    Same data as the scanned walls: openings + outside items measured from the left end seen from OUTSIDE,
    inside items from the left end seen from INSIDE; openings by their bottom-left corner, face items by centre. */
-import { LIB, byId, mirrorWall, saveWallLib } from './data.js';
+import { LIB, byId, mirrorWall, saveWallLib, MODELS } from './data.js';
 import { state } from './state.js';
 import { canSave, canEdit } from './role.js';
 import { buildHome } from './scene3d.js';
 import { renderSide, toast } from './sidebar.js';
 import { choose } from './state.js';
 import { fin } from './format.js';
-import { panelSpans, wallGaps, wallStretches, isGapOpening } from './panels.js';
+import { panelSpans, wallGaps, wallStretches, isGapOpening, isElecBox } from './panels.js';
 import { kindChooser, switchKind } from './panel-builder.js';
 import { SHAPELIB, placeItem, regionsOf, shapeThumb } from './shapes.js';
 import { openShapeStudio } from './shape-studio.js';
 import { flatten, bboxAll } from './geom2d.js';
 import { makeRefTool } from './refmeasure.js';
 import { makeTape } from './tape.js';
+import { boxesOn, moveBox, resetBox, ELEC_NAME, slotAuto } from './electrical.js';
 import { attachZoom, pinching } from './zoompan.js';
 const ZW={ k:1, x:0, y:0 };   // pinch zoom of the drawing (kept across redraws)
 import { makeHistory, histButtons, bindHistory } from './local-history.js';
@@ -35,6 +36,10 @@ const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>
 const r8 = v => Math.round(v*8)/8;
 const ROUND_RO = 33;   // Cubit's round window is exactly 32″ across, so its round rough opening is 33″
 let W=null, view='outside', sel=null, dlg=null, origin=null, forSlot=null, RD=null, rulesOpen=false, shapePick=false;
+/* the home's own plugs and switches on this wall (opened from a wall of a home): laid out by the electrical rules,
+   moved here by hand (tap one, then drag it or use the arrows). Kept as pending changes and saved to THIS home only
+   (MODELS[k].elec.ov, electrical.js) when you tap Save: the wall in the library doesn't change for them. */
+let HB=[], hbStep='chase';
 /* the Shape library as tappable thumbnails */
 /* (shape thumbnails: shapeThumb in shapes.js) */
 function shapePicker(){ return `<div class="wb-shapes">${SHAPELIB.length ? SHAPELIB.map(s=>`<button class="wb-shp" data-shape="${esc(s.id)}">${shapeThumb(s)}<span><b>${esc(s.name)}</b><small>${fin(s.w||0)} × ${fin(s.h||0)}</small></span></button>`).join('') : '<p class="note">No shapes yet: Draw a new shape.</p>'}</div>`; }
@@ -48,13 +53,13 @@ function rkOf(k, it){
   if(k==='op') return it.kind==='vent' ? 'vent' : it.kind==='window' ? (it.shape==='round'?'round':'window') : null;
   return ({'Plug box':'plug','Switch box':'switch','Double switch box':'double','Wall light box':'light'})[it.name] || (it.kind==='pocket'?'pocket':null);
 }
-const ruleOf = (k,it) => ruleFor(rkOf(k,it));
+const ruleOf = (k,it) => k==='hb' ? null : ruleFor(rkOf(k,it));
 /* the height a rule talks about: boxes / round items to their centre, windows to the sill */
 const centred = (k,it) => k!=='op' || it.kind==='vent';
 const ruleY = (k,it) => k==='op' && it.kind==='vent' ? it.y+it.h/2 : it.y;
 const setRuleY = (k,it,v) => { if(k==='op' && it.kind==='vent') it.y=v-it.h/2; else it.y=v; };
 /* locked = the rule holds it and this item hasn't been unlocked on purpose */
-function locked(k, it, f){ const r=ruleOf(k,it); if(!r) return false;
+function locked(k, it, f){ if(k==='hb') return !!it.lock && (f==='x'||f==='y'); const r=ruleOf(k,it); if(!r) return false;
   if(f==='y') return !!r.ylock && !it.free?.y;
   if(f==='depth') return !!r.dlock && !it.free?.depth;
   if(f==='x') return r.side==='fixed' && !it.free?.x;
@@ -103,7 +108,52 @@ function openWallBuilder({ from=null, slot=null, len, type }={}){
   W.openings ||= []; W.inside ||= []; W.outside ||= [];
   // how its ends meet the walls beside it: the home's own fit for that wall when opened from one
   W.fit = slot?.trim ? slot.trim.map(v=>+v||0) : (W.fit || [0,0]);
-  view='outside'; sel=null; RD=null; shapePick=false; ensure(); HIST.reset(); render(); if(!dlg.open) dlg.showModal();
+  view='outside'; sel=null; RD=null; shapePick=false; loadHB(); ensure(); HIST.reset(); render(); if(!dlg.open) dlg.showModal();
+}
+/* the home's boxes on this wall, in the builder's own frame (full length; outside items from the left seen from
+   outside, inside items from the left seen from inside: the fitted wall's frame plus what its ends lose) */
+function loadHB(){
+  HB=[]; if(!forSlot) return;
+  let L0=null; try{ L0=boxesOn(forSlot); }catch(e){ L0=null; }
+  (L0||[]).forEach(b=>{ const k=b.face==='in'?'inside':'outside', off=(forSlot.trim?.[b.face==='in'?1:0])||0, big=b.rk==='double';
+    HB.push({ id:b.id, rk:b.rk, k, name:b.name||ELEC_NAME[b.rk]||'Box', w:big?4.125:2.375, h:big?3.625:3.375, off, Lin:b.a+b.x, x:b.x+off, y:b.y, x0:b.x+off, y0:b.y,
+      lock:b.lock, moved:b.moved, user:b.user, why:b.why||'', flags:b.flags||[] }); });
+}
+const hbDirty = () => HB.filter(b=>Math.abs(b.x-b.x0)>1e-6 || Math.abs(b.y-b.y0)>1e-6 || b.reset);
+/* put the moved boxes on this home (only this home) */
+function saveHB(){
+  const D=hbDirty(); if(!D.length) return 0;
+  D.forEach(b=>{ if(b.reset && Math.abs(b.x-b.x0)<1e-6 && Math.abs(b.y-b.y0)<1e-6){ resetBox(b.id); return; }
+    const xb=b.x-b.off, a=b.k==='inside' ? b.Lin-xb : xb; moveBox(b.id, +a.toFixed(3), +b.y.toFixed(3)); });
+  buildHome(); renderSide(); loadHB(); return D.length;
+}
+/* the arrows: left / right = the next chase (or a step), up / down = a step; as the wall is seen now */
+function hbNudge(it, dir){
+  if(it.lock){ toast('This box goes with the fireplace: move the fireplace instead.'); return; }
+  const stepOf={ '1':1, '0.5':0.5, '0.125':0.125 }, st=stepOf[hbStep] ?? 1;
+  if(dir==='up'||dir==='down'){ it.y=Math.max(it.h/2, Math.min(H-it.h/2, r8(it.y + (dir==='up'?1:-1)*(hbStep==='chase'?1:st)))); }
+  else { const x=drawX('hb',it), sg=dir==='right'?1:-1;
+    if(hbStep==='chase'){ const cs=chaseList().map(c=>view==='inside'?L()-c:c).sort((p,q)=>p-q);
+      const nx = sg>0 ? cs.find(c=>c>x+0.05) : [...cs].reverse().find(c=>c<x-0.05);
+      if(nx==null){ toast('No more chases that way.'); return; } it.x=fromDrawX('hb',it,nx); }
+    else it.x=fromDrawX('hb',it, x+sg*st); }
+  render();
+}
+function hbFields(it){
+  const x=drawX('hb',it), moved=Math.abs(it.x-it.x0)>1e-6||Math.abs(it.y-it.y0)>1e-6, onChase=chaseList().some(c=>Math.abs((it.k==='inside'?L()-it.x:it.x)-c)<0.01);
+  const f=(id,label,v)=>`<label class="cw-f${it.lock?' locked':''}"><span>${label}</span><input data-hf="${id}" inputmode="decimal" value="${Math.round(v*16)/16}" ${it.lock?'readonly':''}><i>″</i></label>`;
+  const D=hbDirty().length;
+  return `<div class="wb-sel wb-hsel"><div class="eyebrow">${esc(it.name)} · ${it.k} face · this home only</div>
+    <p class="note">${it.lock?'🔒 Goes with the fireplace: move the fireplace and it follows.':`Laid out by the electrical rules${it.why?` (${esc(it.why)})`:''}. Moving it here overrides the rule for <b>${esc(MODELS[state.model]?.name||'this home')}</b> only; the wall in the library doesn't change.`}${it.moved&&!moved?' Already moved by hand before.':''}</p>
+    ${it.lock?'':`<div class="wb-pad" role="group" aria-label="Move it">
+      <button class="btn ghost" data-hn="up" aria-label="Up">▲</button>
+      <button class="btn ghost" data-hn="left" aria-label="Left">◀</button><button class="btn ghost" data-hn="right" aria-label="Right">▶</button>
+      <button class="btn ghost" data-hn="down" aria-label="Down">▼</button></div>
+      <div class="cw-opt"><span>Each tap</span><div class="seg sm">${[['chase','Chase to chase'],['1','1″'],['0.5','½″'],['0.125','⅛″']].map(([v,l])=>`<button data-hstep="${v}" aria-pressed="${hbStep===v}">${l}</button>`).join('')}</div></div>`}
+    <div class="cw-fs">${f('x','Centre from the left end', x-cutSeen())}${f('y','Centre from the floor', it.y)}</div>
+    ${!onChase && it.k==='inside' ? '<p class="note wb-rule">Off the electrical chases: the wire has to reach it another way.</p>' : ''}
+    <div class="row">${moved?'<button class="btn ghost sm" id="hbUndo">Put it back</button>':''}${it.moved&&!it.lock?'<button class="btn ghost sm" id="hbRule">Back to the rule</button>':''}</div>
+    ${D&&canSave()?`<div class="row"><button class="btn sm" id="hbSave">Save ${D} box move${D>1?'s':''} to this home</button></div>`:''}</div>`;
 }
 function ensure(){
   if(dlg) return; dlg=document.createElement('dialog'); dlg.className='cw-dlg wb-dlg'; dlg.setAttribute('aria-label','Panel builder: wall');
@@ -119,13 +169,14 @@ const netL = () => L()-fitL()-fitR();
 /* panel joints (where two panels meet; not the edges of a gap) */
 function seamsOut(){ const S=spansOut(), out=[]; for(let i=0;i+1<S.length;i++) if(Math.abs(S[i][1]-S[i+1][0])<0.01) out.push(S[i][1]); return out; }
 /* screen x of an item seen from the current side */
-const listOf = k => k==='op' ? W.openings : k==='sh' ? (W.shapes ||= []) : W[k];
+const listOf = k => k==='op' ? W.openings : k==='sh' ? (W.shapes ||= []) : k==='hb' ? HB : W[k];
 function drawX(k, it){                       // left edge (openings, shapes) / centre (face items) as seen now
+  if(k==='hb') k=it.k;                        // a home box: on its face, like any face item
   const flip = (k==='op'||k==='outside'||k==='sh') ? view==='inside' : view==='outside';
   if(k==='op'||k==='sh') return flip ? L()-it.x-it.w : it.x;
   return flip ? L()-it.x : it.x;
 }
-function fromDrawX(k, it, x){ const flip=(k==='op'||k==='outside'||k==='sh') ? view==='inside' : view==='outside'; if(k==='op'||k==='sh') return flip ? L()-x-it.w : x; return flip ? L()-x : x; }
+function fromDrawX(k, it, x){ if(k==='hb') k=it.k; const flip=(k==='op'||k==='outside'||k==='sh') ? view==='inside' : view==='outside'; if(k==='op'||k==='sh') return flip ? L()-x-it.w : x; return flip ? L()-x : x; }
 const near = view => view==='outside' ? 'outside' : 'inside';
 function sizeOf(k, it){ if(it.shape==='round') return [it.d, it.d]; return [it.w, it.h]; }
 /* where an item sits in the drawing (SVG: x right, y down from the top of the wall), for measuring from it */
@@ -137,6 +188,7 @@ function itemLabel(k, it, i){
   if(k==='op' && it.name) return it.name; if((k==='inside'||k==='outside') && it.label) return it.label;
   if(k==='op') return it.shape==='round' ? (it.kind==='window'?'the round window':`round hole ${i+1}`) : it.kind==='opening' ? `cased opening ${i+1}` : `the ${it.kind} ${i+1}`.replace(/^the (window|door) /,'$1 ');
   if(k==='sh') return `shape ${it.name||i+1}`;
+  if(k==='hb') return `${String(it.name).toLowerCase()} (${it.k}, this home)`;
   return `${(it.name||'box').toLowerCase()} (${k})`;
 }
 const refLines = () => { const flip=x=>view==='inside'?L()-x:x;
@@ -144,7 +196,7 @@ const refLines = () => { const flip=x=>view==='inside'?L()-x:x;
     [{x:cutSeen()}, 'left end'], [{x:L()-(view==='outside'?fitR():fitL())}, 'right end'], [{y:H}, 'floor'], [{y:0}, 'top of the wall'] ]; };
 /* the tape: between any two points (every item, the picked one too, and every joint, chase and end) */
 const TP = makeTape({
-  items: () => ['op','sh','inside','outside'].flatMap(k=>listOf(k).map((it,i)=>({ ...geomOf(k,it), label:itemLabel(k,it,i) }))),
+  items: () => ['op','sh','inside','outside','hb'].flatMap(k=>listOf(k).map((it,i)=>({ ...geomOf(k,it), label:itemLabel(k,it,i) }))),
   lines: () => refLines(),
   extent: () => ({ x0:cutSeen(), x1:L()-(view==='outside'?fitR():fitL()), y0:0, y1:H }),
   rerender: () => render(), pinching: () => pinching(),
@@ -155,6 +207,7 @@ const RF = makeRefTool({
   extent: () => ({ x0:0, x1:L(), y0:0, y1:H }),
   box: () => geomOf(sel.k, listOf(sel.k)[sel.i]),
   moveBy: (dx, dy) => { const k=sel.k, it=listOf(k)[sel.i], g=geomOf(k,it), no=[];
+    if(k==='hb'){ if(it.lock) return 'This box goes with the fireplace.'; if(Math.abs(dx)>1e-9) it.x=+fromDrawX('hb',it,(g.x0+g.x1)/2+dx).toFixed(4); if(Math.abs(dy)>1e-9) it.y=+(it.y-dy).toFixed(4); return ''; }
     if(Math.abs(dx)>1e-9){ if(locked(k,it,'x')) no.push('sideways (🔒 locked by the wall rules)');
       else { it.x=+fromDrawX(k,it,(k==='op'||k==='sh') ? g.x0+dx : (g.x0+g.x1)/2+dx).toFixed(4); if(snaps(k,it)) unlock(k,it,'x'); } }
     if(Math.abs(dy)>1e-9){ if(locked(k,it,'y')) no.push('up / down (🔒 locked by the wall rules)'); else it.y=+(it.y-dy).toFixed(4); }
@@ -206,11 +259,18 @@ function elevation(){
       p+=`<path d="${[r.pts,...(r.holes||[])].map(ring).join(' ')}" fill-rule="evenodd" class="${thru?'wb-op':'wb-box wb-pk'+(far?' far':'')}${on?' on':''}"/>`; });
     const x=drawX('sh',it); p+=`<rect x="${x-3}" y="${H-it.y-it.h-3}" width="${it.w+6}" height="${it.h+6}" class="wb-hit"/>`;
     g+=`<g class="wb-shape${on?' on':''}" data-k="sh" data-i="${i}">${p}</g>`; });
+  // in a home on the electrical rules this wall's own library plugs and switches aren't used there (the green ones are)
+  let libOff=false; try{ libOff=!!forSlot && HB.length>0 && slotAuto(forSlot); }catch(e){}
   ['inside','outside'].forEach(k=>W[k].forEach((b,i)=>{ const x=drawX(k,b), on=sel&&sel.k===k&&sel.i===i, far = k!==near(view);
-    const cls=`wb-box${far?' far':''}${on?' on':''}`;
+    const cls=`wb-box${far?' far':''}${on?' on':''}${libOff && isElecBox(b)?' lib-off':''}`;
     if(b.shape==='round') g+=`<circle cx="${x}" cy="${H-b.y}" r="${b.d/2}" class="${cls}" data-k="${k}" data-i="${i}"/>`;
     else g+=`<rect x="${x-b.w/2}" y="${H-b.y-b.h/2}" width="${b.w}" height="${b.h}" class="${cls}" data-k="${k}" data-i="${i}"/>`;
     const [bw,bh]=sizeOf(k,b); g+=`<rect x="${x-bw/2-4}" y="${H-b.y-bh/2-4}" width="${bw+8}" height="${bh+8}" class="wb-hit" data-k="${k}" data-i="${i}"/>`; }));   // a finger-sized target
+  // the home's own plugs and switches (by the rules): their own colour, movable for this home
+  HB.forEach((b,i)=>{ const x=drawX('hb',b), on=sel&&sel.k==='hb'&&sel.i===i, far=b.k!==near(view), mv=Math.abs(b.x-b.x0)>1e-6||Math.abs(b.y-b.y0)>1e-6;
+    g+=`<rect x="${x-b.w/2}" y="${H-b.y-b.h/2}" width="${b.w}" height="${b.h}" class="wb-hbox${far?' far':''}${on?' on':''}${mv||b.moved?' moved':''}${b.lock?' lock':''}" data-k="hb" data-i="${i}"/>`;
+    if(!far) g+=`<text x="${x}" y="${H-b.y-b.h/2-1.2}" class="wb-hlab">${b.rk==='switch'||b.rk==='double'?'S':b.rk==='data'?'D':b.rk==='jbox'?'J':'P'}</text>`;
+    g+=`<rect x="${x-b.w/2-4}" y="${H-b.y-b.h/2-4}" width="${b.w+8}" height="${b.h+8}" class="wb-hit" data-k="hb" data-i="${i}"/>`; });
   // dimensions of the picked item to the left end and the floor
   // openings to their left edge and bottom, boxes and pockets to their centre (as the fields read)
   if(sel){ const it=listOf(sel.k)[sel.i]; if(it){ const op=sel.k==='op'||sel.k==='sh', [w0,h0]=sizeOf(sel.k,it), w=op?w0:0, h=op?h0:0, x=drawX(sel.k,it), xl = x, yb = it.y;
@@ -223,6 +283,7 @@ function fields(){
   if(!sel) return `<p class="wb-mini">Tap an item to pick it · drag a picked item to move it · pinch to zoom</p>`;
   const it=listOf(sel.k)[sel.i]; if(!it) return '';
   if(sel.k==='sh') return shapeFields(it);
+  if(sel.k==='hb') return hbFields(it);
   const [w,h]=sizeOf(sel.k,it), x=drawX(sel.k,it), isOp=sel.k==='op', round=it.shape==='round';
   const r=ruleOf(sel.k,it), k=sel.k;
   // a field the rules can lock: 🔒 = held by the rule (tap to unlock this item only), 🔓 = unlocked on purpose (tap to go back to the rule)
@@ -294,6 +355,7 @@ function render(){
         <div class="wb-save"><input id="wbName" value="${esc(W.name||'')}" placeholder="${esc(autoName())}" aria-label="Name">
           ${canEdit()?`<button class="btn sm" id="wbSave">${libHit?'Save':'Save to library'}</button>${libHit?'<button class="btn ghost sm" id="wbSaveNew">Save as new</button>':''}`:'<span class="wb-mini">Look only: editors and admins change walls.</span>'}</div>
         ${forSlot?`<p class="wb-mini">Saving also puts it on ${esc(forSlot.label)}.</p>`:''}
+        ${hbDirty().length && canSave()?`<div class="wb-save"><button class="btn sm" id="hbSave2">Save ${hbDirty().length} plug / switch move${hbDirty().length>1?'s':''} to this home only</button></div>`:''}
       </div></div></div>`;
   bind();
 }
@@ -361,6 +423,14 @@ function bind(){
   $('#wbMir').onclick=()=>{ const m=mirrorWall({...W, id:W.id||'X'}); W.openings=m.openings; W.inside=m.inside; W.outside=m.outside; if(m.shapes) W.shapes=m.shapes; resnapAll(); sel=null; render(); toast('Mirrored left ↔ right'); };
   $('#wbName')?.addEventListener('change', e=>{ W.name=e.target.value.trim(); });
   $('#wbSave')?.addEventListener('click',()=>saveWall(false));
+  dlg.querySelectorAll('[data-hn]').forEach(b=>b.onclick=()=>{ const it=HB[sel?.i]; if(it) hbNudge(it, b.dataset.hn); });
+  dlg.querySelectorAll('[data-hstep]').forEach(b=>b.onclick=()=>{ hbStep=b.dataset.hstep; render(); });
+  dlg.querySelectorAll('[data-hf]').forEach(inp=>inp.onchange=()=>{ const it=HB[sel?.i]; if(!it||it.lock) return; const v=parseFloat(inp.value); if(!isFinite(v)) return;
+    if(inp.dataset.hf==='x') it.x=fromDrawX('hb',it,v+cutSeen()); else it.y=Math.max(it.h/2, Math.min(H-it.h/2, v)); render(); });
+  $('#hbUndo')?.addEventListener('click',()=>{ const it=HB[sel?.i]; if(it){ it.x=it.x0; it.y=it.y0; it.reset=false; render(); } });
+  $('#hbRule')?.addEventListener('click',()=>{ const it=HB[sel?.i]; if(!it) return; resetBox(it.id); buildHome(); renderSide(); loadHB(); render(); toast('Back where the rule puts it (this home)'); });
+  $('#hbSave2')?.addEventListener('click',()=>{ const n=saveHB(); render(); toast(`${n} box move${n>1?'s':''} saved to ${MODELS[state.model]?.name||'this home'} only`); });
+  $('#hbSave')?.addEventListener('click',()=>{ const n=saveHB(); render(); toast(`${n} box move${n>1?'s':''} saved to ${MODELS[state.model]?.name||'this home'} only`); });
   $('#wbSaveNew')?.addEventListener('click',()=>saveWall(true));
   // pick and drag on the drawing
   const svg=$('.wb-svg'); let drag=null, emptyDown=null;
@@ -381,12 +451,13 @@ function bind(){
     if(!drag.axis){ const dx=e.clientX-drag.c0[0], dy=e.clientY-drag.c0[1]; if(Math.hypot(dx,dy)<8) return; drag.axis=Math.abs(dx)>=Math.abs(dy)?'x':'y'; }
     drag.moved=true;
     const nx=r8(drag.x0 + (drag.axis==='x' ? p.x-drag.p0.x : 0)), ny=r8(drag.y0 - (drag.axis==='y' ? p.y-drag.p0.y : 0));
-    if(!locked(drag.k,it,'x')){ it.x=fromDrawX(drag.k,it,nx); snapToChase(drag.k,it); snapToJoint(drag.k,it); }
+    if(!locked(drag.k,it,'x')){ it.x=fromDrawX(drag.k,it,nx); if(drag.k!=='hb'){ snapToChase(drag.k,it); snapToJoint(drag.k,it); } }
     if(!locked(drag.k,it,'y')) it.y=Math.max(0, Math.min(H, ny));
     const el=svg.querySelector(`[data-k="${drag.k}"][data-i="${drag.i}"]:not(.wb-hit)`), x=drawX(drag.k,it), [w,h]=sizeOf(drag.k,it);
     if(drag.k==='sh'){ el.setAttribute('transform', `translate(${(drawX('sh',it)-drag.x0).toFixed(2)} ${(-(it.y-drag.y0)).toFixed(2)})`); }
     else if(el.tagName==='circle'){ el.setAttribute('cx', drag.k==='op' ? x+it.w/2 : x); el.setAttribute('cy', drag.k==='op' ? H-it.y-it.h/2 : H-it.y); }
-    else if(drag.k==='op'){ el.setAttribute('x',x); el.setAttribute('y',H-it.y-it.h); } else { el.setAttribute('x',x-w/2); el.setAttribute('y',H-it.y-h/2); } });
+    else if(drag.k==='op'){ el.setAttribute('x',x); el.setAttribute('y',H-it.y-it.h); } else { el.setAttribute('x',x-w/2); el.setAttribute('y',H-it.y-h/2); }
+    if(drag.k==='hb'){ const t=el.nextElementSibling; if(t?.tagName==='text'){ t.setAttribute('x',x); t.setAttribute('y',H-it.y-h/2-1.2); } } });
   svg.addEventListener('pointerup', e=>{ if(TP.release(e, svg)) return; if(emptyDown){ const tap=!pinching() && Math.hypot(e.clientX-emptyDown[0], e.clientY-emptyDown[1])<8; emptyDown=null; if(tap){ if(sel){ sel=null; render(); } } return; } if(!drag) return; const m=drag.moved; drag=null; if(m) render(); });
 }
 /* after the panels move (length, ends, mirror, flip): everything on the chases goes to its nearest chase again */
@@ -435,7 +506,9 @@ async function saveWall(asNew){
   if(!shared) saveWallLib();
   origin=w.id; W.id=w.id; W.name=w.name;
   if(forSlot){ choose(forSlot, w.id); }
+  const nb=saveHB();   // the plug / switch moves go on this home only
   buildHome(); renderSide(); render();
+  if(nb) toast(`${nb} plug / switch move${nb>1?'s':''} saved to this home only`, 3000);
   toast(`${w.id} saved to the wall library${shared?' (for the whole team)':' (in this browser)'}${forSlot?` · on ${forSlot.label}`:''}`);
 }
 /* save a wall made by the app (e.g. a window centred over a sink) to the library and put it on a slot, the same way

@@ -1221,3 +1221,16 @@ html.phone #hLibrary, html.phone #hCabLib, html.phone #hTrash{display:inline-fle
 dialog.v3-dlg.v3-full > .cw-h{display:none}
 dialog.v3-dlg.v3-full .v3-exitfs{display:inline-flex}
 dialog.v3-dlg.v3-full .v3-cube{top:max(12px, env(safe-area-inset-top,0px));right:max(12px, env(safe-area-inset-right,0px))}
+
+/* the home's own plugs and switches in the panel builder (wall-builder.js) */
+.wb-hbox{fill:#2f9e6a;stroke:#1d6b47;stroke-width:.35;cursor:pointer}
+.wb-hbox.far{fill:none;stroke:#2f9e6a;stroke-dasharray:1 .8;opacity:.7}
+.wb-hbox.moved{fill:#e08a1e;stroke:#9a5a0c}
+.wb-hbox.lock{fill:#8a8f94;stroke:#55595d}
+.wb-hbox.on{stroke:var(--accent);stroke-width:.9}
+.wb-hlab{font:700 3px var(--mono);fill:#1d6b47;text-anchor:middle;pointer-events:none}
+.wb-pad{display:grid;grid-template-columns:repeat(3,48px);grid-template-rows:repeat(3,40px);gap:4px;justify-content:start;margin:8px 0}
+.wb-pad [data-hn="up"]{grid-column:2;grid-row:1}.wb-pad [data-hn="left"]{grid-column:1;grid-row:2}
+.wb-pad [data-hn="right"]{grid-column:3;grid-row:2}.wb-pad [data-hn="down"]{grid-column:2;grid-row:3}
+.wb-pad button{padding:0;font-size:16px}
+.wb-box.lib-off{opacity:.25}
