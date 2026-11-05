@@ -16,12 +16,12 @@ import { ocSeg, bindOC } from './deckframe.js';
 import { concretePlan } from './concrete.js';
 import { FAMILIES, familyOf, familyById, variantsOf, saveSub, removeSub, editSub } from './catalog.js';
 import { isAdmin, canSave, canEdit } from './role.js';
-import { myDrafts } from './drafts.js';
+import { myDrafts, renameDraft, deleteDraft } from './drafts.js';
 import { liveCustomers, CUSTOMERS, restoreCustomer } from './customers.js';
 import { TYPES, unitsFor, unitFor, setUnit, unitSVG, unitLabel, catOf, okey, pairOf, doorOwner, setDoorOwner } from './units.js';
 import { fin } from './format.js';
 import { setIsolate, setPod } from './layers.js';
-import { applyEdits } from './libedit.js';
+import { applyEdits, deleteItem } from './libedit.js';
 import { withLights, cfgOf, setLights, cabinetsOf, setCabinet, cabDepth, CAB_PRESETS } from './lights.js';
 import { askRename } from './library-ui.js';
 import { nameOf, withName, setName, askName } from './names.js';
@@ -35,7 +35,7 @@ import './shape-studio.js';
 import { openLayerBuilder } from './layer-builder.js';
 import './panel-builder.js';
 import './compass-ui.js';
-import { refreshOpen } from './projects.js';
+import { refreshOpen, renameProject, deleteProject } from './projects.js';
 
 const sideH=document.getElementById('sideH'), sideB=document.getElementById('sideB');
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -62,7 +62,10 @@ function renderModels(){
   const cubitN=Object.keys(MODELS).filter(isOriginal).length;
   const tabs=[['cubit','Cubit Homes',cubitN], ...(canSave()||drafts.length?[['drafts','My Drafts',drafts.length]]:[]), ['purg','Purgatory',purg.length], ['cust','Customers',custs.length]];
   let h=`<div class="hc-tabs" role="tablist" aria-label="Home categories">${tabs.map(([k,l,n])=>`<button role="tab" data-cat="${k}" aria-selected="${homeCat===k}">${l}<small>${n}</small></button>`).join('')}</div>`;
-  const item=(k,sub)=>{ const m=MODELS[k]; return `<button class="fam-it ${catOfHome(k)}" role="option" data-m="${k}" aria-selected="${k===state.model}"><b>${esc(m.name)}${m.locked?' <span class="lock-b" title="Signed and locked">🔒</span>':''}</b><small>${esc(sub ?? (m.size||''))}</small></button>`; };
+  // each home: open it (tap), and Rename / Delete beside it for those allowed (delete asks twice)
+  const item=(k,sub)=>{ const m=MODELS[k], ac=homeActs(k);
+    const btn=`<button class="fam-it ${catOfHome(k)}" role="option" data-m="${k}" aria-selected="${k===state.model}"><b>${esc(m.name)}${m.locked?' <span class="lock-b" title="Signed and locked">🔒</span>':''}</b><small>${esc(sub ?? (m.size||''))}</small></button>`;
+    return ac.ren||ac.del ? `<div class="fam-row">${btn}<span class="fam-acts">${ac.ren?`<button class="btn ghost sm" data-hren="${k}" aria-label="Rename ${esc(m.name)}">Rename</button>`:''}${ac.del?`<button class="btn ghost sm danger" data-hdel="${k}" aria-label="Delete ${esc(m.name)}">Delete</button>`:''}</span></div>` : btn; };
   const when = iso => iso ? new Date(iso).toLocaleDateString(undefined,{month:'short', day:'numeric'}) : '';
   const who = e => e ? String(e).split('@')[0] : '';
   if(homeCat==='cubit'){
@@ -85,6 +88,8 @@ function renderModels(){
   el.innerHTML = h;
   const go = k => { state.model=k; state.selected=null; refreshOpen(k); save(); renderModels(); buildHome(); renderSide(); if(state.view==='sheets') openSheets(); };   // a team home: the latest save, not this device's older copy
   el.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>go(b.dataset.m));
+  el.querySelectorAll('[data-hren]').forEach(b=>b.onclick=()=>renameHome(b.dataset.hren));
+  el.querySelectorAll('[data-hdel]').forEach(b=>b.onclick=()=>deleteHome(b, b.dataset.hdel));
   el.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{ homeCat=b.dataset.cat; renderModels(); });
   el.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{ const f=b.dataset.f||null; openFam = openFam===f ? 'none' : f; renderModels(); });
   el.querySelectorAll('[data-copen]').forEach(b=>b.onclick=()=>{ custOpen = custOpen===b.dataset.copen ? null : b.dataset.copen; renderModels(); });
@@ -93,6 +98,38 @@ function renderModels(){
   el.querySelectorAll('[data-newcust]').forEach(b=>b.onclick=()=>{ document.getElementById('homeDlg')?.close(); import('./customers-ui.js').then(m=>m.openCustomer(null)); });
 }
 const showHomeCat = c => { homeCat=c; renderModels(); };
+
+/* ---------------------------------------------------------------- rename / delete a home from the Homes window
+   Cubit Homes originals: editors (deleted ones come back from Library → Recently deleted for 2 weeks).
+   My Drafts: your own. Purgatory and customer homes: rename by salespeople and up, delete by editors (every save is
+   kept on the server). Delete asks twice: the button first says "Tap again to delete", then a window asks to confirm. */
+function homeActs(k){ const m=MODELS[k]; if(!m || m.deleted) return {};
+  if(m.custom) return { ren:canSave(), del:canSave() };
+  if(m.project) return { ren:canSave() && !m.locked, del:canEdit() };
+  return { ren:canEdit(), del:canEdit() };
+}
+async function renameHome(k){ const m=MODELS[k]; if(!m) return;
+  if(!m.custom && !m.project){ askRename('models', k, ()=>{ renderModels(); renderSide(); }); return; }
+  const v=await askName({ title:`Rename ${m.custom?'draft':'home'}`, current:m.name }); if(v==null || !v.trim() || v.trim()===m.name) return;
+  try{ if(m.custom) renameDraft(k, v); else await renameProject(m.project, v.trim()); renderModels(); renderSide(); toast(`Renamed to “${v.trim()}”`); }
+  catch(e){ toast('Not renamed: '+(e.message||e)); }
+}
+async function deleteHome(btn, k){ const m=MODELS[k]; if(!m) return;
+  if(btn.dataset.sure!=='1'){ btn.dataset.sure='1'; btn.textContent='Tap again to delete';
+    setTimeout(()=>{ if(btn.isConnected){ btn.dataset.sure=''; btn.textContent='Delete'; } }, 4000); return; }
+  const where = m.custom ? 'your draft' : m.project ? (m.customer ? 'this customer’s home' : 'this Purgatory home') : 'this Cubit Home original, for everyone';
+  const back = m.custom ? 'It can be brought back for 2 weeks (Library → Recently deleted).' : m.project ? 'Its saves are kept on the server, so it can be brought back.' : 'It can be brought back for 2 weeks (Library → Recently deleted).';
+  if(!confirm(`Delete “${m.name}”, ${where}?\n\n${back}`)){ btn.dataset.sure=''; btn.textContent='Delete'; return; }
+  const onScreen = state.model===k;
+  try{
+    if(m.custom) await deleteDraft(k);
+    else if(m.project) await deleteProject(m.project);
+    else await deleteItem('models', k);
+    if(onScreen || !MODELS[state.model] || MODELS[state.model].deleted){ const next=FAMILIES.map(f=>variantsOf(f.id).find(x=>!MODELS[x]?.deleted)).find(Boolean) || Object.keys(MODELS).find(x=>!MODELS[x].deleted);
+      if(next){ state.model=next; state.selected=null; save(); buildHome(); } }
+    renderModels(); renderSide(); toast(`Deleted “${m.name}” · ${back}`);
+  }catch(e){ toast('Not deleted: '+(e.message||e)); }
+}
 function wallListHTML(slots, current){
   const layers=layerSlotsFor(state.model);
   let html='';

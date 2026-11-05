@@ -1173,3 +1173,11 @@ html.role-user.can-price .price-menu, html.role-viewer.can-price .price-menu{dis
 /* 2D / 3D: shares the undo / redo row */
 .vc-b.vc-2d{font:800 12px var(--display);letter-spacing:.02em;min-width:40px}
 .vc-b.vc-2d[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+/* the Homes window: rename / delete beside each home */
+.fam-row{display:flex;align-items:stretch;gap:6px}
+.fam-row > .fam-it{flex:1;min-width:0}
+.fam-acts{display:flex;align-items:center;gap:4px;flex:none}
+.fam-acts .btn.sm{padding:5px 9px;font-size:12px}
+/* Library and Cabinets in the Homes window only on a phone (no ⋯ menu there); elsewhere they're in ⋯ */
+#hLibrary, #hCabLib{display:none}
+html.phone #hLibrary, html.phone #hCabLib{display:inline-flex}

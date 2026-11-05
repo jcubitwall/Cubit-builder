@@ -33,8 +33,9 @@ async function loadEdits(){
 function applyEdits(){
   ['families','models','pods','walls','layers','decks'].forEach(kind=>itemsOf(kind).forEach(({id,ref})=>{
     const k=`${kind}:${id}`;
-    if(!ORIG.has(k)) ORIG.set(k, ref.name);
-    ref.name = ED.names[k] || ORIG.get(k);
+    // drafts and team homes (Purgatory, customers) carry their own names, renamed on their own: never put back
+    if(kind==='models' && (ref.custom || ref.project)){ ORIG.set(k, ref.name); }
+    else { if(!ORIG.has(k)) ORIG.set(k, ref.name); ref.name = ED.names[k] || ORIG.get(k); }
     const g=ED.gone[k], at=g && g.at ? Date.parse(g.at) : NaN;
     ref.deleted = !!g; ref.deletedAt = g ? at : undefined;
     ref.purged = !!g && !(Date.now()-at < KEEP_MS);   // older than two weeks (or no date): gone for good

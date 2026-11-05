@@ -62,7 +62,7 @@ async function askDelete(btn, kind, id, after){
 async function restore(kind,id){ try{ await restoreItem(kind,id); toast(`Restored “${find(kind,id)?.name||id}”`); refresh(); }catch(e){ fail(e); } }
 
 /* ---------- the Library window */
-const TABS = [['families','Model names'],['models','Homes'],['pods','Pods'],['walls','Walls'],['layers','Floors & roofs'],['decks','Decks']];
+const TABS = [['families','Model names'],['models','Homes'],['walls','Walls'],['layers','Floors & roofs'],['decks','Decks']];   // no Pods: start from a plain pod and choose its walls, floor and ceiling
 const LAYER_NAME = {'floor-ext':'Exterior floor','floor-int':'Interior floor','ceiling-int':'Interior ceiling','roof':'Roof'};
 let dlg=null, tab='families', q='', showGone=false;
 function rows(){
