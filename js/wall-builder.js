@@ -276,7 +276,7 @@ function elevation(){
   // the home's own plugs and switches (by the rules): their own colour, movable for this home
   HB.forEach((b,i)=>{ const x=drawX('hb',b), on=sel&&sel.k==='hb'&&sel.i===i, far=b.k!==near(view), mv=Math.abs(b.x-b.x0)>1e-6||Math.abs(b.y-b.y0)>1e-6;
     g+=`<rect x="${x-b.w/2}" y="${H-b.y-b.h/2}" width="${b.w}" height="${b.h}" class="wb-hbox${far?' far':''}${on?' on':''}${mv||b.moved?' moved':''}${b.lock?' lock':''}" data-k="hb" data-i="${i}"/>`;
-    if(!far) g+=`<text x="${x}" y="${H-b.y-b.h/2-1.2}" class="wb-hlab">${b.rk==='switch'||b.rk==='double'?'S':b.rk==='data'?'D':b.rk==='jbox'?'J':'P'}</text>`;
+    if(!far) g+=`<text x="${x}" y="${H-b.y-b.h/2-1.2}" class="wb-hlab">${b.rk==='switch'||b.rk==='double'?'S':b.rk==='data'?'D':b.rk==='jbox'?'J':b.rk==='tvr'?'TV':'P'}</text>`;
     g+=`<rect x="${x-b.w/2-4}" y="${H-b.y-b.h/2-4}" width="${b.w+8}" height="${b.h+8}" class="wb-hit" data-k="hb" data-i="${i}"/>`; });
   // dimensions of the picked item to the left end and the floor
   // openings to their left edge and bottom, boxes and pockets to their centre (as the fields read)

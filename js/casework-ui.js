@@ -42,6 +42,7 @@ let dlg=null, view={ tab:'lib', cat:'base', item:null, edit:null, explode:0, sel
 import { makeHistory, histButtons, bindHistory } from './local-history.js';
 import { LIB, LAYERLIB, DECKLIB } from './data.js';
 import { UNITLIB, TYPES, unitSVG } from './units.js';
+import { itemRules, unitRules, rulesBox } from './item-rules.js';
 import { thumbSVG } from './panels.js';
 import { layerThumb } from './sidebar.js';
 import { rules, saveRules, sharedRules } from './wall-rules.js';
@@ -60,7 +61,7 @@ const NAV = [
   ['Plumbing', ['sink','plumb']],
   ['Electrical', ['elec']],
   ['Heating', ['fire','heat']],
-  ['Furniture', ['furniture']],
+  ['Furniture & TVs', ['furniture','tv']],
 ];
 const SHOP_CATS = new Set(['base','upper','tall','linen','wardrobe','vanity','bench','shelf','counter','sink','fire']);
 /* what the second tab is for this category: [label, kind] or null (none) */
@@ -123,7 +124,7 @@ function render(){
   const items=all.filter(x=>!x.deleted), gone=all.length-items.length;
   const acts=id=>`<div class="cw-bact"><button class="btn ghost sm" data-c3d="${esc(id)}">3D</button><button class="btn ghost sm editor-only" data-cren="${esc(id)}">Rename</button><button class="btn ghost sm danger editor-only" data-cdel="${esc(id)}">Delete</button></div>`;
   const card = unitCat
-    ? u=>`<div class="cw-card cw-bcard" data-uid="${esc(u.id)}"><div class="cw-thumb">${unitSVG(u.type, u.hand||'L', u.w, u.h, 120, u.place==='int', TYPES[u.type]?.round)}</div><b>${esc(u.name)}</b><small><code>${esc(u.id)}</code> · ${esc(TYPES[u.type]?.label||u.type)} · ${u.w} × ${u.h}″${u.sample?' · sample':''}</small>${acts(u.id)}</div>`
+    ? u=>`<div class="cw-card cw-bcard" data-uid="${esc(u.id)}"><div class="cw-thumb">${unitSVG(u.type, u.hand||'L', u.w, u.h, 120, u.place==='int', TYPES[u.type]?.round)}</div><b>${esc(u.name)}</b><small><code>${esc(u.id)}</code> · ${esc(TYPES[u.type]?.label||u.type)} · ${u.w} × ${u.h}″${u.sample?' · sample':''}</small>${acts(u.id)}${rulesBox(unitRules(u)).replace('<details class="ir-box" open>','<details class="ir-box">')}</div>`
     : d=>{ const it=newItem(d.k); return `<div class="cw-card cw-bcard" data-k="${d.k}"><div class="cw-thumb">${frontSVG(it)}</div><b>${esc(d.name)}</b><small>${sizeTxt(it)}${d.fixed?' · fixed size':''}</small>${acts(d.k)}</div>`; };
   body.innerHTML=nav+`
     <section class="cw-grid cw-bgrid"><div class="cw-bbar"><input type="search" id="cwQ" placeholder="Search names and IDs" aria-label="Search">${gone?`<button class="linkbtn editor-only" id="cwGone" title="⋯ → Deleted items">Deleted (${gone})</button>`:''}</div>
@@ -231,6 +232,7 @@ function renderDetail(body){
     </div>
     <div class="cw-side">
       ${d.note?`<p class="note">${esc(d.note)} · check the maker's current spec sheet before ordering.</p>`:''}
+      ${rulesBox(itemRules(it.k))}
       <div class="cw-sizes">
         ${sizeRow('w','Width',it.w,d.sizes,d.wR,d.fixed)}
         ${sizeRow('h','Height',it.h,d.hSizes,d.hR,d.fixed)}

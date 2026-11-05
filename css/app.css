@@ -1242,3 +1242,11 @@ dialog.v3-dlg.v3-full .v3-cube{top:max(12px, env(safe-area-inset-top,0px));right
 .el-ed .cw-fs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .wb-pad [data-en="up"]{grid-column:2;grid-row:1}.wb-pad [data-en="left"]{grid-column:1;grid-row:2}
 .wb-pad [data-en="right"]{grid-column:3;grid-row:2}.wb-pad [data-en="down"]{grid-column:2;grid-row:3}
+
+/* rules that come with a library item (item-rules.js) */
+.ir-box{border:1px solid var(--line);border-radius:10px;padding:6px 10px;margin:8px 0;background:var(--surface)}
+.ir-box summary{cursor:pointer;font:700 12px var(--mono);text-transform:uppercase;letter-spacing:.04em;color:var(--ink-2)}
+.ir-box summary small{color:var(--muted);margin-left:4px}
+.ir-list{margin:6px 0 2px;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:6px;font-size:12.5px;line-height:1.35}
+.ir-a{display:inline-block;font:700 10px var(--mono);text-transform:uppercase;color:var(--accent);margin-right:6px;letter-spacing:.04em}
+.cw-bcard .ir-box{margin:6px 0 0;font-size:12px}

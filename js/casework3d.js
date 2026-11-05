@@ -5,7 +5,7 @@ import { partsOf } from './casework.js';
 import { boolTree } from './geom2d.js';
 
 const COL = { carcass:0xdcc39a, shelf:0xe4cfa4, back:0xcdb287, front:0xf1ece2, drawer:0xd8bd8c, hw:0x5d6166, appliance:0xc9cdd1, appdoor:0xdfe2e5, top:0x8f9493,
-  furnsoft:0x8e978a, porcelain:0xf6f6f2, acrylic:0xeef0ee, steel:0xc9ced2, furnsoft2:0xa3ab9d, furnwood:0xb48a5c, furnwood2:0xc49a6b };
+  furnsoft:0x8e978a, porcelain:0xf6f6f2, acrylic:0xeef0ee, steel:0xc9ced2, screen:0x1d2023, furnsoft2:0xa3ab9d, furnwood:0xb48a5c, furnwood2:0xc49a6b };
 const mats = {};
 function matFor(role, dim=false){
   const k=role+(dim?'-d':'');

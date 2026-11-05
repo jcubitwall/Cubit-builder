@@ -11,7 +11,7 @@ import { fin } from './format.js';
 import { usesRules, homeAuto, slotAuto, summary, relay, setData, setThreeWay, removeBox, restoreBox, moveBox, resetBox, setGang, GANG, addBox, boxesOn, ruleWall, nextChase, elecOf, ELEC_H, ELEC_NAME } from './electrical.js';
 
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const SHORT = { plug:'Plug', counter:'Counter plug', gfci:'GFCI plug', appl:'Appliance plug', jbox:'Junction box', switch:'Switch', double:'Double switch', data:'Data', wp:'Outside plug' };
+const SHORT = { plug:'Plug', counter:'Counter plug', gfci:'GFCI plug', appl:'Appliance plug', jbox:'Junction box', switch:'Switch', double:'Double switch', data:'Data', wp:'Outside plug', tvr:'TV box (recessed)' };
 const refresh = async () => { const [{ buildHome }, { renderSide }]=await Promise.all([import('./scene3d.js'), import('./sidebar.js')]); buildHome(); renderSide(); if(dlg?.open) render(); };
 const refreshSide = async () => { const { renderSide }=await import('./sidebar.js'); renderSide(); };
 const say = async t => { const { toast }=await import('./sidebar.js'); toast(t); };
@@ -136,6 +136,8 @@ export const rulesHTML = () => `<details class="help"><summary>The rules</summar
   <li>Counters: plugs at ${ELEC_H.counter}″ so no point is more than 900 mm from one, none behind the range or sink. Basin: GFCI at ${ELEC_H.gfci}″ within 1 m.</li>
   <li>No plug within 500 mm of a bathtub or shower (across the floor, same room); none on the walls behind one.</li>
   <li>Appliances get their own plug behind them: fridge 42″, range 6″, dishwasher 12″, washer / dryer 42″, microwave 42″. Beds: a plug each side of the head.</li>
+  <li>TVs on the wall: a recessed TV box (power + low voltage) behind the screen, clear of the wall mount, on the chase nearest the middle. A new TV goes with the middle of its screen at 42″, the bottom never under 24″ (change its height on any one).</li>
+  <li>No plug above a baseboard heater. A fireplace's plug or junction box (its Power) sits inside the surround and moves with it. Every library item's page lists the rules that come with it.</li>
   <li>Switches ${ELEC_H.switch}″, centre 6″ from the rough opening on the latch side, on the side the door swings into; outside doors a double box (room + outside light). Two or more entrances: 3-way, once confirmed.</li>
   <li>One weatherproof plug outside, beside the main door.</li>
   <li>Every box sits on a chase (6″ in from each edge of the original 48″ panel, then every 12″) when one is within 18″ (plugs) or 6″ (switches); otherwise it's flagged "needs a chase". Walls between pods: boxes only on the face toward the wall's own pod.</li></ul></details>`;

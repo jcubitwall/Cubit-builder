@@ -19,6 +19,7 @@
        washer / dryer 42″, microwave 42″ (over the range: in the cabinet above).
      · Bedside: a plug each side of the head of a bed that's against a wall.
      · Desk against a wall: a plug behind it, 12″ above the top.
+     · TV on the wall: a recessed TV box behind the screen, clear of the wall mount, on the chase nearest the middle.
    Furniture's own plugs (appliances, basin GFCI, counters, bedside, desk) go on every wall, even one that keeps the
    library's plugs and switches; the rest (wall plugs, switches, outside, data) only on walls by the rules.
      · Outside: at least one weatherproof plug, beside the main door.
@@ -42,19 +43,19 @@ import { checkpoint } from './history.js';
 import { FT } from './config.js';
 import { fin } from './format.js';
 
-const H = { plug:16, counter:42, gfci:42, switch:48, double:48, data:16, wp:16 };
-const REACH = { plug:18, counter:18, gfci:18, appl:18, data:18, wp:18, switch:6, double:6, jbox:6 };
+const H = { plug:16, counter:42, gfci:42, switch:48, double:48, data:16, wp:16, tvr:48 };
+const REACH = { plug:18, counter:18, gfci:18, appl:18, data:18, wp:18, switch:6, double:6, jbox:6, tvr:36 };
 const R_WALL = 70.866, R_COUNTER = 35.433, MIN_RUN = 35.433, MIN_COUNTER = 11.8, BASIN = 39.37;
 const NUDGE = 2;   // a box up to 2″ either side of a chase's centre still counts as on it (centre first)
 const SW_OFF = 6, CORNER = 3, JOINT = 2.9, STUD = 1.5, BOX_GAP = 4;
 const BOX = { std:{w:2.375, h:3.375}, double:{w:4.125, h:3.625} };
 /* box size by gang (single / double / triple): any box can be set to any of them, per home (ov.g) */
 const GANG = { 1:{w:2.375, h:3.375}, 2:{w:4.125, h:3.625}, 3:{w:5.875, h:3.625} };
-const gangOf = b => b.g || (b.rk==='double' ? 2 : 1);
-const NAME = { plug:'Plug box', counter:'Counter plug box', gfci:'GFCI plug box', appl:'Appliance plug box', switch:'Switch box', double:'Double switch box', data:'Data box', wp:'Outside plug (WP)', jbox:'Junction box (hardwired)' };
+const gangOf = b => b.g || (b.rk==='double' || b.rk==='tvr' ? 2 : 1);   // a recessed TV box: double size to start
+const NAME = { plug:'Plug box', counter:'Counter plug box', gfci:'GFCI plug box', appl:'Appliance plug box', switch:'Switch box', double:'Double switch box', data:'Data box', wp:'Outside plug (WP)', jbox:'Junction box (hardwired)', tvr:'Recessed TV box' };
 /* receptacles (not switches) never go under a window: anywhere below its sill, from 1½″ outside one side to 1½″
    outside the other */
-const RCPT = new Set(['plug','counter','gfci','appl','data','wp']);
+const RCPT = new Set(['plug','counter','gfci','appl','data','wp','tvr']);
 const underWindow = (W, a, y, hw=BOX.std.w/2) => (W.w.openings||[]).some(op=>op.kind==='window' && y<op.y && a+hw+STUD>op.x && a-hw-STUD<op.x+op.w);
 const NUDGES = [0,0.5,-0.5,1,-1,1.5,-1.5,2,-2];
 const onChase = (W, a) => W.chases.some(c=>Math.abs(c-a)<=NUDGE+0.01);
@@ -105,6 +106,28 @@ const nearTub = (tubs, W, a, hw=0) => { if(!tubs.length) return false; const P=W
 const isSinkBase = I => (I.it.k==='BS') || I.cat==='sink';
 const blocks = I => I.cat!=='furniture' && I.cat!=='sink';     // beds, sofas, tables… can move; sinks sit in a counter
 
+/* the electrical rules that come with one library item (shown on the item in the Library; the same rules are in
+   Library → Electrical → Electrical rules and act on the walls): [text] */
+function itemElecRules(d){
+  if(!d) return [];
+  const I={ it:{ k:d.k }, def:d, cat:d.cat }, out=[], ap=applKind(I);
+  if(ap){ const A=APPL[ap]; out.push(`Its own plug behind it at ${A.y}″${ap==='range'?' (40 A)':''}${ap==='dw'?' (or in the sink cabinet beside it)':''}${ap==='microwave'?'; over the range it goes in the cabinet above':''}.`); }
+  if(d.cat==='base' || d.cat==='counter') out.push(`Counter plugs at ${H.counter}″ so no point along the counter is more than 900 mm from one; none behind the range or the sink.`);
+  if(isSinkBase(I)) out.push('No counter plug behind the sink.');
+  if(isBasin(I)) out.push(`A GFCI plug at ${H.gfci}″ within 1 m of the basin.`);
+  if(d.k==='BED') out.push(`Against a wall: a plug each side of the head, ${H.plug}″.`);
+  if(d.k==='DESK') out.push('Against a wall: a plug behind it, 12″ above the top.');
+  if(d.tv) out.push('A recessed TV box (power + low voltage) behind the screen, hidden by it, clear of the wall mount, on the chase nearest the middle.');
+  if(d.cat==='fire') out.push('Power: Plug or Hardwired (its option). The plug or junction box goes inside the surround behind the insert, on its own circuit, and moves with the fireplace (locked).');
+  if(isTub(I)) out.push(`No receptacle within 500 mm of it (across the floor, same room).`);
+  if(/^BB-/.test(d.k||'')) out.push('No receptacle above it.');
+  if(blocks(I) && !d.tv && d.cat!=='fire') out.push('The general wall plugs skip the wall behind it (it breaks the plug run along the floor where it reaches below 24″).');
+  if(d.k==='SOFA') out.push(`With data boxes on for the home: a data box (network / TV) on the wall in front of it, ${H.data}″.`);
+  if(d.k==='BED') out.push(`With data boxes on for the home: a data box on the wall opposite it, ${H.data}″.`);
+  if(/^HD/.test(d.k||'')) out.push('Wired from the cabinet above, by the electrician (no plug of its own on the wall).');
+  if(d.cat==='elec') out.push('Keep 1 m clear in front of it; not in a bathroom or a clothes closet. Its place is up to the electrician’s layout.');
+  return out;
+}
 /* ---------------------------------------------------------------- the plan */
 let building=false, memo={ sig:null, plan:null };
 function sigOf(k){
@@ -178,7 +201,7 @@ function compute(k){
   const at = (L,u) => { u=mod(u,L.P); for(const W of L.walls){ const l=W.loop; if(u>=l.lo-1e-6 && u<=l.hi+1e-6) return { W, a:aOf(W,u), edge:Math.min(u-l.lo, l.hi-u) }; } return null; };
 
   /* ---- can a box go here? */
-  const sz = rk => rk==='double' ? BOX.double : BOX.std;
+  const sz = rk => rk==='double' || rk==='tvr' ? BOX.double : BOX.std;
   function okAt(W, face, a, y, rk, o={}){
     if(!o.any && !o.furn && !W.auto) return false;   // furniture's own plugs go on every wall; the rest only on walls by the rules
     const {w,h}=sz(rk), hw=w/2, hh=h/2;
@@ -326,6 +349,15 @@ function compute(k){
     const s=spotOnWall(W,'in',c,y,'plug',{ ignore:it.I, within:a=>Math.abs(a-c)<=half, scan:half, furn:true }); if(!s) return;
     add(W,'in',s,y,'plug',`dk:${it.I.it.id}`,{ note:'desk, above the top', why:'desk', room:roomOf(W.s.pod.i).key });
     if(y<30) anchors[W.s.pod.i].push(uOf(W,s.a)); }));
+
+  /* ---- 5d. a TV on the wall: a recessed TV box (power + low voltage) behind the screen, hidden by it, clear of the
+     wall mount (the middle of the TV, about a third of its width, up to 24″), on the chase nearest the middle */
+  walls.forEach(W=>W.items.forEach(it=>{ if(!itemDef(it.I.it.k)?.tv || !W.loop) return;
+    const c=(it.a0+it.a1)/2, half=(it.a1-it.a0)/2, mount=Math.min(12, (it.a1-it.a0)/6)+BOX.double.w/2+1, y=Math.round((it.y0+it.y1)/2);
+    const within=a=>Math.abs(a-c)>=mount && a>=it.a0+BOX.double.w/2+1 && a<=it.a1-BOX.double.w/2-1;
+    const s=spotOnWall(W,'in',c,y,'tvr',{ ignore:it.I, within, reach:half, scan:half, furn:true });
+    if(!s){ flags.push({ t:`No spot for the TV box behind the TV on ${W.s.label}`, w:W.s.id }); return; }
+    add(W,'in',s,y,'tvr',`tv:${it.I.it.id}`,{ note:'behind the TV, clear of the mount', why:'TV', room:roomOf(W.s.pod.i).key }); }));
 
   /* ---- 5c. a fireplace insert: its plug, or its junction box if it's hardwired (the surround's Power), inside the
      surround behind the insert, on its own circuit. Locked to the fireplace: it goes where the fireplace goes, and
@@ -490,4 +522,4 @@ function nextChase(slot, bw, a, dir){
 }
 const summary = (k=state.model) => { if(!usesRules(k)) return null; const P=planFor(k); const c={}; P.boxes.forEach(b=>{ c[b.rk]=(c[b.rk]||0)+1; }); return { counts:c, flags:P.flags, confirms:P.confirms, offChase:P.boxes.filter(b=>!b.chase && b.face==='in'), needs:P.boxes.filter(b=>b.flags.some(f=>f!=='confirm 3-way')), removed:P.removed, rooms:P.rooms, boxes:P.boxes }; };
 
-export { setGang, GANG, gangOf, H as ELEC_H, NAME as ELEC_NAME, usesRules, homeAuto, slotAuto, planFor, relay, setData, setThreeWay, removeBox, restoreBox, moveBox, resetBox, addBox, boxesOn, ruleWall, nextChase, summary, elecOf, fin as elecFin };
+export { itemElecRules, setGang, GANG, gangOf, H as ELEC_H, NAME as ELEC_NAME, usesRules, homeAuto, slotAuto, planFor, relay, setData, setThreeWay, removeBox, restoreBox, moveBox, resetBox, addBox, boxesOn, ruleWall, nextChase, summary, elecOf, fin as elecFin };

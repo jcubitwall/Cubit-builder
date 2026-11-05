@@ -385,6 +385,7 @@ const CATS = [
   { k:'heat',      name:'Heat pumps & baseboards', y:0 },
   { k:'plumb',     name:'Water heaters & plumbing', y:0 },
   { k:'elec',      name:'Electrical panels', y:48 },
+  { k:'tv',        name:'TVs',               y:0 },
 ];
 const W_STD = [9,12,15,18,21,24,27,30,33,36];
 const ITEMS = [];
@@ -775,6 +776,15 @@ def({ k:'WH-TL', cat:'plumb', name:'Water heater, tankless electric (typical)', 
   build:it=>[ fx('Unit',white,[0,0,0,it.w,it.h,it.d]) ] });
 def({ k:'WOB', cat:'plumb', name:'Washer outlet box, recessed (typical)', w:8.5, h:9.5, d:3.5, y:42, fixed:true, note:'Hot and cold valves and the 2″ drain for the washer, recessed in the wall behind it',
   build:it=>[ fx('Box',white,[0,0,0,it.w,it.h,it.d]), fx('Valves','steel',[1,it.h-3,it.d-0.4,it.w-2,1.5,1]) ] });
+// flat-screen TVs on the wall (16:9, slim bezel, on a flat mount). Height by the TV rule: the middle of the screen at
+// seated eye level, 42″, raised so the bottom stays at least 24″ off the floor (big screens). That's where a new one
+// goes; its Height can be changed on any one (an override). A recessed TV box goes behind it (electrical.js 5d).
+const TV_EYE=42, TV_MIN_BOTTOM=24;
+const tvY = h => Math.round(Math.max(TV_EYE-h/2, TV_MIN_BOTTOM)*4)/4;
+[[43,38.2,22.2],[50,44.4,25.7],[55,48.4,27.9],[65,57.0,32.7],[75,66.0,37.8],[85,74.5,42.6]].forEach(([dg,w,h])=>
+  def({ k:`TV-${dg}`, cat:'tv', name:`TV ${dg}″ flat screen (typical)`, w, h, d:3, y:()=>tvY(h), fixed:true, tv:true,
+    note:`About ${w} × ${h}″ on a flat wall mount (about 3″ off the wall). Placed with the middle of the screen at ${TV_EYE}″ (seated eye level), the bottom never under ${TV_MIN_BOTTOM}″: ${tvY(h)}″ to the bottom. Change its height for this one if it should sit higher (over a fireplace, a bedroom). A recessed TV box (power + low voltage) goes behind it, clear of the mount. Check the model`,
+    build:it=>[ fx('Mount','steel',[it.w/2-8,it.h/2-6,0,16,12,1],{ note:'wall plate' }), fx('TV','screen',[0,0,1,it.w,it.h,it.d-1.1]), fx('Screen','screen',[0.4,0.4,it.d-0.1,it.w-0.8,it.h-0.8,0.1]) ] }));
 // electrical panel
 [['EP-100','Electrical panel 100 A (typical)',14.5,29.5],['EP-200','Electrical panel 200 A (typical)',14.5,38]].forEach(([k,name,w,h])=>
   def({ k, cat:'elec', name, w, h, d:3.75, y:42, fixed:true, note:'Load centre, surface or recessed: keep 1 m clear in front, not in a bathroom or clothes closet. Check the model and the electrician’s layout',
@@ -908,4 +918,4 @@ function csv(it, name){
   rows.unshift([`${name} — ${fmt(it.w)} W × ${fmt(it.h)} H × ${fmt(it.d)} D (inches)`]);
   return rows.map(r=>r.map(v=>/[",\n]/.test(String(v))?`"${String(v).replace(/"/g,'""')}"`:v).join(',')).join('\n');
 }
-export { firePower, plumbOf, sinkHole, sinkBaseMin, fx3, hingeSpec, runnerSpec, handleById, SETTINGS_V, loadFixtures, DEFAULTS, MM, CATS, ITEMS, itemDef, catOf, newItem, partsOf, cutList, hardwareOf, totals, csv, fmt, fmtU, settings, loadSettings, saveSettings, th, nomOf };
+export { tvY, firePower, plumbOf, sinkHole, sinkBaseMin, fx3, hingeSpec, runnerSpec, handleById, SETTINGS_V, loadFixtures, DEFAULTS, MM, CATS, ITEMS, itemDef, catOf, newItem, partsOf, cutList, hardwareOf, totals, csv, fmt, fmtU, settings, loadSettings, saveSettings, th, nomOf };
