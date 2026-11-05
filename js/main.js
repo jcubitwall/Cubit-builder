@@ -4,7 +4,7 @@ import { loadRules } from './wall-rules.js';
 import { loadShapes } from './shapes.js';
 import { state, initState } from './state.js';
 import { loadData } from './data.js';
-import { loadProjects } from './projects.js';
+import { refreshOpen, loadProjects } from './projects.js';
 import { initProjectsUI } from './projects-ui.js';
 import { buildHome, resize, loop, setExplodeGoal, explodeGoal } from './scene3d.js';
 import { renderModels, renderSide } from './sidebar.js';
@@ -74,6 +74,7 @@ document.querySelectorAll('.hint').forEach(h=>{ const host=h.parentNode; const o
   try{ await loadRole(); await loadData(); await loadUnits(); await loadProjects(); await loadCustomers(); await loadKitchens(); await loadCatalog(); await loadEdits(); await loadSettings(); await loadFixtures(); await loadRules(); await loadShapes(); }
   catch(e){ document.getElementById('sideH').innerHTML='<h2>Could not load the wall library</h2><p>Open the app from its web address (GitHub Pages) or a local web server, not by double-clicking the file.</p>'; return; }
   initState(); try{ await loadDrafts(); }catch(e){}
+  try{ refreshOpen(state.model); }catch(e){ console.warn('refresh', e); }   // a team home on screen: its latest save, not this device's older copy
   initProjectsUI(); initUpload();
   renderModels(); buildHome(); renderSide(); resize(); loop(); initPhone(); initZoomView(); startBuild();
 })();

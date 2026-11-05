@@ -557,3 +557,12 @@ the wall behind the surround, inside the insert's cavity, to one side of the ins
 when one is within reach), noted as a dedicated circuit. It's locked to the fireplace: it moves when the fireplace
 moves, changes with Power, and can't be moved or removed by hand (the wall panel shows 🔒 with the fireplace). E11
 shows the junction box as J. No wall behind the fireplace → flagged.
+
+### Team homes always open at their latest save
+A team home (Purgatory or a customer's) used to open from this device's own copy when it had been open here before:
+after someone (or you on another device) saved, the app showed the older copy, and on a device that had lost track of
+the version it started from, saving that copy undid the newer save. Now, whenever a team home becomes the one on
+screen (the app opening on it, or picked in the Homes list) it's checked against the server (projects.js
+`refreshOpen`): nothing unsaved here → the latest save opens; unsaved changes here → they're combined with the latest
+save (same-thing conflicts are asked about at Save, as before); no record of the starting version → this device's
+copy goes into My Drafts as "(copy from this device)" and the latest save opens. A short message says which.

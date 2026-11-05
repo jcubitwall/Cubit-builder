@@ -35,6 +35,7 @@ import './shape-studio.js';
 import { openLayerBuilder } from './layer-builder.js';
 import './panel-builder.js';
 import './compass-ui.js';
+import { refreshOpen } from './projects.js';
 
 const sideH=document.getElementById('sideH'), sideB=document.getElementById('sideB');
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -82,7 +83,7 @@ function renderModels(){
       ${canEdit() && gone.length ? `<details class="cust-gone"><summary>Recently deleted (${gone.length})</summary>${gone.map(c=>`<div class="fam-it"><b>${esc(c.name)}</b><button class="linkbtn" data-crest="${esc(c.id)}">Restore</button></div>`).join('')}</details>` : ''}</div>`;
   }
   el.innerHTML = h;
-  const go = k => { state.model=k; state.selected=null; save(); renderModels(); buildHome(); renderSide(); if(state.view==='sheets') openSheets(); };
+  const go = k => { state.model=k; state.selected=null; refreshOpen(k); save(); renderModels(); buildHome(); renderSide(); if(state.view==='sheets') openSheets(); };   // a team home: the latest save, not this device's older copy
   el.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>go(b.dataset.m));
   el.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{ homeCat=b.dataset.cat; renderModels(); });
   el.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{ const f=b.dataset.f||null; openFam = openFam===f ? 'none' : f; renderModels(); });
@@ -421,3 +422,11 @@ document.getElementById('fileIn').addEventListener('change',e=>{
 let toastT; function toast(msg, ms=2400){ let t=document.querySelector('.toast'); if(!t){t=document.createElement('div');t.className='toast';document.body.appendChild(t);} t.textContent=msg; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true,ms||2400); }
 
 export { showHomeCat, catOfHome, sideH, renderModels, wallListHTML, renderSide, importBlock, toast, sideB, layerThumb };
+
+/* a team home was brought up to its latest save (projects.js refreshOpen): say so */
+window.addEventListener('cubit:refreshed', e=>{ const d=e.detail||{}, by=d.by||'someone';
+  const t = d.what==='loaded' ? `Opened the latest save (by ${by})`
+    : d.what==='merged' ? `${by} saved this home since you opened it: your unsaved changes are combined with theirs`
+    : d.what==='kept' ? `${by} saved this home since you opened it and you both changed ${d.n===1?'the same thing':d.n+' of the same things'}: Save changes will ask which to keep`
+    : d.what==='draft' ? `Opened the latest save (by ${by}). This device's older copy is kept in My Drafts as “${d.name}”` : '';
+  if(t) setTimeout(()=>toast(t, 7000), 400); });

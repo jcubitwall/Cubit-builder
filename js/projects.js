@@ -9,10 +9,10 @@
    admin opens the app on that device. Opened from a local server (no API) projects stay in the browser. */
 import { MODELS, LIB, LAYERLIB, PODLIB, DECKLIB, byId, layerById, podById, deckById, savePodLib, saveWallLib, saveLayerLib, saveDeckLib } from './data.js';
 import { state, save, foundationOf, deckOCOf } from './state.js';
-import { saveToLibraries } from './pods.js';
+import { saveToLibraries, makeDraftCopy } from './pods.js';
 import { getBearing } from './orient.js';
 import { canSave, isAdmin } from './role.js';
-import { syncSave } from './sync.js';
+import { syncSave, merge3, strip } from './sync.js';
 
 const KEY='cubit-projects';
 const PROJECTS={};          // id -> project (own, from this browser)
@@ -27,9 +27,7 @@ async function loadProjects(){
   try{ const r=await fetch('data/projects.json'); if(r.ok){ const list=await r.json(); (Array.isArray(list)?list:Object.values(list)).forEach(p=>{ SHARED[p.id]={...p, shared:true}; }); } }catch(e){}
   try{ const r=await fetch('api/projects',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ (await r.json()).forEach(p=>{ TEAM[p.id]=p; }); remote=true; } }catch(e){}
   Object.values(SHARED).forEach(register); Object.values(PROJECTS).forEach(register); Object.values(TEAM).forEach(register);
-  // the project on screen: measure later changes from the version on the server now (unless already known)
-  const open=String(state.model||'').startsWith('proj-') ? state.model.slice(5) : null;
-  if(open && TEAM[open] && !BASE[open]) setBase(open, TEAM[open].rev, TEAM[open]);
+  // the project on screen is brought up to its latest save once the app's state is up (main.js → refreshOpen)
   if(remote && isAdmin()) migrate().catch(()=>{});
 }
 /* the team's project carries the library items it uses that aren't in the library files: add them for everyone */
@@ -121,10 +119,10 @@ async function saveProject(name, asNew=false, opts={}){
   if(remote && TEAM[id]) setBase(id, TEAM[id].rev, snapshot(TEAM[id].name, id, k));
   return {project:TEAM[id]||PROJECTS[id], counts, merged};
 }
-function openProject(id){
-  const p = TEAM[id] || PROJECTS[id] || SHARED[id]; if(!p) return;
+function openProject(id, item=null){
+  const p = item || TEAM[id] || PROJECTS[id] || SHARED[id]; if(!p) return;
   const fresh = !!TEAM[id];
-  const k=keyOf(p); register(p);
+  const k=keyOf(p); register(p, !!item);
   if(!state.picks[k] || fresh) state.picks[k]=clone(p.picks||{});
   if(!state.layerPicks[k] || fresh) state.layerPicks[k]=clone(p.layerPicks||{});
   if(!state.wallA[k] || fresh) state.wallA[k]=clone(p.wallA||{});
@@ -139,8 +137,41 @@ function openProject(id){
   if(p.deckOC && (state.deckOC?.[k]==null || fresh)) (state.deckOC ||= {})[k]=p.deckOC;
   if(p.units && (state.units?.[k]==null || fresh)) (state.units ||= {})[k]=clone(p.units);
   state.model=k; state.selected=null; save();
-  if(fresh) setBase(id, p.rev, snapshot(p.name, id, k));
+  if(fresh && !item) setBase(id, p.rev, snapshot(p.name, id, k));
 }
+/* A team home becoming the one on screen (the app opening on it, or picked from the Homes list): this device may
+   still hold an older copy (someone, or you on another device, saved since). Without this it showed that old copy,
+   and saving it could even undo the newer save. Now:
+     · nothing unsaved here               → the latest save is loaded
+     · unsaved changes here, start known  → they're combined with the latest save (as a save would); if you both
+                                            changed the same thing it's kept for the save to ask about
+     · start not known (an old device)    → this device's copy is kept as a draft (nothing thrown away), then the
+                                            latest save is loaded
+   Returns what happened: null | 'loaded' | 'merged' | 'kept' | 'draft' (and the draft's key). */
+function refreshOpen(k=state.model){
+  const id=MODELS[k]?.project, p=id && TEAM[id]; if(!p || !remote) return null;
+  const b=BASE[id], fresh=()=>{ openProject(id); return snapshot(p.name, id, keyOf(p)); };
+  if(b && (b.rev||0) >= (p.rev||0)) return null;                                    // up to date
+  const local = (state.picks?.[k] || state.furniture?.[k]) ? snapshot(p.name, id, k) : null;
+  const say = t => { try{ window.dispatchEvent(new CustomEvent('cubit:refreshed', { detail:t })); }catch(e){} };
+  const by = (p.by||'').split('@')[0] || 'someone';
+  if(!b){
+    if(local && !sameHome(local, p)){                                                  // keep this device's copy before loading the latest
+      const nk=makeDraftCopy(k); MODELS[nk].name=`${p.name} (copy from this device)`;
+      state.model=k; fresh(); save(); say({ what:'draft', by, draft:nk, name:MODELS[nk].name }); return 'draft'; }
+    fresh(); say({ what:'loaded', by }); return 'loaded';
+  }
+  if(!local || sameHome(local, b.item)){ fresh(); say({ what:'loaded', by }); return 'loaded'; }
+  // unsaved changes here: put them on top of the latest save
+  const { value, conflicts }=merge3(strip(b.item), strip(local), strip(p));
+  if(conflicts.length){ say({ what:'kept', by, n:conflicts.length }); return 'kept'; }       // the save asks which to keep
+  const baseNow=fresh();                                                             // the latest save on screen, and the new starting point
+  openProject(id, { ...p, ...value, id, rev:p.rev });
+  setBase(id, p.rev, baseNow);
+  say({ what:'merged', by }); return 'merged';
+}
+const sameHome = (a, b) => JSON.stringify(sortKeys(strip(a))) === JSON.stringify(sortKeys(strip(b)));
+function sortKeys(v){ return Array.isArray(v) ? v.map(sortKeys) : v && typeof v==='object' ? Object.fromEntries(Object.keys(v).filter(k=>v[k]!==undefined && k!=='name' && k!=='saved').sort().map(k=>[k, sortKeys(v[k])])) : v; }
 /* the open project's starting point, when the app opens on it (no Open tapped) */
 function baseFor(id){ return BASE[id] || (TEAM[id] ? { rev:TEAM[id].rev||0, item:TEAM[id] } : null); }
 async function deleteProject(id){
@@ -187,4 +218,4 @@ function importJSON(text){
   persist(); return n;
 }
 
-export { lockProject, unlockProject, projectOf, baseFor, snapshot, libraryFor, loadProjects, saveProject, openProject, deleteProject, renameProject, exportJSON, importJSON, versions, restoreVersion, isTeam, PROJECTS, SHARED, TEAM };
+export { refreshOpen, lockProject, unlockProject, projectOf, baseFor, snapshot, libraryFor, loadProjects, saveProject, openProject, deleteProject, renameProject, exportJSON, importJSON, versions, restoreVersion, isTeam, PROJECTS, SHARED, TEAM };
