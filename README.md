@@ -401,6 +401,8 @@ The 3D quick view has **⛶ Full screen** (or F): the header goes and the 3D tak
 ## Moving a home's plugs and switches in the panel builder
 Open the panel builder from a wall of a home (the wall's panel → Panel builder). The home's own plugs and switches, laid out by the electrical rules, show in green (orange once moved, grey when locked to a fireplace). Tap one, then drag it, type where it goes, or use the arrows: ◀ ▶ jump chase to chase and ▲ ▼ go 1″ (or pick 1″, ½″ or ⅛″ steps for every arrow). **Save … to this home only** (or Save to library, which also saves them) keeps the moves on that home only (`elec.ov.mv`, electrical.js), over the rules' defaults; the wall in the library is unchanged. **Put it back** drops an unsaved move; **Back to the rule** clears a saved one. The library wall's own plugs show faded where the home's rules replace them.
 
+The same moves are in Build: pick a wall in 3D, then tap a plug or switch in its panel (Plugs & switches). It gets the same arrows (chase to chase, or 1″ / ½″ / ⅛″) and typed position, is ringed in orange in the 3D view, and each move goes on the home at once so you see it against the furniture (Undo takes it back).
+
 ## Windows & doors in the Library
 Three categories: **Windows**, **Exterior doors** (man doors, patio doors) and **Interior doors** (units with `"place": "int"` in data/units.json). An interior door is only offered in interior walls, and where one fits there only interior doors are offered (so an interior opening no longer picks the steel exterior man door by itself). Two interior door samples (34 × 80 and 36 × 82 prehung) stand in until the real units are uploaded.
 

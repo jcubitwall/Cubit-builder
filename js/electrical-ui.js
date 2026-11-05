@@ -13,16 +13,39 @@ import { usesRules, homeAuto, slotAuto, summary, relay, setData, setThreeWay, re
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const SHORT = { plug:'Plug', counter:'Counter plug', gfci:'GFCI plug', appl:'Appliance plug', jbox:'Junction box', switch:'Switch', double:'Double switch', data:'Data', wp:'Outside plug' };
 const refresh = async () => { const [{ buildHome }, { renderSide }]=await Promise.all([import('./scene3d.js'), import('./sidebar.js')]); buildHome(); renderSide(); if(dlg?.open) render(); };
+const refreshSide = async () => { const { renderSide }=await import('./sidebar.js'); renderSide(); };
 const say = async t => { const { toast }=await import('./sidebar.js'); toast(t); };
 
 /* ---------------------------------------------------------------- one wall (sidebar) */
+/* tap a box to pick it: the same moves as the panel builder (arrows chase to chase or by a step, or typed), put on
+   this home at once so you see it against the furniture in 3D; the picked box is ringed in the 3D view */
+let pickId=null, step='chase';
+const STEPS=[['chase','Chase to chase'],['1','1″'],['0.5','½″'],['0.125','⅛″']];
+function editor(b){
+  const f=(id,label,v)=>`<label class="cw-f"><span>${label}</span><input data-ef="${id}" inputmode="decimal" value="${Math.round(v*16)/16}"><i>″</i></label>`;
+  return `<div class="el-ed edit-only"><p class="note">Moves go on this home only, over the rule; the wall in the library doesn't change.</p>
+    <div class="wb-pad" role="group" aria-label="Move it"><button class="btn ghost" data-en="up" aria-label="Up">▲</button><button class="btn ghost" data-en="left" aria-label="Left">◀</button><button class="btn ghost" data-en="right" aria-label="Right">▶</button><button class="btn ghost" data-en="down" aria-label="Down">▼</button></div>
+    <div class="cw-opt"><span>Each tap</span><div class="seg sm">${STEPS.map(([v,l])=>`<button data-estep="${v}" aria-pressed="${step===v}">${l}</button>`).join('')}</div></div>
+    <div class="cw-fs">${f('x', `Centre from the left${b.face==='in'?' (seen from inside)':''}`, b.x)}${f('y','Centre from the floor', b.y)}</div></div>`;
+}
+/* ring the picked box in the 3D view (wall-local feet: x from the outside-left end, y up, z 0 outside / -t inside) */
+let ring=null;
+async function markBox(s){
+  const S3=await import('./scene3d.js');
+  if(ring){ ring.parent?.remove(ring); ring=null; }
+  const b=pickId && s ? (boxesOn(s)||[]).find(x=>x.id===pickId) : null; if(!b) return;
+  const g=S3.wallGroups.find(g=>g.userData.slot.id===s.id); if(!g) return;
+  const t=(bodyWall(s, pickFor(s))?.t || (s.type==='int'?4.5:6.5))/12;
+  ring=new THREE.Mesh(new THREE.RingGeometry(0.32, 0.42, 32), new THREE.MeshBasicMaterial({ color:0xff7a00, side:THREE.DoubleSide, depthTest:false, transparent:true }));
+  ring.renderOrder=999; ring.position.set(b.a/12, b.y/12, b.face==='in' ? -t-0.02 : 0.02); g.add(ring);
+}
 function elecWallBlock(s){
   const on=slotAuto(s), list=boxesOn(s);
   const P=summary(), gone=(P?.removed||[]).filter(b=>b.W.s.id===s.id);
   const row=b=>{ const tags=[b.chase||b.face==='out'?`<span class="el-ok">on a chase${b.nudge>0.01?` · ${fin(b.nudge)} off centre`:''}</span>`:'<span class="el-warn">needs a chase</span>', ...b.flags.filter(f=>f!=='needs a chase').map(f=>`<span class="el-warn">${esc(f)}</span>`), b.moved?'<span class="el-tag">moved</span>':'', b.user?'<span class="el-tag">added</span>':''].filter(Boolean).join(' ');
-    return `<div class="el-row" data-id="${esc(b.id)}" data-face="${b.face}" data-a="${b.a}">
+    return `<div class="el-row${pickId===b.id?' on':''}" data-id="${esc(b.id)}" data-face="${b.face}" data-a="${b.a}" data-x="${b.x}" data-y="${b.y}" ${b.lock?'':'data-pick="1"'}>
       <div><b>${esc(b.way>1 ? `${b.way}-way switch` : SHORT[b.rk]||b.name)}</b>${b.face==='out'?' · outside':''} <small>${fin(b.x)} from the left${b.face==='in'?' (seen from inside)':''} · ${fin(b.y)} up${b.note?` · ${esc(b.note)}`:''}</small><div class="el-tags">${tags}</div></div>
-      ${b.lock?`<div class="el-act"><span class="el-ok" title="It goes where the fireplace goes: move the fireplace, or change its Power (Plug / Hardwired)">🔒 with the fireplace</span></div>`:`<div class="el-act edit-only"><button class="btn ghost sm" data-mv="-1" title="Next chase to the left" aria-label="Next chase to the left">◀</button><button class="btn ghost sm" data-mv="1" title="Next chase to the right" aria-label="Next chase to the right">▶</button>${b.moved?'<button class="btn ghost sm" data-reset title="Back to where the rule put it" aria-label="Reset">↺</button>':''}<button class="btn ghost sm" data-rm title="Remove" aria-label="Remove">✕</button></div>`}</div>`; };
+      ${b.lock?`<div class="el-act"><span class="el-ok" title="It goes where the fireplace goes: move the fireplace, or change its Power (Plug / Hardwired)">🔒 with the fireplace</span></div>`:`<div class="el-act edit-only"><button class="btn ghost sm" data-mv="-1" title="Next chase to the left" aria-label="Next chase to the left">◀</button><button class="btn ghost sm" data-mv="1" title="Next chase to the right" aria-label="Next chase to the right">▶</button>${b.moved?'<button class="btn ghost sm" data-reset title="Back to where the rule put it" aria-label="Reset">↺</button>':''}<button class="btn ghost sm" data-rm title="Remove" aria-label="Remove">✕</button></div>`}</div>${pickId===b.id && !b.lock ? editor(b) : ''}`; };
   const adds=['plug','switch','counter','data', ...(s.type==='ext'?['wp']:[])];
   if(!on) return `<div class="el-box"><div class="eyebrow">Plugs & switches</div>
       <p class="note">This wall keeps the plugs and switches drawn in the wall library. Furniture and appliances against it still get their own plugs${(list||[]).length?':':'.'}</p>
@@ -37,6 +60,21 @@ function elecWallBlock(s){
 }
 function bindElecWall(root, s){
   root.querySelector('#elHome')?.addEventListener('click', ()=>openElectrical());
+  if(pickId && !(boxesOn(s)||[]).some(b=>b.id===pickId)) pickId=null;
+  setTimeout(()=>markBox(s), 0);
+  root.querySelectorAll('.el-row[data-pick]').forEach(r=>r.addEventListener('click', e=>{ if(e.target.closest('button,input')) return; pickId = pickId===r.dataset.id ? null : r.dataset.id; refreshSide(); }));
+  const cur=()=>(boxesOn(s)||[]).find(b=>b.id===pickId);
+  root.querySelectorAll('[data-estep]').forEach(b=>b.onclick=()=>{ step=b.dataset.estep; refreshSide(); });
+  root.querySelectorAll('[data-en]').forEach(btn=>btn.onclick=()=>{ const b=cur(); if(!b) return; const d=btn.dataset.en, st=step==='chase'?1:+step;
+    if(d==='up'||d==='down'){ moveBox(b.id, null, +Math.max(2, Math.min(94, b.y+(d==='up'?st:-st))).toFixed(3)); refresh(); return; }
+    const right=d==='right';
+    if(step==='chase'){ const dirA=(b.face==='in') === !right ? 1 : -1, n=nextChase(s, bw(), b.a, dirA); if(n==null){ say('No more chases that way'); return; } moveBox(b.id, n); }
+    else moveBox(b.id, +(b.a + (b.face==='in' ? (right?-st:st) : (right?st:-st))).toFixed(3));
+    refresh(); });
+  root.querySelectorAll('[data-ef]').forEach(inp=>inp.onchange=()=>{ const b=cur(); const v=parseFloat(inp.value); if(!b || !isFinite(v)) return;
+    if(inp.dataset.ef==='y') moveBox(b.id, null, Math.max(2, Math.min(94, v)));
+    else moveBox(b.id, +(b.face==='in' ? b.a+b.x-v : v).toFixed(3));
+    refresh(); });
   root.querySelector('#elRule')?.addEventListener('click', ()=>{ ruleWall(s, true); refresh(); say(`${s.label}: plugs and switches by the rules`); });
   const bw=()=>bodyWall(s, pickFor(s));
   root.querySelectorAll('.el-row').forEach(r=>{ const id=r.dataset.id, face=r.dataset.face, a=+r.dataset.a;
