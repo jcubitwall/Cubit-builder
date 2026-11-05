@@ -40,15 +40,52 @@ function download(name, text, type='text/csv'){ const a=document.createElement('
 /* ---------------------------------------------------------------- the window */
 let dlg=null, view={ tab:'lib', cat:'base', item:null, edit:null, explode:0, sel:null };
 import { makeHistory, histButtons, bindHistory } from './local-history.js';
+import { LIB, LAYERLIB, DECKLIB } from './data.js';
+import { thumbSVG } from './panels.js';
+import { layerThumb } from './sidebar.js';
+import { rules, saveRules, sharedRules } from './wall-rules.js';
+
+/* ---------------------------------------------------------------- the Library: one full-screen window for everything
+   Left: the categories in groups. Building (walls, floors / ceilings / roofs, decks) and the inside groups (cabinets &
+   wardrobes, kitchen & laundry, bathroom, plumbing, electrical, heating, furniture). Right: cards. The second tab is
+   that category's settings: Shop settings (cabinets, countertops, sinks), Wall rules (walls, floors, electrical
+   heights and locks), the electrical / plumbing / heating rules. */
+const NAV = [
+  ['Building', [['b:walls','Walls'],['b:layers','Floors, ceilings & roofs'],['b:decks','Decks']]],
+  ['Cabinets & wardrobes', ['base','upper','tall','linen','wardrobe','vanity','bench','shelf','counter']],
+  ['Kitchen & laundry', ['appliance']],
+  ['Bathroom', ['bath']],
+  ['Plumbing', ['sink','plumb']],
+  ['Electrical', ['elec']],
+  ['Heating', ['fire','heat']],
+  ['Furniture', ['furniture']],
+];
+const SHOP_CATS = new Set(['base','upper','tall','linen','wardrobe','vanity','bench','shelf','counter','sink','fire']);
+/* what the second tab is for this category: [label, kind] or null (none) */
+function setTab(cat){
+  if(SHOP_CATS.has(cat)) return ['Shop settings','shop'];
+  if(cat==='b:walls' || cat==='b:layers') return ['Wall rules','walls'];
+  if(cat==='elec') return ['Electrical rules','elec'];
+  if(cat==='bath' || cat==='plumb') return ['Plumbing rules','plumb'];
+  if(cat==='heat') return ['Heating rules','heat'];
+  if(cat==='appliance') return ['Electrical rules','elec'];
+  return null;
+}
+const B_LIST = { 'b:walls':()=>LIB, 'b:layers':()=>LAYERLIB, 'b:decks':()=>DECKLIB };
+const B_KIND = { 'b:walls':'walls', 'b:layers':'layers', 'b:decks':'decks' };
+const LAYER_NAME = {'floor-ext':'Exterior floor','floor-int':'Interior floor','ceiling-int':'Interior ceiling','roof':'Roof'};
+const countOf = c => c.startsWith('b:') ? B_LIST[c]().filter(x=>!x.deleted && !x.purged).length : ITEMS.filter(i=>i.cat===c).length;
+const navName = c => c.startsWith('b:') ? NAV[0][1].find(([k])=>k===c)[1] : (CATS.find(x=>x.k===c)?.name || c);
+let showGone=false;
 /* undo / redo of the item on screen: its sizes, options and mirror */
 const pickIt = it => it ? JSON.parse(JSON.stringify({ w:it.w, h:it.h, d:it.d, y:it.y||0, opt:it.opt||{}, mirror:!!it.mirror })) : null;
 const HIST = makeHistory(()=>pickIt(view.item), v=>{ const it=view.item; if(!it||!v) return; if(view.edit){ updateItem(it.id, v); refreshItem(it); renderSide(); } else Object.assign(it, v); });
 function ensure(){
   if(dlg) return dlg;
-  dlg=document.createElement('dialog'); dlg.className='cw-dlg'; dlg.setAttribute('aria-label','Cabinet library');
+  dlg=document.createElement('dialog'); dlg.className='cw-dlg'; dlg.setAttribute('aria-label','Library');
   dlg.innerHTML=`<div class="cw">
-    <header class="cw-h"><h2>Cabinet library</h2>
-      <div class="seg" role="tablist"><button role="tab" data-tab="lib">Library</button><button role="tab" data-tab="set">Shop settings</button></div>
+    <header class="cw-h"><h2>Library</h2>
+      <div class="seg" role="tablist"><button role="tab" data-tab="lib">Library</button><button role="tab" data-tab="set" id="cwSetTab">Settings</button></div>
       <span class="spacer"></span><button class="btn ghost cw-x" aria-label="Close">✕</button></header>
     <div class="cw-body"></div></div>`;
   document.body.appendChild(dlg);
@@ -65,16 +102,85 @@ async function openCaseLib(o={}){
   HIST.reset(); render(); if(!dlg.open) dlg.showModal();
 }
 function render(){
+  const st=setTab(view.cat), stb=dlg.querySelector('#cwSetTab');
+  if(stb){ stb.hidden=!st; stb.textContent=st?st[0]:'Settings'; }
+  if(view.tab==='set' && !st) view.tab='lib';
   dlg.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected', b.dataset.tab===view.tab));
   const body=dlg.querySelector('.cw-body');
   stopViewer();
-  if(view.tab==='set'){ renderSettings(body); return; }
+  const nav=`<nav class="cw-cats" aria-label="Categories">${NAV.map(([g,cs])=>`<div class="cw-ng">${esc(g)}</div>${cs.map(c=>{ const k=Array.isArray(c)?c[0]:c; return `<button data-cat="${k}" aria-current="${k===view.cat}"><span>${esc(navName(k))}</span><small>${countOf(k)}</small></button>`; }).join('')}`).join('')}</nav>`;
+  if(view.tab==='set'){ if(st[1]==='shop'){ renderSettings(body); return; } body.innerHTML=nav+`<section class="cw-rules">${rulesFor(st[1])}</section>`; bindNav(body); bindRules(body); return; }
   if(view.item){ renderDetail(body); return; }
+  if(view.cat.startsWith('b:')){ body.innerHTML=nav+buildingGrid(view.cat); bindNav(body); bindBuilding(body); return; }
   const items=ITEMS.filter(i=>i.cat===view.cat);
-  body.innerHTML=`<nav class="cw-cats" aria-label="Categories">${CATS.map(c=>`<button data-cat="${c.k}" aria-current="${c.k===view.cat}"><span>${c.name}</span><small>${ITEMS.filter(i=>i.cat===c.k).length}</small></button>`).join('')}</nav>
+  body.innerHTML=nav+`
     <section class="cw-grid">${items.map(d=>{ const it=newItem(d.k); return `<button class="cw-card" data-k="${d.k}"><div class="cw-thumb">${frontSVG(it)}</div><b>${esc(d.name)}</b><small>${sizeTxt(it)}${d.fixed?' · fixed size':''}</small></button>`; }).join('')}</section>`;
-  body.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{ view.cat=b.dataset.cat; render(); });
+  bindNav(body);
   body.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{ view.item=newItem(b.dataset.k); view.edit=null; view.explode=0; view.sel=null; HIST.reset(); render(); });
+}
+
+function bindNav(body){ body.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{ view.cat=b.dataset.cat; view.item=null; showGone=false; if(view.tab==='set' && !setTab(view.cat)) view.tab='lib'; render(); }); }
+/* walls, floors / ceilings / roofs, decks: cards; tap for 3D; editors rename and delete (2 weeks to bring back) */
+function buildingGrid(cat){
+  const all=B_LIST[cat]().filter(x=>!x.purged), gone=all.filter(x=>x.deleted), list=all.filter(x=>showGone ? x.deleted : !x.deleted)
+    .sort((a,b)=>String(a.name).localeCompare(String(b.name), undefined, {numeric:true}));
+  const thumb=x=>{ try{ return cat==='b:walls' ? thumbSVG(x) : cat==='b:layers' ? layerThumb(x) : `<svg viewBox="0 0 ${x.w+2} ${x.d+2}"><rect x="1" y="1" width="${x.w}" height="${x.d}" fill="#d9c6a2" stroke="#5b4a33" stroke-width=".2"/></svg>`; }catch(e){ return ''; } };
+  const sub=x=> cat==='b:walls' ? `${x.len}′ ${x.type==='int'?'interior':'exterior'} · ${(x.openings||[]).length} openings` : cat==='b:layers' ? `${LAYER_NAME[x.kind]||x.kind} · ${x.len}′ · ${(x.holes||[]).length} holes` : `${x.w}′ × ${x.d}′ frame`;
+  return `<section class="cw-grid cw-bgrid">
+    <div class="cw-bbar"><input type="search" id="cwQ" placeholder="Search names and IDs" aria-label="Search">${gone.length||showGone?`<button class="linkbtn" id="cwGone">${showGone?'Back to the library':`Recently deleted (${gone.length})`}</button>`:''}</div>
+    ${list.map(x=>`<div class="cw-card cw-bcard" data-bid="${esc(x.id)}"><div class="cw-thumb">${thumb(x)}</div><b>${esc(x.name)}</b><small><code>${esc(x.id)}</code> · ${esc(sub(x))}</small>
+      <div class="cw-bact">${showGone?`<button class="btn ghost sm editor-only" data-bres="${esc(x.id)}">Restore</button>`:`<button class="btn ghost sm" data-b3d="${esc(x.id)}">3D</button><button class="btn ghost sm editor-only" data-bren="${esc(x.id)}">Rename</button><button class="btn ghost sm danger editor-only" data-bdel="${esc(x.id)}">Delete</button>`}</div></div>`).join('') || `<p class="note">${showGone?'Nothing deleted here.':'Empty.'}</p>`}
+  </section>`;
+}
+function bindBuilding(body){
+  const kind=B_KIND[view.cat], lib=()=>import('./library-ui.js'), again=()=>render();
+  body.querySelector('#cwGone')?.addEventListener('click', ()=>{ showGone=!showGone; render(); });
+  const q=body.querySelector('#cwQ'); if(q) q.oninput=()=>{ const Q=q.value.toLowerCase(); body.querySelectorAll('.cw-bcard').forEach(c=>{ c.hidden=!!Q && !c.textContent.toLowerCase().includes(Q); }); };
+  body.querySelectorAll('[data-b3d]').forEach(b=>b.onclick=()=>import('./viewer3d.js').then(m=>m.openViewer(kind, b.dataset.b3d)));
+  body.querySelectorAll('.cw-bcard').forEach(c=>c.onclick=e=>{ if(e.target.closest('button')) return; import('./viewer3d.js').then(m=>m.openViewer(kind, c.dataset.bid)); });
+  body.querySelectorAll('[data-bren]').forEach(b=>b.onclick=()=>lib().then(m=>m.askRename(kind, b.dataset.bren, again)));
+  body.querySelectorAll('[data-bdel]').forEach(b=>b.onclick=()=>lib().then(m=>m.askDelete(b, kind, b.dataset.bdel, again)));
+  body.querySelectorAll('[data-bres]').forEach(b=>b.onclick=()=>import('./libedit.js').then(async m=>{ try{ await m.restoreItem(kind, b.dataset.bres); toast('Restored'); render(); }catch(e){ toast(e.message); } }));
+}
+/* the rules of a category (the Settings tab) */
+let RD=null;
+const SIDE=[['free','Free'],['chase','Chases'],['fixed','Fixed']];
+function wallRulesHTML(){
+  RD ||= JSON.parse(JSON.stringify(rules()));
+  const ed=canEdit(), inp=(k,f,v)=>`<input data-r="${k}:${f}" inputmode="decimal" value="${v==null?'':Math.round(v*16)/16}" ${ed?'':'disabled'}>`;
+  const lk=(k,f,on)=>`<button class="wb-lock${on?'':' open'}" data-rl="${k}:${f}" aria-pressed="${!!on}" ${ed?'':'disabled'} title="${on?'Locked':'Free'}">${on?'🔒':'🔓'}</button>`;
+  return `<h3>Wall rules</h3><p class="note">Every wall built (in the panel builder) starts its items at these heights and depths. 🔒 = locked: only unlocked on purpose on one item. Chases = snaps sideways to the nearest electrical chase (6″ in from each original panel edge, then every foot).</p>
+    <table class="wb-rt"><thead><tr><th></th><th>Height</th><th>Depth</th><th>Sideways</th></tr></thead><tbody>
+    ${Object.entries(RD).map(([k,r])=>`<tr><th>${esc(r.label)}<small>${k==='window'||k==='round'?'sill':'centre'}</small></th><td><span class="wb-rc">${inp(k,'y',r.y)}${lk(k,'ylock',r.ylock)}</span></td>
+      <td>${r.depth!=null?`<span class="wb-rc">${inp(k,'depth',r.depth)}${lk(k,'dlock',r.dlock)}</span>`:'<span class="muted">—</span>'}</td>
+      <td><div class="seg sm">${SIDE.map(([v,l])=>`<button data-rs="${k}:${v}" aria-pressed="${r.side===v}" ${ed?'':'disabled'}>${l}</button>`).join('')}</div></td></tr>`).join('')}</tbody></table>
+    <div class="row">${ed?`<button class="btn sm" id="cwRulesSave">Save rules${sharedRules()?' for everyone':''}</button><button class="btn ghost sm" id="cwRulesUndo">Undo changes</button>`:'<span class="note">Editors and admins change the rules.</span>'}</div>`;
+}
+const PLUMB_RULES = `<h3>Plumbing rules</h3><ul class="el-rules">
+  <li>A fixture with its rough-in mapped (toilets, the MAAX Biarritz showers, the Mirolin Liberty) cuts its drain hole in the interior floor under it; it moves, turns and mirrors with the fixture. A tub, shower or toilet with no rough-in mapped is flagged.</li>
+  <li>A drain hole at the edge of the floor cassette or across a panel joint is flagged.</li>
+  <li>Alcove tubs and showers need a wall at the back and both ends. The valve end goes on an inside wall: no supply pipes in a SIP outside wall. No window or door where the valve, spout or shower arm go.</li>
+  <li>No plug within 500 mm of a tub or shower (across the floor, same room).</li></ul>`;
+const HEAT_RULES = `<h3>Heating rules</h3><ul class="el-rules">
+  <li>Fireplace: Power is Plug or Hardwired; its receptacle or junction box goes inside the insert's cavity, on its own circuit, and moves with the fireplace.</li>
+  <li>Baseboard heaters: no plug on the wall above one. Usually under a window.</li>
+  <li>Heat pump wall units: high on the wall, about 6″ under the ceiling; line set, condensate and power through the wall behind.</li></ul>`;
+function rulesFor(kind){
+  if(kind==='walls') return wallRulesHTML();
+  if(kind==='elec') return `<h3>Electrical rules</h3><p class="note">Heights and locks of plug and switch boxes are in Walls → Wall rules.</p>${elecRules()}`;
+  if(kind==='plumb') return PLUMB_RULES;
+  if(kind==='heat') return HEAT_RULES;
+  return '';
+}
+let elecRules=()=>'';
+import('./electrical-ui.js').then(m=>{ elecRules=()=>m.rulesHTML().replace('<details class="help">','<details class="help" open>'); });
+function bindRules(body){
+  const box=body.querySelector('.cw-rules'); if(!box) return;
+  box.querySelectorAll('[data-r]').forEach(i=>i.onchange=()=>{ const [k,f]=i.dataset.r.split(':'), v=parseFloat(i.value); if(isFinite(v) && v>=0) RD[k][f]=v; render(); });
+  box.querySelectorAll('[data-rl]').forEach(b=>b.onclick=()=>{ const [k,f]=b.dataset.rl.split(':'); RD[k][f]=!RD[k][f]; render(); });
+  box.querySelectorAll('[data-rs]').forEach(b=>b.onclick=()=>{ const [k,v]=b.dataset.rs.split(':'); RD[k].side=v; render(); });
+  box.querySelector('#cwRulesUndo')?.addEventListener('click', ()=>{ RD=null; render(); });
+  box.querySelector('#cwRulesSave')?.addEventListener('click', async()=>{ try{ await saveRules(RD); RD=null; render(); toast(`Wall rules saved${sharedRules()?' for the whole team':' (in this browser)'}`); }catch(e){ toast(`Couldn't save the rules: ${e.message||e}`); } });
 }
 
 /* ---------------------------------------------------------------- one item: 3D, sizes, options, parts */
@@ -473,9 +579,4 @@ function bindHomeBlock(root){
 }
 export { openCaseLib, furnSide, homeBlock, bindHomeBlock, parseLen };
 /* ⋯ menu → Cabinet library (and the Homes window on a phone) */
-{ const pop=document.getElementById('morePop');
-  if(pop && !document.getElementById('bCabLib')){ const b=document.createElement('button'); b.setAttribute('role','menuitem'); b.id='bCabLib'; b.textContent='Cabinet library';
-    pop.insertBefore(b, document.getElementById('bUpload')); b.onclick=()=>{ pop.hidden=true; openCaseLib(); }; }
-  const hp=document.getElementById('hProjects');
-  if(hp && !document.getElementById('hCabLib')){ const b=document.createElement('button'); b.className='btn ghost'; b.id='hCabLib'; b.textContent='Cabinets';
-    hp.after(b); b.onclick=()=>{ document.getElementById('homeDlg')?.close(); openCaseLib(); }; } }
+/* the Library is opened from ⋯ → Library (library-ui.js); there's no separate cabinet library any more */

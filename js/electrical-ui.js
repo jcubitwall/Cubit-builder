@@ -91,7 +91,7 @@ function render(){
   B.querySelector('#elRelay')?.addEventListener('click', ()=>{ relay(); refresh(); say('Electrical laid out by the rules'); });
   const cl=B.querySelector('#elClear'); cl.onclick=()=>{ if(cl.dataset.sure!=='1'){ cl.dataset.sure='1'; cl.textContent='Tap again: every box moved, added or removed by hand goes back to the rules'; return; } relay(k, { clear:true }); refresh(); say('Electrical back to the rules'); };
 }
-const rulesHTML = () => `<details class="help"><summary>The rules</summary><ul class="el-rules">
+export const rulesHTML = () => `<details class="help"><summary>The rules</summary><ul class="el-rules">
   <li>Plugs ${ELEC_H.plug}″ to centre: no point along usable wall more than 1.8 m (70⅞″) from one, any wall 900 mm or longer gets one. Doorways, full-height glass, behind a door swung open and behind fixed cabinets, appliances, tubs and showers don't count. Bathrooms: the basin plug only.</li>
   <li>Counters: plugs at ${ELEC_H.counter}″ so no point is more than 900 mm from one, none behind the range or sink. Basin: GFCI at ${ELEC_H.gfci}″ within 1 m.</li>
   <li>No plug within 500 mm of a bathtub or shower (across the floor, same room); none on the walls behind one.</li>
