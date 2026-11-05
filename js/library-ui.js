@@ -59,7 +59,7 @@ async function askDelete(btn, kind, id, after){
       const next = FAMILIES.map(f=>variantsOf(f.id)[0]).find(Boolean) || Object.keys(MODELS).find(k=>!MODELS[k].deleted);
       if(next){ state.model=next; state.selected=null; save(); buildHome(); }
     }
-    toast(`Deleted “${find(kind,id)?.name||id}” · it can be brought back for 2 weeks (Library → Recently deleted)`); refresh(after);
+    toast(`Deleted “${find(kind,id)?.name||id}” · it can be brought back for 2 weeks (⋯ → Deleted items)`); refresh(after);
   }catch(e){ fail(e); }
 }
 async function restore(kind,id){ try{ await restoreItem(kind,id); toast(`Restored “${find(kind,id)?.name||id}”`); refresh(); }catch(e){ fail(e); } }

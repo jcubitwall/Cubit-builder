@@ -82,7 +82,7 @@ function draftBlock(){
         ${m.overAt?`<button class="btn ghost sm" id="ovBack">Go back to the shop files' version</button>`:''}
         <label class="fld">Delete from Cubit Homes: type “${esc(m.name)}”<input id="cdName" autocomplete="off"></label>
         <div class="row"><button class="btn ghost sm danger" id="cdDel" disabled>Delete ${esc(m.name)}</button></div>
-        <p class="note">Deleted originals can be brought back for 2 weeks (Library → Recently deleted).</p></details></div>`;
+        <p class="note">Deleted originals can be brought back for 2 weeks (⋯ → Deleted items).</p></details></div>`;
 }
 function bindDraftBlock(root){
   const $=id=>root.querySelector('#'+id), k=state.model, m=MODELS[k];

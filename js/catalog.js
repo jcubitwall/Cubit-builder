@@ -113,16 +113,17 @@ const famByName = name => { const n=' '+String(name||'').toLowerCase().replace(/
   return FAMILIES.filter(f=>!f.deleted).find(f=>n.includes(' '+f.name.toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()+' '))?.id || null; };
 function familyOf(key){
   const m=MODELS[key]; if(!m) return null;
-  if(m.family) return m.family;
+  const live = f => f && !familyById(f)?.deleted ? f : null;   // a deleted model name: its homes show as not filed yet
+  if(m.family) return live(m.family);
   if(m.project || m.custom){ const f=famByName(m.name); if(f) return f; }
-  if(m.base && MODELS[m.base]?.family) return MODELS[m.base].family;
+  if(m.base && MODELS[m.base]?.family) return live(MODELS[m.base].family);
   return null;
 }
 /* the homes filed under a model name: the standard one, the shared sub-models, then your own layouts */
 /* everything filed under a model name: the Cubit model, its variations, team projects, then your own drafts
    (fam null = the homes not filed under any model name yet) */
 function variantsOf(fam){
-  const ks=Object.keys(MODELS).filter(k=>!MODELS[k].deleted && (familyOf(k)||null)===fam && (fam || MODELS[k].project || MODELS[k].custom));
+  const ks=Object.keys(MODELS).filter(k=>!MODELS[k].deleted && (familyOf(k)||null)===fam && (fam || MODELS[k].project || MODELS[k].custom || MODELS[k].family));
   const rank=k=>{ const m=MODELS[k]; return familyById(fam)?.base===k ? 0 : m.sub ? 1 : m.project ? 2 : 3; };
   return ks.sort((a,b)=>rank(a)-rank(b) || MODELS[a].name.localeCompare(MODELS[b].name));
 }

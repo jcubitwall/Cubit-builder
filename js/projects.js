@@ -174,11 +174,25 @@ const sameHome = (a, b) => JSON.stringify(sortKeys(strip(a))) === JSON.stringify
 function sortKeys(v){ return Array.isArray(v) ? v.map(sortKeys) : v && typeof v==='object' ? Object.fromEntries(Object.keys(v).filter(k=>v[k]!==undefined && k!=='name' && k!=='saved').sort().map(k=>[k, sortKeys(v[k])])) : v; }
 /* the open project's starting point, when the app opens on it (no Open tapped) */
 function baseFor(id){ return BASE[id] || (TEAM[id] ? { rev:TEAM[id].rev||0, item:TEAM[id] } : null); }
+const PTRASH='cubit-proj-trash';   // this browser's own (not team) projects that were deleted, kept two weeks
+function localTrash(){ let t=[]; try{ t=JSON.parse(localStorage.getItem(PTRASH)||'[]'); }catch(e){} return t.filter(x=>Date.now()-Date.parse(x.at) < 14*24*3600*1000); }
 async function deleteProject(id){
   if(TEAM[id]) await post({op:'delete', id});
+  else if(PROJECTS[id]) try{ const P=PROJECTS[id]; localStorage.setItem(PTRASH, JSON.stringify([{ id, name:P.name, customer:P.customer||null, size:P.model?.size||'', at:new Date().toISOString(), item:P }, ...localTrash().filter(x=>x.id!==id)].slice(0,50))); }catch(e){}
   delete PROJECTS[id]; persist(); delete MODELS['proj-'+id];
   if(SHARED[id]) register(SHARED[id]);
   if(!MODELS['proj-'+id] && state.model==='proj-'+id){ state.model=Object.keys(MODELS)[0]; save(); }
+}
+/* deleted team homes (Purgatory and customers'): from the server for editors; else this browser's own */
+async function deletedProjects(){
+  if(remote){ try{ const r=await fetch('api/projects?deleted=1',{cache:'no-store'}); if(r.ok) return (await r.json()).filter(x=>!TEAM[x.id]); }catch(e){} return []; }
+  return localTrash().filter(x=>!PROJECTS[x.id]);
+}
+async function restoreDeleted(row){
+  if(remote){ await post({op:'restore', id:row.id, at:row.last}); return; }
+  const t=localTrash(), it=t.find(x=>x.id===row.id); if(!it) throw new Error('It is gone.');
+  PROJECTS[it.id]=it.item; persist(); register(it.item);
+  try{ localStorage.setItem(PTRASH, JSON.stringify(t.filter(x=>x!==it))); }catch(e){}
 }
 async function renameProject(id, name){
   if(TEAM[id]){ await post({op:'rename', id, name}); return; }
@@ -218,4 +232,4 @@ function importJSON(text){
   persist(); return n;
 }
 
-export { refreshOpen, lockProject, unlockProject, projectOf, baseFor, snapshot, libraryFor, loadProjects, saveProject, openProject, deleteProject, renameProject, exportJSON, importJSON, versions, restoreVersion, isTeam, PROJECTS, SHARED, TEAM };
+export { deletedProjects, restoreDeleted, refreshOpen, lockProject, unlockProject, projectOf, baseFor, snapshot, libraryFor, loadProjects, saveProject, openProject, deleteProject, renameProject, exportJSON, importJSON, versions, restoreVersion, isTeam, PROJECTS, SHARED, TEAM };

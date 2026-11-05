@@ -384,8 +384,17 @@ From the shop, Oct 2026. Heights are measured from the bottom of the floor.
 - **Where it shows:** 3D (with the framing switch), the framing cut list and the take-off.
 - **Scanned layers:** older scanned ceilings and roofs (6.47″ / 6.48″) take these thicknesses when they load (`fixLayer` in data.js).
 
-## Deleting: two weeks to change your mind
-Deleted library items (model names, homes, pods, walls, floors and roofs, decks) and deleted drafts disappear from every list and picker straight away. For 14 days they can be brought back from Library → **Recently deleted**. That link only shows while something is in it, and each row says until when it's kept. After 14 days they're gone for good and aren't shown anywhere. Library deletions keep their date in the library edits (`KEEP_MS` in libedit.js); deleted drafts are kept in this browser (`cubit-draft-trash`, drafts.js).
+## Deleted items (⋯ → Deleted items)
+Everything deleted is in one window, sorted into groups, each row with **Restore** (`js/trash-ui.js`; on a phone, Homes → Deleted items):
+- **People:** customer profiles.
+- **Homes:** Cubit Homes originals and variations, Purgatory homes, customers' homes, my drafts.
+- **Model names.**
+- **Building:** walls, floors / ceilings / roofs, decks, pods.
+
+Deleted things disappear from every list and picker straight away. Library items, model names, Cubit Homes originals, customers and drafts can come back for 14 days, then they're gone for good (`KEEP_MS` in libedit.js; drafts are kept in this browser, `cubit-draft-trash`). Purgatory and customers' homes keep every save on the server, so they can always come back: a deletion is noted in `projects/deleted.json` (`GET api/projects?deleted=1`, editors) and Restore brings back its last save. Restoring needs an editor or admin, except your own drafts. The Library's walls, floors and decks lists show a **Deleted (n)** link that opens this window.
+
+## New model names
+Homes → Cubit Homes → **＋ New model name** (editors and admins). It shows as a chip for the whole team at once and in the Save window's model list, empty until a home is adopted into it (Save → Cubit Homes, pick the model name). Open a model name's chip to **Rename** or **Delete** it; homes under a deleted model name show under "Not filed yet" until it's restored. Added names are kept with the library edits (`fams` in `catalog/library-edits.json`, `{op:'newfam', name}` on `api/library`); the six first ones stay in `data/families.json`.
 
 ## Exploding in Build
 In Build, a three-finger spread pulls the home (or an isolated cabinet) apart as far as you spread your fingers, the same as the Library's 3D view; a pinch brings it back together. The Exploded view button still goes all the way apart or all the way back.

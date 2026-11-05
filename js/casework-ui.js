@@ -127,14 +127,14 @@ function buildingGrid(cat){
   const thumb=x=>{ try{ return cat==='b:walls' ? thumbSVG(x) : cat==='b:layers' ? layerThumb(x) : `<svg viewBox="0 0 ${x.w+2} ${x.d+2}"><rect x="1" y="1" width="${x.w}" height="${x.d}" fill="#d9c6a2" stroke="#5b4a33" stroke-width=".2"/></svg>`; }catch(e){ return ''; } };
   const sub=x=> cat==='b:walls' ? `${x.len}′ ${x.type==='int'?'interior':'exterior'} · ${(x.openings||[]).length} openings` : cat==='b:layers' ? `${LAYER_NAME[x.kind]||x.kind} · ${x.len}′ · ${(x.holes||[]).length} holes` : `${x.w}′ × ${x.d}′ frame`;
   return `<section class="cw-grid cw-bgrid">
-    <div class="cw-bbar"><input type="search" id="cwQ" placeholder="Search names and IDs" aria-label="Search">${gone.length||showGone?`<button class="linkbtn" id="cwGone">${showGone?'Back to the library':`Recently deleted (${gone.length})`}</button>`:''}</div>
+    <div class="cw-bbar"><input type="search" id="cwQ" placeholder="Search names and IDs" aria-label="Search">${gone.length?`<button class="linkbtn editor-only" id="cwGone" title="⋯ → Deleted items">Deleted (${gone.length})</button>`:''}</div>
     ${list.map(x=>`<div class="cw-card cw-bcard" data-bid="${esc(x.id)}"><div class="cw-thumb">${thumb(x)}</div><b>${esc(x.name)}</b><small><code>${esc(x.id)}</code> · ${esc(sub(x))}</small>
       <div class="cw-bact">${showGone?`<button class="btn ghost sm editor-only" data-bres="${esc(x.id)}">Restore</button>`:`<button class="btn ghost sm" data-b3d="${esc(x.id)}">3D</button><button class="btn ghost sm editor-only" data-bren="${esc(x.id)}">Rename</button><button class="btn ghost sm danger editor-only" data-bdel="${esc(x.id)}">Delete</button>`}</div></div>`).join('') || `<p class="note">${showGone?'Nothing deleted here.':'Empty.'}</p>`}
   </section>`;
 }
 function bindBuilding(body){
   const kind=B_KIND[view.cat], lib=()=>import('./library-ui.js'), again=()=>render();
-  body.querySelector('#cwGone')?.addEventListener('click', ()=>{ showGone=!showGone; render(); });
+  body.querySelector('#cwGone')?.addEventListener('click', ()=>import('./trash-ui.js').then(m=>m.openTrash(kind)));
   const q=body.querySelector('#cwQ'); if(q) q.oninput=()=>{ const Q=q.value.toLowerCase(); body.querySelectorAll('.cw-bcard').forEach(c=>{ c.hidden=!!Q && !c.textContent.toLowerCase().includes(Q); }); };
   body.querySelectorAll('[data-b3d]').forEach(b=>b.onclick=()=>import('./viewer3d.js').then(m=>m.openViewer(kind, b.dataset.b3d)));
   body.querySelectorAll('.cw-bcard').forEach(c=>c.onclick=e=>{ if(e.target.closest('button')) return; import('./viewer3d.js').then(m=>m.openViewer(kind, c.dataset.bid)); });

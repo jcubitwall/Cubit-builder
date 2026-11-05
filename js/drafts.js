@@ -59,7 +59,7 @@ function renameDraft(k, name){ if(!isDraft(k)) return; MODELS[k].name=String(nam
   const f=famByName(MODELS[k].name); if(f) MODELS[k].family=f;   // named after a model: it files itself under it
   saveCustomModels(); save(); push(k); }
 function setDraftFamily(k, family){ if(!isDraft(k)) return; if(family) MODELS[k].family=family; else delete MODELS[k].family; saveCustomModels(); save(); push(k); }
-/* deleted drafts are kept for two weeks in this browser (Library → Homes → Recently deleted), then forgotten */
+/* deleted drafts are kept for two weeks in this browser (⋯ → Deleted items), then forgotten */
 const TRASH_KEY='cubit-draft-trash', KEEP_MS=14*24*3600*1000;
 function trash(){ let t=[]; try{ t=JSON.parse(localStorage.getItem(TRASH_KEY)||'[]'); }catch(e){}
   const now=Date.now(), keep=t.filter(x=>now-Date.parse(x.at) < KEEP_MS); if(keep.length!==t.length) try{ localStorage.setItem(TRASH_KEY, JSON.stringify(keep)); }catch(e){}

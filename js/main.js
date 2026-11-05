@@ -24,6 +24,7 @@ import './electrical.js';
 import { loadEdits } from './libedit.js';
 import { startBuild } from './build.js';
 import './library-ui.js';
+import './trash-ui.js';
 import { loadSettings, loadFixtures } from './casework.js';
 import './casework-ui.js';
 import './wall-builder.js';

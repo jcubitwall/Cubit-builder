@@ -1,5 +1,7 @@
 /* GET  /api/projects                 the team's projects (everyone who can log in)
    GET  /api/projects?versions=<id>   earlier saves of one project [{at, by, name}]
+   GET  /api/projects?deleted=1       deleted projects (editors and up): [{id, name, customer, at, by, last}]
+                                      last = the key of its last save, for {op:'restore', id, at:last}
    POST /api/projects                 save / rename / lock: salespeople and up; delete / restore / unlock: editors and up
         {op:'save', item, baseRev}   save a project (the save before it is kept as an earlier version).
                                      baseRev = the version (rev) the saver started from. If someone saved since,
@@ -17,6 +19,7 @@
 import { whoIs, json, atLeast, denied } from '../_auth.js';
 import { atomic } from '../_store.js';
 const KEY = 'projects/index.json';
+const DEL = 'projects/deleted.json';   // what was deleted, newest first (its saves stay in projects/history/)
 const okId = id => typeof id === 'string' && /^[a-z0-9-]{1,40}$/.test(id);
 async function list(env){ const o = await env.STEPS.get(KEY); if(!o) return []; try{ const v = await o.json(); return Array.isArray(v) ? v : []; }catch(e){ return []; } }
 const put = (env, key, v) => env.STEPS.put(key, JSON.stringify(v), { httpMetadata:{ contentType:'application/json' } });
@@ -26,7 +29,13 @@ export async function onRequestGet({ request, env }){
   const me = await whoIs(request, env);
   if(me.role === 'none') return json({ error:'Not signed in.' }, 401);
   if(!env.STEPS) return json([]);
-  const v = new URL(request.url).searchParams.get('versions');
+  const q = new URL(request.url).searchParams;
+  if(q.get('deleted')){
+    if(!atLeast(me,'editor')) return json([]);
+    const o = await env.STEPS.get(DEL); let L = []; try{ L = o ? await o.json() : []; }catch(e){}
+    return json(Array.isArray(L) ? L : []);
+  }
+  const v = q.get('versions');
   if(v){
     if(!okId(v)) return json({ error:'Bad id.' }, 400);
     const r = await env.STEPS.list({ prefix:`projects/history/${v}/` });
@@ -44,6 +53,7 @@ export async function onRequestPost({ request, env }){
   if(!b || !['save','rename','delete','restore','lock','unlock'].includes(b.op)) return json({ error:'Bad request.' }, 400);
   if(['delete','restore','unlock'].includes(b.op) && !atLeast(me,'editor')) return denied('editor');
   if(JSON.stringify(b).length > 4_000_000) return json({ error:'Too big.' }, 413);
+  let gone = null;   // the project just deleted, for the deleted list
   const r = await atomic(env, KEY, ()=>[], async L=>{
     if(!Array.isArray(L)) L=[];
     const at = id => L.findIndex(p => p.id === id);
@@ -70,7 +80,8 @@ export async function onRequestPost({ request, env }){
           L[i] = { ...L[i], locked:null, unlocks:[...(L[i].unlocks||[]), { at:new Date().toISOString(), by:me.email, reason, fee:String(b.fee||'').slice(0,40), was:L[i].locked||null }] }; }
       }
       else if(b.op === 'rename'){ if(i < 0) return json({ error:'No such project.' }, 404); const nm = String(b.name||'').trim().slice(0,80); if(!nm) return json({ error:'A name is needed.' }, 400); L[i] = { ...L[i], name:nm }; }
-      else if(b.op === 'delete'){ if(i >= 0){ await keep(env, L[i]); L.splice(i,1); } }
+      else if(b.op === 'delete'){ if(i >= 0){ const p=L[i]; await keep(env, p);
+        gone = { id:p.id, name:p.name, customer:p.customer||null, size:p.model?.size||'', at:new Date().toISOString(), by:me.email, last:(p.saved||'').replace(/[:.]/g,'-') }; L.splice(i,1); } }
       else {   // restore
         const key = `projects/history/${b.id}/${String(b.at||'').replace(/[^0-9TZ-]/g,'')}.json`;
         const old = await (await env.STEPS.get(key))?.json().catch(()=>null);
@@ -83,5 +94,11 @@ export async function onRequestPost({ request, env }){
     return { value:L };
   });
   if(r.response) return r.response;
+  // the deleted list: add what was just deleted; a restored project comes off it
+  if(gone || b.op === 'restore') await atomic(env, DEL, ()=>[], async D=>{
+    D = (Array.isArray(D) ? D : []).filter(x => x.id !== (gone ? gone.id : b.id));
+    if(gone) D.unshift(gone);
+    return { value:D.slice(0, 300) };
+  });
   return json({ ok:true, projects:r.value });
 }
