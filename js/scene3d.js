@@ -346,6 +346,9 @@ function buildUpstairs(pods){
       const cap=new THREE.Mesh(new THREE.BoxGeometry(0.75,0.06,0.75), MAT.steel); cap.position.set(q.x, bot-0.03, q.z); cap.userData={ pod:q.pod }; upGroup.add(cap); } });
 }
 /* stairs up to the second floor (stairs.js): treads and stringers, picked as one ('stair:<id>') */
+const PART_MAT={ steel:new THREE.MeshStandardMaterial({ color:0x2a2c2f, roughness:0.55, metalness:0.4, side:THREE.DoubleSide }),   // the stair's steel, glass and stainless
+  glass:new THREE.MeshStandardMaterial({ color:0xbfe3e6, roughness:0.05, metalness:0.1, transparent:true, opacity:0.28, depthWrite:false, side:THREE.DoubleSide }),
+  ss:new THREE.MeshStandardMaterial({ color:0xc9cdd2, roughness:0.35, metalness:0.3, side:THREE.DoubleSide }) };
 const STAIR_MAT=new THREE.MeshStandardMaterial({ color:0xc8a26e, roughness:0.8 }), STAIR_SEL=new THREE.MeshStandardMaterial({ color:0xe0864a, roughness:0.7, emissive:0x3a1a05 });
 let stairGroup=null;
 /* a stair's opening goes through everything in its way, not just the panels: the ceiling–roof cassette of the pod it
@@ -373,11 +376,13 @@ function buildStairs(){
       else if(q.kind==='beam'){ // a beam from a (centre at ya) to b (yb): w wide, d deep, kept upright as it turns and climbs
         // its sides stay plumb (a sloped block, not a tilted one), each end square to the run, run on by half its width so turns close
         const dx=q.b[0]-q.a[0], dz=q.b[1]-q.a[1], L=Math.hypot(dx,dz)||1e-6, ux=dx/L, uz=dz/L, nx=-uz*q.w/2, nz=ux*q.w/2, e=q.w/2;
-        const a0=[q.a[0]-ux*e, q.a[1]-uz*e], b0=[q.b[0]+ux*e, q.b[1]+uz*e], ya=q.ya/FT, yb=q.yb/FT, h=q.d/2;
-        const V=[]; [[a0,ya],[b0,yb]].forEach(([c,y])=>[[1,1],[-1,1],[-1,-1],[1,-1]].forEach(([sn,sy])=>V.push(c[0]+nx*sn, y+h*sy, c[1]+nz*sn)));
+        const a0=[q.a[0]-ux*e, q.a[1]-uz*e], b0=[q.b[0]+ux*e, q.b[1]+uz*e];
+        // heights (feet) at each end: bottom, top — a centre ± half its depth, or given (ys: [a bottom, a top, b bottom, b top], inches)
+        const Y = q.ys ? [[q.ys[0]/FT, q.ys[1]/FT], [q.ys[2]/FT, q.ys[3]/FT]] : [[q.ya/FT-q.d/2, q.ya/FT+q.d/2], [q.yb/FT-q.d/2, q.yb/FT+q.d/2]];
+        const V=[]; [[a0,Y[0]],[b0,Y[1]]].forEach(([c,[y0,y1]])=>[[1,1],[-1,1],[-1,-1],[1,-1]].forEach(([sn,sy])=>V.push(c[0]+nx*sn, sy>0?y1:y0, c[1]+nz*sn)));
         const g=new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(V,3));
         g.setIndex([0,1,2, 0,2,3, 4,6,5, 4,7,6, 0,4,5, 0,5,1, 1,5,6, 1,6,2, 2,6,7, 2,7,3, 3,7,4, 3,4,0]); const gf=g.toNonIndexed(); gf.computeVertexNormals();   // flat faces, crisp edges
-        m=new THREE.Mesh(gf, mat); m.material.side=THREE.DoubleSide; }
+        m=new THREE.Mesh(gf, PART_MAT[q.m]||mat); }
       else if(q.kind==='slope'){ // a stringer: a board from a (at ya) to b (at yb), on edge
         const A=new THREE.Vector3(q.a[0], q.ya/FT, q.a[1]), B=new THREE.Vector3(q.b[0], q.yb/FT, q.b[1]), L=A.distanceTo(B);
         m=new THREE.Mesh(new THREE.BoxGeometry(q.t, 0.8, L), mat); m.position.copy(A).add(B).multiplyScalar(0.5); m.position.y-=0.25; m.lookAt(B.x, B.y-0.25, B.z); }

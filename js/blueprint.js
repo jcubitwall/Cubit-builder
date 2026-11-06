@@ -416,6 +416,11 @@ function planFit(ctx, extra=150, max=27){
 }
 function planFurniture(ctx, xf, opts){ return ctx.H_.items.map(I=>itemSVG(I, xf, opts)).join(''); }
 /* stairs on a plan: downstairs the treads and an UP arrow; upstairs the opening with a guard line and DN */
+/* the guards: glass a heavy line, stainless cable a heavy dashed line */
+function guardSVG(L, xf, which){
+  return (L.guards||[]).filter(q=>q[which]).map(q=>{ const [x1,y1]=xf.P(q.a), [x2,y2]=xf.P(q.b);
+    return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${INK}" stroke-width="2.4"${q.rail==='cable'?' stroke-dasharray="5 2.5"':''}/>`; }).join('');
+}
 function stairSVG(xf, lv){
   let g='';
   const PL=podList(state.model);
@@ -426,10 +431,11 @@ function stairSVG(xf, lv){
     if(from===lv){ g+=`<polygon points="${poly(st.foot)}" fill="#fff" stroke="${INK}" stroke-width="1.2"/>`;
       L.lines.forEach(([p,q])=>{ const [x1,y1]=xf.P(p), [x2,y2]=xf.P(q); g+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${INK}" stroke-width="0.7"/>`; });
       if(L.post){ const c=xf.P(L.post.c); g+=`<circle cx="${c[0]}" cy="${c[1]}" r="${Math.max(2, L.post.r*xf.k)}" fill="${INK}"/>`; }
+      g+=guardSVG(L, xf, 'lower');
       g+=walk+`<polyline points="${hd(b,0.45)} ${b.join(',')} ${hd(b,-0.45)}" fill="none" stroke="${INK}" stroke-width="1"/>`;
       const m=W[Math.floor(W.length/2)]; g+=rect(m[0]-22, m[1]-15, 44, 12, { fill:'#fff', stroke:'none' })+tx(m[0], m[1]-5, `UP ${st.o.n}R`, { size:9, anchor:'middle', weight:'bold' }); }
     else { st.holesUp.forEach(H=>{ g+=`<polygon points="${poly(H)}" fill="none" stroke="${INK}" stroke-width="1" stroke-dasharray="6 3"/>`; });
-      g+=walk;
+      g+=walk+guardSVG(L, xf, 'upper');
       const h=xf.P([(st.hole.x+st.hole.x1)/2, (st.hole.z+st.hole.z1)/2]); g+=tx(h[0], h[1]+14, 'DN · OPEN TO BELOW · GUARD', { size:8, anchor:'middle', weight:'bold' }); } });
   return g;
 }

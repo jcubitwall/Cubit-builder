@@ -5,7 +5,7 @@ import { planWindowOverSink, centreWindowOverSink } from './sink-window.js';
 import { LIB, MODELS, optionsFor, saveCustomModels, layerOptions, mirrorId, layerMirrorId } from './data.js';
 import { LAYER_KINDS } from './config.js';
 import { screwsFor, slotsFor, podList, CW, layerSlotsFor, partnerOf, deckList, worldSide, podOffsets } from './layout.js';
-import { stairsOf, addStair, updateStair, removeStair, optionsFor as stairOptions, flipped as stairFlipped, landings as stairLandings, nextOptions as stairNext, addStairSpec } from './stairs.js';
+import { stairsOf, addStair, updateStair, removeStair, RAILS as stairRails, optionsFor as stairOptions, flipped as stairFlipped, landings as stairLandings, nextOptions as stairNext, addStairSpec } from './stairs.js';
 import { panelCount, thumbSVG, bodyWall, wallLen, layerHoles, outlinePts, shapeOf } from './panels.js';
 import { buildHome, highlight } from './scene3d.js';
 import { facing, fmtBearing, bearingOf, compass } from './orient.js';
@@ -131,7 +131,9 @@ function renderStairSide(id){
       const nx=st.above!=null ? stairNext(S.id) : [];
       return `<div class="eyebrow sm">Landings</div><ul class="st-land">${ln('at the foot', Ld.foot)}${ln('at the top', Ld.top)}${Ld.startsOverHole?'<li class="bad">✗ it starts over the opening of the stair below</li>':''}</ul>
         ${nx.length?`<div class="eyebrow sm">Next floor up</div><div class="st-opts">${nx.map((c,i)=>`<button class="st-opt" data-snext="${i}" ${c.ok?'':'disabled'}><b>${esc(c.label)}</b><small>${esc(c.note)}</small>${c.ok?'':`<small class="el-warn">${esc(c.why)}</small>`}</button>`).join('')}</div>`:''}`; })()}
-    <p class="note">${o.kind==='spiral' ? 'The square spiral’s 22½° wedge treads are winders / a spiral stair under the National Building Code (9.8.4): check them with the building official before building. ' : o.kind==='wind' ? 'Its winders turn 30° each, 90° per set with a tread between the sets (National Building Code 9.8.4.5): check them with the building official. ' : 'Legal for a house (National Building Code 9.8): risers 7⅞″ or less, runs 10⅛″ or more, 6′ 4¾″ headroom, 34″ or wider. '}Handrail and guards by the builder.</p>
+    <p class="note">${o.kind==='spiral' ? 'The square spiral’s 22½° wedge treads are winders / a spiral stair under the National Building Code (9.8.4): check them with the building official before building. ' : o.kind==='wind' ? 'Its winders turn 30° each, 90° per set with a tread between the sets (National Building Code 9.8.4.5): check them with the building official. ' : 'Legal for a house (National Building Code 9.8): risers 7⅞″ or less, runs 10⅛″ or more, 6′ 4¾″ headroom, 34″ or wider. '}${o.kind==='spiral'?'Handrail and guards by the builder.':'Solid 3″ treads on one steel tube stringer up the middle (HSS 4×10, a welded bracket under each tread): sizes and welds by an engineer.'}</p>
+    ${o.kind!=='spiral'?`<div class="eyebrow sm">Railing</div><div class="seg sm st-rail">${Object.entries(stairRails).map(([k,l])=>`<button data-srail="${k}" aria-pressed="${(S.rail||'glass')===k}">${l}</button>`).join('')}</div>
+    <p class="note">${(S.rail||'glass')==='glass'?'½″ tempered glass on stainless standoffs at the tread ends, 36″ high, a 1½″ stainless handrail on the stair side':(S.rail||'glass')==='cable'?'2″ stainless posts at 4′ or less, a top rail at 36″, ⅛″ cables 3″ apart or less':'no guards drawn'} · along the open sides and round the opening above.</p>`:''}
     <div class="eyebrow sm">Where it sits</div>
     <div class="mid-pos"><button class="btn ghost" data-sst="-1" aria-label="Slide back">◀</button>
       <label class="cw-f"><span>${o.kind==='spiral'?'Its near edge':'Foot of the stair'} from ${esc(lo.label)}'s end</span><input id="stU" inputmode="decimal" value="${Math.round(S.u0*16)/16}"><i>″</i></label>
@@ -140,6 +142,7 @@ function renderStairSide(id){
     <div class="row">${o.kind==='spiral' ? '<button class="btn ghost sm" id="stQ">Quarter turn</button><button class="btn ghost sm" id="stDir">Wind the other way</button>' : '<button class="btn ghost sm" id="stSide">Other wall</button><button class="btn ghost sm" id="stDir">Turn it round</button>'}<button class="btn ghost sm danger" id="stRm">Remove stairs</button></div></div>`;
   const go=patch=>{ updateStair(id, patch); renderModels(); buildHome(); highlight(); renderSide(); };
   sideB.querySelectorAll('[data-sopt]').forEach(b=>b.onclick=()=>{ const x=opts.find(q=>q.key===b.dataset.sopt); go(x.why && x.alt ? { ...x.alt, opt:x.key } : { opt:x.key }); });
+  sideB.querySelectorAll('[data-srail]').forEach(b=>b.onclick=()=>go({ rail:b.dataset.srail }));
   sideB.querySelectorAll('[data-sstep]').forEach(b=>b.onclick=()=>{ stairStep=+b.dataset.sstep; renderSide(); });
   sideB.querySelectorAll('[data-sst]').forEach(b=>b.onclick=()=>go({ u0:S.u0 + (+b.dataset.sst)*stairStep }));
   sideB.querySelector('#stU').onchange=e=>{ const v=parseFloat(e.target.value); if(isFinite(v)) go({ u0:v }); };

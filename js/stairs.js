@@ -182,7 +182,7 @@ function optionsFor(id){
 /* ---------------------------------------------------------------- what it looks like
    3D parts in plan feet / inches up: { kind:'box', x,z,x1,z1, y0,y1 } · { kind:'poly', pts:[[x,z]…], y0,y1 }
    · { kind:'post', x,z, r, y0,y1 } · { kind:'slope', a:[x,z], b:[x,z], ya, yb, t } (a stringer, t feet thick) */
-const T=1.5;   // tread thickness ″
+const T=3;   // tread thickness ″: solid 3″ treads (wood) on the steel
 /* the square spiral as drawn (stair-spiral.js): its parts placed in the pod. File x east / y north seen from above →
    pod-local u / v the same way round; dir -1 mirrors it (winds the other way); q turns it by quarters about the post.
    Heights are stretched a touch to land flush on this build's floor (the model rises 117¾″, the floors here are
@@ -204,52 +204,155 @@ function stairParts(st){
     X.treads.forEach(t=>out.push({ kind:'poly', pts:pl(t.pts), y0:G.Z(t.z0), y1:G.Z(t.z1) }));
     out.push({ kind:'poly', pts:pl(X.landing.pts), y0:G.Z(X.landing.z0), y1:G.Z(X.landing.z1) });
     return out; }
-  if(o.kind==='wind'){ st.sh.G.treads.forEach((pts,i)=>out.push({ kind:'poly', pts:pts.map(P), y0:(i+1)*o.rise-T, y1:(i+1)*o.rise }));
-    // one plumb steel column (HSS 4×4) in the middle of the U, floor to floor: a base plate on the floor, a bolting
-    // flange at the floor above (the next floor's column bolts on there) and a straight tie to the edge of that floor.
-    // Every tread on a straight steel arm (2×3 tube) welded or bolted to the column, under the tread from the column
-    // out past its middle, and a cleat (1½″ angle) across the tread on the arm. No curves. A tread whose arm would reach
-    // more than 4′ (the bottom steps of the first flight, near the floor) also gets a short leg down to the floor.
-    const G=st.sh.G, c=G.col, CW=4, AW=2, AD=3, CL=1.5, LEG=48, pl=G.treads;
-    const sq=(q,h,y0,y1)=>{ const a=P([q[0]-h,q[1]-h]), b=P([q[0]+h,q[1]+h]); return { kind:'box', x:Math.min(a[0],b[0]), z:Math.min(a[1],b[1]), x1:Math.max(a[0],b[0]), z1:Math.max(a[1],b[1]), y0, y1 }; };
-    out.push(sq(c, CW/2, 0.5, R));                     // the column
-    out.push(sq(c, 5, 0, 0.5));                        // base plate 10″ × 10″ × ½″
-    out.push(sq(c, 4, R-0.75, R));                     // bolting flange 8″ × 8″ × ¾″ at the floor above
-    out.push({ kind:'beam', a:P([c[0], c[1]]), b:P(G.colTie), ya:R-0.75-AD/2, yb:R-0.75-AD/2, w:AW/12, d:AD/12 });   // tie to the floor edge
-    const arms=[];
-    pl.forEach((pts,i)=>{ const yb=(i+1)*o.rise-T, n=pts.length, m=[pts.reduce((s,q)=>s+q[0],0)/n, pts.reduce((s,q)=>s+q[1],0)/n];
-      let ux=m[0]-c[0], uz=m[1]-c[1]; const ul=Math.hypot(ux,uz)||1; ux/=ul; uz/=ul;
-      const far=Math.min(Math.max(...pts.map(q=>(q[0]-c[0])*ux+(q[1]-c[1])*uz))-1.5, ul+8),   // out past the middle of the tread; the cleat spreads it
-         a0=[c[0]+ux*CW/2, c[1]+uz*CW/2], a1=[c[0]+ux*far, c[1]+uz*far];
-      out.push({ kind:'beam', a:P(a0), b:P(a1), ya:yb-AD/2, yb:yb-AD/2, w:AW/12, d:AD/12 });
-      // the cleat: through the middle of the tread, along its longest edge (its nosing), clipped to the tread less 1″
-      let best=[1,0], bl=0; pts.forEach((q,k)=>{ const r=pts[(k+1)%n], l=Math.hypot(r[0]-q[0], r[1]-q[1]); if(l>bl){ bl=l; best=[(r[0]-q[0])/l, (r[1]-q[1])/l]; } });
-      const hits=[]; pts.forEach((q,k)=>{ const r=pts[(k+1)%n], ex=r[0]-q[0], ez=r[1]-q[1], den=best[0]*ez-best[1]*ex; if(Math.abs(den)<1e-9) return;
-        const t=((q[0]-m[0])*ez-(q[1]-m[1])*ex)/den, s2=((q[0]-m[0])*best[1]-(q[1]-m[1])*best[0])/den; if(s2>=-1e-6 && s2<=1+1e-6) hits.push(t); });
-      if(hits.length>=2){ const t0=Math.min(...hits)+1, t1=Math.max(...hits)-1;
-        out.push({ kind:'beam', a:P([m[0]+best[0]*t0, m[1]+best[1]*t0]), b:P([m[0]+best[0]*t1, m[1]+best[1]*t1]), ya:yb-AD-CL/2, yb:yb-AD-CL/2, w:CL/12, d:CL/12 }); }
-      if(far>LEG){ out.push(sq(a1, 1, 0.25, yb-AD)); out.push(sq(a1, 2.5, 0, 0.25)); }
-      arms.push(Math.round(far)); });
-    st.arms=arms;
-    return out; }
-  const flight = (uFoot, d, v0, n, y0, landTo) => {   // n risers from y0; treads between them
-    for(let i=0;i<n-1;i++){ const u=uFoot+d*i*o.run, r=rectPlan(st.ls, Math.min(u, u+d*(o.run+1)), Math.max(u, u+d*(o.run+1)), v0, v0+o.w); out.push({ kind:'box', ...r, y0:y0+(i+1)*o.rise-T, y1:y0+(i+1)*o.rise }); }
-    const uTop=uFoot+d*(n-1)*o.run;
-    [v0+0.75, v0+o.w-0.75].forEach(v=>out.push({ kind:'slope', a:P([uFoot, v]), b:P([uTop, v]), ya:y0, yb:y0+n*o.rise, t:1.5/12 }));
-    return uTop; };
-  if(o.kind==='u'){ const sh=st.sh, Pp=sh.P;
-    const uLand = flight(st.S.u0, sg, sh.vA0, Pp.nA, 0);
-    // the landing, both flights wide, at the top of the first flight
-    const yL=Pp.nA*o.rise, r=rectPlan(st.ls, Math.min(uLand, uLand+sg*Pp.D), Math.max(uLand, uLand+sg*Pp.D), Math.min(sh.vA0, sh.vB0), Math.max(sh.vA0, sh.vB0)+o.w);
-    out.push({ kind:'box', ...r, y0:yL-T, y1:yL });
-    flight(uLand, -sg, sh.vB0, Pp.nB, yL);
-    return out; }
-  flight(st.S.u0, sg, st.sh.foot.v0, o.n, 0);
+  // every other kind: solid treads on one steel tube stringer up the middle (a mono stringer), straight runs only
+  const run=steps(st), sup=run.treads.map(t=>({ p:t.c, yb:t.y-T, n:t.n }));
+  run.treads.forEach(t=>t.pts && out.push({ kind:'poly', pts:t.pts.map(P), y0:t.y-T, y1:t.y }));
+  mono(st, run.path, sup, out);
+  rails(st, out);
   return out;
+}
+/* the treads of a stair in climbing order, pod-local: { pts, c (its middle), y (its top), n (along its nosing) },
+   and the stringer's path: a polyline up the middle of the walking line, straight runs with a corner at each turn,
+   from the foot of the bottom riser to the edge of the floor above */
+function steps(st){
+  const o=st.o, S=st.S, sg=S.dir>0?1:-1, sh=st.sh, treads=[];
+  const rect=(u0,u1,v0,v1,y)=>{ const a=Math.min(u0,u1), b=Math.max(u0,u1); treads.push({ pts:[[a,v0],[b,v0],[b,v1],[a,v1]], c:[(a+b)/2,(v0+v1)/2], y, n:[0,1] }); };
+  if(o.kind==='wind'){ const G=sh.G, C=G.C, w=WD.w, b2=w+WD.gap, mid=w/2;
+    G.treads.forEach((pts,i)=>{ const n=pts.length, c=[pts.reduce((s,q)=>s+q[0],0)/n, pts.reduce((s,q)=>s+q[1],0)/n];
+      let best=[0,1], bl=0; pts.forEach((q,k)=>{ const r=pts[(k+1)%n], l=Math.hypot(r[0]-q[0], r[1]-q[1]); if(l>bl){ bl=l; best=[(r[0]-q[0])/l, (r[1]-q[1])/l]; } });
+      treads.push({ pts, c, y:(i+1)*o.rise, n:best }); });
+    // up the first flight's middle into the corner, across the end, out along the last flight's middle
+    return { treads, path:[C(WD.foot, mid), C(mid, mid), C(mid, b2+mid), C(w+WD.C*WD.run, b2+mid)] }; }
+  const flight=(uFoot, d, v0, n, y0)=>{ for(let i=0;i<n-1;i++){ const u=uFoot+d*i*o.run; rect(u, u+d*(o.run+1), v0, v0+o.w, y0+(i+1)*o.rise); } return uFoot+d*(n-1)*o.run; };
+  if(o.kind==='u'){ const Pp=sh.P, vmA=sh.vA0+o.w/2, vmB=sh.vB0+o.w/2;
+    const uL=flight(S.u0, sg, sh.vA0, Pp.nA, 0), yL=Pp.nA*o.rise, uM=uL+sg*Pp.D/2;
+    const lv0=Math.min(sh.vA0, sh.vB0), lv1=Math.max(sh.vA0, sh.vB0)+o.w;
+    // the landing: carried where the stringer turns under it, at both corners and between
+    [[uM, vmA],[uM,(vmA+vmB)/2],[uM, vmB]].forEach((c,j)=>treads.push({ pts:j===1?[[Math.min(uL,uL+sg*Pp.D),lv0],[Math.max(uL,uL+sg*Pp.D),lv0],[Math.max(uL,uL+sg*Pp.D),lv1],[Math.min(uL,uL+sg*Pp.D),lv1]]:null, c, y:yL, n:[0,1], land:true }));
+    const uB=flight(uL, -sg, sh.vB0, Pp.nB, yL);
+    return { treads, path:[[S.u0, vmA],[uM, vmA],[uM, vmB],[uB, vmB]], land:true }; }
+  const v0=sh.foot.v0, uT=flight(S.u0, sg, v0, o.n, 0);
+  return { treads, path:[[S.u0, v0+o.w/2],[uT, v0+o.w/2]] };
+}
+/* the mono stringer: an HSS 4×10 along the path, its top a straight line in each run, a welded bracket (a V of ½″
+   plate under a cap plate) up to the middle of each tread. Its foot sits on a plate on the floor where its underside
+   meets the floor (any steps before that on short steel pedestals); its top end bolts to the face of the floor above. */
+const STR={ w:4, d:10, gap:5 };
+function mono(st, path, sup, out){
+  const P=q=>toPlan(st.ls, q), sl=[0]; for(let i=1;i<path.length;i++) sl.push(sl[i-1]+Math.hypot(path[i][0]-path[i-1][0], path[i][1]-path[i-1][1]));
+  const at=s=>{ let i=1; while(i<path.length-1 && sl[i]<s) i++; const a=path[i-1], b=path[i], L=sl[i]-sl[i-1]||1, t=(s-sl[i-1])/L; return { p:[a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t], r:[(b[0]-a[0])/L, (b[1]-a[1])/L] }; };
+  const near=q=>{ let best=null; for(let i=1;i<path.length;i++){ const a=path[i-1], b=path[i], dx=b[0]-a[0], dz=b[1]-a[1], L2=dx*dx+dz*dz||1;
+      const t=Math.max(0, Math.min(1, ((q[0]-a[0])*dx+(q[1]-a[1])*dz)/L2)), x=a[0]+dx*t, z=a[1]+dz*t, d=Math.hypot(q[0]-x, q[1]-z);
+      if(!best || d<best.d-1e-6) best={ d, s:sl[i-1]+t*Math.sqrt(L2) }; } return best.s; };
+  const S2=sup.map(q=>({ ...q, s:near(q.p) })), pts=S2.map(q=>[q.s, q.yb-STR.gap]).sort((a,b)=>a[0]-b[0]);
+  const lerp=s=>{ let i=1; while(i<pts.length-1 && pts[i][0]<s) i++; const a=pts[i-1], b=pts[i]; if(Math.abs(b[0]-a[0])<1e-6) return Math.min(a[1],b[1]); return a[1]+(b[1]-a[1])*(s-a[0])/(b[0]-a[0]); };
+  const hk=sl.map(lerp);                                            // the stringer's top at each corner of its path
+  hk[hk.length-1]=Math.min(hk[hk.length-1], R-1.5);
+  const hAt=s=>{ let i=1; while(i<sl.length-1 && sl[i]<s) i++; return hk[i-1]+(hk[i]-hk[i-1])*(s-sl[i-1])/((sl[i]-sl[i-1])||1); };
+  for(let pass=0; pass<8; pass++) S2.forEach(q=>{ const x=hAt(q.s)-(q.yb-1); if(x<=1e-3) return; let i=1; while(i<sl.length-1 && sl[i]<q.s) i++; hk[i-1]-=x; hk[i]-=x; });   // never into a tread
+  // where its underside meets the floor: the foot
+  let s0=0; if(hAt(0)<STR.d){ for(let i=1;i<sl.length;i++){ const a=hk[i-1], b=hk[i]; if(b>=STR.d){ s0=sl[i-1]+(STR.d-a)/((b-a)||1)*(sl[i]-sl[i-1]); break; } } }
+  const knots=[s0, ...sl.filter(s=>s>s0+0.01)];
+  for(let i=0;i<knots.length-1;i++){ const A=at(knots[i]).p, B=at(knots[i+1]).p, ha=hAt(knots[i]), hb=hAt(knots[i+1]);
+    out.push({ kind:'beam', a:P(A), b:P(B), ya:ha-STR.d/2, yb:hb-STR.d/2, w:STR.w/12, d:STR.d/12, m:'steel' }); }
+  const F=at(s0); out.push({ kind:'beam', a:P([F.p[0]-F.r[0]*2, F.p[1]-F.r[1]*2]), b:P([F.p[0]+F.r[0]*10, F.p[1]+F.r[1]*10]), ya:0.25, yb:0.25, w:8/12, d:0.5/12, m:'steel' });   // base plate
+  const E=at(sl[sl.length-1]), he=hk[hk.length-1], nE=[-E.r[1], E.r[0]];
+  out.push({ kind:'beam', a:P([E.p[0]-nE[0]*4, E.p[1]-nE[1]*4]), b:P([E.p[0]+nE[0]*4, E.p[1]+nE[1]*4]), ys:[he-STR.d-1, he+1, he-STR.d-1, he+1], w:0.5/12, d:0, m:'steel' });   // bolting plate on the face of the floor framing
+  S2.forEach(q=>{ const A=at(q.s), r=A.r, n=q.n, top=q.yb-0.375;
+    out.push({ kind:'beam', a:P([q.p[0]-n[0]*7, q.p[1]-n[1]*7]), b:P([q.p[0]+n[0]*7, q.p[1]+n[1]*7]), ya:q.yb-0.19, yb:q.yb-0.19, w:3.5/12, d:0.375/12, m:'steel' });   // cap plate
+    if(q.s<s0-0.5){ const x=A.p; out.push({ kind:'beam', a:P([x[0]-r[0]*1.5, x[1]-r[1]*1.5]), b:P([x[0]+r[0]*1.5, x[1]+r[1]*1.5]), ys:[0, top, 0, top], w:3/12, d:0, m:'steel' }); return; }   // a pedestal
+    const h=hAt(q.s), g=top-h, x=A.p;
+    if(g<3){ out.push({ kind:'beam', a:P([x[0]-r[0]*1.5, x[1]-r[1]*1.5]), b:P([x[0]+r[0]*1.5, x[1]+r[1]*1.5]), ys:[h, top, h, top], w:3/12, d:0, m:'steel' }); return; }
+    const k=Math.min(4, g*0.6); [-1,1].forEach(sd=>out.push({ kind:'beam', a:P(x), b:P([x[0]+r[0]*k*sd, x[1]+r[1]*k*sd]), ya:h+0.5, yb:top-0.75, w:0.5/12, d:1.5/12, m:'steel' })); });
+  st.stringer={ foot:s0, len:sl[sl.length-1]-s0, top:he };
+}
+/* guards: glass (½″ tempered on stainless standoffs at the tread ends, a 1½″ stainless handrail on the stair side) or
+   stainless cable (2″ posts at 4′ or less, a top rail, ⅛″ cables at 3″ or less), 36″ high (NBC 9.8.8.3, inside a
+   house): along each open side of the stair and round the opening in the floor above, except over walls and where
+   you step off at the top. Where a stair side runs under an edge of that opening it's one guard, up to 36″ over the floor. */
+const GH=36;
+function guardRuns(st, k=state.model){
+  const o=st.o, S=st.S, sg=S.dir>0?1:-1, sh=st.sh, P=q=>toPlan(st.ls, q), runs=[];
+  if(o.kind==='spiral' || st.above==null) return runs;
+  const side=(a,b,na,nb,inn)=>runs.push({ A:P(a), B:P(b), na, nb, inn:[P([a[0]+inn[0]*12, a[1]+inn[1]*12]), P(a)] });
+  if(o.kind==='wind'){ const C=sh.G.C, w=WD.w, b2=w+WD.gap, r=o.rise, top=w+WD.C*WD.run, sd=C(0,1)[1]-C(0,0)[1];
+    side(C(WD.foot, w), C(w, w), r, (WD.A+1)*r, [0,-sd]);
+    side(C(w, b2), C(top, b2), (WD.A+2*WD.W+WD.B+1)*r, R, [0,sd]); }
+  else if(o.kind==='u'){ const Pp=sh.P, r=o.rise, uL=S.u0+sg*(Pp.nA-1)*o.run, uE=uL+sg*Pp.D, uB=uL-sg*(Pp.nB-1)*o.run, yL=Pp.nA*r, dB=Math.sign(sh.vB0-sh.vA0);
+    const vAo = dB>0 ? sh.vA0 : sh.vA0+o.w, vBo = dB>0 ? sh.vB0+o.w : sh.vB0, vI = dB>0 ? sh.vB0 : sh.vA0;
+    side([S.u0, vAo], [uL, vAo], r, yL, [0, dB]); side([uL, vAo], [uE, vAo], yL, yL, [0, dB]);
+    side([uE, vAo], [uE, vBo], yL, yL, [-sg, 0]);
+    side([uE, vBo], [uL, vBo], yL, yL, [0, -dB]); side([uL, vBo], [uB, vBo], yL+r, R, [0, -dB]);
+    side([uL, vI], [uB, vI], yL+r, R, [0, dB]); }
+  else { const v0=sh.foot.v0, uT=S.u0+sg*o.total; [[v0, 1], [v0+o.w, -1]].forEach(([v,d])=>side([S.u0, v], [uT, v], o.rise, R, [0, d])); }
+  // over a wall: the side of a pod, about 6½″ in
+  const pods=podList(k), box=q=>{ const r=OFFP(k, q), t=7.5/12; return [r.x+t, r.z+t, r.x1-t, r.z1-t]; };
+  const onWall=(A,B,b)=>{ const e=1.5/12; return (Math.abs(A[0]-b[0])<e+1/12 && Math.abs(B[0]-b[0])<e+1/12) || (Math.abs(A[0]-b[2])<e+1/12 && Math.abs(B[0]-b[2])<e+1/12)
+      || (Math.abs(A[1]-b[1])<e+1/12 && Math.abs(B[1]-b[1])<e+1/12) || (Math.abs(A[1]-b[3])<e+1/12 && Math.abs(B[1]-b[3])<e+1/12)
+      || A[0]<b[0]-e && B[0]<b[0]-e || A[0]>b[2]+e && B[0]>b[2]+e || A[1]<b[1]-e && B[1]<b[1]-e || A[1]>b[3]+e && B[1]>b[3]+e; };
+  const lo=box(pods[S.pod]), hi=box(pods[st.above]);
+  const sides=runs.filter(q=>!onWall(q.A, q.B, lo)).map(q=>({ ...q, bot:[q.na-T-5, q.nb-T-5], top:[q.na+GH, q.nb+GH] }));
+  // round the opening above: each edge of each hole, less what's inside another hole, over a wall, or where you step off
+  const H=st.holesUp, inH=(x,z,me)=>H.some((h,j)=>j!==me && x>h.x+1e-3 && x<h.x1-1e-3 && z>h.z+1e-3 && z<h.z1-1e-3);
+  const E=ends(st), ap=P(E.arrive.p), aw=(o.w||36)/12;
+  let fl=[];
+  H.forEach((h,j)=>[[[h.x,h.z],[h.x1,h.z]],[[h.x1,h.z],[h.x1,h.z1]],[[h.x1,h.z1],[h.x,h.z1]],[[h.x,h.z1],[h.x,h.z]]].forEach(([A,B])=>{
+    const L=Math.hypot(B[0]-A[0], B[1]-A[1]); if(L<1e-3) return; const ux=(B[0]-A[0])/L, uz=(B[1]-A[1])/L;
+    const cuts=new Set([0, L]); H.forEach(g=>[g.x,g.x1].forEach(x=>{ if(Math.abs(ux)>1e-6){ const t=(x-A[0])/ux; if(t>0&&t<L) cuts.add(t); } }));
+    H.forEach(g=>[g.z,g.z1].forEach(z=>{ if(Math.abs(uz)>1e-6){ const t=(z-A[1])/uz; if(t>0&&t<L) cuts.add(t); } }));
+    const off=Math.abs((ap[0]-A[0])*uz-(ap[1]-A[1])*ux);   // the step-off point's distance from this edge
+    if(off<(o.run+3)/12){ const t=(ap[0]-A[0])*ux+(ap[1]-A[1])*uz; [t-aw/2, t+aw/2].forEach(x=>{ if(x>0&&x<L) cuts.add(x); }); }
+    const T2=[...cuts].sort((a,b)=>a-b);
+    for(let i=0;i<T2.length-1;i++){ const t0=T2[i], t1=T2[i+1], tm=(t0+t1)/2; if(t1-t0<0.05) continue;
+      const mx=A[0]+ux*tm, mz=A[1]+uz*tm, ex=-uz*0.02, ez=ux*0.02;
+      if(inH(mx+ex, mz+ez, j) || inH(mx-ex, mz-ez, j)) continue;   // between two holes: inside the opening
+      if(off<(o.run+3)/12){ const t=(ap[0]-A[0])*ux+(ap[1]-A[1])*uz; if(tm>t-aw/2 && tm<t+aw/2) continue; }
+      fl.push({ A:[A[0]+ux*t0, A[1]+uz*t0], B:[A[0]+ux*t1, A[1]+uz*t1] }); } }));
+  fl=fl.filter(q=>!onWall(q.A, q.B, hi));
+  // a stair side right under an edge of the opening: one guard there, up to 36″ over the floor
+  const out=[];
+  sides.forEach(q=>{ const L=Math.hypot(q.B[0]-q.A[0], q.B[1]-q.A[1])||1e-6, ux=(q.B[0]-q.A[0])/L, uz=(q.B[1]-q.A[1])/L, cuts=new Set([0,1]), spans=[];
+    fl.forEach(f=>{ const d1=Math.abs((f.A[0]-q.A[0])*uz-(f.A[1]-q.A[1])*ux), d2=Math.abs((f.B[0]-q.A[0])*uz-(f.B[1]-q.A[1])*ux); if(d1>3/12 || d2>3/12) return;
+      let t0=((f.A[0]-q.A[0])*ux+(f.A[1]-q.A[1])*uz)/L, t1=((f.B[0]-q.A[0])*ux+(f.B[1]-q.A[1])*uz)/L; if(t0>t1) [t0,t1]=[t1,t0];
+      const a=Math.max(0,t0), b=Math.min(1,t1); if(b-a<1e-3) return; spans.push([a,b]); cuts.add(a); cuts.add(b); const Lf=Math.hypot(f.B[0]-f.A[0], f.B[1]-f.A[1])||1e-6, pf=t=>{ const x=q.A[0]+(q.B[0]-q.A[0])*t, z=q.A[1]+(q.B[1]-q.A[1])*t; return ((x-f.A[0])*(f.B[0]-f.A[0])+(z-f.A[1])*(f.B[1]-f.A[1]))/(Lf*Lf); };
+      const fa=pf(a), fb=pf(b); f.used=(f.used||[]).concat([[Math.min(fa,fb), Math.max(fa,fb)]]); });
+    const T2=[...cuts].sort((a,b)=>a-b), lp=(a,b,t)=>a+(b-a)*t;
+    for(let i=0;i<T2.length-1;i++){ const t0=T2[i], t1=T2[i+1]; if(t1-t0<1e-3) continue; const tm=(t0+t1)/2, both=spans.some(([a,b])=>tm>a&&tm<b);
+      out.push({ A:[lp(q.A[0],q.B[0],t0), lp(q.A[1],q.B[1],t0)], B:[lp(q.A[0],q.B[0],t1), lp(q.A[1],q.B[1],t1)], bot:[lp(q.bot[0],q.bot[1],t0), lp(q.bot[0],q.bot[1],t1)],
+        top: both ? [R+GH, R+GH] : [lp(q.top[0],q.top[1],t0), lp(q.top[0],q.top[1],t1)], hand:[lp(q.na,q.nb,t0)+GH-1, lp(q.na,q.nb,t1)+GH-1], inn:q.inn, stair:true }); } });
+  // what's left of the opening's edges, at the floor above
+  fl.forEach(f=>{ let segs=[[0,1]]; const L=Math.hypot(f.B[0]-f.A[0], f.B[1]-f.A[1])||1e-6;
+    (f.used||[]).forEach(([a,b])=>{ segs=segs.flatMap(([x,y])=>{ const r=[]; if(a>x) r.push([x,Math.min(y,a)]); if(b<y) r.push([Math.max(x,b),y]); return r.filter(([p,q2])=>q2-p>1e-3); }); });
+    segs.forEach(([a,b])=>{ if((b-a)*L<0.1) return; out.push({ A:[f.A[0]+(f.B[0]-f.A[0])*a, f.A[1]+(f.B[1]-f.A[1])*a], B:[f.A[0]+(f.B[0]-f.A[0])*b, f.A[1]+(f.B[1]-f.A[1])*b], bot:[R-10, R-10], top:[R+GH, R+GH] }); }); });
+  return out;
+}
+const RAILS={ glass:'Glass', cable:'Stainless cable', none:'None' };
+function rails(st, out){
+  const kind=st.S.rail || 'glass'; if(kind==='none') return;
+  const G=guardRuns(st), lp=(a,b,t)=>a+(b-a)*t;
+  G.forEach(g=>{ const L=Math.hypot(g.B[0]-g.A[0], g.B[1]-g.A[1]); if(L<0.05) return;
+    let ix=0, iz=0; if(g.inn){ const d=[g.inn[0][0]-g.inn[1][0], g.inn[0][1]-g.inn[1][1]], l=Math.hypot(...d)||1; ix=d[0]/l; iz=d[1]/l; }
+    const sh=(p,k)=>[p[0]+ix*k/12, p[1]+iz*k/12];
+    if(kind==='glass'){ out.push({ kind:'beam', a:sh(g.A,-1), b:sh(g.B,-1), ys:[g.bot[0], g.top[0], g.bot[1], g.top[1]], w:0.5/12, d:0, m:'glass' });
+      if(g.stair){ const n=Math.max(2, Math.ceil(L/2)); for(let i=0;i<=n;i++){ const t=i/n, p=[lp(g.A[0],g.B[0],t), lp(g.A[1],g.B[1],t)], yb=lp(g.bot[0],g.bot[1],t);   // standoffs into the tread ends
+          [yb+1.5, yb+4].forEach(y=>out.push({ kind:'beam', a:sh(p,-1.6), b:sh(p,0.2), ya:y, yb:y, w:1.25/12, d:1.25/12, m:'ss' })); }
+        if(Math.abs(g.hand[1]-g.hand[0])>1) out.push({ kind:'beam', a:sh(g.A,2.5), b:sh(g.B,2.5), ya:g.hand[0]-2, yb:g.hand[1]-2, w:1.5/12, d:1.5/12, m:'ss' }); }   // handrail (on the slopes), 34″–38″ over the nosings
+      return; }
+    // stainless cable
+    const n=Math.max(1, Math.ceil(L/4)); for(let i=0;i<=n;i++){ const t=i/n, p=sh([lp(g.A[0],g.B[0],t), lp(g.A[1],g.B[1],t)],-1), y0=lp(g.bot[0],g.bot[1],t)+(g.stair?2:4), y1=lp(g.top[0],g.top[1],t);
+      out.push({ kind:'beam', a:[p[0]-0.04*(g.B[0]-g.A[0])/L*1.0, p[1]-0.04*(g.B[1]-g.A[1])/L], b:[p[0]+0.04*(g.B[0]-g.A[0])/L, p[1]+0.04*(g.B[1]-g.A[1])/L], ys:[y0, y1, y0, y1], w:2/12, d:0, m:'ss' }); }
+    out.push({ kind:'beam', a:sh(g.A,-1), b:sh(g.B,-1), ya:g.top[0]-0.75, yb:g.top[1]-0.75, w:3/12, d:1.5/12, m:'ss' });   // top rail
+    const c0=[g.bot[0]+(g.stair?T+7:12), g.bot[1]+(g.stair?T+7:12)], c1=[g.top[0]-1.5, g.top[1]-1.5], k=Math.ceil(Math.max(c1[0]-c0[0], c1[1]-c0[1])/3);
+    for(let j=0;j<k;j++){ const f=j/k; out.push({ kind:'beam', a:sh(g.A,-1), b:sh(g.B,-1), ya:lp(c0[0],c1[0],f), yb:lp(c0[1],c1[1],f), w:0.25/12, d:0.25/12, m:'ss' }); } });
 }
 /* the stair in plan feet, for the 2D and the sheets: the lines to draw and the walking line (a polyline up the
    middle, its arrow at the top) */
 function stairPlan(st){
+  const L=stairPlan0(st), rail=st.S.rail||'glass';
+  if(rail!=='none') L.guards=guardRuns(st).map(g=>({ a:g.A, b:g.B, lower:!!g.stair, upper:!g.stair || g.top[0]>=R+GH-0.01, rail }));
+  return L;
+}
+function stairPlan0(st){
   const o=st.o, P=q=>toPlan(st.ls, q), sg=st.S.dir>0?1:-1, lines=[];
   if(o.kind==='spiral'){ const G=spiralGeo(st), X=SPIRAL, walk=[];
     // every tread's outline, as drawn
@@ -259,7 +362,7 @@ function stairPlan(st){
     return { lines, walk, post:{ c:P(G.c), r:X.post.r/12 } }; }
   if(o.kind==='wind'){ const G=st.sh.G, walk=[];
     G.treads.forEach(pts=>{ const Q=pts.map(P); Q.forEach((a,i)=>lines.push([a, Q[(i+1)%Q.length]])); const n=pts.length; walk.push(P([pts.reduce((s,q)=>s+q[0],0)/n, pts.reduce((s,q)=>s+q[1],0)/n])); });
-    return { lines, walk, post:{ c:P(G.col), r:2/12 } }; }
+    return { lines, walk }; }
   const fl = (uFoot, d, v0, n) => { for(let i=0;i<n;i++){ const u=uFoot+d*i*o.run; lines.push([P([u, v0]), P([u, v0+o.w])]); } return uFoot+d*(n-1)*o.run; };
   if(o.kind==='u'){ const sh=st.sh, Pp=sh.P, vmA=sh.vA0+o.w/2, vmB=sh.vB0+o.w/2;
     const uL=fl(st.S.u0, sg, sh.vA0, Pp.nA), uE=uL+sg*Pp.D; fl(uL, -sg, sh.vB0, Pp.nB);
@@ -358,4 +461,4 @@ function nextOptions(id, k=state.model){
     return { ...c, S, ok:!why, why }; }).filter(Boolean);
 }
 function addStairSpec(S){ return edit(L=>{ let n=1; while(L.some(s=>s.id==='s'+n)) n++; const s={ id:'s'+n, ...S }; L.push(s); return s.id; }); }
-export { landings, nextOptions, addStairSpec, stairPlan, stairParts, OPTS, stairsOf, stairHoles, addStair, updateStair, removeStair, optionsFor, bestSpot, solve, flipped };
+export { RAILS, guardRuns, landings, nextOptions, addStairSpec, stairPlan, stairParts, OPTS, stairsOf, stairHoles, addStair, updateStair, removeStair, optionsFor, bestSpot, solve, flipped };
