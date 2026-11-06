@@ -153,7 +153,7 @@ function buildingGrid(cat){
   return `<section class="cw-grid cw-bgrid">
     <div class="cw-bbar"><input type="search" id="cwQ" placeholder="Search names and IDs" aria-label="Search">${gone.length?`<button class="linkbtn editor-only" id="cwGone" title="⋯ → Deleted items">Deleted (${gone.length})</button>`:''}</div>
     ${list.map(x=>`<div class="cw-card cw-bcard" data-bid="${esc(x.id)}"><div class="cw-thumb">${thumb(x)}</div><b>${esc(x.name)}</b><small><code>${esc(x.id)}</code> · ${esc(sub(x))}</small>
-      <div class="cw-bact">${showGone?`<button class="btn ghost sm editor-only" data-bres="${esc(x.id)}">Restore</button>`:`<button class="btn ghost sm" data-b3d="${esc(x.id)}">3D</button><button class="btn ghost sm editor-only" data-bren="${esc(x.id)}">Rename</button><button class="btn ghost sm danger editor-only" data-bdel="${esc(x.id)}">Delete</button>`}</div></div>`).join('') || `<p class="note">${showGone?'Nothing deleted here.':'Empty.'}</p>`}
+      <div class="cw-bact">${showGone?`<button class="btn ghost sm editor-only" data-bres="${esc(x.id)}">Restore</button>`:`<button class="btn ghost sm" data-b3d="${esc(x.id)}">3D</button>${cat==='b:walls'||cat==='b:layers'?`<button class="btn ghost sm editor-only" data-bedit="${esc(x.id)}">Edit</button>`:''}<button class="btn ghost sm editor-only" data-bren="${esc(x.id)}">Rename</button><button class="btn ghost sm danger editor-only" data-bdel="${esc(x.id)}">Delete</button>`}</div></div>`).join('') || `<p class="note">${showGone?'Nothing deleted here.':'Empty.'}</p>`}
   </section>`;
 }
 function bindBuilding(body){
@@ -163,6 +163,13 @@ function bindBuilding(body){
   body.querySelectorAll('[data-b3d]').forEach(b=>b.onclick=()=>import('./viewer3d.js').then(m=>m.openViewer(kind, b.dataset.b3d)));
   body.querySelectorAll('.cw-bcard').forEach(c=>c.onclick=e=>{ if(e.target.closest('button')) return; import('./viewer3d.js').then(m=>m.openViewer(kind, c.dataset.bid)); });
   body.querySelectorAll('[data-bren]').forEach(b=>b.onclick=()=>lib().then(m=>m.askRename(kind, b.dataset.bren, again)));
+  // Edit: the panel builder on this wall (or floor / ceiling / roof); Save writes over it, Save as new adds another.
+  // The library stays open underneath and shows the change when the builder closes.
+  body.querySelectorAll('[data-bedit]').forEach(b=>b.onclick=async()=>{ const id=b.dataset.bedit;
+    const before=new Set(document.querySelectorAll('dialog[open]'));
+    if(kind==='walls') (await import('./wall-builder.js')).openWallBuilder({ from:id });
+    else (await import('./layer-builder.js')).openLayerBuilder({ from:id });
+    const d=[...document.querySelectorAll('dialog[open]')].find(x=>!before.has(x)); d?.addEventListener('close', again, { once:true }); });
   body.querySelectorAll('[data-bdel]').forEach(b=>b.onclick=()=>lib().then(m=>m.askDelete(b, kind, b.dataset.bdel, again)));
   body.querySelectorAll('[data-bres]').forEach(b=>b.onclick=()=>import('./libedit.js').then(async m=>{ try{ await m.restoreItem(kind, b.dataset.bres); toast('Restored'); render(); }catch(e){ toast(e.message); } }));
 }

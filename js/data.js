@@ -28,7 +28,7 @@ async function loadData(){
   ]).then(([w,m,l,p,dk])=>{ p.forEach(x=>PODLIB.push({...x, src:'library'})); dk.forEach(x=>DECKLIB.push({...x, src:'library'})); return [w,m,l]; });
   try{ JSON.parse(localStorage.getItem(DECK_KEY)||'[]').forEach(x=>{ if(!DECKLIB.find(y=>y.id===x.id)) DECKLIB.push({...x, src:'saved'}); }); }catch(e){}
   try{ JSON.parse(localStorage.getItem(POD_KEY)||'[]').forEach(x=>{ if(!PODLIB.find(y=>y.id===x.id)) PODLIB.push({...x, src:'saved'}); }); }catch(e){}
-  try{ JSON.parse(localStorage.getItem('cubit-layers-saved')||'[]').forEach(x=>{ if(!layers.find(y=>y.id===x.id)) layers.push({...x, src:'saved'}); }); }catch(e){}
+  try{ JSON.parse(localStorage.getItem('cubit-layers-saved')||'[]').forEach(x=>{ const i=layers.findIndex(y=>y.id===x.id); if(i<0) layers.push({...x, src:'saved'}); else layers[i]={...x, src:'saved'}; }); }catch(e){}
   layers.forEach(l=>LAYERLIB.push(fixLayer(l)));
   Object.assign(MODELS, models);
   walls.forEach(w=>LIB.push({...w, src:'library'}));
@@ -36,7 +36,7 @@ async function loadData(){
   try{ const r=await fetch('api/walls',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ (await r.json()).forEach(w=>{ const i=LIB.findIndex(x=>x.id===w.id); if(i>=0) LIB[i]={...w, src:'team'}; else LIB.push({...w, src:'team'}); }); } }catch(e){}
   // floors / ceilings / roofs made in the layer builder, shared by the team (api/layers)
   try{ const r=await fetch('api/layers',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ (await r.json()).forEach(l0=>{ const l=fixLayer(l0); const i=LAYERLIB.findIndex(x=>x.id===l.id); if(i>=0) LAYERLIB[i]={...l, src:'team'}; else LAYERLIB.push({...l, src:'team'}); }); } }catch(e){}
-  try{ const saved = JSON.parse(localStorage.getItem('cubit-walls-imported')||'[]'); saved.forEach(w=>{ if(!LIB.find(x=>x.id===w.id)) LIB.push(w); }); }catch(e){}
+  try{ const saved = JSON.parse(localStorage.getItem('cubit-walls-imported')||'[]'); saved.forEach(w=>{ const i=LIB.findIndex(x=>x.id===w.id); if(i<0) LIB.push(w); else if(LIB[i].src==='library') LIB[i]=w; }); }catch(e){}
   try{ const custom = JSON.parse(localStorage.getItem(CUSTOM_KEY)||'{}'); Object.entries(custom).forEach(([k,m])=>{ MODELS[k]={...m, custom:true}; }); }catch(e){}
 }
 function saveCustomModels(){
@@ -92,4 +92,4 @@ const layerById = id => {
 /* the id of a layer mirrored once more along x ('x') or z ('z') */
 const layerMirrorId = (id, ax) => { const s=splitLayerId(id); const x=ax==='x'?!s.x:s.x, z=ax==='z'?!s.z:s.z; return s.base+(x||z?`~m${x?'x':''}${z?'z':''}`:''); };
 
-export { mirrorLayer, forgetLayerMirrors, layerMirrorId, clearMirrors, DECKLIB, deckById, saveDeckLib, MODELS, LIB, LAYERLIB, PODLIB, loadData, optionsFor, byId, mirrorId, mirrorWall, podById, layerOptions, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib };
+export { splitLayerId, mirrorLayer, forgetLayerMirrors, layerMirrorId, clearMirrors, DECKLIB, deckById, saveDeckLib, MODELS, LIB, LAYERLIB, PODLIB, loadData, optionsFor, byId, mirrorId, mirrorWall, podById, layerOptions, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib };

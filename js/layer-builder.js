@@ -17,7 +17,7 @@
    floor of that pod (same place: both are laid out in the pod's own frame, seen from above). Saving cuts the matching
    hole in the other floor too (that floor is saved and put on the pod). Removing a linked hole asks whether its twin
    in the other floor goes as well. Roofs and ceilings: never (a roof only gets holes if a pod goes on top; later). */
-import { LAYERLIB, layerById, mirrorLayer, forgetLayerMirrors, saveLayerLib } from './data.js';
+import { LAYERLIB, layerById, mirrorLayer, forgetLayerMirrors, saveLayerLib, splitLayerId } from './data.js';
 import { state, chooseLayer, pickLayer } from './state.js';
 import { canSave, canEdit } from './role.js';
 import { buildHome } from './scene3d.js';
@@ -40,6 +40,7 @@ const WID=96, PW=48, SPLINE=1.75;
 const clone = o => JSON.parse(JSON.stringify(o));
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const r8 = v => Math.round(v*8)/8;
+let mir={ x:false, z:false };   // opened from a mirror ("<id>~mx" …): edited as seen, saved back over <id>
 let Lr=null, view='top', sel=null, dlg=null, origin=null, forSlot=null, ssel=null, shapePick=false;
 let delBoth=[];   // twins to take out of the other floor when this one is saved: [{ link, geo }]
 const OTHER_FLOOR = { 'floor-int':'floor-ext', 'floor-ext':'floor-int' };
@@ -70,8 +71,9 @@ function openLayerBuilder({ from=null, slot=null, len, kind }={}){
   ZL.k=1; ZL.x=0; ZL.y=0;
   forSlot=slot||null;
   const src = from ? layerById(from) : null;
-  if(src && !src.blank){ Lr=clone(src); delete Lr.src; delete Lr.mirrorOf; delete Lr.by; delete Lr.saved;
-    origin = src.src==='team' && !String(from).includes('~m') ? src.id : null; if(!origin){ Lr.id=null; Lr.name=''; } }
+  mir={ x:false, z:false };
+  if(src && !src.blank){ const s=splitLayerId(from), b=LAYERLIB.find(l=>l.id===s.base); Lr=clone(src); delete Lr.src; delete Lr.mirrorOf; delete Lr.by; delete Lr.saved;
+    origin = b ? b.id : null; if(origin){ Lr.id=origin; Lr.name=b.name; mir={ x:s.x, z:s.z }; } else { Lr.id=null; Lr.name=''; } }
   else { Lr=blank(len||slot?.len||24, kind||slot?.kind||'ceiling-int'); origin=null; }
   Lr.holes = (Lr.holes||[]).map(h=>{ const c={...h}; delete c._f; if(c.hand===false) delete c.hand; return c; });   // drop what the 3D view adds
   view = Lr.kind==='ceiling-int' ? 'bottom' : 'top';
@@ -242,7 +244,7 @@ function render(){
         ${shapePick?`<div class="wb-shapes">${SHAPELIB.length ? SHAPELIB.map(s=>`<button class="wb-shp" data-shape="${esc(s.id)}">${shapeThumb(s)}<span><b>${esc(s.name)}</b><small>${fin(s.w||0)} × ${fin(s.h||0)}</small></span></button>`).join('') : '<p class="note">No shapes yet: Draw a new shape.</p>'}</div>`:''}
         ${fields()}
         <div class="wb-save"><input id="lbName" value="${esc(Lr.name||'')}" placeholder="${esc(autoName())}" aria-label="Name">
-          ${canEdit()?`<button class="btn sm" id="lbSave">${libHit?'Save':'Save to library'}</button>${libHit?'<button class="btn ghost sm" id="lbSaveNew">Save as new</button>':''}`:'<span class="wb-mini">Look only: editors and admins change floors and roofs.</span>'}</div>
+          ${canEdit()?`<button class="btn sm" id="lbSave" title="${libHit?'Write over this one: every home that uses it changes':'Add it to the library'}">${libHit?`Save ${esc(origin)}`:'Save to library'}</button>${libHit?'<button class="btn ghost sm" id="lbSaveNew" title="Keep the old one and add this as another">Save as new</button>':''}`:'<span class="wb-mini">Look only: editors and admins change floors and roofs.</span>'}</div>
         ${forSlot?`<p class="wb-mini">Saving also puts it on ${esc(forSlot.label)}.</p>`:''}
       </div></div></div>`;
   bind();
@@ -348,17 +350,21 @@ async function saveLayer(asNew){
   // a floor keeps how the standard cassette is built (rims, EPS, blocks, frame) unless it already says
   if(!l.build){ const std=LAYERLIB.find(x=>x.std && x.kind===l.kind && x.build); if(std) l.build=clone(std.build); }
   l.std=false; l.cnc = l.holes.length>0;
-  if(asNew || !origin) l.id=nextId(`${K().code}${String(l.len).padStart(2,'0')}`); else l.id=origin;
+  if(mir.x || mir.z){ const m=mirrorLayer(l, mir.x, mir.z, '_'); ['holes','seams','shapes'].forEach(k=>{ if(m[k]) l[k]=m[k]; }); }
+  delete l.mirrorOf; delete l.src;
+  const over = !asNew && !!origin;
+  if(over) l.id=origin; else l.id=nextId(`${K().code}${String(l.len).padStart(2,'0')}`);
   l.source=`Layer builder ${new Date().toISOString().slice(0,10)}`;
   let shared=false;
   try{ shared=await putLayer(l); }
   catch(e){ toast(`Couldn't save: ${e.message||e}`); return; }
   origin=l.id; Lr.id=l.id; Lr.name=l.name;
-  if(forSlot && forSlot.kind===l.kind && forSlot.len===l.len) chooseLayer(forSlot, l.id);
+  const sfx = mir.x||mir.z ? `~m${mir.x?'x':''}${mir.z?'z':''}` : '';
+  if(forSlot && forSlot.kind===l.kind && forSlot.len===l.len) chooseLayer(forSlot, l.id+sfx);
   let twin='';
   try{ twin=await saveTwinFloor(l); }catch(e){ toast(`Saved, but the ${otherName()} wasn't: ${e.message||e}`); }
   buildHome(); renderSide(); render();
-  toast(`${l.id} saved to the layer library${shared?' (for the whole team)':' (in this browser)'}${forSlot && forSlot.kind===l.kind && forSlot.len===l.len?` · on ${forSlot.label}`:''}${twin}`, twin?5000:undefined);
+  toast(`${l.id} ${over?'saved over the old version (every home that uses it has the change)':'saved as a new one'}${shared?' · for the whole team':' · in this browser'}${forSlot && forSlot.kind===l.kind && forSlot.len===l.len?` · on ${forSlot.label}`:''}${twin}`, twin?5000:undefined);
 }
 /* into the layer library: the team's when the server has one, else this browser; true = shared */
 async function putLayer(l){

@@ -627,3 +627,9 @@ copy goes into My Drafts as "(copy from this device)" and the latest save opens.
 - **Stairs**: pick a ground-floor pod → **＋ Stairs**. You get a straight 36″ stair along a long wall, with three legal options (NBC 9.8): Shortest (7⅞″ rise / 10⅛″ run), Standard (~7½ / 10½) and Comfortable (~7 / 11). Tap the stair to slide it, put it on the other wall, turn it round or remove it. The **stair opening** is cut in the lower pod's ceiling and roof and in the upper pod's floor. In 2D and on the sheets it shows as treads with **UP** downstairs and a dashed opening with **DN** upstairs (A12 main floor, A14 second floor). Saved in `MODELS[k].stairs`.
 - **Take-off, shopping list and Cost to build**: a Second floor stage with the upstairs SIP floor panels, EPS pad (sq ft and 4 × 8 sheets +10%), 8×8 posts (about 10′ 3½″, cut from 12′ stock), post bases, and a ground screw or a 10″ × 4′ Sonotube with its concrete per post. These lines are always in the price book. (`upstairsTakeoff` in takeoff.js)
 - Not done yet: weatherproofing where pods meet, and handrails and guards (the builder supplies these).
+
+## Editing library walls and floors (wall-builder.js · layer-builder.js)
+- Every wall and floor/ceiling/roof card in the Library has **Edit**, which opens the panel builder on that one. The library stays open underneath and refreshes when the builder closes.
+- A library wall opens as itself, whether it's one of Cubit's own, the team's or this browser's. **Save W08-15** writes over it, so every home using it changes; the server keeps the old version. **Save as new wall** keeps the old one and adds another. After that, Save keeps writing over the one you're on.
+- A wall opened from its mirror (`~m`, likewise `~mx/~mz` for layers) is edited as you see it. It's saved back, unmirrored, over the wall it mirrors, and the mirrors are rebuilt.
+- A brand-new wall shows **Save to library** until its first save.

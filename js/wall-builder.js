@@ -9,7 +9,7 @@
    in the wall library (shared by the team), ready to pick for any wall of that length and type.
    Same data as the scanned walls: openings + outside items measured from the left end seen from OUTSIDE,
    inside items from the left end seen from INSIDE; openings by their bottom-left corner, face items by centre. */
-import { LIB, byId, mirrorWall, saveWallLib, MODELS } from './data.js';
+import { LIB, byId, mirrorWall, saveWallLib, MODELS, clearMirrors } from './data.js';
 import { state } from './state.js';
 import { canSave, canEdit } from './role.js';
 import { buildHome } from './scene3d.js';
@@ -36,6 +36,7 @@ const clone = o => JSON.parse(JSON.stringify(o));
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const r8 = v => Math.round(v*8)/8;
 const ROUND_RO = 33;   // Cubit's round window is exactly 32″ across, so its round rough opening is 33″
+let mirrored=false;   // opened from a wall's mirror ("<id>~m"): edited as seen, saved back unmirrored over <id>
 let W=null, view='outside', sel=null, dlg=null, origin=null, forSlot=null, RD=null, rulesOpen=false, shapePick=false;
 /* the home's own plugs and switches on this wall (opened from a wall of a home): laid out by the electrical rules,
    moved here by hand (tap one, then drag it or use the arrows). Kept as pending changes and saved to THIS home only
@@ -104,7 +105,12 @@ function blank(len=8, type='ext'){ return { id:null, name:'', len, type, t: type
 function openWallBuilder({ from=null, slot=null, len, type }={}){
   ZW.k=1; ZW.x=0; ZW.y=0;
   forSlot=slot||null;
-  if(from){ const src=byId(from); W=clone(src); delete W.src; delete W.mirrorOf; origin = src?.src==='team' && !String(from).endsWith('~m') ? src.id : null; if(!origin){ W.id=null; W.name=(src?.name||'')+' (copy)'; } }
+  /* a library wall (Cubit's own, the team's or this browser's) opens as itself: Save writes over it, Save as new makes
+     another; its mirror opens as seen and is saved back over the wall it mirrors */
+  mirrored=false;
+  if(from){ const src=byId(from); mirrored=String(from).endsWith('~m'); const base=mirrored ? String(from).slice(0,-2) : from, b=byId(base);
+    W=clone(src||b||blank(len, type)); delete W.src; delete W.mirrorOf; delete W.by; delete W.saved;
+    origin = b ? b.id : null; if(origin){ W.id=origin; W.name=b.name; } else { W.id=null; W.name=(src?.name||'')+' (copy)'; mirrored=false; } }
   else { W=blank(len||slot?.len||8, type||slot?.type||'ext'); origin=null; }
   W.openings ||= []; W.inside ||= []; W.outside ||= [];
   // how its ends meet the walls beside it: the home's own fit for that wall when opened from one
@@ -363,7 +369,7 @@ function render(){
         ${layoutPanel()}
         ${rulesPanel()}
         <div class="wb-save"><input id="wbName" value="${esc(W.name||'')}" placeholder="${esc(autoName())}" aria-label="Name">
-          ${canEdit()?`<button class="btn sm" id="wbSave">${libHit?'Save':'Save to library'}</button>${libHit?'<button class="btn ghost sm" id="wbSaveNew">Save as new</button>':''}`:'<span class="wb-mini">Look only: editors and admins change walls.</span>'}</div>
+          ${canEdit()?`<button class="btn sm" id="wbSave" title="${libHit?'Write over this wall: every home that uses it changes':'Add it to the wall library'}">${libHit?`Save ${esc(origin)}`:'Save to library'}</button>${libHit?'<button class="btn ghost sm" id="wbSaveNew" title="Keep the old one and add this as another wall">Save as new wall</button>':''}`:'<span class="wb-mini">Look only: editors and admins change walls.</span>'}</div>
         ${forSlot?`<p class="wb-mini">Saving also puts it on ${esc(forSlot.label)}.</p>`:''}
         ${hbDirty().length && canSave()?`<div class="wb-save"><button class="btn sm" id="hbSave2">Save ${hbDirty().length} plug / switch move${hbDirty().length>1?'s':''} to this home only</button></div>`:''}
       </div></div></div>`;
@@ -508,7 +514,10 @@ const nextId=(prefix)=>{ let n=1; while(LIB.some(x=>x.id===`${prefix}-${String(n
 async function saveWall(asNew){
   if(!canEdit()){ toast('Only editors and admins can change walls.'); return; }
   const w=clone(W); w.name=(dlg.querySelector('#wbName')?.value||'').trim() || autoName(); w.t = w.type==='int'?4.5:6.5;
-  if(asNew || !origin) w.id=nextId(`${w.type==='int'?'I':'W'}${String(w.len).padStart(2,'0')}`); else w.id=origin;
+  if(mirrored){ const m=mirrorWall({ ...w, id:'_' }); ['openings','inside','outside','shapes'].forEach(k=>{ if(m[k]) w[k]=m[k]; }); }
+  delete w.mirrorOf; delete w.src;
+  const over = !asNew && !!origin;
+  if(over) w.id=origin; else w.id=nextId(`${w.type==='int'?'I':'W'}${String(w.len).padStart(2,'0')}`);
   w.source=`Wall builder ${new Date().toISOString().slice(0,10)}`;
   let shared=false;
   try{ const r=await fetch('api/walls',{method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({op:'save', wall:w})});
@@ -517,12 +526,13 @@ async function saveWall(asNew){
   const i=LIB.findIndex(x=>x.id===w.id), entry={...w, src: shared?'team':'saved'};
   if(i>=0) LIB[i]=entry; else LIB.push(entry);
   if(!shared) saveWallLib();
+  clearMirrors();   // the mirrors are made from the wall: make them again from what was just saved
   origin=w.id; W.id=w.id; W.name=w.name;
-  if(forSlot){ choose(forSlot, w.id); }
+  if(forSlot){ choose(forSlot, mirrored ? w.id+'~m' : w.id); }
   const nb=saveHB();   // the plug / switch moves go on this home only
   buildHome(); renderSide(); render();
   if(nb) toast(`${nb} plug / switch move${nb>1?'s':''} saved to this home only`, 3000);
-  toast(`${w.id} saved to the wall library${shared?' (for the whole team)':' (in this browser)'}${forSlot?` · on ${forSlot.label}`:''}`);
+  toast(`${w.id} ${over?'saved over the old version (every home that uses it has the change)':'saved as a new wall'}${shared?' · for the whole team':' · in this browser'}${forSlot?` · on ${forSlot.label}`:''}`, 3500);
 }
 /* save a wall made by the app (e.g. a window centred over a sink) to the library and put it on a slot, the same way
    the builder does: the team library when the server has one, else this browser */
