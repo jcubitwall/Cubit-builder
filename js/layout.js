@@ -178,7 +178,15 @@ function middleWalls(modelKey, slots, pods, shift, ends){
     const a = L.axis==='x' ? p.z : p.x, b = L.axis==='x' ? p.z1 : p.x1;
     // the walls it meets at its ends: their thickness (whatever stands on that side of the pod at this spot)
     const sideA = L.axis==='x' ? 'S' : 'W', sideB = L.axis==='x' ? 'N' : 'E';
-    const tAt = side => { const w=slots.find(s=>s.pod===p && s.side===side && !s.part && Math.min(s.a,s.b)-EPS<=L.c && L.c<=Math.max(s.a,s.b)+EPS); return w ? (pickFor(w)?.t || (w.type==='int'?4.5:6.5)) : 6.5; };
+    // by where each wall's body really is (its trims: an outside wall runs on past a part-way join until it's flush
+    // with the neighbour's wall), across the middle wall's whole 4½″: the thickest one it touches
+    const ax = L.axis==='x' ? 0 : 1, T2=T/2;
+    const tAt = side => { let best=0;
+      slots.forEach(w=>{ if(w.pod!==p || w.side!==side || w.part) return;
+        const u0=w.p0n[ax], u1=w.p1n[ax], d=Math.sign(u1-u0)||1, tr=w.trim||[0,0];
+        const b0=u0+d*(+tr[0]||0)/12, b1=u1-d*(+tr[1]||0)/12;
+        if(Math.max(b0,b1) > L.c-T2+EPS && Math.min(b0,b1) < L.c+T2-EPS) best=Math.max(best, w.type==='int' ? 4.5 : (pickFor(w)?.t || 6.5)); });
+      return best || 6.5; };
     const ta=tAt(sideA), tb=tAt(sideB);
     const S={ axis:L.axis==='x'?'z':'x', fixed, n };
     const A = S.axis==='x' ? [a,fixed] : [fixed,a];
