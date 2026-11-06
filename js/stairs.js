@@ -39,10 +39,12 @@ const OPTS = {
   comfort: { kind:'straight', ...plan(7, 11, 'Comfortable', 'about 7″ rise, 11″ run'), w:36 },
   u:       { kind:'u', ...plan(7.5, 10.5, 'U-shaped', 'two flights side by side with a landing: about 7½″ rise, 10½″ run'), w:36 },
   ucomp:   { kind:'u', ...plan(7.875, 10.125, 'U-shaped compact', 'the steepest the code allows, two flights and a landing'), w:36 },
+  wind:    { kind:'wind', n:16, rise:R/16, run:10.5, label:'Crossing winder', note:'fits where pods cross: 2 steps in, a flight to the end wall, winders round, out into the pod above', w:36 },
   spiral:  { kind:'spiral', n:16, rise:R/16, run:0, total:0, Q:81.75, post:3, label:'Square spiral', note:'Johnny’s Shapr3D model: 81¾″ square, 3″ post, 4″ hubs, 15 treads and a top landing', w:39 },
 };
 // a U stair's two flights: the first takes the extra riser when the count is odd; the landing is as deep as a flight is wide
 function uPlan(o){ const nA=Math.ceil(o.n/2), nB=o.n-nA, D=o.w; return { nA, nB, D, lenA:(nA-1)*o.run, lenB:(nB-1)*o.run, len:Math.max(nA-1, nB-1)*o.run + D }; }
+OPTS.wind.total=99;   // its length along the pod (″)
 OPTS.u.total=uPlan(OPTS.u).len; OPTS.ucomp.total=uPlan(OPTS.ucomp).len; OPTS.spiral.total=OPTS.spiral.Q;
 
 /* headroom: how many treads in from the foot the ceiling has to be open */
@@ -59,11 +61,48 @@ function toLocal(ls, [wx, wz]){ const th=-(ls.rot||0)*Math.PI/180, L0=ls.len, of
 const rectPlan = (ls, u0, u1, v0, v1) => { const P=[[u0,v0],[u1,v0],[u1,v1],[u0,v1]].map(q=>toPlan(ls,q)); return { x:Math.min(...P.map(p=>p[0])), z:Math.min(...P.map(p=>p[1])), x1:Math.max(...P.map(p=>p[0])), z1:Math.max(...P.map(p=>p[1])) }; };
 const unionRect = L => ({ x:Math.min(...L.map(r=>r.x)), z:Math.min(...L.map(r=>r.z)), x1:Math.max(...L.map(r=>r.x1)), z1:Math.max(...L.map(r=>r.z1)) });
 
+/* the crossing winder, drawn in its own frame: a = inches back from the end wall's inside face (u0), b = inches across
+   from the first flight's wall. Two flights 36″ wide side by side (b 0–36 and 47–83, 83″ = an 8′ pod inside), the
+   turn at the end wall. Treads, in climbing order: 6 up the first flight toward the end wall (the first 2 outside the
+   opening, where there's headroom), 3 winders round the corner (30° each, pivoting on the inside corner), 1 across
+   the end, 3 winders round the next corner, 2 back along the other wall; then the floor above. */
+const WD = { A:6, B:1, C:2, W:3, run:10.5, w:36, gap:11, foot:99, open:78 };
+function windGeo(S){
+  const sg=S.dir>0?1:-1, C=(a,b)=>[S.u0-sg*a, S.side==='N' ? 89.5-b : 6.5+b];
+  const treads=[], run=WD.run, w=WD.w, b2=w+WD.gap, B2=b2+w;
+  const rect=(a0,a1,b0,b1)=>[C(a0,b0),C(a1,b0),C(a1,b1),C(a0,b1)];
+  for(let i=1;i<=WD.A;i++){ const a1=WD.foot-(i-1)*run, a0=WD.foot-i*run; treads.push(rect(a0,a1,0,w)); }
+  // winders: from the pivot, between two directions, clipped to the corner square (corner point included)
+  const wind=(pa,pb,d0,d1,sq)=>{   // pivot (pa,pb), turning from direction d0 to d1, inside the square sq=[a0,a1,b0,b1]
+    const A0=Math.atan2(d0[1],d0[0]), A1=Math.atan2(d1[1],d1[0]); let da=A1-A0; if(da>Math.PI) da-=2*Math.PI; if(da<-Math.PI) da+=2*Math.PI;
+    const sgn=Math.sign(da), hit=a=>{ const ca=Math.cos(a), sa=Math.sin(a); let tt=1e9;
+      if(Math.abs(ca)>1e-9) [sq[0],sq[1]].forEach(e=>{ const t=(e-pa)/ca; if(t>1e-6) tt=Math.min(tt,t); });
+      if(Math.abs(sa)>1e-9) [sq[2],sq[3]].forEach(e=>{ const t=(e-pb)/sa; if(t>1e-6) tt=Math.min(tt,t); });
+      return [pa+ca*tt, pb+sa*tt]; };
+    const corners=[[sq[0],sq[2]],[sq[1],sq[2]],[sq[1],sq[3]],[sq[0],sq[3]]].filter(([ca,cb])=>Math.hypot(ca-pa,cb-pb)>1e-6), out=[];
+    for(let k=0;k<WD.W;k++){ const a0=A0+da*k/WD.W, a1=A0+da*(k+1)/WD.W, span=Math.abs(a1-a0), pts=[[pa,pb], hit(a0)];
+      // the square's corners swept between the two edges of this winder, in turning order
+      corners.map(([ca,cb])=>{ let r=(Math.atan2(cb-pb, ca-pa)-a0)*sgn; while(r<0) r+=2*Math.PI; while(r>=2*Math.PI) r-=2*Math.PI; return [r,ca,cb]; })
+        .filter(([r])=>r>1e-6 && r<span-1e-6).sort((x,y)=>x[0]-y[0]).forEach(([,ca,cb])=>pts.push([ca,cb]));
+      pts.push(hit(a1)); out.push(pts.map(([a,b])=>C(a,b))); }
+    return out; };
+  treads.push(...wind(w, w, [0,-1], [-1,0], [0,w,0,w]));                 // round the first corner (into the end)
+  treads.push(rect(0, w, w, b2));                                           // one across the end
+  treads.push(...wind(w, b2, [-1,0], [0,1], [0,w,b2,B2]));                  // round the second corner
+  for(let i=1;i<=WD.C;i++) treads.push(rect(w+(i-1)*run, w+i*run, b2, B2)); // back along the other wall
+  const box=(a0,a1,b0,b1)=>{ const P=[C(a0,b0),C(a1,b1)]; return { u0:Math.min(P[0][0],P[1][0]), u1:Math.max(P[0][0],P[1][0]), v0:Math.min(P[0][1],P[1][1]), v1:Math.max(P[0][1],P[1][1]) }; };
+  const top=w+WD.C*run;
+  return { C, treads, foot:box(0, WD.foot, 0, B2), hole:box(-0.5, WD.open+0.5, -0.5, B2+0.5),
+    footZones:[box(WD.foot, WD.foot+LAND, 0, w), box(WD.foot-LAND, WD.foot, b2, B2)],
+    topZones:[box(top-LAND, top, B2, B2+LAND), box(top, top+LAND, b2, B2), box(top-LAND, top, -LAND, 0)],
+    arrive:{ p:C(top, b2+w/2), d:[-sg, 0] } };
+}
 /* the local footprint and openings of each kind (pod-local inch rects { u0,u1,v0,v1 }) */
 function shapeOf(S, o){
   const sg=S.dir>0?1:-1, U=(a,b)=>[Math.min(a,b), Math.max(a,b)];
   if(o.kind==='spiral'){ const Q=o.Q, v0=(96-Q)/2, [u0,u1]=[S.u0, S.u0+Q];
     return { foot:{ u0, u1, v0, v1:v0+Q }, holes:[{ u0:u0-0.5, u1:u1+0.5, v0:v0-0.5, v1:v0+Q+0.5 }] }; }
+  if(o.kind==='wind'){ const G=windGeo(S); return { foot:G.foot, holes:[G.hole], G }; }
   if(o.kind==='u'){ const P=uPlan(o), W=o.w, vA0 = S.side==='N' ? 96-IN_N-W : IN_S, vB0 = S.side==='N' ? vA0-W : vA0+W;
     const [fu0,fu1]=U(S.u0, S.u0+sg*P.len), k=headK(o);
     const [au0,au1]=U(S.u0+sg*k*o.run, S.u0+sg*P.len);
@@ -107,7 +146,7 @@ function bestSpot(k, i, opt){
   // first a spot with a clear landing at the foot and the top; failing that, any spot it fits
   for(const strict of [true, false]) for(const p of list){ if(!p) continue; const L=p.len*12, o=OPTS[opt]||OPTS.std;
     for(const side of ['S','N']) for(const dir of [1,-1]) for(const q of (o.kind==='spiral' && strict ? [0,1,2,3] : [0])) for(let a=6.5; a<=L-6.5; a+=1){
-      const S={ pod:p.i, dir, side, u0: o.kind==='spiral' ? a : (dir>0 ? a : L-a), opt, q }; const st=solve(k,S); if(!st || st.why) continue;
+      const S={ pod:p.i, dir, side, u0: o.kind==='spiral' ? a : o.kind==='wind' ? (dir>0 ? L-a : a) : (dir>0 ? a : L-a), opt, q }; const st=solve(k,S); if(!st || st.why) continue;   // a crossing winder from the end wall in
       if(strict){ const Ld=landings(st, k); if(!Ld.foot.ok || !Ld.top.ok || Ld.startsOverHole) continue; }
       return S; } }
   return null;
@@ -115,20 +154,21 @@ function bestSpot(k, i, opt){
 function edit(fn){ checkpoint(); const key=ensureDraft(); const m=MODELS[key]; m.stairs ||= []; const r=fn(m.stairs, key); if(!m.stairs.length) delete m.stairs; save(); return r; }
 function addStair(i=null, opt='std'){
   const k=state.model; let S=null;
-  for(const o of [opt, 'std', 'u', 'spiral', 'min']){ S=bestSpot(k, i, o); if(S) break; }
+  for(const o of [opt, 'std', 'u', 'wind', 'spiral', 'min']){ S=bestSpot(k, i, o); if(S) break; }
   if(!S) return null;
   return edit(L=>{ let n=1; while(L.some(s=>s.id==='s'+n)) n++; const s={ id:'s'+n, ...S }; L.push(s); return s.id; });
 }
 function updateStair(id, patch){ return edit(L=>{ const s=L.find(x=>x.id===id); if(s) Object.assign(s, patch); return id; }); }
 function removeStair(id){ edit(L=>{ const i=L.findIndex(x=>x.id===id); if(i>=0) L.splice(i,1); }); }
 /* the foot of the same stair seen from its other end (for "turn it round") */
-function flipped(S){ const o=OPTS[S.opt]||OPTS.std; if(o.kind==='spiral') return { dir:-S.dir }; return { dir:-S.dir, u0:S.u0+S.dir*o.total }; }
+function flipped(S){ const o=OPTS[S.opt]||OPTS.std; if(o.kind==='spiral') return { dir:-S.dir }; if(o.kind==='wind') return { dir:-S.dir, u0:S.u0-S.dir*WD.foot }; return { dir:-S.dir, u0:S.u0+S.dir*o.total }; }
 /* each option for a stair as it sits now (or at its best spot in this pod): { key, label, note, fits, why, alt, kind } */
 function optionsFor(id){
   const k=state.model, S=(MODELS[k]?.stairs||[]).find(x=>x.id===id); if(!S) return [];
   return Object.entries(OPTS).map(([key,o])=>{ const st=solve(k,{...S, opt:key}); const alt=st?.why ? bestSpot(k, S.pod, key) : null;
     const ft = x => `${Math.floor(x/12)}′ ${Math.round(x%12)}″`;
-    const note = o.kind==='spiral' ? `your Shapr3D model · ${o.n} risers ${o.rise.toFixed(2)}″, 15 treads on hubs, top landing · ${ft(o.Q)} square`
+    const note = o.kind==='wind' ? `fits where pods cross · ${o.n} risers ${o.rise.toFixed(2)}″, treads 10½″, 6 winders · 8′ 3″ × 7′ 0″ inside, opening 6′ 6″ × 7′ 0″`
+      : o.kind==='spiral' ? `your Shapr3D model · ${o.n} risers ${o.rise.toFixed(2)}″, 15 treads on hubs, top landing · ${ft(o.Q)} square`
       : o.kind==='u' ? (P=>`${o.n} risers ${o.rise.toFixed(2)}″, treads ${o.run}″, landing · ${ft(P.len)} long, ${2*o.w}″ wide`)(uPlan(o))
       : `${o.n} risers ${o.rise.toFixed(2)}″, ${o.n-1} treads ${o.run}″ · ${ft(o.total)} long, ${o.w}″ wide`;
     return { key, kind:o.kind, label:o.label, note, fits:!st?.why || !!alt, why:st?.why, alt }; });
@@ -159,6 +199,11 @@ function stairParts(st){
     X.treads.forEach(t=>out.push({ kind:'poly', pts:pl(t.pts), y0:G.Z(t.z0), y1:G.Z(t.z1) }));
     out.push({ kind:'poly', pts:pl(X.landing.pts), y0:G.Z(X.landing.z0), y1:G.Z(X.landing.z1) });
     return out; }
+  if(o.kind==='wind'){ st.sh.G.treads.forEach((pts,i)=>out.push({ kind:'poly', pts:pts.map(P), y0:(i+1)*o.rise-T, y1:(i+1)*o.rise }));
+    // a carriage under the first flight, and a post at each winder pivot
+    const G=st.sh.G; [[0.75],[WD.w-0.75]].forEach(([b])=>out.push({ kind:'slope', a:P(G.C(WD.foot,b)), b:P(G.C(WD.w,b)), ya:0, yb:WD.A*o.rise, t:1.5/12 }));
+    [[WD.w,WD.w],[WD.w,WD.w+WD.gap]].forEach(([a,b])=>{ const c=P(G.C(a,b)); out.push({ kind:'box', x:c[0]-1.75/12, z:c[1]-1.75/12, x1:c[0]+1.75/12, z1:c[1]+1.75/12, y0:0, y1:R }); });
+    return out; }
   const flight = (uFoot, d, v0, n, y0, landTo) => {   // n risers from y0; treads between them
     for(let i=0;i<n-1;i++){ const u=uFoot+d*i*o.run, r=rectPlan(st.ls, Math.min(u, u+d*(o.run+1)), Math.max(u, u+d*(o.run+1)), v0, v0+o.w); out.push({ kind:'box', ...r, y0:y0+(i+1)*o.rise-T, y1:y0+(i+1)*o.rise }); }
     const uTop=uFoot+d*(n-1)*o.run;
@@ -184,6 +229,9 @@ function stairPlan(st){
     // the walking line round through the middle of the treads
     X.treads.forEach(t=>{ const n=t.pts.length, cx=t.pts.reduce((a,q)=>a+q[0],0)/n, cy=t.pts.reduce((a,q)=>a+q[1],0)/n, r=Math.hypot(cx,cy)||1, f=G.h*0.55/r; walk.push(P(G.T([cx*f, cy*f]))); });
     return { lines, walk, post:{ c:P(G.c), r:X.post.r/12 } }; }
+  if(o.kind==='wind'){ const G=st.sh.G, walk=[];
+    G.treads.forEach(pts=>{ const Q=pts.map(P); Q.forEach((a,i)=>lines.push([a, Q[(i+1)%Q.length]])); const n=pts.length; walk.push(P([pts.reduce((s,q)=>s+q[0],0)/n, pts.reduce((s,q)=>s+q[1],0)/n])); });
+    return { lines, walk }; }
   const fl = (uFoot, d, v0, n) => { for(let i=0;i<n;i++){ const u=uFoot+d*i*o.run; lines.push([P([u, v0]), P([u, v0+o.w])]); } return uFoot+d*(n-1)*o.run; };
   if(o.kind==='u'){ const sh=st.sh, Pp=sh.P, vmA=sh.vA0+o.w/2, vmB=sh.vB0+o.w/2;
     const uL=fl(st.S.u0, sg, sh.vA0, Pp.nA), uE=uL+sg*Pp.D; fl(uL, -sg, sh.vB0, Pp.nB);
@@ -209,6 +257,7 @@ const LR = (st, u0, u1, v0, v1) => rectPlan(st.ls, Math.min(u0,u1), Math.max(u0,
    way you're walking at the top (pod-local), for lining up the next stair */
 function ends(st){
   const o=st.o, S=st.S, sg=S.dir>0?1:-1, sh=st.sh;
+  if(o.kind==='wind'){ const G=sh.G, z=r=>[r.u0, r.u1, r.v0, r.v1]; return { foot:G.footZones.map(z), top:G.topZones.map(z), arrive:G.arrive }; }
   if(o.kind==='spiral'){ const G=spiralGeo(st), h=o.Q/2;
     // as drawn: you come in to tread 1 (west, going round toward the south) through the open north-west quarter, from
     // the west or the north side of the square; at the top you step off the landing plate (the west half) to the west
@@ -266,9 +315,9 @@ function nextOptions(id, k=state.model){
   }
   // the closest start of each kind to where you arrive
   const arrive = [a[0]+d*LAND/2, a[1]];
-  ['std','u','spiral'].forEach(o=>{ let best=null; const L=A.len*12, O=OPTS[o];
-    for(const side of ['S','N']) for(const dir of [1,-1]) for(const q of (O.kind==='spiral'?[0,1,2,3]:[0])) for(let x=6.5; x<=L-6.5; x+=3){
-      const S={ pod:A.i, opt:o, side, dir, q, u0: O.kind==='spiral' ? x : (dir>0 ? x : L-x) }, s2=solve(k,S); if(!s2 || s2.why) continue;
+  ['std','u','wind','spiral'].forEach(o=>{ let best=null; const L=A.len*12, O=OPTS[o];
+    for(const side of ['S','N']) for(const dir of [1,-1]) for(const q of (O.kind==='spiral'?[0,1,2,3]:[0])) for(let x=6.5; x<=L-6.5; x+=(O.kind==='wind'?1:3)){
+      const S={ pod:A.i, opt:o, side, dir, q, u0: O.kind==='spiral' ? x : O.kind==='wind' ? (dir>0 ? L-x : x) : (dir>0 ? x : L-x) }, s2=solve(k,S); if(!s2 || s2.why) continue;
       const Ld=landings(s2, k); if(!Ld.foot.ok || !Ld.top.ok || Ld.startsOverHole) continue;
       const fz=ends(s2).foot[0], fc=[(fz[0]+fz[1])/2, (fz[2]+fz[3])/2], dist=Math.hypot(fc[0]-arrive[0], fc[1]-arrive[1]);
       if(!best || dist<best.dist) best={ dist, S }; }

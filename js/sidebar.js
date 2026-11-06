@@ -118,6 +118,7 @@ function renderStairSide(id){
   const P=podList(state.model), lo=P[S.pod], up=st.above!=null ? P[st.above] : null, o=st.o;
   const H=st.hole, hw=Math.round((H.x1-H.x)*12), hd=Math.round((H.z1-H.z)*12);
   const what = o.kind==='spiral' ? `As drawn in your Shapr3D model (Spiral_Stair.step): 15 treads on 4″ hubs round a ${fin(o.post)} post, a top landing plate over the west half · ${fin(o.Q)} square · ${o.n} risers of ${fin(Math.round(o.rise*16)/16)} (the model’s 7⅜″, eased to land flush on these floors)`
+    : o.kind==='wind' ? `${o.n} risers of ${fin(Math.round(o.rise*16)/16)}: 2 steps in, 4 more to the end wall, 3 winders round the corner, 1 across the end, 3 winders round, 2 out into the pod above · 36″ wide, 99″ × 83″`
     : o.kind==='u' ? `${o.n} risers of ${fin(Math.round(o.rise*16)/16)}, treads of ${fin(o.run)}, two ${o.w}″ flights side by side with a landing · ${fin(Math.round(o.total))} long, ${2*o.w}″ wide`
     : `${o.n} risers of ${fin(Math.round(o.rise*16)/16)}, ${o.n-1} treads of ${fin(o.run)} · ${fin(Math.round(o.total))} long, ${o.w}″ wide`;
   sideH.innerHTML=`<div class="eyebrow">Stairs · ${esc(o.label.toLowerCase())}</div><h2>${esc(lo.label)} up to ${up?esc(up.label):'—'}</h2>
@@ -125,12 +126,12 @@ function renderStairSide(id){
   const opts=stairOptions(id);
   sideB.innerHTML=`<div class="mid-box"><div class="eyebrow">Stair</div>
     ${st.why?`<p class="note el-warn">${esc(st.why)}</p>`:''}
-    ${[['straight','Straight'],['u','U-shaped (switchback)'],['spiral','Spiral']].map(([kd,nm])=>`<div class="eyebrow sm">${nm}</div><div class="st-opts">${opts.filter(x=>x.kind===kd).map(x=>`<button class="st-opt" data-sopt="${x.key}" aria-pressed="${S.opt===x.key}" ${x.fits?'':'disabled'}><b>${esc(x.label)}</b><small>${esc(x.note)}</small>${x.fits?'':`<small class="el-warn">${esc(x.why||'doesn’t fit here')}</small>`}</button>`).join('')}</div>`).join('')}
+    ${[['straight','Straight'],['u','U-shaped (switchback)'],['wind','Where pods cross'],['spiral','Spiral']].map(([kd,nm])=>`<div class="eyebrow sm">${nm}</div><div class="st-opts">${opts.filter(x=>x.kind===kd).map(x=>`<button class="st-opt" data-sopt="${x.key}" aria-pressed="${S.opt===x.key}" ${x.fits?'':'disabled'}><b>${esc(x.label)}</b><small>${esc(x.note)}</small>${x.fits?'':`<small class="el-warn">${esc(x.why||'doesn’t fit here')}</small>`}</button>`).join('')}</div>`).join('')}
     ${(()=>{ const Ld=stairLandings(st), ln=(nm,x)=>`<li class="${x.ok?'ok':'bad'}">${x.ok?'✓':'✗'} ${nm}: ${x.ok?'clear 36″ landing':esc(x.why)}</li>`;
       const nx=st.above!=null ? stairNext(S.id) : [];
       return `<div class="eyebrow sm">Landings</div><ul class="st-land">${ln('at the foot', Ld.foot)}${ln('at the top', Ld.top)}${Ld.startsOverHole?'<li class="bad">✗ it starts over the opening of the stair below</li>':''}</ul>
         ${nx.length?`<div class="eyebrow sm">Next floor up</div><div class="st-opts">${nx.map((c,i)=>`<button class="st-opt" data-snext="${i}" ${c.ok?'':'disabled'}><b>${esc(c.label)}</b><small>${esc(c.note)}</small>${c.ok?'':`<small class="el-warn">${esc(c.why)}</small>`}</button>`).join('')}</div>`:''}`; })()}
-    <p class="note">${o.kind==='spiral' ? 'The square spiral’s 22½° wedge treads are winders / a spiral stair under the National Building Code (9.8.4): check them with the building official before building. ' : 'Legal for a house (National Building Code 9.8): risers 7⅞″ or less, runs 10⅛″ or more, 6′ 4¾″ headroom, 34″ or wider. '}Handrail and guards by the builder.</p>
+    <p class="note">${o.kind==='spiral' ? 'The square spiral’s 22½° wedge treads are winders / a spiral stair under the National Building Code (9.8.4): check them with the building official before building. ' : o.kind==='wind' ? 'Its winders turn 30° each, 90° per set with a tread between the sets (National Building Code 9.8.4.5): check them with the building official. ' : 'Legal for a house (National Building Code 9.8): risers 7⅞″ or less, runs 10⅛″ or more, 6′ 4¾″ headroom, 34″ or wider. '}Handrail and guards by the builder.</p>
     <div class="eyebrow sm">Where it sits</div>
     <div class="mid-pos"><button class="btn ghost" data-sst="-1" aria-label="Slide back">◀</button>
       <label class="cw-f"><span>${o.kind==='spiral'?'Its near edge':'Foot of the stair'} from ${esc(lo.label)}'s end</span><input id="stU" inputmode="decimal" value="${Math.round(S.u0*16)/16}"><i>″</i></label>
