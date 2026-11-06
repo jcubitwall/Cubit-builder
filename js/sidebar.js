@@ -8,8 +8,8 @@ import { screwsFor, slotsFor, podList, CW, layerSlotsFor, partnerOf, deckList, w
 import { stairsOf, addStair, updateStair, removeStair, optionsFor as stairOptions } from './stairs.js';
 import { panelCount, thumbSVG, bodyWall, wallLen, layerHoles, outlinePts, shapeOf } from './panels.js';
 import { buildHome, highlight } from './scene3d.js';
-import { facing, fmtBearing } from './orient.js';
-import { setDeckFoundation, rotatePod, deletePod, ensureDraft, mirrorPod, removeDeck, turnDeck, addPart, movePart, removePart, partSnaps } from './pods.js';
+import { facing, fmtBearing, bearingOf, compass } from './orient.js';
+import { setDeckFoundation, rotatePod, deletePod, ensureDraft, mirrorPod, removeDeck, turnDeck, addPart, movePart, removePart, partSnaps, setPart, turnPart } from './pods.js';
 import { checkpoint } from './history.js';
 import { openSheets } from './sheets.js';
 import { pickFor, save, state, choose, pickLayer, chooseLayer, foundationOf, setFoundation, deckOCOf } from './state.js';
@@ -140,9 +140,12 @@ function renderStairSide(id){
 }
 /* ---------------------------------------------------------------- a middle wall: where it sits, and its door */
 const DOORS=[[30,32.5],[32,34.5],[34,36.5],[36,38.5]];   // slab ″ → rough opening ″ (prehung)
-let midDoorW=34, midStep=1;
+let midDoorW=34, midStep=1, midKeep='mid';
 function midBlock(s, w){
-  const q=s.part, p=s.pod, ws=worldSideName(p, q.dir==='long'?'S':'W'), span=(q.dir==='long'?8:p.len)*12;
+  const q=s.part, p=s.pod, span=(q.dir==='long'?8:p.len)*12, B=s.body;
+  // by the real compass (its place counts from the pod's own W end across, or own S side along; its run the other way)
+  const nm = local => compassName(...sideVec(p, local)), ws=nm(q.dir==='long'?'S':'W');
+  const endLo=nm(q.dir==='long'?'W':'S'), endHi=nm(q.dir==='long'?'E':'N');
   const snaps=partSnaps(s).filter(x=>Math.abs(x.at-q.at)>0.01).slice(0, 12);
   const doorOf=()=>{ const o=(w?.openings||[]).find(o=>o.kind==='door'); if(!o) return 'none'; const L=s.len*12, a=s.trim[0], b=L-s.trim[1], c=o.x+o.w/2; return Math.abs(c-(a+b)/2)<3 ? 'mid' : c<(a+b)/2 ? 'left' : 'right'; };
   const cur=doorOf();
@@ -156,11 +159,25 @@ function midBlock(s, w){
       <label class="cw-f"><span>Middle, from the ${esc(ws)} ${q.dir==='long'?'side':'end'}</span><input id="midAt" inputmode="decimal" value="${Math.round(q.at*16)/16}"><i>″</i></label>
       <button class="btn ghost" data-mnud="1" aria-label="Move away from the ${esc(ws)} end">▶</button></div>
     <div class="cw-opt"><span>Each tap</span><div class="seg sm">${[[1,'1″'],[0.5,'½″'],[12,'1′']].map(([v,l])=>`<button data-mstep="${v}" aria-pressed="${midStep===v}">${l}</button>`).join('')}</div></div>
-    <p class="note">${fin(q.at-2.25-6.5)} clear on one side, ${fin(span-q.at-2.25-6.5)} on the other (to the outside walls' inside, roughly).</p>
+    <p class="note">${fin(q.at-B.t/2-6.5)} clear on one side, ${fin(span-q.at-B.t/2-6.5)} on the other (to the outside walls' inside, roughly).</p>
+    <div class="eyebrow sm">Length</div>
+    <div class="mid-len"><label class="cw-f"><span>Length</span><input id="midLen" inputmode="decimal" value="${Math.round(B.len*16)/16}"><i>″</i></label>
+      <span class="note">wall to wall ${fin(B.in1-B.in0)}</span></div>
+    <div class="cw-opt"><span>Keep in place</span><div class="seg sm" role="group" aria-label="The end that stays put">${[['lo',`${endLo} end`],['mid','middle'],['hi',`${endHi} end`]].map(([v,l])=>`<button data-mkeep="${v}" aria-pressed="${midKeep===v}">${l}</button>`).join('')}</div></div>
+    <div class="mid-ends">${[[0,endLo,B.v0<=B.in0+0.01],[1,endHi,B.v1>=B.in1-0.01]].map(([e,nm,on])=>`<span class="note">${esc(nm)} end: ${on?'<b>to the wall</b>':`stops ${fin(e? B.in1-B.v1 : B.v0-B.in0)} short`}</span>${on?'':`<button class="btn ghost sm" data-mwall="${e}">To the wall</button>`}`).join('')}</div>
+    <div class="eyebrow sm">Thickness</div>
+    <div class="mid-len"><div class="seg sm" role="group" aria-label="Thickness">${[3.5,4.5,5.5,6.5].map(t=>`<button data-mt="${t}" aria-pressed="${Math.abs(B.t-t)<1e-6}">${fin(t)}</button>`).join('')}</div>
+      <label class="cw-f"><span>Custom</span><input id="midT" inputmode="decimal" value="${B.t}"><i>″</i></label></div>
+    <p class="note">On the plan and in 3D: drag the ⇄ arrows at its ends to make it shorter or longer, the arrow in the middle to move it (it snaps flush with walls nearby, else to the inch), ↻ to turn it about its middle.</p>
     ${snaps.length?`<div class="eyebrow sm">Snap flush</div><div class="mid-snaps">${snaps.map(x=>`<button class="chip" data-msnap="${x.at}">${esc(x.label)} <small>${fin(x.at)}</small></button>`).join('')}</div>`:''}
     <div class="row"><button class="btn ghost sm" id="midTurn">${q.dir==='long'?'Make it across':'Make it along'}</button><button class="btn ghost sm danger" id="midRm">Remove this wall</button></div></div>`;
 }
 const worldSideName = (p, local) => ({ S:'south', N:'north', W:'west', E:'east' })[worldSide(p.rot, local)];
+/* the real compass name of a plan direction (the north arrow can point anywhere) */
+const CWN={ N:'north', S:'south', E:'east', W:'west', NE:'north-east', NW:'north-west', SE:'south-east', SW:'south-west' };
+const compassName = (dx, dz) => { const c=compass(bearingOf(dx, dz)); return CWN[c] || CWN[c.slice(-2)] || CWN[c.slice(-1)] || c; };
+/* the plan direction the pod's own side `local` faces */
+const sideVec = (p, local) => ({ S:[0,-1], N:[0,1], W:[-1,0], E:[1,0] })[worldSide(p.rot, local)];
 function bindMid(s){
   const q=s.part, pi=s.pod.i, root=sideB.querySelector('.mid-box'); if(!root) return;
   const go=id=>{ if(!id) return; state.selected=id; renderModels(); buildHome(); highlight(); renderSide(); };
@@ -168,7 +185,12 @@ function bindMid(s){
   root.querySelectorAll('[data-mstep]').forEach(b=>b.onclick=()=>{ midStep=+b.dataset.mstep; renderSide(); });
   root.querySelector('#midAt').onchange=e=>{ const v=parseFloat(e.target.value); if(isFinite(v)) go(movePart(pi, q.id, v)); };
   root.querySelectorAll('[data-msnap]').forEach(b=>b.onclick=()=>{ go(movePart(pi, q.id, +b.dataset.msnap)); toast(`Snapped ${b.firstChild.textContent.trim()}`); });
-  root.querySelector('#midTurn').onclick=()=>{ const d=q.dir==='long'?'cross':'long', span=(d==='long'?8:s.pod.len)*12; go(movePart(pi, q.id, span/2, d)); };
+  root.querySelector('#midTurn').onclick=()=>go(turnPart(pi, q.id));
+  root.querySelector('#midLen').onchange=e=>{ const v=parseFloat(e.target.value); if(isFinite(v) && v>=12) go(setPart(pi, q.id, { len:v, keep:midKeep })); else toast('At least 12″'); };
+  root.querySelectorAll('[data-mkeep]').forEach(b=>b.onclick=()=>{ midKeep=b.dataset.mkeep; renderSide(); });
+  root.querySelectorAll('[data-mwall]').forEach(b=>b.onclick=()=>go(setPart(pi, q.id, b.dataset.mwall==='0' ? { e0:null } : { e1:null })));
+  root.querySelectorAll('[data-mt]').forEach(b=>b.onclick=()=>go(setPart(pi, q.id, { t:+b.dataset.mt })));
+  root.querySelector('#midT').onchange=e=>{ const v=parseFloat(e.target.value); if(isFinite(v) && v>=1 && v<=12) go(setPart(pi, q.id, { t:v })); else toast('Between 1″ and 12″'); };
   root.querySelector('#midRm').onclick=e=>{ const b=e.target; if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to remove'; return; } removePart(pi, q.id); state.selected=null; renderModels(); buildHome(); highlight(); renderSide(); toast('Middle wall removed'); };
   root.querySelectorAll('[data-mdw]').forEach(b=>b.onclick=()=>{ midDoorW=+b.dataset.mdw; renderSide(); });
   root.querySelectorAll('[data-mdoor]').forEach(b=>b.onclick=()=>midDoor(s, b.dataset.mdoor));
@@ -333,7 +355,7 @@ function renderSideInner(){
   } else {
     const w=pickFor(s); const opts=optionsFor(s.len, s.type||'ext', state.model);
     const isInt=s.type==='int';
-    sideH.innerHTML=`<div class="eyebrow">${isInt?'Interior wall · 4½″':'Exterior wall · 6½″'} · ${s.len}′ · ${s.len/4} panels</div><h2>${esc(withName(s.label, 'w:'+s.id))}${nameBtn('nmWall')}</h2><p>${s.detail} · faces ${fmtBearing(facing(s))} · now <b>${w?esc(w.id):'—'}</b> ${w?esc(w.name):''}${w&&!w.blank?' <button class="linkbtn ren-link editor-only" id="renWall">Rename</button>':''}</p>`;
+    sideH.innerHTML=`<div class="eyebrow">${s.part ? `Middle wall · ${fin(s.body.t)} · ${fin(s.body.len)} long` : `${isInt?'Interior wall · 4½″':'Exterior wall · 6½″'} · ${s.len}′ · ${s.len/4} panels`}</div><h2>${esc(withName(s.label, 'w:'+s.id))}${nameBtn('nmWall')}</h2><p>${s.detail} · faces ${fmtBearing(facing(s))} · now <b>${w?esc(w.id):'—'}</b> ${w?esc(w.name):''}${w&&!w.blank?' <button class="linkbtn ren-link editor-only" id="renWall">Rename</button>':''}</p>`;
     const rw=sideH.querySelector('#renWall'); if(rw) rw.onclick=()=>askRename('walls', w.mirrorOf||w.id);
     setTimeout(()=>{ if(s.part) bindMid(s); }, 0);
     bindName(sideH, 'nmWall', 'w:'+s.id, `Name ${s.label}`, 'e.g. Kitchen wall');

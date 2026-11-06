@@ -1293,3 +1293,7 @@ dialog.v3-dlg.v3-full .v3-cube{top:max(12px, env(safe-area-inset-top,0px));right
 .so-dlg .so-list{margin:.2rem 0 .8rem;padding-left:1.1rem;max-height:30vh;overflow:auto;font-size:.92rem}
 .so-dlg .so-list li{margin:.2rem 0}
 .so-dlg .so-keep{color:var(--muted,#667)}
+/* middle wall: length, ends, thickness */
+.mid-len{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 6px}
+.mid-len .cw-f{max-width:150px}
+.mid-ends{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center;margin:4px 0 8px}

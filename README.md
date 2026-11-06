@@ -639,3 +639,15 @@ copy goes into My Drafts as "(copy from this device)" and the latest save opens.
   - At start-up, any team wall or layer saved after a home was locked is put back as it was then. It's taken from the copies the home was saved with, else from the server's history (`GET api/walls?asof=<time>&ids=…`, same for layers), else from Cubit's original.
   - The 3D, sheets, CNC and costs of a locked home all use those versions (`FROZEN` in data.js, read by `byId` / `layerById` for the home on screen).
 - A name changed in the builder now sticks. The library's rename list used to put the old name back.
+
+## Middle wall handles, length and thickness (midhandles.js · pods.js setPart / turnPart)
+- Pick a middle wall and orange handles show on it, in 3D and 2D:
+  - **⇄ at each end:** drag to shorten or lengthen that end. It snaps back to the wall it meets ("to the wall"), and to the faces of walls across its run within 3′. Otherwise it snaps to the inch, minimum 12″.
+  - **Arrow in the middle:** drag to move it across. It snaps flush with nearby wall faces within 2″, otherwise to the inch.
+  - **↻ beside it:** tap for a quarter turn about its middle (across ↔ along), keeping its length where it fits.
+  - An outline and a tip show where it'll go; it's set when you lift.
+- In the panel:
+  - **Length** (typed) and **Keep in place**: which end stays put, either end or the middle. Ends are named by the real compass.
+  - Each end shows "to the wall" or how far short it stops, with a **To the wall** button.
+  - **Thickness:** 3½ / 4½ / 5½ / 6½″ or typed (1–12″), default 4½″.
+- Stored on the part: `t` (when not 4½), and `e0` / `e1` (its ends in inches along its run in the pod's own frame; none = to the wall). Mirroring a pod flips them; a shortened end is a free end (no notch); the wall body is the same library wall with bigger trims, so doors, the panel builder, sheets and CNC all follow.

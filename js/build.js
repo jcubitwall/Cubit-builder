@@ -25,6 +25,7 @@ import { renderModels, renderSide, toast } from './sidebar.js';
 import { deckName } from './deckframe.js';
 import { furnMeshes, furnById, snap, addItem, updateItem, refreshItem, applyFurniture, showFurnGhost, hideFurnGhost, turnItem, setHolderVisible, handleMeshes, roomBeyond, stretchTo, rotXZ, turnStart, turnTo, groupMembers, setMany, moveHolder, addRecipe, furnitureOf, onFurnChanged } from './furniture.js';
 import { planFor } from './electrical.js';
+import { midHandleMeshes, startMid, trackMid, endMid, handleY } from './midhandles.js';
 import { KITCHENS, kitchenById } from './kitchens.js';
 import { fmt as fmtCw, settings as cwSettings } from './casework.js';
 const fmtIn = v => fmtCw(v)+(cwSettings().units==='mm'?' mm':'″');
@@ -164,6 +165,13 @@ function hitAt(x,y){
   return ray.intersectObjects(pickables,false).find(h=>shown(h.object));
 }
 /* the plan point (feet, in the home's own frame) under the finger, on the floor */
+/* the finger on a level plane h feet up in the home (the middle-wall handles sit on the wall tops) */
+function planAtH(x,y,h){
+  const r=cv.getBoundingClientRect(); ndc.set(((x-r.left)/r.width)*2-1, -((y-r.top)/r.height)*2+1); ray.setFromCamera(ndc,camera);
+  const w=homeGroup.localToWorld(new THREE.Vector3(0,h,0)), p=new THREE.Vector3(); if(!ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-w.y), p)) return null;
+  return homeGroup.worldToLocal(p);
+}
+function midHandleAt(x,y){ const r=cv.getBoundingClientRect(); ndc.set(((x-r.left)/r.width)*2-1, -((y-r.top)/r.height)*2+1); ray.setFromCamera(ndc,camera); return ray.intersectObjects(midHandleMeshes(),false)[0]; }
 function planAt(x,y){
   const r=cv.getBoundingClientRect(); ndc.set(((x-r.left)/r.width)*2-1, -((y-r.top)/r.height)*2+1); ray.setFromCamera(ndc,camera);
   const p=new THREE.Vector3(); if(!ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),0), p)) return null;
@@ -272,6 +280,8 @@ stage.addEventListener('pointerdown', e=>{
   if(pointers.size===1){
     orbit=null; if(D && D.mode==='move') D=null;                        // nothing left over from a gesture that ended oddly
     clearTimeout(press?.timer); press=null;
+    // a middle wall's handles: an end (longer / shorter), the middle (move it across), the turn (tap)
+    if(editable()){ const mh=midHandleAt(e.clientX,e.clientY); if(mh){ const d=startMid(mh); if(d){ controls.enabled=false; D={...d, started:true}; document.body.classList.add('dragging'); return; } } }
     // a green stretch arrow on the tapped item: drag it to make the item longer / deeper or shorter
     if(editable()){ const hh=handleAt(e.clientX,e.clientY); if(hh){ const it=furnById(hh.object.userData.furn);
       if(it && hh.object.userData.handle==='turn'){ const at=planAt(e.clientX,e.clientY), st=at && turnStart(it, at, homeGroup);
@@ -358,6 +368,8 @@ window.addEventListener('pointermove', e=>{
     if(Math.abs(d)>=Math.PI/4){ const sg=d>0?1:-1; turn(D, sg); D.twist.a0+=sg*Math.PI/2; }
     return;
   }
+  if(D.mode==='mid'){ if(D.h==='turn') return; const P=planAtH(e.clientX, e.clientY, handleY(D)), t=trackMid(D, P);
+    const r=stage.getBoundingClientRect(); tip.hidden=!t; tip.style.left=(e.clientX-r.left)+'px'; tip.style.top=(e.clientY-r.top-46)+'px'; tip.textContent=t; return; }
   if(D.mode==='stretch'){ D.lastXY=[e.clientX,e.clientY]; trackStretch(D, e.clientX, e.clientY); return; }
   if(D.mode==='turn'){ trackTurn(D, e.clientX, e.clientY); return; }
   if(D.mode==='fmove'){
@@ -374,6 +386,11 @@ function release(e){
   if(press){ clearTimeout(press.timer); press=null; }
   if(!pointers.size){ orbit=null; viewTwist=null; if(three){ three=null; controls.enabled=true; } }
   if(pointers.size<2) viewTwist=null;
+  if(D && D.mode==='mid'){ if(pointers.size) return;
+    const d=D; D=null; tip.hidden=true; document.body.classList.remove('dragging'); controls.enabled=true;
+    const id=endMid(d); if(!id) return;
+    state.selected=id; renderModels(); buildHome(); highlight(); renderSide();
+    if(d.h==='turn') toast('Turned a quarter turn about its middle'); return; }
   if(D && D.mode==='stretch'){ if(pointers.size) return;
     const d=D; D=null; hideFurnGhost(); tip.hidden=true; document.body.classList.remove('dragging'); controls.enabled=true;
     if(!d.change) return; const {snapped, ...ch}=d.change;

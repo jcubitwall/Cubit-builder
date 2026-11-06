@@ -71,7 +71,7 @@ function bodyWallRaw(slot, w){
 function bodyWall(slot, w){
   if(!w || w.fitted) return w;
   let out=bodyWallRaw(slot, w);
-  if(slot?.type==='int') out.t=TI;   // always 4½″ between pods
+  if(slot?.type==='int') out.t = slot.part ? (slot.body?.t || TI) : TI;   // 4½″ between pods; a middle wall can be made thicker or thinner
   if(jointHook) out=jointHook(slot, out);
   return elecHook ? elecHook(slot, out) : out;
 }

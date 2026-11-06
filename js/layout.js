@@ -171,15 +171,18 @@ function midAt(p, q, c){
   const ws = q.dir==='long' ? worldSide(p.rot,'S') : worldSide(p.rot,'W');
   const f = ws==='W' ? c-p.x : ws==='E' ? p.x1-c : ws==='S' ? c-p.z : p.z1-c; return +(f*12).toFixed(3);
 }
+/* the run of a middle wall in its pod's own frame: inches from the pod's own S side ('cross') or own W end ('long');
+   inc: whether that count goes the same way as the plan's x / z */
+function partRun(p, q){ const ws=worldSide(p.rot, q.dir==='long' ? 'W' : 'S'); return { inc: ws==='W' || ws==='S', span:(q.dir==='long' ? p.len : 8)*12 }; }
 function middleWalls(modelKey, slots, pods, shift, ends){
   pods.forEach(p=>{ (MODELS[modelKey].pods[p.i].parts||[]).forEach((q,qi)=>{
-    const L=midLine(p, q), T=MID_T/12;
+    const L=midLine(p, q), tq=+q.t>0 ? +q.t : MID_T, T=tq/12;
     const n = L.axis==='x' ? [1,0] : [0,1], fixed=L.c+T/2;
     const a = L.axis==='x' ? p.z : p.x, b = L.axis==='x' ? p.z1 : p.x1;
     // the walls it meets at its ends: their thickness (whatever stands on that side of the pod at this spot)
     const sideA = L.axis==='x' ? 'S' : 'W', sideB = L.axis==='x' ? 'N' : 'E';
     // by where each wall's body really is (its trims: an outside wall runs on past a part-way join until it's flush
-    // with the neighbour's wall), across the middle wall's whole 4½″: the thickest one it touches
+    // with the neighbour's wall), across the middle wall's whole thickness: the thickest one it touches
     const ax = L.axis==='x' ? 0 : 1, T2=T/2;
     const tAt = side => { let best=0;
       slots.forEach(w=>{ if(w.pod!==p || w.side!==side || w.part) return;
@@ -188,12 +191,20 @@ function middleWalls(modelKey, slots, pods, shift, ends){
         if(Math.max(b0,b1) > L.c-T2+EPS && Math.min(b0,b1) < L.c+T2-EPS) best=Math.max(best, w.type==='int' ? 4.5 : (pickFor(w)?.t || 6.5)); });
       return best || 6.5; };
     const ta=tAt(sideA), tb=tAt(sideB);
+    // its own ends (e0 / e1, inches along its run in the pod's own frame; none = to the wall): as trims at the plan's
+    // low (A) and high (B) ends, never into the walls it meets, at least 12″ long
+    const R=partRun(p, q), span=R.span, in0=R.inc?ta:tb, in1=span-(R.inc?tb:ta);   // the inside faces, run inches
+    let v0 = q.e0!=null ? Math.max(in0, +q.e0) : in0, v1 = q.e1!=null ? Math.min(in1, +q.e1) : in1;
+    if(v1-v0 < 12){ if(q.e1!=null) v1=Math.min(in1, v0+12); if(v1-v0<12) v0=Math.max(in0, v1-12); }
+    const tA = R.inc ? v0 : span-v1, tB = R.inc ? span-v1 : v0;
+    const freeA = R.inc ? v0>in0+0.01 : v1<in1-0.01, freeB = R.inc ? v1<in1-0.01 : v0>in0+0.01;
     const S={ axis:L.axis==='x'?'z':'x', fixed, n };
     const A = S.axis==='x' ? [a,fixed] : [fixed,a];
     const [p0,p1]=ends(S, a, b);
     const atA = Math.abs(p0[0]-A[0])<EPS && Math.abs(p0[1]-A[1])<EPS;
     slots.push({ id:`${p.i}M${q.id}`, type:'int', part:q, pod:p, other:null, side:'M', a, b, len:b-a, p0n:p0, p1n:p1, p0:shift(p0,p.i), p1:shift(p1,p.i), n,
-      sideLen:b-a, from:0, local:'M', trim: atA ? [ta,tb] : [tb,ta], through:[false,false], snap:[false,false], short:false, letter:`M${qi+1}`, mid:L });
+      sideLen:b-a, from:0, local:'M', trim: atA ? [tA,tB] : [tB,tA], free: atA ? [freeA,freeB] : [freeB,freeA], through:[false,false], snap:[false,false], short:false, letter:`M${qi+1}`, mid:L,
+      body:{ v0, v1, len:+(v1-v0).toFixed(4), in0, in1, span, inc:R.inc, t:tq } });
   }); });
 }
 
@@ -511,4 +522,4 @@ const partnerOf = (slot, slots) => slot.type!=='int' ? null :
   slots.find(q=>q.type==='int' && q.pod===slot.other && q.other===slot.pod && Math.abs(q.a-slot.a)<EPS && Math.abs(q.b-slot.b)<EPS) || null;
 const podLabels = modelKey => podList(modelKey).reduce((a,p)=>(a[p.i]=p.long,a),{});
 
-export { upstairs, POST, midLine, midAt, MID_T, padsFor, deckList, layoutOffsets, podOffsets, slotsFor, NORM, screwsFor, screwPlan, HEAD_FOR, podList, podLabels, CW, layerSlotsFor, partnerOf, worldSide, localSide, isLongSide, ROT_SIDE };
+export { partRun, upstairs, POST, midLine, midAt, MID_T, padsFor, deckList, layoutOffsets, podOffsets, slotsFor, NORM, screwsFor, screwPlan, HEAD_FOR, podList, podLabels, CW, layerSlotsFor, partnerOf, worldSide, localSide, isLongSide, ROT_SIDE };

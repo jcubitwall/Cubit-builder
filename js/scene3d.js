@@ -364,6 +364,7 @@ function buildStairs(){
 /* other modules add their own things to the home after it's built (electrical-ui.js: the 3-way switch links) */
 const builtHooks=[];
 const onBuilt = fn => { builtHooks.push(fn); };
+const HANDLE_SRC=[]; const addHandleSource = fn => { HANDLE_SRC.push(fn); };   // other handles a tap must not pick through (midhandles.js)
 function buildHome(){
   scene.remove(homeGroup); homeGroup=new THREE.Group(); scene.add(homeGroup);
   wallGroups=[]; layerGroups=[]; deckGroups=[]; pickables=[]; floorMats=[]; framingMeshes=[]; plateMeshes=[];
@@ -765,7 +766,7 @@ renderer.domElement.addEventListener('pointerup',e=>{
   const r=renderer.domElement.getBoundingClientRect();
   mouse.set(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1);
   ray.setFromCamera(mouse,camera);
-  if(ray.intersectObjects(handleMeshes(),false).length) return;   // a stretch handle (build.js drags it)
+  if(ray.intersectObjects([...handleMeshes(), ...HANDLE_SRC.flatMap(f=>f())],false).length) return;   // a stretch / middle-wall handle (build.js drags it)
   const hit=ray.intersectObjects(pickables,false).find(shown);
   // a cabinet or piece of furniture in front of the wall / floor: pick it
   const fh=ray.intersectObjects(furnMeshes(),false)[0];
@@ -802,4 +803,4 @@ function setExplodeGoal(v){ explodeGoal=v; }
 function explodeAt(v){ explodeT=v; explodeGoal=v; applyExplode(); }
 
 
-export { levelShows, onBuilt, buildUnit, northGroup, explodeAt, buildLayerMesh, buildDeckMesh, DECK_MAT, LAYER_COLOR, applyGhost, focusIsolated, isoTarget, stage, renderer, scene, camera, controls, sun, grid, homeGroup, wallGroups, themeColors, applyTheme, MAT, lineMat, numberSprite, buildWallMesh, buildHome, explodeT, applyExplode, highlight, resize, ray, loop, setExplodeGoal, applyLayers, focusCamera, podCentres, roofGroup, floorGroup, screwGroup, pickables, explodeGoal, mouse };
+export { addHandleSource, levelShows, onBuilt, buildUnit, northGroup, explodeAt, buildLayerMesh, buildDeckMesh, DECK_MAT, LAYER_COLOR, applyGhost, focusIsolated, isoTarget, stage, renderer, scene, camera, controls, sun, grid, homeGroup, wallGroups, themeColors, applyTheme, MAT, lineMat, numberSprite, buildWallMesh, buildHome, explodeT, applyExplode, highlight, resize, ray, loop, setExplodeGoal, applyLayers, focusCamera, podCentres, roofGroup, floorGroup, screwGroup, pickables, explodeGoal, mouse };
