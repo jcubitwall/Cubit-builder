@@ -745,4 +745,15 @@ function makeContext({ bp=loadBP(), renders=[], found=null, concrete=null }={}){
 function buildSheet(ctx, sh){ const s={...sh}; const body=s.fn(ctx, s); return sheetSVG(ctx, s, body); }
 function buildSet(ctx){ return ctx.list.map(sh=>({ sh, svg:buildSheet(ctx, sh) })); }
 
-export { podInterior, SHEETS, PW, PH, loadBP, saveBP, homeInfo, makeContext, buildSheet, buildSet, setLogo, homeModel, schedules, NOTES0, COMPANY0, ftin };
+/* the plan as a blueprint, for Build's 2D view: walls (dark, cut), openings and door swings, room names and the
+   outside dimensions, on a transparent sheet k px per foot, the picked wall in orange → { svg, bb, w, h, k, m } */
+function planOverlay(sel=null, k=48){
+  const H_=homeModel(state.model), bb=H_.bb, m=6;   // m: feet of margin round the home (room for the dimensions)
+  const B={ x0:bb.x0-m, z0:bb.z0-m, x1:bb.x1+m, z1:bb.z1+m }, w=Math.round((B.x1-B.x0)*k), h=Math.round((B.z1-B.z0)*k);
+  const xf=planXf(bb, { x0:0, y0:0, x1:w, y1:h }, k);
+  let g=drawWalls(H_, xf)+roomLabels(H_, xf, { dims:true })+planDims(H_, xf);
+  const W=sel && H_.walls.find(W=>W.s.id===sel);
+  if(W){ const c=[W.at(0,0), W.at(W.L,0), W.at(W.L,W.t), W.at(0,W.t)].map(xf.P); g+=`<polygon points="${c.map(p=>p.join(',')).join(' ')}" fill="#e0864a" fill-opacity="0.85" stroke="#9a4a14" stroke-width="2"/>`; }
+  return { svg:`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${g}</svg>`, bb:B, w, h, k };
+}
+export { planOverlay, podInterior, SHEETS, PW, PH, loadBP, saveBP, homeInfo, makeContext, buildSheet, buildSet, setLogo, homeModel, schedules, NOTES0, COMPANY0, ftin };

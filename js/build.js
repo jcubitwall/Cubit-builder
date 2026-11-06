@@ -31,7 +31,7 @@ import { openCaseLib } from './casework-ui.js';
 import { setPanel, panelOpen } from './fullscreen.js';
 import { initViewCube, zoomToFace, doUndo, doRedo } from './viewcube.js';
 import { onHistory } from './history.js';
-import { wallGroups } from './scene3d.js';
+import { wallGroups, scene, grid, onBuilt } from './scene3d.js';
 
 const stage=document.getElementById('stage'), cv=renderer.domElement;
 const FLAT=0.12;                          // radians from straight down that still count as the flat plan
@@ -41,7 +41,8 @@ const isFlat = () => controls.getPolarAngle() < FLAT;
 let anim=null;
 function homeBox(){ const B=new THREE.Box3(); pickables.forEach(m=>{ if(shown(m)) B.expandByObject(m); }); return B.isEmpty() ? null : B; }   // the home itself (not the north arrow, the grid…)
 function flatten(fit=false){
-  const t=controls.target.clone(), off=camera.position.clone().sub(t), az=Math.atan2(off.x, off.z);
+  const t=controls.target.clone(), off=camera.position.clone().sub(t);
+  let az=Math.atan2(off.x, off.z); if(TWO_D) az=Math.round(az/(Math.PI/2))*(Math.PI/2);   // 2D: square to the nearest 90°
   let dist=off.length();
   if(fit){ const B=homeBox(); if(B){ const s=B.getSize(new THREE.Vector3()), asp=Math.max(0.5, cv.clientWidth/Math.max(1,cv.clientHeight));
     const span=Math.max(s.z, s.x/asp)+8;   /* what has to fit top to bottom on screen (x across, z up the screen) */ dist=span/2/Math.tan(camera.fov*Math.PI/360)*1.05; const c=B.getCenter(new THREE.Vector3()); t.set(c.x,0,c.z); } }
@@ -77,6 +78,7 @@ function set2D(on){
     const step=()=>{ const k=Math.min(1,(performance.now()-T)/320), e=k*k*(3-2*k); camera.position.lerpVectors(p0,end,e); camera.lookAt(t); controls.update();
       if(k<1) anim=requestAnimationFrame(step); else { controls.enableDamping=true; badge(); } }; step(); }
   document.body.classList.toggle('two-d', on);
+  paper(on);
   btn2D.textContent = on ? '3D' : '2D'; btn2D.setAttribute('aria-pressed', on); btn2D.title = on ? 'Back to the 3D view' : 'Flat top view (true 2D) for placing cabinets';
   badge();
 }
@@ -88,7 +90,47 @@ document.querySelector('.vcube-wrap .vcube')?.addEventListener('click', e=>{ con
 
 const flatBadge=document.createElement('div'); flatBadge.className='flat-badge'; stage.appendChild(flatBadge);
 function badge(){ const f=isFlat(); flatBadge.textContent = TWO_D ? '2D · drag a pod or cabinet to move it · drag empty space to slide the plan · tap 3D to tilt' : f ? 'PLAN · drag a pod or cabinet to move it · drag up on empty space to tilt into 3D' : '3D · double-tap a part to isolate it · drag down for the plan'; flatBadge.classList.toggle('three', !f); }
-setInterval(()=>{ if(state.view==='studio') badge(); }, 300);
+setInterval(()=>{ if(state.view==='studio') badge(); if(TWO_D && (state.selected||null)!==BP.sel) drawPlan(); }, 300);
+// 2D stays square: anything that turns the view ends on the nearest 90°
+controls.addEventListener('end', ()=>{ if(!TWO_D) return; const off=camera.position.clone().sub(controls.target), az=Math.atan2(off.x, off.z), q=Math.PI/2;
+  if(Math.abs(az-Math.round(az/q)*q)>0.002) flatten(); });
+
+/* ---------------------------------------------------------------- 2D as a blueprint
+   Paper white, flat light, the rooms white, and over the top the plan the way the drawing set draws it (blueprint.js
+   planOverlay): walls dark and cut, windows, door swings, room names, outside dimensions; the picked wall in orange.
+   The 3D stays underneath, so furniture, cabinets and everything you drag still show and work. Redrawn when the
+   home changes or another wall is picked. */
+const BP={ sel:undefined, objs:[], bg:null, gridVis:true, hemi:null, n:0 };
+function clearPlan(){ BP.objs.forEach(o=>{ o.parent?.remove(o); o.geometry?.dispose(); o.material?.map?.dispose(); o.material?.dispose(); }); BP.objs=[]; }
+async function drawPlan(){
+  BP.sel=state.selected||null; const n=++BP.n;
+  const { planOverlay, homeModel } = await import('./blueprint.js');
+  if(!TWO_D || n!==BP.n) return;
+  let O, H_; try{ O=planOverlay(BP.sel, 20); H_=homeModel(state.model); }catch(e){ console.warn('2D plan', e); return; }
+  const S=3, cv2=document.createElement('canvas'); cv2.width=O.w*S; cv2.height=O.h*S;
+  const img=new Image(); img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(O.svg);
+  await img.decode().catch(()=>{}); if(!TWO_D || n!==BP.n) return;
+  const x=cv2.getContext('2d'); x.scale(S,S); x.drawImage(img,0,0);
+  clearPlan();
+  const tex=new THREE.CanvasTexture(cv2); tex.anisotropy=8;
+  const W=O.bb.x1-O.bb.x0, D=O.bb.z1-O.bb.z0;
+  const sheet=new THREE.Mesh(new THREE.PlaneGeometry(W, D), new THREE.MeshBasicMaterial({ map:tex, transparent:true, depthWrite:false, depthTest:false }));
+  sheet.rotation.x=-Math.PI/2; sheet.position.set((O.bb.x0+O.bb.x1)/2, 11, (O.bb.z0+O.bb.z1)/2); sheet.renderOrder=900; sheet.userData.plan=true;
+  homeGroup.add(sheet); BP.objs.push(sheet);
+  // the rooms: white paper over the floors (furniture stands on top of it)
+  const white=new THREE.MeshBasicMaterial({ color:0xffffff });
+  (H_.pods||[]).forEach(p=>{ const f=new THREE.Mesh(new THREE.PlaneGeometry(p.w, p.d), white); f.rotation.x=-Math.PI/2; f.position.set(p.x+p.w/2, 0.03, p.z+p.d/2); f.renderOrder=1; homeGroup.add(f); BP.objs.push(f); });
+}
+function paper(on){
+  if(on){ if(!BP.bg) BP.bg=scene.background; scene.background=new THREE.Color(0xfbfbf8); BP.gridVis=grid.visible; grid.visible=false;
+    BP.hemi=scene.children.find(o=>o.isHemisphereLight); if(BP.hemi){ BP.hemi.userData.i0 ??= BP.hemi.intensity; BP.hemi.intensity=1.35; }
+    // a clean drawing: wall letters and panel numbers off while in 2D (Layers turns them back on)
+    BP.lab={ letters:state.letters, nums:state.nums };
+    if(state.letters || state.nums){ state.letters=false; state.nums=false; buildHome(); } else drawPlan(); }
+  else { BP.n++; clearPlan();
+    if(BP.lab){ const back=(BP.lab.letters && !state.letters) || (BP.lab.nums && !state.nums); if(!state.letters) state.letters=BP.lab.letters; if(!state.nums) state.nums=BP.lab.nums; BP.lab=null; if(back) buildHome(); } if(BP.bg) scene.background=BP.bg; BP.bg=null; grid.visible=BP.gridVis; if(BP.hemi && BP.hemi.userData.i0!=null) BP.hemi.intensity=BP.hemi.userData.i0; }
+}
+onBuilt(()=>{ BP.objs=[]; if(TWO_D) drawPlan(); });
 
 /* ---------------------------------------------------------------- picking */
 const ray=new THREE.Raycaster(), ndc=new THREE.Vector2();

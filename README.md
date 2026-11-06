@@ -418,6 +418,9 @@ Library → **Plugs & switches**: **Switches**, **Plugs (receptacles)** and **Da
 
 Every box holds one device per gang, chosen by the rules (Decora rocker of the right way, 20 A T-slot on counters, GFCI at a basin, WR GFCI outside, range 14-50R, Cat 6 + coax for data …) and changed on any box (a wall's panel in Build, or the panel builder; `elec.ov.dev`). A double rocker gets a second "and" for what its other switch does. A device that can't do the 3-way / 4-way it's wired as is flagged. The switch schedule names each switch's device; **This home's electrical → Devices to buy** counts them; blueprint E11 lists them in the legend; they're priced in the Price book (`dev:<id>`) and in the home's cost.
 
+## 2D: a blueprint top view
+The 2D button gives a flat top view that reads like the drawing set: paper white, flat light, the rooms white, and over them the plan as blueprint.js draws it (walls dark and cut, windows, door swings, room names and sizes, the outside dimensions and rough openings); the picked wall shows orange. Wall letters and panel numbers are off while in 2D (Layers turns them on; they come back in 3D). Furniture, cabinets and pods still show and drag as before. The view squares itself to the nearest 90° going into 2D and after anything turns it.
+
 ## TVs
 Library → Furniture & TVs → **TVs**: flat screens 43″ to 85″ (16:9, on a flat wall mount, about 3″ off the wall). A new TV goes with the middle of its screen at 42″ (seated eye level), raised so the bottom never sits under 24″ (`tvY` in casework.js); change its Height on any one to override. Against a wall it gets a **recessed TV box** (power + low voltage) behind the screen, hidden by it, clear of the wall mount (the middle of the TV, a third of its width up to 24″), on the chase nearest the middle (electrical.js 5d, `tvr`). It starts double-gang size (4⅛ × 3⅝); set Single / Double / Triple on it like any box. Blueprint E11 shows it as TV.
 
