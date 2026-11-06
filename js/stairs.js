@@ -92,12 +92,22 @@ function windGeo(S){
   for(let i=1;i<=WD.C;i++) treads.push(rect(w+(i-1)*run, w+i*run, b2, B2)); // back along the other wall
   const box=(a0,a1,b0,b1)=>{ const P=[C(a0,b0),C(a1,b1)]; return { u0:Math.min(P[0][0],P[1][0]), u1:Math.max(P[0][0],P[1][0]), v0:Math.min(P[0][1],P[1][1]), v1:Math.max(P[0][1],P[1][1]) }; };
   const top=w+WD.C*run;
+  // the spine: one beam up the middle of the walking path, under the middle of every tread, in climbing order
+  // (canonical a, b): up the first flight on its centre line, round each set of winders 18″ out from the pivot, across
+  // the end, back along the other flight; from the floor at the foot to the edge of the floor above
+  const mid=w/2, wpt=(pa,pb,d0,d1,k)=>{ const A0=Math.atan2(d0[1],d0[0]), A1=Math.atan2(d1[1],d1[0]); let da=A1-A0; if(da>Math.PI) da-=2*Math.PI; if(da<-Math.PI) da+=2*Math.PI; const a=A0+da*(k+0.5)/WD.W; return [pa+Math.cos(a)*mid, pb+Math.sin(a)*mid]; };
+  const spine=[];
+  for(let i=1;i<=WD.A;i++) spine.push([WD.foot-(i-0.5)*run, mid]);
+  for(let k=0;k<WD.W;k++) spine.push(wpt(w, w, [0,-1], [-1,0], k));
+  spine.push([w/2, w+WD.gap/2]);
+  for(let k=0;k<WD.W;k++) spine.push(wpt(w, b2, [-1,0], [0,1], k));
+  for(let i=1;i<=WD.C;i++) spine.push([w+(i-0.5)*run, b2+mid]);
   // the ceiling and roof below open from the 3rd step on (headroom over the first flight); the floor above only up to
   // the top step: from the last riser its floor runs on flush, the landing (and a level floor out to a door there)
   return { C, treads, foot:box(0, WD.foot, 0, B2), hole:box(-0.5, WD.open+0.5, -0.5, B2+0.5), holeUp:box(-0.5, top+0.5, -0.5, B2+0.5),
     footZones:[box(WD.foot, WD.foot+LAND, 0, w), box(WD.foot-LAND, WD.foot, b2, B2)],
     topZones:[box(top-LAND, top, B2, B2+LAND), box(top, top+LAND, b2, B2), box(top-LAND, top, -LAND, 0)],
-    arrive:{ p:C(top, b2+w/2), d:[-sg, 0] } };
+    arrive:{ p:C(top, b2+w/2), d:[-sg, 0] }, spine:spine.map(([a,b])=>C(a,b)), spineFoot:C(WD.foot, mid), spineTop:C(top+0.5, b2+mid) };
 }
 /* the local footprint and openings of each kind (pod-local inch rects { u0,u1,v0,v1 }) */
 function shapeOf(S, o){
@@ -203,9 +213,11 @@ function stairParts(st){
     out.push({ kind:'poly', pts:pl(X.landing.pts), y0:G.Z(X.landing.z0), y1:G.Z(X.landing.z1) });
     return out; }
   if(o.kind==='wind'){ st.sh.G.treads.forEach((pts,i)=>out.push({ kind:'poly', pts:pts.map(P), y0:(i+1)*o.rise-T, y1:(i+1)*o.rise }));
-    // a carriage under the first flight, and a post at each winder pivot
-    const G=st.sh.G; [[0.75],[WD.w-0.75]].forEach(([b])=>out.push({ kind:'slope', a:P(G.C(WD.foot,b)), b:P(G.C(WD.w,b)), ya:0, yb:WD.A*o.rise, t:1.5/12 }));
-    [[WD.w,WD.w],[WD.w,WD.w+WD.gap]].forEach(([a,b])=>{ const c=P(G.C(a,b)); out.push({ kind:'box', x:c[0]-1.75/12, z:c[1]-1.75/12, x1:c[0]+1.75/12, z1:c[1]+1.75/12, y0:0, y1:R }); });
+    // the centre spine: one beam (3½″ × 9½″) up the middle, under every tread; it bears on a plate on the floor at the
+    // foot and is fixed into the floor above where the landing starts. Each tread sits centred on it
+    const G=st.sh.G, BW=3.5, BD=9.5, pts=[{ p:G.spineFoot, y:BD/2 }, ...G.spine.map((q,i)=>({ p:q, y:(i+1)*o.rise-T-BD/2 })), { p:G.spineTop, y:R-3.25 }];
+    for(let i=0;i<pts.length-1;i++) out.push({ kind:'beam', a:P(pts[i].p), b:P(pts[i+1].p), ya:pts[i].y, yb:pts[i+1].y, w:BW/12, d:BD/12 });
+    const f=P(G.spineFoot); out.push({ kind:'box', x:f[0]-4/12, z:f[1]-4/12, x1:f[0]+4/12, z1:f[1]+4/12, y0:0, y1:0.5 });   // base plate
     return out; }
   const flight = (uFoot, d, v0, n, y0, landTo) => {   // n risers from y0; treads between them
     for(let i=0;i<n-1;i++){ const u=uFoot+d*i*o.run, r=rectPlan(st.ls, Math.min(u, u+d*(o.run+1)), Math.max(u, u+d*(o.run+1)), v0, v0+o.w); out.push({ kind:'box', ...r, y0:y0+(i+1)*o.rise-T, y1:y0+(i+1)*o.rise }); }

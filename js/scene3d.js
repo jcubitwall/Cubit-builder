@@ -370,6 +370,14 @@ function buildStairs(){
         const sh=new THREE.Shape(q.pts.map(([x,z])=>new THREE.Vector2(x,-z)));
         m=new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth:(q.y1-q.y0)/FT, bevelEnabled:false }), mat); m.rotation.x=-Math.PI/2; m.position.y=q.y0/FT; }
       else if(q.kind==='post'){ m=new THREE.Mesh(new THREE.CylinderGeometry(q.r, q.r, (q.y1-q.y0)/FT, 20), mat); m.position.set(q.x, (q.y0+q.y1)/2/FT, q.z); }
+      else if(q.kind==='beam'){ // a beam from a (centre at ya) to b (yb): w wide, d deep, kept upright as it turns and climbs
+        // its sides stay plumb (a sloped block, not a tilted one), each end square to the run, run on by half its width so turns close
+        const dx=q.b[0]-q.a[0], dz=q.b[1]-q.a[1], L=Math.hypot(dx,dz)||1e-6, ux=dx/L, uz=dz/L, nx=-uz*q.w/2, nz=ux*q.w/2, e=q.w/2;
+        const a0=[q.a[0]-ux*e, q.a[1]-uz*e], b0=[q.b[0]+ux*e, q.b[1]+uz*e], ya=q.ya/FT, yb=q.yb/FT, h=q.d/2;
+        const V=[]; [[a0,ya],[b0,yb]].forEach(([c,y])=>[[1,1],[-1,1],[-1,-1],[1,-1]].forEach(([sn,sy])=>V.push(c[0]+nx*sn, y+h*sy, c[1]+nz*sn)));
+        const g=new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(V,3));
+        g.setIndex([0,1,2, 0,2,3, 4,6,5, 4,7,6, 0,4,5, 0,5,1, 1,5,6, 1,6,2, 2,6,7, 2,7,3, 3,7,4, 3,4,0]); g.computeVertexNormals();
+        m=new THREE.Mesh(g, mat); m.material.side=THREE.DoubleSide; }
       else if(q.kind==='slope'){ // a stringer: a board from a (at ya) to b (at yb), on edge
         const A=new THREE.Vector3(q.a[0], q.ya/FT, q.a[1]), B=new THREE.Vector3(q.b[0], q.yb/FT, q.b[1]), L=A.distanceTo(B);
         m=new THREE.Mesh(new THREE.BoxGeometry(q.t, 0.8, L), mat); m.position.copy(A).add(B).multiplyScalar(0.5); m.position.y-=0.25; m.lookAt(B.x, B.y-0.25, B.z); }
