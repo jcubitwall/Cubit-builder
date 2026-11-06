@@ -72,6 +72,13 @@ async function store(op, kind, id, name){
   applyEdits();
 }
 const renameItem = (kind, id, name) => store('rename', kind, id, String(name).trim().slice(0,80));
+/* a builder saved an item under a name: that's its name now (a team rename of it is updated, else it becomes the
+   name the renames go back to) */
+async function nameSaved(kind, id, name){
+  const k=`${kind}:${id}`;
+  if(ED.names[k] && ED.names[k]!==name){ try{ await renameItem(kind, id, name); }catch(e){} }
+  else if(!ED.names[k]) ORIG.set(k, name);
+}
 const deleteItem = (kind, id) => store('delete', kind, id);
 const restoreItem = (kind, id) => store('restore', kind, id);
 /* a new model name for the team; returns its id. Refused when a live model name already reads the same */
@@ -96,4 +103,4 @@ function usedBy(kind, id, state){
   return [...new Set(homes)].concat(pods.map(n=>`pod ${n}`));
 }
 const isRemote = () => remote;
-export { addFamily, setHand, loadEdits, applyEdits, renameItem, deleteItem, restoreItem, usedBy, originalName, itemsOf, isRemote , KEEP_MS };
+export { nameSaved, addFamily, setHand, loadEdits, applyEdits, renameItem, deleteItem, restoreItem, usedBy, originalName, itemsOf, isRemote , KEEP_MS };

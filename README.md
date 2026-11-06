@@ -633,3 +633,9 @@ copy goes into My Drafts as "(copy from this device)" and the latest save opens.
 - A library wall opens as itself, whether it's one of Cubit's own, the team's or this browser's. **Save W08-15** writes over it, so every home using it changes; the server keeps the old version. **Save as new wall** keeps the old one and adds another. After that, Save keeps writing over the one you're on.
 - A wall opened from its mirror (`~m`, likewise `~mx/~mz` for layers) is edited as you see it. It's saved back, unmirrored, over the wall it mirrors, and the mirrors are rebuilt.
 - A brand-new wall shows **Save to library** until its first save.
+- **Saving over asks first** whenever other homes use the wall (or floor/ceiling/roof). It lists the homes that will change (Cubit Homes, Purgatory, customers' homes, drafts) and the **locked** ones that won't. You can save over everywhere, save as new instead, or cancel. It asks once each time the builder is opened.
+- **Locked homes never change.** A home that's signed and locked keeps the walls and layers it was locked with (and later, homes in manufacturing, being made, built or archived, once `m.stage` is tracked). (`freeze.js`)
+  - When you save over, the version being replaced is kept for each locked home.
+  - At start-up, any team wall or layer saved after a home was locked is put back as it was then. It's taken from the copies the home was saved with, else from the server's history (`GET api/walls?asof=<time>&ids=…`, same for layers), else from Cubit's original.
+  - The 3D, sheets, CNC and costs of a locked home all use those versions (`FROZEN` in data.js, read by `byId` / `layerById` for the home on screen).
+- A name changed in the builder now sticks. The library's rename list used to put the old name back.

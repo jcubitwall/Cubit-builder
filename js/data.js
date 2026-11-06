@@ -18,6 +18,14 @@ const POD_KEY = 'cubit-pods';
 const DECKLIB = [];         // deck / porch frames: data/decks.json + decks saved in this browser
 const DECK_KEY = 'cubit-decks';
 const CUSTOM_KEY = 'cubit-custom-models';
+/* Homes that are locked (signed, in production, built, archived) keep the walls and floors they were locked with.
+   FROZEN[modelKey] = { walls:{ id:wall }, layers:{ id:layer } }: the versions as they were then (freeze.js fills it);
+   byId / layerById look there first for the home being worked on (SCOPE: state.model, set by state.js). */
+const FROZEN = {};
+const BUILTIN = { walls:new Map(), layers:new Map() };   // Cubit's own, as shipped (what a home had before the team changed one)
+let SCOPE = () => null;
+const setScope = fn => { SCOPE = fn; };
+const frozenOf = kind => { const k=SCOPE(); return k ? FROZEN[k]?.[kind] : null; };
 async function loadData(){
   const [walls, models, layers] = await Promise.all([
     fetch('data/walls.json').then(r=>r.json()),
@@ -29,9 +37,9 @@ async function loadData(){
   try{ JSON.parse(localStorage.getItem(DECK_KEY)||'[]').forEach(x=>{ if(!DECKLIB.find(y=>y.id===x.id)) DECKLIB.push({...x, src:'saved'}); }); }catch(e){}
   try{ JSON.parse(localStorage.getItem(POD_KEY)||'[]').forEach(x=>{ if(!PODLIB.find(y=>y.id===x.id)) PODLIB.push({...x, src:'saved'}); }); }catch(e){}
   try{ JSON.parse(localStorage.getItem('cubit-layers-saved')||'[]').forEach(x=>{ const i=layers.findIndex(y=>y.id===x.id); if(i<0) layers.push({...x, src:'saved'}); else layers[i]={...x, src:'saved'}; }); }catch(e){}
-  layers.forEach(l=>LAYERLIB.push(fixLayer(l)));
+  layers.forEach(l=>{ const f=fixLayer(l); LAYERLIB.push(f); if(f.src!=='saved') BUILTIN.layers.set(f.id, JSON.parse(JSON.stringify(f))); });
   Object.assign(MODELS, models);
-  walls.forEach(w=>LIB.push({...w, src:'library'}));
+  walls.forEach(w=>{ LIB.push({...w, src:'library'}); BUILTIN.walls.set(w.id, JSON.parse(JSON.stringify({...w, src:'library'}))); });
   // walls made in the wall builder, shared by the team (api/walls); opened from a local server: this browser's own
   try{ const r=await fetch('api/walls',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ (await r.json()).forEach(w=>{ const i=LIB.findIndex(x=>x.id===w.id); if(i>=0) LIB[i]={...w, src:'team'}; else LIB.push({...w, src:'team'}); }); } }catch(e){}
   // floors / ceilings / roofs made in the layer builder, shared by the team (api/layers)
@@ -60,6 +68,8 @@ function mirrorWall(w){
 }
 const byId = id => {
   if(!id) return undefined;
+  const F=frozenOf('walls');
+  if(F){ const base=id.endsWith('~m') ? id.slice(0,-2) : id; if(F[base]){ if(base===id) return F[id]; return F[id] ||= mirrorWall(F[base]); } }
   if(id.endsWith('~m')){ if(MIRROR[id]) return MIRROR[id]; const b=LIB.find(w=>w.id===id.slice(0,-2)); return b ? (MIRROR[id]=mirrorWall(b)) : undefined; }
   return LIB.find(w=>w.id===id);
 };
@@ -85,11 +95,13 @@ function mirrorLayer(l, mx, mz, id){
 }
 const layerById = id => {
   if(!id) return undefined;
-  const s=splitLayerId(id); if(!s.x && !s.z) return LAYERLIB.find(l=>l.id===id);
+  const s=splitLayerId(id), F=frozenOf('layers');
+  if(F?.[s.base]){ if(!s.x && !s.z) return F[id]; return F[id] ||= mirrorLayer(F[s.base], s.x, s.z, id); }
+  if(!s.x && !s.z) return LAYERLIB.find(l=>l.id===id);
   if(LMIRROR[id]) return LMIRROR[id];
   const b=LAYERLIB.find(l=>l.id===s.base); return b ? (LMIRROR[id]=mirrorLayer(b, s.x, s.z, id)) : undefined;
 };
 /* the id of a layer mirrored once more along x ('x') or z ('z') */
 const layerMirrorId = (id, ax) => { const s=splitLayerId(id); const x=ax==='x'?!s.x:s.x, z=ax==='z'?!s.z:s.z; return s.base+(x||z?`~m${x?'x':''}${z?'z':''}`:''); };
 
-export { splitLayerId, mirrorLayer, forgetLayerMirrors, layerMirrorId, clearMirrors, DECKLIB, deckById, saveDeckLib, MODELS, LIB, LAYERLIB, PODLIB, loadData, optionsFor, byId, mirrorId, mirrorWall, podById, layerOptions, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib };
+export { FROZEN, BUILTIN, setScope, splitLayerId, mirrorLayer, forgetLayerMirrors, layerMirrorId, clearMirrors, DECKLIB, deckById, saveDeckLib, MODELS, LIB, LAYERLIB, PODLIB, loadData, optionsFor, byId, mirrorId, mirrorWall, podById, layerOptions, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib };

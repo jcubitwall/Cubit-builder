@@ -1,16 +1,22 @@
 /* GET  /api/layers                     floors, ceilings and roofs made in the layer builder (everyone who can log in)
    POST /api/layers {op:'save', layer}  admins: add or replace one (the version it replaces is kept)
         {op:'delete', id}
+   GET  ?asof=<ISO>&ids=a,b            each as it was at that time (homes locked then keep that version)
    Kept in the R2 bucket (binding STEPS): layers/index.json, earlier versions under layers/history/<id>/. */
 import { whoIs, json, atLeast, denied } from '../_auth.js';
 import { atomic } from '../_store.js';
+import { asOf } from '../_history.js';
 const KEY='layers/index.json';
-const KINDS=['floor-ext','floor-int','ceiling-int','roof'];
+const KINDS=['floor-ext','floor-int','ceiling-int','roof','floor-up'];
 async function read(env){ const o=await env.STEPS.get(KEY); if(!o) return []; try{ const v=await o.json(); return Array.isArray(v)?v:[]; }catch(e){ return []; } }
 const put=(env,k,v)=>env.STEPS.put(k, JSON.stringify(v), { httpMetadata:{ contentType:'application/json' } });
 export async function onRequestGet({ request, env }){
   const me=await whoIs(request, env); if(me.role==='none') return json({ error:'Not signed in.' }, 401);
-  return json(env.STEPS ? await read(env) : []);
+  if(!env.STEPS) return json([]);
+  // ?asof=<ISO time>&ids=a,b : each as it was then (for a locked home)
+  const u=new URL(request.url), at=u.searchParams.get('asof');
+  if(at){ if(isNaN(Date.parse(at))) return json({ error:'Bad time.' }, 400); return json(await asOf(env, 'layers', await read(env), (u.searchParams.get('ids')||'').split(',').filter(Boolean), at)); }
+  return json(await read(env));
 }
 export async function onRequestPost({ request, env }){
   const me=await whoIs(request, env); if(!atLeast(me,'editor')) return denied('editor');

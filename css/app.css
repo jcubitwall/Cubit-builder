@@ -1289,3 +1289,7 @@ dialog.v3-dlg.v3-full .v3-cube{top:max(12px, env(safe-area-inset-top,0px));right
 .st-opt:disabled{opacity:.55;cursor:default}
 .st-opt b{display:block;font-size:13.5px}.st-opt small{display:block;font-size:11.5px;color:var(--ink-2)}
 .vc-lv{white-space:nowrap;min-width:64px}
+/* save over a library wall / layer: which homes change, which locked ones keep the old one */
+.so-dlg .so-list{margin:.2rem 0 .8rem;padding-left:1.1rem;max-height:30vh;overflow:auto;font-size:.92rem}
+.so-dlg .so-list li{margin:.2rem 0}
+.so-dlg .so-keep{color:var(--muted,#667)}

@@ -3,7 +3,7 @@ import './dialog-back.js';
 import { loadRules } from './wall-rules.js';
 import { loadShapes } from './shapes.js';
 import { state, initState } from './state.js';
-import { loadData } from './data.js';
+import { loadData, FROZEN } from './data.js';
 import { refreshOpen, loadProjects } from './projects.js';
 import { initProjectsUI } from './projects-ui.js';
 import { buildHome, resize, loop, setExplodeGoal, explodeGoal } from './scene3d.js';
@@ -78,6 +78,8 @@ document.querySelectorAll('.hint').forEach(h=>{ const host=h.parentNode; const o
   try{ refreshOpen(state.model); }catch(e){ console.warn('refresh', e); }   // a team home on screen: its latest save, not this device's older copy
   initProjectsUI(); initUpload();
   renderModels(); buildHome(); renderSide(); resize(); loop(); initPhone(); initZoomView(); startBuild();
+  // locked homes: the walls / floors changed since they were locked, as they were then (freeze.js)
+  import('./freeze.js').then(m=>m.freezeLocked()).then(n=>{ if(n && state.model && (FROZEN[state.model])){ buildHome(); renderSide(); } }).catch(e=>console.warn('freeze', e));
 })();
 
 /* dragging a pod, cabinet or drawing must never start a text selection (iPad highlights the whole screen) */

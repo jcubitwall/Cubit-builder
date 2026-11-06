@@ -10,6 +10,8 @@
    Same data as the scanned walls: openings + outside items measured from the left end seen from OUTSIDE,
    inside items from the left end seen from INSIDE; openings by their bottom-left corner, face items by centre. */
 import { LIB, byId, mirrorWall, saveWallLib, MODELS, clearMirrors } from './data.js';
+import { askSaveOver, keepForLocked } from './freeze.js';
+import { nameSaved } from './libedit.js';
 import { state } from './state.js';
 import { canSave, canEdit } from './role.js';
 import { buildHome } from './scene3d.js';
@@ -36,6 +38,7 @@ const clone = o => JSON.parse(JSON.stringify(o));
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const r8 = v => Math.round(v*8)/8;
 const ROUND_RO = 33;   // Cubit's round window is exactly 32″ across, so its round rough opening is 33″
+let okOver=new Set();   // walls already confirmed for saving over in this sitting
 let mirrored=false;   // opened from a wall's mirror ("<id>~m"): edited as seen, saved back unmirrored over <id>
 let W=null, view='outside', sel=null, dlg=null, origin=null, forSlot=null, RD=null, rulesOpen=false, shapePick=false;
 /* the home's own plugs and switches on this wall (opened from a wall of a home): laid out by the electrical rules,
@@ -107,7 +110,7 @@ function openWallBuilder({ from=null, slot=null, len, type }={}){
   forSlot=slot||null;
   /* a library wall (Cubit's own, the team's or this browser's) opens as itself: Save writes over it, Save as new makes
      another; its mirror opens as seen and is saved back over the wall it mirrors */
-  mirrored=false;
+  mirrored=false; okOver=new Set();
   if(from){ const src=byId(from); mirrored=String(from).endsWith('~m'); const base=mirrored ? String(from).slice(0,-2) : from, b=byId(base);
     W=clone(src||b||blank(len, type)); delete W.src; delete W.mirrorOf; delete W.by; delete W.saved;
     origin = b ? b.id : null; if(origin){ W.id=origin; W.name=b.name; } else { W.id=null; W.name=(src?.name||'')+' (copy)'; mirrored=false; } }
@@ -513,19 +516,23 @@ function mapPath(o, f){ ['ends','path'].forEach(k=>{ if(o[k]) o[k]=o[k].map(([x,
 const nextId=(prefix)=>{ let n=1; while(LIB.some(x=>x.id===`${prefix}-${String(n).padStart(2,'0')}`)) n++; return `${prefix}-${String(n).padStart(2,'0')}`; };
 async function saveWall(asNew){
   if(!canEdit()){ toast('Only editors and admins can change walls.'); return; }
+  // saving over a wall other homes use: say which change and which (locked) keep the old one; asked once a sitting
+  if(!asNew && origin && !okOver.has(origin)){ const a=await askSaveOver('walls', origin, W.name, forSlot ? state.model : null);
+    if(!a) return; if(a==='new') asNew=true; else okOver.add(origin); }
   const w=clone(W); w.name=(dlg.querySelector('#wbName')?.value||'').trim() || autoName(); w.t = w.type==='int'?4.5:6.5;
   if(mirrored){ const m=mirrorWall({ ...w, id:'_' }); ['openings','inside','outside','shapes'].forEach(k=>{ if(m[k]) w[k]=m[k]; }); }
   delete w.mirrorOf; delete w.src;
   const over = !asNew && !!origin;
-  if(over) w.id=origin; else w.id=nextId(`${w.type==='int'?'I':'W'}${String(w.len).padStart(2,'0')}`);
+  if(over){ w.id=origin; keepForLocked('walls', origin); } else w.id=nextId(`${w.type==='int'?'I':'W'}${String(w.len).padStart(2,'0')}`);
   w.source=`Wall builder ${new Date().toISOString().slice(0,10)}`;
   let shared=false;
   try{ const r=await fetch('api/walls',{method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({op:'save', wall:w})});
-    if(r.ok && (r.headers.get('content-type')||'').includes('json')) shared=true; else if(r.status!==404 && r.status!==405){ const o=await r.json().catch(()=>({})); if(o.error) throw new Error(o.error); } }
+    if(r.ok && (r.headers.get('content-type')||'').includes('json')){ shared=true; const o=await r.json().catch(()=>null); const sv=o?.walls?.find(x=>x.id===w.id); if(sv?.saved){ w.saved=sv.saved; w.by=sv.by; } } else if(r.status!==404 && r.status!==405){ const o=await r.json().catch(()=>({})); if(o.error) throw new Error(o.error); } }
   catch(e){ toast(`Couldn't save: ${e.message||e}`); return; }
   const i=LIB.findIndex(x=>x.id===w.id), entry={...w, src: shared?'team':'saved'};
   if(i>=0) LIB[i]=entry; else LIB.push(entry);
   if(!shared) saveWallLib();
+  await nameSaved('walls', w.id, w.name);
   clearMirrors();   // the mirrors are made from the wall: make them again from what was just saved
   origin=w.id; W.id=w.id; W.name=w.name;
   if(forSlot){ choose(forSlot, mirrored ? w.id+'~m' : w.id); }

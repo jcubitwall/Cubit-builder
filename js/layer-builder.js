@@ -18,6 +18,8 @@
    hole in the other floor too (that floor is saved and put on the pod). Removing a linked hole asks whether its twin
    in the other floor goes as well. Roofs and ceilings: never (a roof only gets holes if a pod goes on top; later). */
 import { LAYERLIB, layerById, mirrorLayer, forgetLayerMirrors, saveLayerLib, splitLayerId } from './data.js';
+import { askSaveOver, keepForLocked } from './freeze.js';
+import { nameSaved } from './libedit.js';
 import { state, chooseLayer, pickLayer } from './state.js';
 import { canSave, canEdit } from './role.js';
 import { buildHome } from './scene3d.js';
@@ -40,6 +42,7 @@ const WID=96, PW=48, SPLINE=1.75;
 const clone = o => JSON.parse(JSON.stringify(o));
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const r8 = v => Math.round(v*8)/8;
+let okOver=new Set();   // layers already confirmed for saving over in this sitting
 let mir={ x:false, z:false };   // opened from a mirror ("<id>~mx" …): edited as seen, saved back over <id>
 let Lr=null, view='top', sel=null, dlg=null, origin=null, forSlot=null, ssel=null, shapePick=false;
 let delBoth=[];   // twins to take out of the other floor when this one is saved: [{ link, geo }]
@@ -71,7 +74,7 @@ function openLayerBuilder({ from=null, slot=null, len, kind }={}){
   ZL.k=1; ZL.x=0; ZL.y=0;
   forSlot=slot||null;
   const src = from ? layerById(from) : null;
-  mir={ x:false, z:false };
+  mir={ x:false, z:false }; okOver=new Set();
   if(src && !src.blank){ const s=splitLayerId(from), b=LAYERLIB.find(l=>l.id===s.base); Lr=clone(src); delete Lr.src; delete Lr.mirrorOf; delete Lr.by; delete Lr.saved;
     origin = b ? b.id : null; if(origin){ Lr.id=origin; Lr.name=b.name; mir={ x:s.x, z:s.z }; } else { Lr.id=null; Lr.name=''; } }
   else { Lr=blank(len||slot?.len||24, kind||slot?.kind||'ceiling-int'); origin=null; }
@@ -345,6 +348,8 @@ function bind(){
 const nextId=prefix=>{ let n=1; while(LAYERLIB.some(x=>x.id===`${prefix}-${String(n).padStart(2,'0')}`)) n++; return `${prefix}-${String(n).padStart(2,'0')}`; };
 async function saveLayer(asNew){
   if(!canEdit()){ toast('Only editors and admins can change floors and roofs.'); return; }
+  if(!asNew && origin && !okOver.has(origin)){ const a=await askSaveOver('layers', origin, Lr.name, forSlot ? state.model : null);
+    if(!a) return; if(a==='new') asNew=true; else okOver.add(origin); }
   const l=clone(Lr); l.name=(dlg.querySelector('#lbName')?.value||'').trim() || autoName();
   l.t=T(); l.z=l.z ?? K().z;
   // a floor keeps how the standard cassette is built (rims, EPS, blocks, frame) unless it already says
@@ -369,12 +374,14 @@ async function saveLayer(asNew){
 /* into the layer library: the team's when the server has one, else this browser; true = shared */
 async function putLayer(l){
   let shared=false;
+  keepForLocked('layers', l.id);   // locked homes keep the one being replaced (also the other floor, saved with it)
   const r=await fetch('api/layers',{method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({op:'save', layer:l})});
-  if(r.ok && (r.headers.get('content-type')||'').includes('json')) shared=true; else if(r.status!==404 && r.status!==405 && r.status!==501){ const o=await r.json().catch(()=>({})); if(o.error) throw new Error(o.error); }
+  if(r.ok && (r.headers.get('content-type')||'').includes('json')){ shared=true; const o=await r.json().catch(()=>null); const sv=o?.layers?.find(x=>x.id===l.id); if(sv?.saved){ l.saved=sv.saved; l.by=sv.by; } } else if(r.status!==404 && r.status!==405 && r.status!==501){ const o=await r.json().catch(()=>({})); if(o.error) throw new Error(o.error); }
   const i=LAYERLIB.findIndex(x=>x.id===l.id), entry={...l, src: shared?'team':'saved'};
   if(i>=0) LAYERLIB[i]=entry; else LAYERLIB.push(entry);
   forgetLayerMirrors(l.id);
   if(!shared) saveLayerLib();
+  await nameSaved('layers', l.id, l.name);
   return shared;
 }
 /* the pod's other floor: the holes marked "through both floors" cut there too, the twins asked for taken out.
