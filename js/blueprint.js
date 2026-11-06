@@ -419,13 +419,15 @@ function planFurniture(ctx, xf, opts){ return ctx.H_.items.map(I=>itemSVG(I, xf,
 function stairSVG(xf, lv){
   let g='';
   stairsOf().forEach(st=>{ const L=stairPlan(st), poly=r=>[[r.x,r.z],[r.x1,r.z],[r.x1,r.z1],[r.x,r.z1]].map(xf.P).map(p=>p.join(',')).join(' ');
-    const [a,b]=L.walk.map(xf.P), ang=Math.atan2(b[1]-a[1], b[0]-a[0]), hd=(p,s)=>`${p[0]-9*Math.cos(ang+s)},${p[1]-9*Math.sin(ang+s)}`;
+    const W=L.walk.map(xf.P), a=W[0], b=W[W.length-1], pb=W[W.length-2]||a, ang=Math.atan2(b[1]-pb[1], b[0]-pb[0]), hd=(p,s)=>`${p[0]-9*Math.cos(ang+s)},${p[1]-9*Math.sin(ang+s)}`;
+    const walk=`<polyline points="${W.map(p=>p.join(',')).join(' ')}" fill="none" stroke="${INK}" stroke-width="1"/>`;
     if(!lv){ g+=`<polygon points="${poly(st.foot)}" fill="#fff" stroke="${INK}" stroke-width="1.2"/>`;
       L.lines.forEach(([p,q])=>{ const [x1,y1]=xf.P(p), [x2,y2]=xf.P(q); g+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${INK}" stroke-width="0.7"/>`; });
-      g+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${INK}" stroke-width="1"/><polyline points="${hd(b,0.45)} ${b.join(',')} ${hd(b,-0.45)}" fill="none" stroke="${INK}" stroke-width="1"/>`;
-      const m=[a[0]+(b[0]-a[0])*0.5, a[1]+(b[1]-a[1])*0.5]; g+=rect(m[0]-22, m[1]-15, 44, 12, { fill:'#fff', stroke:'none' })+tx(m[0], m[1]-5, `UP ${st.o.n}R`, { size:9, anchor:'middle', weight:'bold' }); }
-    else { g+=`<polygon points="${poly(st.hole)}" fill="none" stroke="${INK}" stroke-width="1" stroke-dasharray="6 3"/>`;
-      g+=`<line x1="${b[0]}" y1="${b[1]}" x2="${a[0]}" y2="${a[1]}" stroke="${INK}" stroke-width="0.8"/>`;
+      if(L.post){ const c=xf.P(L.post.c); g+=`<circle cx="${c[0]}" cy="${c[1]}" r="${Math.max(2, L.post.r*xf.k)}" fill="${INK}"/>`; }
+      g+=walk+`<polyline points="${hd(b,0.45)} ${b.join(',')} ${hd(b,-0.45)}" fill="none" stroke="${INK}" stroke-width="1"/>`;
+      const m=W[Math.floor(W.length/2)]; g+=rect(m[0]-22, m[1]-15, 44, 12, { fill:'#fff', stroke:'none' })+tx(m[0], m[1]-5, `UP ${st.o.n}R`, { size:9, anchor:'middle', weight:'bold' }); }
+    else { st.holes.forEach(H=>{ g+=`<polygon points="${poly(H)}" fill="none" stroke="${INK}" stroke-width="1" stroke-dasharray="6 3"/>`; });
+      g+=walk;
       const h=xf.P([(st.hole.x+st.hole.x1)/2, (st.hole.z+st.hole.z1)/2]); g+=tx(h[0], h[1]+14, 'DN · OPEN TO BELOW · GUARD', { size:8, anchor:'middle', weight:'bold' }); } });
   return g;
 }

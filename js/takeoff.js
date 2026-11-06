@@ -6,6 +6,7 @@ import { ICF, DECK, FRAME } from './config.js';
 import { fin, fft } from './format.js';
 import { state, foundationOf } from './state.js';
 import { screwPlan, padsFor, deckList, slotsFor, podList, upstairs, layerSlotsFor } from './layout.js';
+import { stairsOf } from './stairs.js';
 import { UP, EPS_PAD, LAYER_KINDS, WALL_BASE, FLOOR, PW } from './config.js';
 import { concretePlan } from './concrete.js';
 import { homeFraming, podRims, framingTakeoff, floorBuilds, roofBuilds } from './framing.js';
@@ -30,7 +31,10 @@ function upstairsTakeoff(k=state.model){
   const ups=podList(k).filter(p=>p.lv); if(!ups.length) return null;
   const U=upstairs(k), conc=foundationOf(k)==='concrete';
   const panels=layerSlotsFor(k).filter(ls=>ls.kind==='floor-up').reduce((a,ls)=>a+Math.ceil(ls.len*12/PW-1e-6), 0);
-  const epsSqft=U.eps.reduce((a,e)=>a+(e.x1-e.x)*(e.z1-e.z), 0);
+  // less the stair openings that go through it
+  const SH=stairsOf(k).filter(st=>st.above!=null).flatMap(st=>st.holes);
+  const ov=(e,H)=>Math.max(0, Math.min(e.x1,H.x1)-Math.max(e.x,H.x)) * Math.max(0, Math.min(e.z1,H.z1)-Math.max(e.z,H.z));
+  const epsSqft=U.eps.reduce((a,e)=>a+(e.x1-e.x)*(e.z1-e.z) - SH.reduce((b,H)=>b+ov(e,H),0), 0);
   const postLen=(LAYER_KINDS['floor-up'].z+UP-WALL_BASE)+FLOOR*12;   // underside of the home (screw cap / tube top) to under the upstairs floor
   const stock=Math.ceil(postLen/24-1e-6)*2;                            // 8×8s come in even feet
   const tubeYd3=yd3(Math.PI*(TUBE.d/24)**2*(TUBE.deep/12));

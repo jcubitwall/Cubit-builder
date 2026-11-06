@@ -335,7 +335,8 @@ function buildUpstairs(pods){
     lift(m, m.userData.base); });
   upGroup=new THREE.Group(); upGroup.userData.up=true; homeGroup.add(upGroup);
   const U=upstairs(state.model), padY=(LAYER_KINDS.roof.z+LAYER_KINDS.roof.t-WALL_BASE)/FT, t=EPS_PAD/FT;
-  U.eps.forEach(e=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(e.x1-e.x, t, e.z1-e.z), EPS_MAT); m.position.set((e.x+e.x1)/2, padY+t/2, (e.z+e.z1)/2); m.userData={ pod:e.pod, lay:'floor-up', base:m.position.clone(), build:'eps-pad' }; upGroup.add(m); });
+  U.eps.forEach(e=>{ const holes=stairOpenings(st=>st.above===e.pod || st.S.pod===e.on);
+    cutStairs([e.x,e.z,e.x1,e.z1], holes).forEach(([x0,z0,x1,z1])=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(x1-x0, t, z1-z0), EPS_MAT); m.position.set((x0+x1)/2, padY+t/2, (z0+z1)/2); m.userData={ pod:e.pod, lay:'floor-up', base:m.position.clone(), build:'eps-pad' }; upGroup.add(m); }); });
   const top=(LAYER_KINDS['floor-up'].z+UP-WALL_BASE)/FT, bot=-FLOOR, conc=foundationOf(state.model)==='concrete';
   U.posts.forEach(q=>{ const h=top-bot, m=new THREE.Mesh(new THREE.BoxGeometry(POST, h, POST), POST_MAT); m.position.set(q.x, bot+h/2, q.z); m.userData={ pod:q.pod, lay:'post', base:m.position.clone(), build:'post' }; upGroup.add(m);
     if(conc){ const c=new THREE.Mesh(new THREE.CylinderGeometry(5/FT, 5/FT, 4.2, 20), TUBE_MAT); c.position.set(q.x, bot-2.1+2/FT, q.z); c.userData={ lay:'post', build:'sonotube' }; upGroup.add(c); }
@@ -345,19 +346,32 @@ function buildUpstairs(pods){
 /* stairs up to the second floor (stairs.js): treads and stringers, picked as one ('stair:<id>') */
 const STAIR_MAT=new THREE.MeshStandardMaterial({ color:0xc8a26e, roughness:0.8 }), STAIR_SEL=new THREE.MeshStandardMaterial({ color:0xe0864a, roughness:0.7, emissive:0x3a1a05 });
 let stairGroup=null;
+/* a stair's opening goes through everything in its way, not just the panels: the ceiling–roof cassette of the pod it
+   climbs out of, the EPS pad between the pods and anything else built there. cutStairs(rect in plan feet, pods) →
+   the parts of the rect outside every opening of a stair climbing out of / into those pods */
+function stairOpenings(test){ return stairsOf(state.model).filter(st=>st.above!=null && test(st)).flatMap(st=>st.holes); }
+function minusRect([x0,z0,x1,z1], H){
+  if(H.x>=x1 || H.x1<=x0 || H.z>=z1 || H.z1<=z0) return [[x0,z0,x1,z1]];
+  const out=[], hx0=Math.max(x0,H.x), hx1=Math.min(x1,H.x1);
+  if(H.z>z0) out.push([x0,z0,x1,H.z]); if(H.z1<z1) out.push([x0,H.z1,x1,z1]);
+  if(H.x>x0) out.push([x0,Math.max(z0,H.z),hx0,Math.min(z1,H.z1)]); if(H.x1<x1) out.push([hx1,Math.max(z0,H.z),x1,Math.min(z1,H.z1)]);
+  return out.filter(r=>r[2]-r[0]>0.01 && r[3]-r[1]>0.01);
+}
+const cutStairs = (r, holes) => holes.reduce((L,H)=>L.flatMap(q=>minusRect(q,H)), [r]);
 function buildStairs(){
   stairGroup=new THREE.Group(); homeGroup.add(stairGroup);
   stairsOf(state.model).forEach(st=>{ const g=new THREE.Group(); g.userData={ stair:st.S.id, pod:st.S.pod };
-    stairParts(st).forEach(q=>{ const h=(q.y1-q.y0)/FT, m=new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.02,q.x1-q.x), q.kind==='stringer'?h:h, Math.max(0.02,q.z1-q.z)), state.selected==='stair:'+st.S.id?STAIR_SEL:STAIR_MAT);
-      if(q.kind==='stringer'){ // a sloped board: a thin box tilted along the run
-        const run=Math.hypot(q.x1-q.x, q.z1-q.z)>0 ? Math.max(q.x1-q.x, q.z1-q.z) : 1, ang=Math.atan2(UP/FT, run), len=Math.hypot(run, UP/FT), along=(q.x1-q.x)>(q.z1-q.z);
-        m.geometry.dispose(); m.geometry=new THREE.BoxGeometry(along?len:Math.max(0.02,q.x1-q.x), 0.8, along?Math.max(0.02,q.z1-q.z):len);
-        const up = st.S.dir>0 ? 1 : -1, sgn = (along ? (st.foot.x1-st.foot.x) : (st.foot.z1-st.foot.z));
-        // which way it climbs in plan: from the foot toward the top
-        const footP=stairParts(st).find(t=>t.kind==='tread'), topP=stairParts(st).filter(t=>t.kind==='tread').slice(-1)[0], dirPlan = along ? Math.sign((topP.x+topP.x1)-(footP.x+footP.x1)) : Math.sign((topP.z+topP.z1)-(footP.z+footP.z1));
-        if(along) m.rotation.z = dirPlan*ang; else m.rotation.x = -dirPlan*ang;
-        m.position.set((q.x+q.x1)/2, UP/FT/2 - 0.2, (q.z+q.z1)/2); }
-      else m.position.set((q.x+q.x1)/2, (q.y0+q.y1)/2/FT, (q.z+q.z1)/2);
+    const mat = state.selected==='stair:'+st.S.id ? STAIR_SEL : STAIR_MAT;
+    stairParts(st).forEach(q=>{ let m;
+      if(q.kind==='box'){ m=new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.02,q.x1-q.x), (q.y1-q.y0)/FT, Math.max(0.02,q.z1-q.z)), mat); m.position.set((q.x+q.x1)/2, (q.y0+q.y1)/2/FT, (q.z+q.z1)/2); }
+      else if(q.kind==='poly'){ // a flat plate of any outline (spiral wedges, landings): drawn in x / -z, laid flat
+        const sh=new THREE.Shape(q.pts.map(([x,z])=>new THREE.Vector2(x,-z)));
+        m=new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth:(q.y1-q.y0)/FT, bevelEnabled:false }), mat); m.rotation.x=-Math.PI/2; m.position.y=q.y0/FT; }
+      else if(q.kind==='post'){ m=new THREE.Mesh(new THREE.CylinderGeometry(q.r, q.r, (q.y1-q.y0)/FT, 20), mat); m.position.set(q.x, (q.y0+q.y1)/2/FT, q.z); }
+      else if(q.kind==='slope'){ // a stringer: a board from a (at ya) to b (at yb), on edge
+        const A=new THREE.Vector3(q.a[0], q.ya/FT, q.a[1]), B=new THREE.Vector3(q.b[0], q.yb/FT, q.b[1]), L=A.distanceTo(B);
+        m=new THREE.Mesh(new THREE.BoxGeometry(q.t, 0.8, L), mat); m.position.copy(A).add(B).multiplyScalar(0.5); m.position.y-=0.25; m.lookAt(B.x, B.y-0.25, B.z); }
+      if(!m) return;
       m.userData={ stair:st.S.id, slotId:'stair:'+st.S.id }; g.add(m); pickables.push(m); });
     stairGroup.add(g); });
 }
@@ -543,9 +557,11 @@ function buildHome(){
       B.tubes.forEach(r=>under(r, -ac.t-fr.h, fr.h, FRAME_MAT.steel, 'tube'));
       // ceiling–roof cassette: the same EPS strips and joint blocks in the 1⅞″ gap, built on the ceiling
       const R=roofBuild(p), [r0,r1]=ROOF_BUILD.gap, ry=(r0-WALL_BASE)/FT, rh=(r1-r0)/FT;
+      const SH=stairOpenings(st=>st.S.pod===p.i || st.above===p.i);
       const putR=([u0,u1,v0,v1],mat,kind)=>{ const [x0,x1,z0,z1] = along ? [u0,u1,v0,v1] : [v0,v1,u0,u1];
-        const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT, rh*0.98, (z1-z0)/FT), mat);
-        m.position.set(p.x+(x0+x1)/2/FT, ry+rh/2, p.z+(z0+z1)/2/FT); m.userData={pod:p.i, lay:'ceiling-int', base:m.position.clone(), build:kind}; rimGroup.add(m); };
+        cutStairs([p.x+x0/FT, p.z+z0/FT, p.x+x1/FT, p.z+z1/FT], SH).forEach(([a0,b0,a1,b1])=>{
+          const m=new THREE.Mesh(new THREE.BoxGeometry(a1-a0, rh*0.98, b1-b0), mat);
+          m.position.set((a0+a1)/2, ry+rh/2, (b0+b1)/2); m.userData={pod:p.i, lay:'ceiling-int', base:m.position.clone(), build:kind}; rimGroup.add(m); }); };
       R.eps.forEach(r=>putR(r, FRAME_MAT.eps, 'eps')); R.blocks.forEach(r=>putR(r, FRAME_MAT.lvl, 'block')); });
   }
   unitMeshes=[]; wallGroups.forEach(g=>g.traverse(o=>{ if(o.userData.unit) unitMeshes.push(o); }));
