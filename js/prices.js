@@ -28,7 +28,7 @@ import { deviceCounts } from './electrical.js';
 import { slotsFor, layerSlotsFor, podList } from './layout.js';
 import { bodyWall } from './panels.js';
 import { pickFor } from './state.js';
-import { shoppingList } from './takeoff.js';
+import { shoppingList, upstairsBuyLines } from './takeoff.js';
 import { homePlans } from './labels.js';
 import { LAYER_KINDS, PW } from './config.js';
 
@@ -84,7 +84,7 @@ function products(){
   const hw=new Set(); ITEMS.forEach(d=>{ try{ const it=newItem(d.k); if(made(it)) hardwareOf(it).forEach(h=>hw.add(h.name)); }catch(e){} });
   [...hw].sort().forEach(n=>add(`hw:${n}`, 'Cabinet stock & hardware', n, 'each'));
   Object.entries(SIP).forEach(([k,n])=>add(`sip:${k}`, 'SIP panels', n, 'each'));
-  shopLines().forEach(l=>add(`buy:${l.what}`, `Build materials · ${l.group}`, l.what.replace(/^(yd³|sq ft|ft ·)\s*/,''), unitOfLine(l.what)));
+  [...shopLines(), ...upstairsBuyLines()].forEach(l=>add(`buy:${l.what}`, `Build materials · ${l.group}`, l.what.replace(/^(yd³|sq ft|ft ·)\s*/,''), unitOfLine(l.what)));
   Object.entries(TRADES).forEach(([k,n])=>add(`lab:rate:${k}`, 'Labour rates', n, 'per hour'));
   Object.entries(JOBS).forEach(([k,[n,per]])=>add(`lab:std:${k}`, 'Labour hours', n, `hours per ${per}`));
   Object.entries(BOOK.items).forEach(([k,v])=>add(k, 'Other (not used by the app now)', v.name||k, v.unit||'each'));
