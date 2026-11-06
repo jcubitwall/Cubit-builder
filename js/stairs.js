@@ -27,6 +27,7 @@ import { checkpoint } from './history.js';
 import { UP, LAYER_KINDS, WALL_BASE } from './config.js';
 import { podList, layerSlotsFor, podOffsets } from './layout.js';
 import { ensureDraft } from './pods.js';
+import { SPIRAL } from './stair-spiral.js';
 
 const R = UP;   // inches, ground floor top to the upstairs floor top
 const HEAD = 76.75, CEIL_ABOVE = LAYER_KINDS['ceiling-int'].z - WALL_BASE;   // ceiling underside above the floor
@@ -38,7 +39,7 @@ const OPTS = {
   comfort: { kind:'straight', ...plan(7, 11, 'Comfortable', 'about 7″ rise, 11″ run'), w:36 },
   u:       { kind:'u', ...plan(7.5, 10.5, 'U-shaped', 'two flights side by side with a landing: about 7½″ rise, 10½″ run'), w:36 },
   ucomp:   { kind:'u', ...plan(7.875, 10.125, 'U-shaped compact', 'the steepest the code allows, two flights and a landing'), w:36 },
-  spiral:  { kind:'spiral', n:16, rise:R/16, run:0, total:0, Q:81.75, post:3, label:'Square spiral', note:'81¾″ square, 3″ post, 16 risers, 22½° wedge treads' , w:39 },
+  spiral:  { kind:'spiral', n:16, rise:R/16, run:0, total:0, Q:81.75, post:3, label:'Square spiral', note:'Johnny’s Shapr3D model: 81¾″ square, 3″ post, 4″ hubs, 15 treads and a top landing', w:39 },
 };
 // a U stair's two flights: the first takes the extra riser when the count is odd; the landing is as deep as a flight is wide
 function uPlan(o){ const nA=Math.ceil(o.n/2), nB=o.n-nA, D=o.w; return { nA, nB, D, lenA:(nA-1)*o.run, lenB:(nB-1)*o.run, len:Math.max(nA-1, nB-1)*o.run + D }; }
@@ -127,7 +128,7 @@ function optionsFor(id){
   const k=state.model, S=(MODELS[k]?.stairs||[]).find(x=>x.id===id); if(!S) return [];
   return Object.entries(OPTS).map(([key,o])=>{ const st=solve(k,{...S, opt:key}); const alt=st?.why ? bestSpot(k, S.pod, key) : null;
     const ft = x => `${Math.floor(x/12)}′ ${Math.round(x%12)}″`;
-    const note = o.kind==='spiral' ? `${o.n} risers ${o.rise.toFixed(2)}″, 15 wedge treads · ${ft(o.Q)} square`
+    const note = o.kind==='spiral' ? `your Shapr3D model · ${o.n} risers ${o.rise.toFixed(2)}″, 15 treads on hubs, top landing · ${ft(o.Q)} square`
       : o.kind==='u' ? (P=>`${o.n} risers ${o.rise.toFixed(2)}″, treads ${o.run}″, landing · ${ft(P.len)} long, ${2*o.w}″ wide`)(uPlan(o))
       : `${o.n} risers ${o.rise.toFixed(2)}″, ${o.n-1} treads ${o.run}″ · ${ft(o.total)} long, ${o.w}″ wide`;
     return { key, kind:o.kind, label:o.label, note, fits:!st?.why || !!alt, why:st?.why, alt }; });
@@ -137,21 +138,26 @@ function optionsFor(id){
    3D parts in plan feet / inches up: { kind:'box', x,z,x1,z1, y0,y1 } · { kind:'poly', pts:[[x,z]…], y0,y1 }
    · { kind:'post', x,z, r, y0,y1 } · { kind:'slope', a:[x,z], b:[x,z], ya, yb, t } (a stringer, t feet thick) */
 const T=1.5;   // tread thickness ″
+/* the square spiral as drawn (stair-spiral.js): its parts placed in the pod. File x east / y north seen from above →
+   pod-local u / v the same way round; dir -1 mirrors it (winds the other way); q turns it by quarters about the post.
+   Heights are stretched a touch to land flush on this build's floor (the model rises 117¾″, the floors here are
+   116.4″ apart: every riser 7.28″ instead of 7.36″). */
 function spiralGeo(st){
-  const o=st.o, F=st.sh.foot, c=[(F.u0+F.u1)/2, (F.v0+F.v1)/2], h=o.Q/2, a0=Math.PI + (st.S.q||0)*Math.PI/2, sg=st.S.dir<0?-1:1, step=2*Math.PI/16;
-  // the square's outline point at angle a (pod-local), and the wedge between two angles (corners included)
-  const hit = a => { const cs=Math.cos(a), sn=Math.sin(a), t=h/Math.max(Math.abs(cs), Math.abs(sn)); return [c[0]+cs*t, c[1]+sn*t]; };
-  const wedge = (A, B) => { const lo=Math.min(A,B), hi=Math.max(A,B), pts=[c, hit(lo)];
-    for(let k=-8;k<=8;k++){ const ca=Math.PI/4+k*Math.PI/2; if(ca>lo+1e-9 && ca<hi-1e-9) pts.push(hit(ca)); } pts.push(hit(hi)); return pts; };
-  return { c, h, a0, sg, step, hit, wedge };
+  const o=st.o, F=st.sh.foot, c=[(F.u0+F.u1)/2, (F.v0+F.v1)/2], q=((st.S.q||0)%4+4)%4, mir=st.S.dir<0, k=R/SPIRAL.total;
+  const T = ([x,y]) => { let u=x, v=mir ? y : -y; for(let i=0;i<q;i++){ const t=u; u=-v; v=t; } return [c[0]+u, c[1]+v]; };
+  const Z = z => z*k;
+  // the way tread 1 points (from the post), in the pod's frame: for lining one spiral up above another
+  const d1=T([-1,0]), a0=Math.atan2(d1[1]-c[1], d1[0]-c[0]);
+  return { c, h:o.Q/2, T, Z, a0, sg:mir?-1:1, step:2*Math.PI/16 };
 }
 function stairParts(st){
   const out=[], o=st.o, P=q=>toPlan(st.ls, q), sg=st.S.dir>0?1:-1;
-  if(o.kind==='spiral'){ const G=spiralGeo(st), cp=P(G.c);
-    out.push({ kind:'post', x:cp[0], z:cp[1], r:o.post/2/12, y0:0, y1:R+1 });
-    for(let i=0;i<o.n-1;i++){ const A=G.a0+G.sg*i*G.step, B=A+G.sg*G.step; out.push({ kind:'poly', pts:G.wedge(A,B).map(P), y0:(i+1)*o.rise-T, y1:(i+1)*o.rise }); }
-    // the landing plate at the top, over the start (a quarter of the square)
-    const A=G.a0+G.sg*(o.n-1)*G.step; out.push({ kind:'poly', pts:G.wedge(A, A+G.sg*Math.PI/2).map(P), y0:R-T, y1:R });
+  if(o.kind==='spiral'){ const G=spiralGeo(st), cp=P(G.c), X=SPIRAL, pl=pts=>pts.map(q=>P(G.T(q)));
+    out.push({ kind:'post', x:cp[0], z:cp[1], r:X.post.r/12, y0:0, y1:G.Z(X.post.z1) });
+    if(X.base) out.push({ kind:'poly', pts:pl(X.base.pts), y0:0, y1:X.base.t });
+    X.hubs.forEach(([z0,z1])=>out.push({ kind:'post', x:cp[0], z:cp[1], r:X.hubR/12, y0:G.Z(z0), y1:G.Z(z1) }));
+    X.treads.forEach(t=>out.push({ kind:'poly', pts:pl(t.pts), y0:G.Z(t.z0), y1:G.Z(t.z1) }));
+    out.push({ kind:'poly', pts:pl(X.landing.pts), y0:G.Z(X.landing.z0), y1:G.Z(X.landing.z1) });
     return out; }
   const flight = (uFoot, d, v0, n, y0, landTo) => {   // n risers from y0; treads between them
     for(let i=0;i<n-1;i++){ const u=uFoot+d*i*o.run, r=rectPlan(st.ls, Math.min(u, u+d*(o.run+1)), Math.max(u, u+d*(o.run+1)), v0, v0+o.w); out.push({ kind:'box', ...r, y0:y0+(i+1)*o.rise-T, y1:y0+(i+1)*o.rise }); }
@@ -172,10 +178,12 @@ function stairParts(st){
    middle, its arrow at the top) */
 function stairPlan(st){
   const o=st.o, P=q=>toPlan(st.ls, q), sg=st.S.dir>0?1:-1, lines=[];
-  if(o.kind==='spiral'){ const G=spiralGeo(st), walk=[];
-    for(let i=0;i<o.n;i++){ const A=G.a0+G.sg*i*G.step; lines.push([P(G.c), P(G.hit(A))]); }
-    for(let a=0;a<=(o.n-1);a+=0.25){ const A=G.a0+G.sg*(a+0.5)*G.step, r=G.h*0.55; walk.push(P([G.c[0]+Math.cos(A)*r, G.c[1]+Math.sin(A)*r])); }
-    return { lines, walk, post:{ c:P(G.c), r:o.post/2/12 } }; }
+  if(o.kind==='spiral'){ const G=spiralGeo(st), X=SPIRAL, walk=[];
+    // every tread's outline, as drawn
+    X.treads.forEach(t=>{ const Q=t.pts.map(q=>P(G.T(q))); Q.forEach((a,i)=>lines.push([a, Q[(i+1)%Q.length]])); });
+    // the walking line round through the middle of the treads
+    X.treads.forEach(t=>{ const n=t.pts.length, cx=t.pts.reduce((a,q)=>a+q[0],0)/n, cy=t.pts.reduce((a,q)=>a+q[1],0)/n, r=Math.hypot(cx,cy)||1, f=G.h*0.55/r; walk.push(P(G.T([cx*f, cy*f]))); });
+    return { lines, walk, post:{ c:P(G.c), r:X.post.r/12 } }; }
   const fl = (uFoot, d, v0, n) => { for(let i=0;i<n;i++){ const u=uFoot+d*i*o.run; lines.push([P([u, v0]), P([u, v0+o.w])]); } return uFoot+d*(n-1)*o.run; };
   if(o.kind==='u'){ const sh=st.sh, Pp=sh.P, vmA=sh.vA0+o.w/2, vmB=sh.vB0+o.w/2;
     const uL=fl(st.S.u0, sg, sh.vA0, Pp.nA), uE=uL+sg*Pp.D; fl(uL, -sg, sh.vB0, Pp.nB);
@@ -201,11 +209,14 @@ const LR = (st, u0, u1, v0, v1) => rectPlan(st.ls, Math.min(u0,u1), Math.max(u0,
    way you're walking at the top (pod-local), for lining up the next stair */
 function ends(st){
   const o=st.o, S=st.S, sg=S.dir>0?1:-1, sh=st.sh;
-  if(o.kind==='spiral'){ const G=spiralGeo(st), F=sh.foot, c=Math.cos(G.a0), sn=Math.sin(G.a0);
-    // you step onto the first wedge from the side of the square it starts at; you step off onto the top landing plate
-    const foot = Math.abs(c)>=Math.abs(sn) ? (c<0 ? [F.u0-LAND, F.u0, F.v0, F.v1] : [F.u1, F.u1+LAND, F.v0, F.v1]) : (sn<0 ? [F.u0, F.u1, F.v0-LAND, F.v0] : [F.u0, F.u1, F.v1, F.v1+LAND]);
-    const aE=G.a0+G.sg*(o.n-0.5)*G.step, r=G.h*0.6;
-    return { foot:[foot], top:null, arrive:{ p:[G.c[0]+Math.cos(aE)*r, G.c[1]+Math.sin(aE)*r], d:[-Math.sin(aE)*G.sg, Math.cos(aE)*G.sg] } }; }
+  if(o.kind==='spiral'){ const G=spiralGeo(st), h=o.Q/2;
+    // as drawn: you come in to tread 1 (west, going round toward the south) through the open north-west quarter, from
+    // the west or the north side of the square; at the top you step off the landing plate (the west half) to the west
+    // or the south. Zones in the file's frame, placed like the stair
+    const Z = ([x0,x1,y0,y1]) => { const a=G.T([x0,y0]), b=G.T([x1,y1]); return [Math.min(a[0],b[0]), Math.max(a[0],b[0]), Math.min(a[1],b[1]), Math.max(a[1],b[1])]; };
+    const foot=[Z([-h-LAND, -h, 0, h]), Z([-h, 0, h, h+LAND])], top=[Z([-h-LAND, -h, -h, 17]), Z([-h, 0, -h-LAND, -h])];
+    const a=G.T([-h*0.5, -h*0.3]), b=G.T([-h*0.5-12, -h*0.3]);   // arriving: on the landing, heading off it to the west
+    return { foot, top, arrive:{ p:a, d:[(b[0]-a[0])/12, (b[1]-a[1])/12] } }; }
   if(o.kind==='u'){ const P=sh.P, uL=S.u0+sg*(P.nA-1)*o.run, uBt=uL-sg*(P.nB-1)*o.run, A=[sh.vA0, sh.vA0+o.w], B=[sh.vB0, sh.vB0+o.w];
     return { foot:[[S.u0-sg*LAND, S.u0, ...A], [S.u0-sg*LAND, S.u0, Math.min(A[0],B[0]), Math.max(A[1],B[1])]],
       top:[[uBt-sg*LAND, uBt, ...B], [uBt, uBt+sg*LAND, ...A]], arrive:{ p:[uBt, (B[0]+B[1])/2], d:[-sg,0] } }; }

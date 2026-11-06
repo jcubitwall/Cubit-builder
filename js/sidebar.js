@@ -117,7 +117,7 @@ function renderStairSide(id){
   if(!S || !st){ state.selected=null; renderSide(); return; }
   const P=podList(state.model), lo=P[S.pod], up=st.above!=null ? P[st.above] : null, o=st.o;
   const H=st.hole, hw=Math.round((H.x1-H.x)*12), hd=Math.round((H.z1-H.z)*12);
-  const what = o.kind==='spiral' ? `${o.n} risers of ${fin(Math.round(o.rise*16)/16)} around a ${fin(o.post)} post, 15 wedge treads of 22½° and a landing plate at the top · ${fin(o.Q)} square`
+  const what = o.kind==='spiral' ? `As drawn in your Shapr3D model (Spiral_Stair.step): 15 treads on 4″ hubs round a ${fin(o.post)} post, a top landing plate over the west half · ${fin(o.Q)} square · ${o.n} risers of ${fin(Math.round(o.rise*16)/16)} (the model’s 7⅜″, eased to land flush on these floors)`
     : o.kind==='u' ? `${o.n} risers of ${fin(Math.round(o.rise*16)/16)}, treads of ${fin(o.run)}, two ${o.w}″ flights side by side with a landing · ${fin(Math.round(o.total))} long, ${2*o.w}″ wide`
     : `${o.n} risers of ${fin(Math.round(o.rise*16)/16)}, ${o.n-1} treads of ${fin(o.run)} · ${fin(Math.round(o.total))} long, ${o.w}″ wide`;
   sideH.innerHTML=`<div class="eyebrow">Stairs · ${esc(o.label.toLowerCase())}</div><h2>${esc(lo.label)} up to ${up?esc(up.label):'—'}</h2>
