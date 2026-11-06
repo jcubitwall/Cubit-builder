@@ -637,6 +637,14 @@ copy goes into My Drafts as "(copy from this device)" and the latest save opens.
 - **Floor 1 / Floor 2** button beside 2D/3D. On Floor 2, pods dragged from the tray go upstairs (`lv:1` on the pod). Floor 1 hides the upstairs; Floor 2 shows both.
 - An upstairs pod has **no metal frame**. Its floor is one **6.5″ SIP** (`floor-up`, code FU) and it sits **116.4″** (`UP`) above the ground floor. A **1″ EPS pad** goes only where it touches the pod below. The lower pod keeps its full roof.
 - Upstairs pods snap to 8′ and can hang over the edge. An overhang of **8′ or more** gets **8×8″ posts** at the ends, flush with the outermost walls, down to a ground screw or a **10″ Sonotube** depending on the foundation. An upstairs pod has to sit on some pod below and can't overlap another upstairs pod.
+- **Double-tap a stair** to isolate it.
+- **Landings:** each stair shows whether it has a clear 36″ landing at its foot and at its top, either straight on or turned to the side, inside the pod's walls and not over an opening. A new stair is placed where both landings are clear when it can be. A stair can't start over the opening of the stair coming up from below, except a spiral continuing the same column.
+- **Next floor up** (stair panel), from the pod a stair arrives in to the floor above, each choice checked for fit and both landings:
+  - the same stair right above (a stairwell, or one spiral column);
+  - a switchback (turn round on the landing and climb back along the other wall);
+  - carry straight on;
+  - a U-shaped stair from the landing;
+  - the closest start of each kind to where you arrive.
 - **Stair kinds** (stairs.js), each a type with its own footprint, openings, 3D parts and plan lines:
   - **Straight:** Shortest / Standard / Comfortable.
   - **U-shaped (switchback):** Standard / Compact. Two 36″ flights side by side (72″, fits in an 8′ pod) with a landing at the turn, about 9′ long instead of 13′.

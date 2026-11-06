@@ -103,9 +103,12 @@ function stairHoles(ls, k=state.model){
 /* the best spot in a ground-floor pod (or any): the first that fits, against either long wall, going either way */
 function bestSpot(k, i, opt){
   const pods=podList(k), list = i!=null ? [pods[i]] : pods.filter(p=>pods.some(q=>q.lv===p.lv+1));
-  for(const p of list){ if(!p) continue; const L=p.len*12, o=OPTS[opt]||OPTS.std;
-    for(const side of ['S','N']) for(const dir of [1,-1]) for(let a=6.5; a<=L-6.5; a+=1){
-      const S={ pod:p.i, dir, side, u0: o.kind==='spiral' ? a : (dir>0 ? a : L-a), opt, q:0 }; const st=solve(k,S); if(st && !st.why) return S; } }
+  // first a spot with a clear landing at the foot and the top; failing that, any spot it fits
+  for(const strict of [true, false]) for(const p of list){ if(!p) continue; const L=p.len*12, o=OPTS[opt]||OPTS.std;
+    for(const side of ['S','N']) for(const dir of [1,-1]) for(const q of (o.kind==='spiral' && strict ? [0,1,2,3] : [0])) for(let a=6.5; a<=L-6.5; a+=1){
+      const S={ pod:p.i, dir, side, u0: o.kind==='spiral' ? a : (dir>0 ? a : L-a), opt, q }; const st=solve(k,S); if(!st || st.why) continue;
+      if(strict){ const Ld=landings(st, k); if(!Ld.foot.ok || !Ld.top.ok || Ld.startsOverHole) continue; }
+      return S; } }
   return null;
 }
 function edit(fn){ checkpoint(); const key=ensureDraft(); const m=MODELS[key]; m.stairs ||= []; const r=fn(m.stairs, key); if(!m.stairs.length) delete m.stairs; save(); return r; }
@@ -182,4 +185,89 @@ function stairPlan(st){
   const v0=st.sh.foot.v0, vm=v0+o.w/2; fl(st.S.u0, sg, v0, o.n);
   return { lines, walk:[P([st.S.u0, vm]), P([st.S.u0 + sg*o.total, vm])] };
 }
-export { stairPlan, stairParts, OPTS, stairsOf, stairHoles, addStair, updateStair, removeStair, optionsFor, bestSpot, solve, flipped };
+/* ---------------------------------------------------------------- landings, and one stair after another
+   A stair wants a clear landing 36″ deep and as wide as the stair at its foot and at its top: straight on, or turned
+   to the side (the other half of the pod). Clear = inside the pod's walls, on floor (not over a stair opening). */
+const LAND=36;
+const OFFP = (k, q) => { const o=podOffsets(k)[q.i]; return { x:q.x+o.ox, z:q.z+o.oz, x1:q.x+o.ox+q.w, z1:q.z+o.oz+q.d }; };
+const inset = (r, d) => ({ x:r.x+d, z:r.z+d, x1:r.x1-d, z1:r.z1-d });
+const over = (a, b, m=1/12) =>   // overlapping by more than an inch (the openings have ½″ clearance round them)
+   Math.min(a.x1,b.x1)-Math.max(a.x,b.x) > m && Math.min(a.z1,b.z1)-Math.max(a.z,b.z) > m;
+const within = (a, b) => a.x>=b.x-0.01 && a.x1<=b.x1+0.01 && a.z>=b.z-0.01 && a.z1<=b.z1+0.01;
+/* the openings in a pod's floor (from stairs climbing into it) */
+const floorHoles = (k, i, skip=null) => stairsOf(k).filter(st=>st.above===i && st.S.id!==skip).flatMap(st=>st.holes);
+const LR = (st, u0, u1, v0, v1) => rectPlan(st.ls, Math.min(u0,u1), Math.max(u0,u1), Math.min(v0,v1), Math.max(v0,v1));
+/* where you step on, where you step off, and the landing choices at each (pod-local rects); arrive: the point and the
+   way you're walking at the top (pod-local), for lining up the next stair */
+function ends(st){
+  const o=st.o, S=st.S, sg=S.dir>0?1:-1, sh=st.sh;
+  if(o.kind==='spiral'){ const G=spiralGeo(st), F=sh.foot, c=Math.cos(G.a0), sn=Math.sin(G.a0);
+    // you step onto the first wedge from the side of the square it starts at; you step off onto the top landing plate
+    const foot = Math.abs(c)>=Math.abs(sn) ? (c<0 ? [F.u0-LAND, F.u0, F.v0, F.v1] : [F.u1, F.u1+LAND, F.v0, F.v1]) : (sn<0 ? [F.u0, F.u1, F.v0-LAND, F.v0] : [F.u0, F.u1, F.v1, F.v1+LAND]);
+    const aE=G.a0+G.sg*(o.n-0.5)*G.step, r=G.h*0.6;
+    return { foot:[foot], top:null, arrive:{ p:[G.c[0]+Math.cos(aE)*r, G.c[1]+Math.sin(aE)*r], d:[-Math.sin(aE)*G.sg, Math.cos(aE)*G.sg] } }; }
+  if(o.kind==='u'){ const P=sh.P, uL=S.u0+sg*(P.nA-1)*o.run, uBt=uL-sg*(P.nB-1)*o.run, A=[sh.vA0, sh.vA0+o.w], B=[sh.vB0, sh.vB0+o.w];
+    return { foot:[[S.u0-sg*LAND, S.u0, ...A], [S.u0-sg*LAND, S.u0, Math.min(A[0],B[0]), Math.max(A[1],B[1])]],
+      top:[[uBt-sg*LAND, uBt, ...B], [uBt, uBt+sg*LAND, ...A]], arrive:{ p:[uBt, (B[0]+B[1])/2], d:[-sg,0] } }; }
+  const v0=sh.foot.v0, v1=sh.foot.v1, ov = S.side==='N' ? [v0-LAND, v0] : [v1, v1+LAND], uT=S.u0+sg*o.total;
+  return { foot:[[S.u0-sg*LAND, S.u0, v0, v1], [S.u0, S.u0+sg*LAND, ...ov]], top:[[uT, uT+sg*LAND, v0, v1], [uT-sg*LAND, uT, ...ov]], arrive:{ p:[uT, (v0+v1)/2], d:[sg,0] } };
+}
+/* the landings of a stair: { foot:{ ok, rect, why }, top:{ ok, rect, why }, startsOverHole } (rects in plan feet) */
+function landings(st, k=state.model){
+  if(!st) return null;
+  const pods=podList(k), E=ends(st), up=st.above!=null ? pods[st.above] : null;
+  const check = (zones, pod, skip) => { if(!zones) return { ok:true, rect:null, why:'' };
+    const room=inset(OFFP(k, pod), 4.5/12), holes=floorHoles(k, pod.i, skip), R=zones.map(z=>LR(st, ...z));
+    const good=R.find(r=>within(r, room) && !holes.some(h=>over(r,h,2/12)));   // sharing an edge with an opening is fine (that's where you step off)
+    return good ? { ok:true, rect:good, why:'' } : { ok:false, rect:R[0], why: R.every(r=>!within(r, room)) ? 'runs into a wall' : 'over a stair opening' }; };
+  const foot=check(E.foot, st.p, null);
+  const top = up ? check(E.top, up, st.S.id) : { ok:false, rect:null, why:'no pod above' };
+  // its first steps (the foot and two treads) mustn't stand over the opening of a stair coming up from below, unless
+  // it's the same spiral carrying on up the same column
+  const lowRun=Math.min(2*(st.o.run||12), 24)-1, F=st.sh.foot;
+  const vw = st.o.kind==='u' ? [st.sh.vA0, st.sh.vA0+st.o.w] : [F.v0, F.v1];   // a U starts up its first flight only
+  const low = st.o.kind==='spiral' ? LR(st, F.u0, F.u1, F.v0, F.v1) : LR(st, st.S.u0+(st.S.dir>0?1:-1)*0.6, st.S.u0+(st.S.dir>0?1:-1)*lowRun, vw[0]+0.6, vw[1]-0.6);
+  const below=stairsOf(k).filter(b=>b.above===st.p.i);
+  const startsOverHole = below.some(b=>b.holes.some(h=>over(low,h)) && !(b.o.kind==='spiral' && st.o.kind==='spiral' && Math.abs(b.foot.x-st.foot.x)<0.1 && Math.abs(b.foot.z-st.foot.z)<0.1));
+  return { foot, top, startsOverHole };
+}
+/* the next stair up from this one (from the pod it arrives in to the floor above): candidates, each checked
+   → [{ label, note, S, ok, why }] */
+function nextOptions(id, k=state.model){
+  const st=stairsOf(k).find(x=>x.S.id===id); if(!st || st.above==null) return [];
+  const pods=podList(k), A=pods[st.above], lsA=frame(k, A.i); if(!lsA) return [];
+  const hasUp=pods.some(q=>q.lv===A.lv+1);
+  const E=ends(st), P0=toPlan(st.ls, E.arrive.p), P1=toPlan(st.ls, [E.arrive.p[0]+E.arrive.d[0]*12, E.arrive.p[1]+E.arrive.d[1]*12]);
+  const a=toLocal(lsA, P0), a1=toLocal(lsA, P1), du=a1[0]-a[0], dv=a1[1]-a[1], along=Math.abs(du)>=Math.abs(dv), d=Math.sign(du)||1;
+  const sideAt = v => v<48 ? 'S' : 'N', other = s => s==='S'?'N':'S';
+  const cands=[];
+  // the same stair again, right above (a stairwell)
+  { const Pf=toPlan(st.ls, [st.S.u0, st.sh.foot.v0+1]), Pg=toPlan(st.ls, [st.S.u0+(st.S.dir>0?12:-12), st.sh.foot.v0+1]), f=toLocal(lsA, Pf), g=toLocal(lsA, Pg);
+    if(st.o.kind==='spiral'){ const F=st.sh.foot, cP=toPlan(st.ls, [(F.u0+F.u1)/2, (F.v0+F.v1)/2]), c=toLocal(lsA, cP), G=spiralGeo(st), aP=toPlan(st.ls, [G.c[0]+Math.cos(G.a0), G.c[1]+Math.sin(G.a0)]), aL=toLocal(lsA, aP);
+      const ang=Math.atan2(aL[1]-c[1], aL[0]-c[0]), q=((Math.round((ang-Math.PI)/(Math.PI/2))%4)+4)%4;
+      cands.push({ label:'The same spiral, right above', note:'one spiral column through every floor', S:{ opt:st.S.opt, u0:+(c[0]-st.o.Q/2).toFixed(2), dir:st.S.dir, side:'S', q } }); }
+    else if(Math.abs(g[0]-f[0])>6) cands.push({ label:`The same ${st.o.label.toLowerCase()} stair, right above`, note:'a stairwell: each floor the same', S:{ opt:st.S.opt, u0:+f[0].toFixed(2), dir:Math.sign(g[0]-f[0]), side:sideAt(f[1]+st.o.w/2), q:0 } }); }
+  if(along){
+    const arrS=sideAt(a[1]), uL=a[0]+d*LAND;   // the far side of the landing you arrive on
+    ['std','min','comfort'].forEach(o=>cands.push({ label:`Switchback · ${OPTS[o].label.toLowerCase()}`, note:'turn round on the landing and climb back along the other wall', S:{ opt:o, u0:+uL.toFixed(2), dir:-d, side:other(arrS), q:0 } }));
+    cands.push({ label:'Carry straight on', note:'past the landing, the same way, the same wall', S:{ opt:'std', u0:+uL.toFixed(2), dir:d, side:arrS, q:0 } });
+    ['u','ucomp'].forEach(o=>[arrS, other(arrS)].forEach(sd=>cands.push({ label:`${OPTS[o].label} from the landing`, note:'starts where you arrive', S:{ opt:o, u0:+uL.toFixed(2), dir:-d, side:sd, q:0 } })));
+  }
+  // the closest start of each kind to where you arrive
+  const arrive = [a[0]+d*LAND/2, a[1]];
+  ['std','u','spiral'].forEach(o=>{ let best=null; const L=A.len*12, O=OPTS[o];
+    for(const side of ['S','N']) for(const dir of [1,-1]) for(const q of (O.kind==='spiral'?[0,1,2,3]:[0])) for(let x=6.5; x<=L-6.5; x+=3){
+      const S={ pod:A.i, opt:o, side, dir, q, u0: O.kind==='spiral' ? x : (dir>0 ? x : L-x) }, s2=solve(k,S); if(!s2 || s2.why) continue;
+      const Ld=landings(s2, k); if(!Ld.foot.ok || !Ld.top.ok || Ld.startsOverHole) continue;
+      const fz=ends(s2).foot[0], fc=[(fz[0]+fz[1])/2, (fz[2]+fz[3])/2], dist=Math.hypot(fc[0]-arrive[0], fc[1]-arrive[1]);
+      if(!best || dist<best.dist) best={ dist, S }; }
+    if(best) cands.push({ label:`Closest start · ${O.label.toLowerCase()}`, note:`its foot about ${Math.round(best.dist/12)}′ from where you arrive`, S:best.S }); });
+  // check each: it fits, both landings are clear, it doesn't start over the opening it arrives through
+  const seen=new Set();
+  return cands.map(c=>{ const S={ pod:A.i, ...c.S }, key=JSON.stringify([S.opt,Math.round(S.u0),S.dir,S.side,S.q]); if(seen.has(key)) return null; seen.add(key);
+    const s2=solve(k,S); let why=!hasUp ? `add a pod on floor ${A.lv+2} above first` : !s2 ? 'not here' : s2.why;
+    if(!why){ const Ld=landings(s2,k); why = Ld.startsOverHole ? 'it would start over the opening you come up through' : !Ld.foot.ok ? `no landing at its foot (${Ld.foot.why})` : !Ld.top.ok ? `no landing at its top (${Ld.top.why})` : ''; }
+    return { ...c, S, ok:!why, why }; }).filter(Boolean);
+}
+function addStairSpec(S){ return edit(L=>{ let n=1; while(L.some(s=>s.id==='s'+n)) n++; const s={ id:'s'+n, ...S }; L.push(s); return s.id; }); }
+export { landings, nextOptions, addStairSpec, stairPlan, stairParts, OPTS, stairsOf, stairHoles, addStair, updateStair, removeStair, optionsFor, bestSpot, solve, flipped };

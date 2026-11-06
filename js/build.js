@@ -444,6 +444,7 @@ function isoLabel(id){
   if(id.startsWith('furn:')){ const [,fid,part]=id.split(':'); const it=furnById(fid); if(!it) return 'Cabinet';
     return part!=null ? (partsOf(it)[+part]?.name || 'Part') : itemDef(it.k).name; }
   if(id.startsWith('deck:')) return `Deck ${+id.slice(5)+1}`;
+  if(id.startsWith('stair:')) return 'Stairs';
   return slotsFor(state.model).find(s=>s.id===id)?.label || layerSlotsFor(state.model).find(s=>s.id===id)?.label || '';
 }
 let lastTap=null, downXY=null;
@@ -466,7 +467,7 @@ stage.addEventListener('pointerup', e=>{
   if(id && String(state.isolate).startsWith(id) && id.startsWith('furn:') && fh?.object?.userData?.part!=null){ id = `${id}:${fh.object.userData.part}`; }
   const up=()=>{ const s=String(state.isolate||''); if(/^furn:[^:]+:\d+$/.test(s)){ const c=s.replace(/:\d+$/,''); setIsolate(c, isoLabel(c)); } else if(state.isolate) setIsolate(null); else if(state.focusPod!=null) setPod(null); renderSide(); };
   if(!id || id===state.isolate){ up(); return; }
-  const deck=String(id).startsWith('deck:');
+  const deck=String(id).startsWith('deck:') || String(id).startsWith('stair:');   // a deck or a stair: on its own straight away
   const pod = deck ? null : String(id).startsWith('furn:') ? furnById(id.slice(5))?.pod : parseInt(id,10);
   const cab=String(id).startsWith('furn:');   // a cabinet is isolated right away, whatever level you're at
   if(!deck && !cab && !state.isolate && state.focusPod==null && MODELS[state.model].pods.length>1 && Number.isFinite(pod)){ setPod(pod); renderSide(); return; }

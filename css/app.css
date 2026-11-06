@@ -1305,3 +1305,6 @@ dialog.v3-dlg.v3-full .v3-cube{top:max(12px, env(safe-area-inset-top,0px));right
 .wb-save{flex-wrap:wrap}
 .wb-save #wbName{flex:1 1 100%;min-width:0}
 .wb-save .btn{flex:1 1 auto}
+.st-land{list-style:none;margin:4px 0 10px;padding:0;font-size:13px}
+.st-land li{margin:2px 0}
+.st-land .ok{color:var(--ok,#2f7d4a)} .st-land .bad{color:var(--warn,#b4451f)}
