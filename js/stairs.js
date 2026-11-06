@@ -92,7 +92,9 @@ function windGeo(S){
   for(let i=1;i<=WD.C;i++) treads.push(rect(w+(i-1)*run, w+i*run, b2, B2)); // back along the other wall
   const box=(a0,a1,b0,b1)=>{ const P=[C(a0,b0),C(a1,b1)]; return { u0:Math.min(P[0][0],P[1][0]), u1:Math.max(P[0][0],P[1][0]), v0:Math.min(P[0][1],P[1][1]), v1:Math.max(P[0][1],P[1][1]) }; };
   const top=w+WD.C*run;
-  return { C, treads, foot:box(0, WD.foot, 0, B2), hole:box(-0.5, WD.open+0.5, -0.5, B2+0.5),
+  // the ceiling and roof below open from the 3rd step on (headroom over the first flight); the floor above only up to
+  // the top step: from the last riser its floor runs on flush, the landing (and a level floor out to a door there)
+  return { C, treads, foot:box(0, WD.foot, 0, B2), hole:box(-0.5, WD.open+0.5, -0.5, B2+0.5), holeUp:box(-0.5, top+0.5, -0.5, B2+0.5),
     footZones:[box(WD.foot, WD.foot+LAND, 0, w), box(WD.foot-LAND, WD.foot, b2, B2)],
     topZones:[box(top-LAND, top, B2, B2+LAND), box(top, top+LAND, b2, B2), box(top-LAND, top, -LAND, 0)],
     arrive:{ p:C(top, b2+w/2), d:[-sg, 0] } };
@@ -102,7 +104,7 @@ function shapeOf(S, o){
   const sg=S.dir>0?1:-1, U=(a,b)=>[Math.min(a,b), Math.max(a,b)];
   if(o.kind==='spiral'){ const Q=o.Q, v0=(96-Q)/2, [u0,u1]=[S.u0, S.u0+Q];
     return { foot:{ u0, u1, v0, v1:v0+Q }, holes:[{ u0:u0-0.5, u1:u1+0.5, v0:v0-0.5, v1:v0+Q+0.5 }] }; }
-  if(o.kind==='wind'){ const G=windGeo(S); return { foot:G.foot, holes:[G.hole], G }; }
+  if(o.kind==='wind'){ const G=windGeo(S); return { foot:G.foot, holes:[G.hole], holesUp:[G.holeUp], G }; }
   if(o.kind==='u'){ const P=uPlan(o), W=o.w, vA0 = S.side==='N' ? 96-IN_N-W : IN_S, vB0 = S.side==='N' ? vA0-W : vA0+W;
     const [fu0,fu1]=U(S.u0, S.u0+sg*P.len), k=headK(o);
     const [au0,au1]=U(S.u0+sg*k*o.run, S.u0+sg*P.len);
@@ -119,12 +121,13 @@ function solve(k, S){
   const o=OPTS[S.opt]||OPTS.std, ls=frame(k, S.pod); if(!ls) return null;
   const sh=shapeOf(S, o), L=p.len*12, F=sh.foot;
   const foot=rectPlan(ls, F.u0, F.u1, F.v0, F.v1), holes=sh.holes.map(h=>rectPlan(ls, h.u0, h.u1, h.v0, h.v1)), hole=unionRect(holes);
+  const holesUp=(sh.holesUp||sh.holes).map(h=>rectPlan(ls, h.u0, h.u1, h.v0, h.v1));   // in the floor above (can be less than below)
   // the pod above has to cover every opening
   const OFF=podOffsets(k), inPod = (r,q)=>{ const o2=OFF[q.i], x=q.x+o2.ox, z=q.z+o2.oz; return r.x>=x-0.01 && r.x1<=x+q.w+0.01 && r.z>=z-0.01 && r.z1<=z+q.d+0.01; };
   const above=pods.filter(q=>q.lv===p.lv+1).find(q=>holes.every(h=>inPod(h,q)));
   const why = F.u0 < 6.5-0.01 || F.u1 > L-6.5+0.01 ? `needs ${Math.ceil((F.u1-F.u0)/12*10)/10}′ clear along the pod`
             : F.v0 < 4.5-0.01 || F.v1 > 96-4.5+0.01 ? 'too wide for this pod' : !above ? 'the opening has to be under an upstairs pod' : '';
-  return { S, o, p, ls, foot, hole, holes, above:above?above.i:null, why, sh, op:sh.op || { a:0, b:F.u1-F.u0 } };
+  return { S, o, p, ls, foot, hole, holes, holesUp, above:above?above.i:null, why, sh, op:sh.op || { a:0, b:F.u1-F.u0 } };
 }
 const stairsOf = (k=state.model) => (MODELS[k]?.stairs||[]).map(S=>solve(k,S)).filter(Boolean);
 
@@ -134,7 +137,7 @@ function stairHoles(ls, k=state.model){
   stairsOf(k).forEach(st=>{ if(st.above==null) return;
     const mine = (ls.pod.i===st.S.pod && (ls.kind==='ceiling-int' || ls.kind==='roof')) || (ls.pod.i===st.above && ls.kind==='floor-up');
     if(!mine) return;
-    st.holes.forEach(H=>{ const P=[[H.x,H.z],[H.x1,H.z],[H.x1,H.z1],[H.x,H.z1]].map(q=>toLocal(ls,q));
+    (ls.kind==='floor-up' ? st.holesUp : st.holes).forEach(H=>{ const P=[[H.x,H.z],[H.x1,H.z],[H.x1,H.z1],[H.x,H.z1]].map(q=>toLocal(ls,q));
       const x=Math.min(...P.map(p=>p[0])), x1=Math.max(...P.map(p=>p[0])), z=Math.min(...P.map(p=>p[1])), z1=Math.max(...P.map(p=>p[1]));
       out.push({ x:+x.toFixed(3), z:+z.toFixed(3), w:+(x1-x).toFixed(3), d:+(z1-z).toFixed(3), stair:true, name:'Stair opening' }); }); });
   return out;
@@ -251,7 +254,7 @@ const over = (a, b, m=1/12) =>   // overlapping by more than an inch (the openin
    Math.min(a.x1,b.x1)-Math.max(a.x,b.x) > m && Math.min(a.z1,b.z1)-Math.max(a.z,b.z) > m;
 const within = (a, b) => a.x>=b.x-0.01 && a.x1<=b.x1+0.01 && a.z>=b.z-0.01 && a.z1<=b.z1+0.01;
 /* the openings in a pod's floor (from stairs climbing into it) */
-const floorHoles = (k, i, skip=null) => stairsOf(k).filter(st=>st.above===i && st.S.id!==skip).flatMap(st=>st.holes);
+const floorHoles = (k, i, skip=null) => stairsOf(k).filter(st=>st.above===i && st.S.id!==skip).flatMap(st=>st.holesUp);
 const LR = (st, u0, u1, v0, v1) => rectPlan(st.ls, Math.min(u0,u1), Math.max(u0,u1), Math.min(v0,v1), Math.max(v0,v1));
 /* where you step on, where you step off, and the landing choices at each (pod-local rects); arrive: the point and the
    way you're walking at the top (pod-local), for lining up the next stair */
@@ -288,7 +291,7 @@ function landings(st, k=state.model){
   const vw = st.o.kind==='u' ? [st.sh.vA0, st.sh.vA0+st.o.w] : [F.v0, F.v1];   // a U starts up its first flight only
   const low = st.o.kind==='spiral' ? LR(st, F.u0, F.u1, F.v0, F.v1) : LR(st, st.S.u0+(st.S.dir>0?1:-1)*0.6, st.S.u0+(st.S.dir>0?1:-1)*lowRun, vw[0]+0.6, vw[1]-0.6);
   const below=stairsOf(k).filter(b=>b.above===st.p.i);
-  const startsOverHole = below.some(b=>b.holes.some(h=>over(low,h)) && !(b.o.kind==='spiral' && st.o.kind==='spiral' && Math.abs(b.foot.x-st.foot.x)<0.1 && Math.abs(b.foot.z-st.foot.z)<0.1));
+  const startsOverHole = below.some(b=>b.holesUp.some(h=>over(low,h)) && !(b.o.kind==='spiral' && st.o.kind==='spiral' && Math.abs(b.foot.x-st.foot.x)<0.1 && Math.abs(b.foot.z-st.foot.z)<0.1));
   return { foot, top, startsOverHole };
 }
 /* the next stair up from this one (from the pod it arrives in to the floor above): candidates, each checked

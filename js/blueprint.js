@@ -428,7 +428,7 @@ function stairSVG(xf, lv){
       if(L.post){ const c=xf.P(L.post.c); g+=`<circle cx="${c[0]}" cy="${c[1]}" r="${Math.max(2, L.post.r*xf.k)}" fill="${INK}"/>`; }
       g+=walk+`<polyline points="${hd(b,0.45)} ${b.join(',')} ${hd(b,-0.45)}" fill="none" stroke="${INK}" stroke-width="1"/>`;
       const m=W[Math.floor(W.length/2)]; g+=rect(m[0]-22, m[1]-15, 44, 12, { fill:'#fff', stroke:'none' })+tx(m[0], m[1]-5, `UP ${st.o.n}R`, { size:9, anchor:'middle', weight:'bold' }); }
-    else { st.holes.forEach(H=>{ g+=`<polygon points="${poly(H)}" fill="none" stroke="${INK}" stroke-width="1" stroke-dasharray="6 3"/>`; });
+    else { st.holesUp.forEach(H=>{ g+=`<polygon points="${poly(H)}" fill="none" stroke="${INK}" stroke-width="1" stroke-dasharray="6 3"/>`; });
       g+=walk;
       const h=xf.P([(st.hole.x+st.hole.x1)/2, (st.hole.z+st.hole.z1)/2]); g+=tx(h[0], h[1]+14, 'DN · OPEN TO BELOW · GUARD', { size:8, anchor:'middle', weight:'bold' }); } });
   return g;
