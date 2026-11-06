@@ -17,7 +17,7 @@
 import { POD, LAYER_KINDS, H } from './config.js';
 import { checkpoint } from './history.js';
 import { podRemoved } from './furniture.js';
-import { MODELS, mirrorId, layerMirrorId, LIB, LAYERLIB, PODLIB, byId, podById, deckById, DECKLIB, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib } from './data.js';
+import { MODELS, mirrorId, layerMirrorId, LIB, LAYERLIB, PODLIB, byId, podById, deckById, DECKLIB, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib, isHomeWallId } from './data.js';
 import { slotsFor, layerSlotsFor, podList, localSide, midAt, midLine, MID_T, podOffsets, partRun } from './layout.js';
 import { state, save, pickFor, pickLayer } from './state.js';
 
@@ -129,7 +129,7 @@ function makeDraftCopy(key){
   const m=MODELS[key], nk='draft-'+Date.now().toString(36)+Math.random().toString(36).slice(2,4);
   const fam = m.family || (m.base && MODELS[m.base]?.family) || null;
   const n=Object.values(MODELS).filter(x=>x.custom && x.from===key).length;
-  MODELS[nk]={ name:m.name+(n?` (draft ${n+1})`:' (draft)'), size:m.size, ...(m.scratch?{scratch:true}:{}), base:m.base||(m.sub?undefined:key), family:fam, from:key, pods:bakedPods(key), decks:clone(m.decks||[]), picks:{}, layerPicks:{}, custom:true, draft:true, created:new Date().toISOString(), ...(m.elec?{elec:clone(m.elec)}:{}), ...(m.joint?{joint:clone(m.joint)}:{}) };
+  MODELS[nk]={ name:m.name+(n?` (draft ${n+1})`:' (draft)'), size:m.size, ...(m.scratch?{scratch:true}:{}), base:m.base||(m.sub?undefined:key), family:fam, from:key, pods:bakedPods(key), decks:clone(m.decks||[]), picks:{}, layerPicks:{}, custom:true, draft:true, created:new Date().toISOString(), ...(m.elec?{elec:clone(m.elec)}:{}), ...(m.joint?{joint:clone(m.joint)}:{}), ...(m.homeWalls?{homeWalls:clone(m.homeWalls)}:{}), ...(m.stairs?{stairs:clone(m.stairs)}:{}) };
   if(!MODELS[nk].base) delete MODELS[nk].base;
   ['bearing','found','deckOC'].forEach(f=>{ const v=state[f]?.[key] ?? m[f]; if(v!=null) (state[f] ||= {})[nk]=v; });
   ['units','furniture','cabinets','lights','names'].forEach(f=>{ const v=state[f]?.[key] ?? (f==='units'?m.units:null); if(v) (state[f] ||= {})[nk]=clone(v); });
@@ -442,6 +442,7 @@ function sameWall(a,b){ return a.len===b.len && (a.type||'ext')===(b.type||'ext'
 function nextId(prefix, list){ let n=1; while(list.some(x=>x.id===`${prefix}-${String(n).padStart(2,'0')}`)) n++; return `${prefix}-${String(n).padStart(2,'0')}`; }
 function libraryWall(id, counts){
   if(!id) return id;
+  if(isHomeWallId(id)) return id;   // saved to this home only: it stays out of the library
   const w=byId(id); if(!w) return id;
   if(!id.endsWith('~m') && LIB.includes(w)) return id;
   const hit=LIB.find(x=>sameWall(x,w)); if(hit) return hit.id;
@@ -473,7 +474,7 @@ function saveToLibraries(homeName, only=null){
     SIDES.forEach(k=>(p.walls?.[k]||[]).forEach(g=>{ g.wall=libraryWall(g.wall, counts); }));
     Object.keys(p.layers||{}).forEach(k=>{ p.layers[k]=libraryLayer(p.layers[k], counts); });
     if(only===null || only===i){
-      const complete = SIDES.every(k=>(p.walls[k]||[]).every(g=>g.wall));
+      const complete = SIDES.every(k=>(p.walls[k]||[]).every(g=>g.wall && !isHomeWallId(g.wall)));   // a pod with a this-home-only wall isn't a library pod
       if(complete) p.src=libraryPod(p, `${POD[p.t].len}′ pod · ${homeName} · Pod ${i+1}`, counts);
     }
   });

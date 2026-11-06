@@ -646,6 +646,16 @@ copy goes into My Drafts as "(copy from this device)" and the latest save opens.
 - **Take-off, shopping list and Cost to build**: a Second floor stage with the upstairs SIP floor panels, EPS pad (sq ft and 4 × 8 sheets +10%), 8×8 posts (about 10′ 3½″, cut from 12′ stock), post bases, and a ground screw or a 10″ × 4′ Sonotube with its concrete per post. These lines are always in the price book. (`upstairsTakeoff` in takeoff.js)
 - Not done yet: weatherproofing where pods meet, and handrails and guards (the builder supplies these).
 
+## Panel builder: three ways to save (wall-builder.js)
+- **Save to this home only** (when opened from a wall of a home):
+  - The wall goes into that home only (`MODELS[k].homeWalls`, ids `HW08-1` / `HI08-1`) and onto that wall. Nothing is added to or changed in the library.
+  - Saving again writes over the same home wall. Reopening the wall opens that home wall.
+  - A Cubit home gets a draft first.
+  - Home walls travel with drafts and saved projects. Saving a project never puts them in the library, and a pod with one isn't saved as a library pod.
+- **Save over W08-21 in the library:** writes over the library wall it came from (for a home wall, the one it was based on). Asks first when other homes use it; locked homes keep theirs.
+- **Save as new library wall:** adds it to the library as a new wall; the old one stays.
+- Also fixed: saving a project, or making a draft, now keeps the home's stairs.
+
 ## Editing library walls and floors (wall-builder.js · layer-builder.js)
 - Every wall and floor/ceiling/roof card in the Library has **Edit**, which opens the panel builder on that one. The library stays open underneath and refreshes when the builder closes.
 - A library wall opens as itself, whether it's one of Cubit's own, the team's or this browser's. **Save W08-15** writes over it, so every home using it changes; the server keeps the old version. **Save as new wall** keeps the old one and adds another. After that, Save keeps writing over the one you're on.

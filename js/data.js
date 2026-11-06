@@ -58,7 +58,7 @@ const optionsFor = (len,type='ext',model=null) => LIB.filter(w=>!w.deleted && w.
    opening lines up through both. "<id>~m" is the mirror of wall <id>: every x is measured from the
    other end (openings and boxes keep their physical place along the wall). */
 const MIRROR = {};
-const clearMirrors = () => { Object.keys(MIRROR).forEach(k=>delete MIRROR[k]); };   // after a rename
+const clearMirrors = () => { Object.keys(MIRROR).forEach(k=>delete MIRROR[k]); Object.keys(HMIR).forEach(k=>delete HMIR[k]); };   // after a rename
 function mirrorWall(w){
   // openings are placed by their left edge, face items by their centre; drawn outlines and tool paths mirror too
   const L=w.len*12, fo=o=>({...mapX(o, x=>L-x), x:+(L-o.x-(o.w||0)).toFixed(4)}), fi=b=>({...mapX(b, x=>L-x), x:+(L-b.x).toFixed(4)});
@@ -66,8 +66,14 @@ function mirrorWall(w){
     openings:(w.openings||[]).map(fo).sort((a,b)=>a.x-b.x), inside:(w.inside||[]).map(fi), outside:(w.outside||[]).map(fi),
     ...(w.shapes?{shapes:w.shapes.map(s=>({...s, x:+(L-s.x-s.w).toFixed(4), mx:!s.mx}))}:{})};
 }
+/* walls saved to one home only (the panel builder's "Save to this home"): MODELS[k].homeWalls = { id: wall }, ids
+   HW08-1 / HI08-1, never in the library; byId finds them for the home on screen (SCOPE) */
+const HMIR={};
+const isHomeWallId = id => /^H[WI]\d{2}-/.test(String(id||'').replace(/~m$/,''));
 const byId = id => {
   if(!id) return undefined;
+  if(isHomeWallId(id)){ const k=SCOPE(), HW=k && MODELS[k]?.homeWalls, base=String(id).replace(/~m$/,'');
+    if(HW?.[base]){ if(base===id) return HW[id]; return HMIR[k+'|'+id] ||= mirrorWall(HW[base]); } }
   const F=frozenOf('walls');
   if(F){ const base=id.endsWith('~m') ? id.slice(0,-2) : id; if(F[base]){ if(base===id) return F[id]; return F[id] ||= mirrorWall(F[base]); } }
   if(id.endsWith('~m')){ if(MIRROR[id]) return MIRROR[id]; const b=LIB.find(w=>w.id===id.slice(0,-2)); return b ? (MIRROR[id]=mirrorWall(b)) : undefined; }
@@ -104,4 +110,4 @@ const layerById = id => {
 /* the id of a layer mirrored once more along x ('x') or z ('z') */
 const layerMirrorId = (id, ax) => { const s=splitLayerId(id); const x=ax==='x'?!s.x:s.x, z=ax==='z'?!s.z:s.z; return s.base+(x||z?`~m${x?'x':''}${z?'z':''}`:''); };
 
-export { FROZEN, BUILTIN, setScope, splitLayerId, mirrorLayer, forgetLayerMirrors, layerMirrorId, clearMirrors, DECKLIB, deckById, saveDeckLib, MODELS, LIB, LAYERLIB, PODLIB, loadData, optionsFor, byId, mirrorId, mirrorWall, podById, layerOptions, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib };
+export { isHomeWallId, FROZEN, BUILTIN, setScope, splitLayerId, mirrorLayer, forgetLayerMirrors, layerMirrorId, clearMirrors, DECKLIB, deckById, saveDeckLib, MODELS, LIB, LAYERLIB, PODLIB, loadData, optionsFor, byId, mirrorId, mirrorWall, podById, layerOptions, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib };

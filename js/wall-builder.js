@@ -9,7 +9,8 @@
    in the wall library (shared by the team), ready to pick for any wall of that length and type.
    Same data as the scanned walls: openings + outside items measured from the left end seen from OUTSIDE,
    inside items from the left end seen from INSIDE; openings by their bottom-left corner, face items by centre. */
-import { LIB, byId, mirrorWall, saveWallLib, MODELS, clearMirrors } from './data.js';
+import { LIB, byId, mirrorWall, saveWallLib, MODELS, clearMirrors, isHomeWallId, saveCustomModels } from './data.js';
+import { ensureDraft } from './pods.js';
 import { askSaveOver, keepForLocked } from './freeze.js';
 import { nameSaved } from './libedit.js';
 import { state } from './state.js';
@@ -38,6 +39,7 @@ const clone = o => JSON.parse(JSON.stringify(o));
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const r8 = v => Math.round(v*8)/8;
 const ROUND_RO = 33;   // Cubit's round window is exactly 32″ across, so its round rough opening is 33″
+let homeId=null;   // editing a wall saved to this home only: its id (HW08-1 …); origin is then the library wall it came from
 let okOver=new Set();   // walls already confirmed for saving over in this sitting
 let mirrored=false;   // opened from a wall's mirror ("<id>~m"): edited as seen, saved back unmirrored over <id>
 let W=null, view='outside', sel=null, dlg=null, origin=null, forSlot=null, RD=null, rulesOpen=false, shapePick=false;
@@ -110,10 +112,11 @@ function openWallBuilder({ from=null, slot=null, len, type }={}){
   forSlot=slot||null;
   /* a library wall (Cubit's own, the team's or this browser's) opens as itself: Save writes over it, Save as new makes
      another; its mirror opens as seen and is saved back over the wall it mirrors */
-  mirrored=false; okOver=new Set();
+  mirrored=false; okOver=new Set(); homeId=null;
   if(from){ const src=byId(from); mirrored=String(from).endsWith('~m'); const base=mirrored ? String(from).slice(0,-2) : from, b=byId(base);
     W=clone(src||b||blank(len, type)); delete W.src; delete W.mirrorOf; delete W.by; delete W.saved;
-    origin = b ? b.id : null; if(origin){ W.id=origin; W.name=b.name; } else { W.id=null; W.name=(src?.name||'')+' (copy)'; mirrored=false; } }
+    if(b && isHomeWallId(base)){ homeId=base; origin = b.basedOn && LIB.some(x=>x.id===b.basedOn) ? b.basedOn : null; W.id=base; W.name=b.name; }   // this home's own wall
+    else { origin = b ? b.id : null; if(origin){ W.id=origin; W.name=b.name; } else { W.id=null; W.name=(src?.name||'')+' (copy)'; mirrored=false; } } }
   else { W=blank(len||slot?.len||8, type||slot?.type||'ext'); origin=null; }
   W.openings ||= []; W.inside ||= []; W.outside ||= [];
   // how its ends meet the walls beside it: the home's own fit for that wall when opened from one
@@ -372,8 +375,9 @@ function render(){
         ${layoutPanel()}
         ${rulesPanel()}
         <div class="wb-save"><input id="wbName" value="${esc(W.name||'')}" placeholder="${esc(autoName())}" aria-label="Name">
-          ${canEdit()?`<button class="btn sm" id="wbSave" title="${libHit?'Write over this wall: every home that uses it changes':'Add it to the wall library'}">${libHit?`Save ${esc(origin)}`:'Save to library'}</button>${libHit?'<button class="btn ghost sm" id="wbSaveNew" title="Keep the old one and add this as another wall">Save as new wall</button>':''}`:'<span class="wb-mini">Look only: editors and admins change walls.</span>'}</div>
-        ${forSlot?`<p class="wb-mini">Saving also puts it on ${esc(forSlot.label)}.</p>`:''}
+          ${forSlot && canSave() ? `<button class="btn sm" id="wbSaveHome" title="This wall, as you've made it, on ${esc(forSlot.label)} of this home only. The library doesn't change">${homeId?'Save to this home':'Save to this home only'}</button>` : ''}
+          ${canEdit() ? `${libHit?`<button class="btn ${forSlot?'ghost ':''}sm" id="wbSave" title="Write over ${esc(origin)} in the library: every home that uses it changes (locked homes keep theirs)">Save over ${esc(origin)} in the library</button>`:''}<button class="btn ${forSlot||libHit?'ghost ':''}sm" id="wbSaveNew" title="Add it to the wall library as a new wall; ${esc(origin||'the old one')} stays as it was">${libHit||homeId?'Save as new library wall':'Save to library'}</button>` : (forSlot?'':'<span class="wb-mini">Look only: editors and admins change library walls.</span>')}</div>
+        ${forSlot?`<p class="wb-mini">${homeId?`This is ${esc(forSlot.label)}’s own wall (${esc(homeId)}), saved to this home only.`:`Save to this home only: just ${esc(forSlot.label)} here, the library stays as it is. The library saves also put it on ${esc(forSlot.label)}.`}</p>`:''}
         ${hbDirty().length && canSave()?`<div class="wb-save"><button class="btn sm" id="hbSave2">Save ${hbDirty().length} plug / switch move${hbDirty().length>1?'s':''} to this home only</button></div>`:''}
       </div></div></div>`;
   bind();
@@ -454,6 +458,7 @@ function bind(){
   $('#hbSave2')?.addEventListener('click',()=>{ const n=saveHB(); render(); toast(`${n} box move${n>1?'s':''} saved to ${MODELS[state.model]?.name||'this home'} only`); });
   $('#hbSave')?.addEventListener('click',()=>{ const n=saveHB(); render(); toast(`${n} box move${n>1?'s':''} saved to ${MODELS[state.model]?.name||'this home'} only`); });
   $('#wbSaveNew')?.addEventListener('click',()=>saveWall(true));
+  $('#wbSaveHome')?.addEventListener('click',()=>saveHome());
   // pick and drag on the drawing
   const svg=$('.wb-svg'); let drag=null, emptyDown=null;
   attachZoom(svg, ZW);
@@ -540,6 +545,24 @@ async function saveWall(asNew){
   buildHome(); renderSide(); render();
   if(nb) toast(`${nb} plug / switch move${nb>1?'s':''} saved to this home only`, 3000);
   toast(`${w.id} ${over?'saved over the old version (every home that uses it has the change)':'saved as a new wall'}${shared?' · for the whole team':' · in this browser'}${forSlot?` · on ${forSlot.label}`:''}`, 3500);
+}
+/* Save to this home only: the wall goes into this home (MODELS[k].homeWalls) and onto the wall it was opened from;
+   nothing is added to or changed in the library. Saving again writes over the same home wall. */
+function saveHome(){
+  if(!canSave() || !forSlot){ toast('Open it from a wall of the home to save it to that home.'); return; }
+  const w=clone(W); w.name=(dlg.querySelector('#wbName')?.value||'').trim() || autoName(); w.t = w.type==='int'?4.5:6.5;
+  if(mirrored){ const m=mirrorWall({ ...w, id:'_' }); ['openings','inside','outside','shapes'].forEach(k=>{ if(m[k]) w[k]=m[k]; }); }
+  delete w.mirrorOf; delete w.src; delete w.saved; delete w.by; delete w.fitted; delete w.blank;
+  ensureDraft();   // a Cubit home: into your draft of it
+  const m=MODELS[state.model], HW=(m.homeWalls ||= {});
+  if(!homeId){ const pre=`H${w.type==='int'?'I':'W'}${String(w.len).padStart(2,'0')}-`; let n=1; while(HW[pre+n]) n++; homeId=pre+n; }
+  w.id=homeId; w.home=true; if(origin && !isHomeWallId(origin)) w.basedOn=origin; w.source=`This home only ${new Date().toISOString().slice(0,10)}`;
+  HW[homeId]=w; clearMirrors();
+  choose(forSlot, mirrored ? homeId+'~m' : homeId);
+  if(m.custom) saveCustomModels();
+  W.id=homeId; W.name=w.name;
+  const nb=saveHB(); buildHome(); renderSide(); render();
+  toast(`Saved to this home only (${homeId} on ${forSlot.label}) · the library is unchanged${nb?` · ${nb} plug / switch move${nb>1?'s':''} too`:''}`, 3500);
 }
 /* save a wall made by the app (e.g. a window centred over a sink) to the library and put it on a slot, the same way
    the builder does: the team library when the server has one, else this browser */

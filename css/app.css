@@ -1301,3 +1301,7 @@ dialog.v3-dlg.v3-full .v3-cube{top:max(12px, env(safe-area-inset-top,0px));right
 .vc-lvg{display:inline-flex;gap:2px;align-items:stretch}
 .vc-lvg .vc-lvs{min-width:30px;padding:0 6px;font-size:11px}
 .vc-lvg .vc-lvs:disabled{opacity:.35}
+/* panel builder save row: the name on its own line, the save choices under it */
+.wb-save{flex-wrap:wrap}
+.wb-save #wbName{flex:1 1 100%;min-width:0}
+.wb-save .btn{flex:1 1 auto}
