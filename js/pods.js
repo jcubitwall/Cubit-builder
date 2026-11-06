@@ -98,6 +98,7 @@ function describe(key, i, slots, lslots){
   const layers={};
   lslots.filter(l=>l.pod.i===i).forEach(l=>{ const L=pickLayer(l); if(L && !L.blank) layers[l.kind]=L.id; });
   const out={t:p.t, x:p.x, z:p.z, rot, walls, layers};
+  if(p.lv) out.lv=p.lv;   // its floor (upstairs pods stay upstairs)
   // middle walls ride along, each with the wall chosen for it
   if(p.parts?.length) out.parts=p.parts.map(q=>{ const sl=slots.find(x=>x.part && x.pod.i===i && x.part.id===q.id), w=sl && pickFor(sl); const o={ id:q.id, dir:q.dir, at:q.at }; ['t','e0','e1'].forEach(f=>{ if(q[f]!=null) o[f]=q[f]; }); if(w && !w.blank) o.wall=w.id; return o; });
   if(p.src) out.src=p.src;
@@ -323,7 +324,7 @@ function rotatePod(i){
 }
 function replacePod(i, item){
   const cur=MODELS[state.model].pods[i], f=foot(cur);
-  const fresh=podFrom(item, cur.x, cur.z, cur.rot||0), g=foot(fresh);
+  const fresh={ ...podFrom(item, cur.x, cur.z, cur.rot||0), ...(cur.lv?{ lv:cur.lv }:{}) }, g=foot(fresh);
   // keep the same middle when the size changes
   const tries=[[cur.x,cur.z],[Math.round((f.x+f.w/2-g.w/2)/8)*8, Math.round((f.z+f.d/2-g.d/2)/8)*8],[f.x+f.w-g.w, f.z+f.d-g.d]];
   for(const [x,z] of tries){
