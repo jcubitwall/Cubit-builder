@@ -1,6 +1,6 @@
 /* Cubit Builder — stairs.js : a stair from the ground floor up to a pod on the second floor.
 
-   A stair sits in a ground-floor pod and climbs into the pod above, through openings cut in the lower pod's ceiling
+   A stair sits in a pod on any floor and climbs into the pod right above (the next floor), through openings cut in the lower pod's ceiling
    and roof and in the upper pod's floor. The kinds:
 
      Straight     one flight against a long wall, along the pod. Shortest / Standard / Comfortable
@@ -75,13 +75,13 @@ function shapeOf(S, o){
 
 /* everything about one stair: its footprint and openings in plan, the pod above, and whether it fits */
 function solve(k, S){
-  const pods=podList(k), p=pods[S.pod]; if(!p || p.lv) return null;
+  const pods=podList(k), p=pods[S.pod]; if(!p) return null;   // any floor: it climbs to the floor above
   const o=OPTS[S.opt]||OPTS.std, ls=frame(k, S.pod); if(!ls) return null;
   const sh=shapeOf(S, o), L=p.len*12, F=sh.foot;
   const foot=rectPlan(ls, F.u0, F.u1, F.v0, F.v1), holes=sh.holes.map(h=>rectPlan(ls, h.u0, h.u1, h.v0, h.v1)), hole=unionRect(holes);
   // the pod above has to cover every opening
   const OFF=podOffsets(k), inPod = (r,q)=>{ const o2=OFF[q.i], x=q.x+o2.ox, z=q.z+o2.oz; return r.x>=x-0.01 && r.x1<=x+q.w+0.01 && r.z>=z-0.01 && r.z1<=z+q.d+0.01; };
-  const above=pods.filter(q=>q.lv).find(q=>holes.every(h=>inPod(h,q)));
+  const above=pods.filter(q=>q.lv===p.lv+1).find(q=>holes.every(h=>inPod(h,q)));
   const why = F.u0 < 6.5-0.01 || F.u1 > L-6.5+0.01 ? `needs ${Math.ceil((F.u1-F.u0)/12*10)/10}′ clear along the pod`
             : F.v0 < 4.5-0.01 || F.v1 > 96-4.5+0.01 ? 'too wide for this pod' : !above ? 'the opening has to be under an upstairs pod' : '';
   return { S, o, p, ls, foot, hole, holes, above:above?above.i:null, why, sh, op:sh.op || { a:0, b:F.u1-F.u0 } };
@@ -102,8 +102,8 @@ function stairHoles(ls, k=state.model){
 
 /* the best spot in a ground-floor pod (or any): the first that fits, against either long wall, going either way */
 function bestSpot(k, i, opt){
-  const pods=podList(k), list = i!=null ? [pods[i]] : pods.filter(p=>!p.lv);
-  for(const p of list){ if(!p || p.lv) continue; const L=p.len*12, o=OPTS[opt]||OPTS.std;
+  const pods=podList(k), list = i!=null ? [pods[i]] : pods.filter(p=>pods.some(q=>q.lv===p.lv+1));
+  for(const p of list){ if(!p) continue; const L=p.len*12, o=OPTS[opt]||OPTS.std;
     for(const side of ['S','N']) for(const dir of [1,-1]) for(let a=6.5; a<=L-6.5; a+=1){
       const S={ pod:p.i, dir, side, u0: o.kind==='spiral' ? a : (dir>0 ? a : L-a), opt, q:0 }; const st=solve(k,S); if(st && !st.why) return S; } }
   return null;

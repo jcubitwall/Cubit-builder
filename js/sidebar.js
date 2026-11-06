@@ -299,10 +299,11 @@ function renderSide(){
     const go=(why,msg)=>{ if(why){ toast(why); return; } state.selected=null; renderModels(); buildHome(); renderSide(); toast(msg); };
     sideB.querySelector('.pod-acts').insertAdjacentHTML('beforeend', `<span class="pod-mid"><button class="btn ghost sm" id="midX" title="A wall across the pod, to split off a bathroom, a bedroom …">＋ Wall across</button><button class="btn ghost sm" id="midL" title="A wall along the pod">＋ Wall along</button></span>`);
     { const P=podList(state.model), me=P[pi], OFF=podOffsets(state.model), ov=(a,b)=>{ const oa=OFF[a.i], ob=OFF[b.i]; return Math.min(a.x1+oa.ox,b.x1+ob.ox)-Math.max(a.x+oa.ox,b.x+ob.ox)>0.1 && Math.min(a.z1+oa.oz,b.z1+ob.oz)-Math.max(a.z+oa.oz,b.z+ob.oz)>0.1; };
-      const can = me && (me.lv ? P.some(q=>!q.lv && ov(q,me)) : P.some(q=>q.lv && ov(q,me))) && me.len>8;
-      if(me && P.some(q=>q.lv && q!==me && ov(q,me)) || (me && me.lv && P.some(q=>!q.lv && ov(q,me)))) sideB.querySelector('.pod-acts').insertAdjacentHTML('beforeend', `<button class="btn ghost sm" id="podStair" title="A legal stair up to the pod above, with the opening cut">＋ Stairs</button>`);
+      // a pod with one above it gets a stair up; a pod with one below it gets a stair up into it from there
+      const upP = me ? P.filter(q=>q.lv===me.lv+1 && ov(q,me)) : [], dnP = me ? P.filter(q=>q.lv===me.lv-1 && ov(q,me)) : [];
+      if(upP.length || dnP.length) sideB.querySelector('.pod-acts').insertAdjacentHTML('beforeend', `<button class="btn ghost sm" id="podStair" title="A legal stair up to the floor above, with the opening cut">＋ Stairs</button>`);
       sideB.querySelector('#podStair')?.addEventListener('click', ()=>{ let id=null;
-        if(me.lv){ for(const q of P.filter(q=>!q.lv && ov(q,me))){ id=addStair(q.i); if(id) break; } } else id=addStair(pi);
+        if(upP.length) id=addStair(pi); if(!id) for(const q of dnP){ id=addStair(q.i); if(id) break; }
         if(!id){ toast('No room for a stair here: it needs about 12′ clear along a pod, under the pod above.'); return; }
         state.selected='stair:'+id; renderModels(); buildHome(); highlight(); renderSide(); toast('Stairs added · pick another option or slide them'); }); }
     const addMid=dir=>{ const id=addPart(pi, dir); if(!id) return; state.selected=id; renderModels(); buildHome(); highlight(); renderSide(); toast('Middle wall added · slide it, snap it flush, or tap a door option'); };

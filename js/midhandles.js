@@ -32,7 +32,7 @@ function bodyOf(s){
   const r=[s.n[1],-s.n[0]], t=(s.body?.t||4.5)/FT, L=s.len;
   const A=[s.p0[0]+r[0]*s.trim[0]/FT - s.n[0]*t/2, s.p0[1]+r[1]*s.trim[0]/FT - s.n[1]*t/2];
   const B=[s.p0[0]+r[0]*(L-s.trim[1]/FT) - s.n[0]*t/2, s.p0[1]+r[1]*(L-s.trim[1]/FT) - s.n[1]*t/2];
-  return { A, B, r, n:s.n, t, y:H/FT + 0.06 + (s.pod.lv ? UP/FT : 0) };
+  return { A, B, r, n:s.n, t, y:H/FT + 0.06 + (s.pod.lv||0)*UP/FT };
 }
 function clear(){ if(group){ group.parent?.remove(group); group=null; } shownFor=null; }
 function update(){

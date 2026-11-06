@@ -326,22 +326,24 @@ function buildDeckMesh(L, mat){
 const EPS_MAT=new THREE.MeshStandardMaterial({ color:0xf3f4f2, roughness:0.95 }), POST_MAT=new THREE.MeshStandardMaterial({ color:0x9c8a62, roughness:0.85 }), TUBE_MAT=new THREE.MeshStandardMaterial({ color:0xa7a9a4, roughness:0.95 });
 let upGroup=null;
 function buildUpstairs(pods){
-  const ups=new Set(pods.filter(p=>p.lv).map(p=>p.i)); upGroup=null; if(!ups.size) return;
-  const dy=UP/FT, lift=(o, base)=>{ o.position.y+=dy; if(base) base.y+=dy; };
-  wallGroups.forEach(g=>{ if(ups.has(g.userData.slot.pod.i)) lift(g, g.userData.base); });
-  layerGroups.forEach(g=>{ if(ups.has(g.userData.pod)){ lift(g); g.userData.baseY+=dy; } });
+  const LVp=new Map(pods.filter(p=>p.lv).map(p=>[p.i, p.lv])); upGroup=null; if(!LVp.size) return;
+  const ups={ has:i=>LVp.has(i) }, lift=(o, base, i)=>{ const dy=LVp.get(i)*UP/FT; o.position.y+=dy; if(base) base.y+=dy; return dy; };   // each floor UP above the one below
+  wallGroups.forEach(g=>{ const i=g.userData.slot.pod.i; if(ups.has(i)) lift(g, g.userData.base, i); });
+  layerGroups.forEach(g=>{ const i=g.userData.pod; if(ups.has(i)){ g.userData.baseY+=lift(g, null, i); } });
   rimGroup.children.slice().forEach(m=>{ if(!ups.has(m.userData.pod)) return;
     if(m.userData.lay==='floor-int' || m.userData.lay==='frame'){ rimGroup.remove(m); framingMeshes=framingMeshes.filter(x=>x!==m); plateMeshes=plateMeshes.filter(x=>x!==m); return; }
-    lift(m, m.userData.base); });
+    lift(m, m.userData.base, m.userData.pod); });
   upGroup=new THREE.Group(); upGroup.userData.up=true; homeGroup.add(upGroup);
   const U=upstairs(state.model), padY=(LAYER_KINDS.roof.z+LAYER_KINDS.roof.t-WALL_BASE)/FT, t=EPS_PAD/FT;
   U.eps.forEach(e=>{ const holes=stairOpenings(st=>st.above===e.pod || st.S.pod===e.on);
-    cutStairs([e.x,e.z,e.x1,e.z1], holes).forEach(([x0,z0,x1,z1])=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(x1-x0, t, z1-z0), EPS_MAT); m.position.set((x0+x1)/2, padY+t/2, (z0+z1)/2); m.userData={ pod:e.pod, lay:'floor-up', base:m.position.clone(), build:'eps-pad' }; upGroup.add(m); }); });
-  const top=(LAYER_KINDS['floor-up'].z+UP-WALL_BASE)/FT, bot=-FLOOR, conc=foundationOf(state.model)==='concrete';
-  U.posts.forEach(q=>{ const h=top-bot, m=new THREE.Mesh(new THREE.BoxGeometry(POST, h, POST), POST_MAT); m.position.set(q.x, bot+h/2, q.z); m.userData={ pod:q.pod, lay:'post', base:m.position.clone(), build:'post' }; upGroup.add(m);
-    if(conc){ const c=new THREE.Mesh(new THREE.CylinderGeometry(5/FT, 5/FT, 4.2, 20), TUBE_MAT); c.position.set(q.x, bot-2.1+2/FT, q.z); c.userData={ lay:'post', build:'sonotube' }; upGroup.add(c); }
-    else { const sh=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,5.5,10), MAT.steel); sh.position.set(q.x, bot-2.75, q.z); upGroup.add(sh);
-      const cap=new THREE.Mesh(new THREE.BoxGeometry(0.75,0.06,0.75), MAT.steel); cap.position.set(q.x, bot-0.03, q.z); upGroup.add(cap); } });
+    cutStairs([e.x,e.z,e.x1,e.z1], holes).forEach(([x0,z0,x1,z1])=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(x1-x0, t, z1-z0), EPS_MAT); m.position.set((x0+x1)/2, padY+(e.lv-1)*UP/FT+t/2, (z0+z1)/2); m.userData={ pod:e.pod, lay:'floor-up', base:m.position.clone(), build:'eps-pad' }; upGroup.add(m); }); });
+  const conc=foundationOf(state.model)==='concrete';
+  U.posts.forEach(q=>{ const top=(LAYER_KINDS['floor-up'].z+q.lv*UP-WALL_BASE)/FT, onGround=q.rest<0, bot = onGround ? -FLOOR : padY+q.rest*UP/FT;   // down to the ground, or onto the roof of a pod further down
+    const h=top-bot, m=new THREE.Mesh(new THREE.BoxGeometry(POST, h, POST), POST_MAT); m.position.set(q.x, bot+h/2, q.z); m.userData={ pod:q.pod, lay:'post', base:m.position.clone(), build:'post' }; upGroup.add(m);
+    if(!onGround) return;
+    if(conc){ const c=new THREE.Mesh(new THREE.CylinderGeometry(5/FT, 5/FT, 4.2, 20), TUBE_MAT); c.position.set(q.x, bot-2.1+2/FT, q.z); c.userData={ pod:q.pod, lay:'post', build:'sonotube' }; upGroup.add(c); }
+    else { const sh=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,5.5,10), MAT.steel); sh.position.set(q.x, bot-2.75, q.z); sh.userData={ pod:q.pod }; upGroup.add(sh);
+      const cap=new THREE.Mesh(new THREE.BoxGeometry(0.75,0.06,0.75), MAT.steel); cap.position.set(q.x, bot-0.03, q.z); cap.userData={ pod:q.pod }; upGroup.add(cap); } });
 }
 /* stairs up to the second floor (stairs.js): treads and stringers, picked as one ('stair:<id>') */
 const STAIR_MAT=new THREE.MeshStandardMaterial({ color:0xc8a26e, roughness:0.8 }), STAIR_SEL=new THREE.MeshStandardMaterial({ color:0xe0864a, roughness:0.7, emissive:0x3a1a05 });
@@ -360,7 +362,7 @@ function minusRect([x0,z0,x1,z1], H){
 const cutStairs = (r, holes) => holes.reduce((L,H)=>L.flatMap(q=>minusRect(q,H)), [r]);
 function buildStairs(){
   stairGroup=new THREE.Group(); homeGroup.add(stairGroup);
-  stairsOf(state.model).forEach(st=>{ const g=new THREE.Group(); g.userData={ stair:st.S.id, pod:st.S.pod };
+  stairsOf(state.model).forEach(st=>{ const g=new THREE.Group(); g.userData={ stair:st.S.id, pod:st.S.pod }; g.position.y=(st.p.lv||0)*UP/FT;   // from its floor
     const mat = state.selected==='stair:'+st.S.id ? STAIR_SEL : STAIR_MAT;
     stairParts(st).forEach(q=>{ let m;
       if(q.kind==='box'){ m=new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.02,q.x1-q.x), (q.y1-q.y0)/FT, Math.max(0.02,q.z1-q.z)), mat); m.position.set((q.x+q.x1)/2, (q.y0+q.y1)/2/FT, (q.z+q.z1)/2); }
@@ -673,14 +675,14 @@ function applyRimVis(){
    upstairs both show in 3D; the 2D plan shows one floor at a time */
 let LV=[];
 setTimeout(()=>setLevelTest(i=>levelShows(i)), 0);
-const levelShows = i => { const lv=LV[i]||0; return document.body.classList.contains('two-d') ? lv===(state.level||0) : (!lv || !!state.level); };
+const levelShows = i => { const lv=LV[i]||0, at=state.level||0; return document.body.classList.contains('two-d') ? lv===at : lv<=at; };   // 3D: this floor and the ones below; 2D: just this one
 function applyLayers(){
   if(!floorGroup) return;
   LV=podList(state.model).map(p=>p.lv);
   isoHidden.forEach(o=>{ o.visible=true; }); isoHidden=[];   // put back what an isolate hid; the switches below decide the rest
   const S=state.show, F=state.focusPod, inPod = i => (F==null || i===F) && levelShows(i);
   wallGroups.forEach(g=>g.visible=S.walls && inPod(g.userData.slot.pod.i));
-  if(upGroup) upGroup.visible = !!state.level && !document.body.classList.contains('two-d');
+  if(upGroup){ upGroup.visible = !document.body.classList.contains('two-d'); upGroup.children.forEach(o=>{ o.visible = o.userData.pod==null || levelShows(o.userData.pod); }); }
   if(stairGroup) stairGroup.children.forEach(g=>{ g.visible = (state.focusPod==null || g.userData.pod===state.focusPod) && levelShows(g.userData.pod); });
   homeGroup.children.forEach(o=>{ if(o.userData.swlinks) o.visible = S.swlinks!==false && S.walls && F==null; });
   floorGroup.visible=S.floors; ceilGroup.visible=S.ceiling; roofGroup.visible=S.roof;

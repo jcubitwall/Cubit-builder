@@ -620,6 +620,19 @@ screen (the app opening on it, or picked in the Homes list) it's checked against
 save (same-thing conflicts are asked about at Save, as before); no record of the starting version → this device's
 copy goes into My Drafts as "(copy from this device)" and the latest save opens. A short message says which.
 
+## Floors 1 to 99 (layout.js · pods.js · build.js)
+- **▼ Floor N ▲** beside 2D/3D:
+  - ▲ goes one floor past the top of the home to start a new one, up to floor 99. Tapping the name jumps between floor 1 and the top floor.
+  - In 3D a floor shows with the floors below it; in 2D it shows on its own.
+  - Pods dragged from the tray go onto the floor picked.
+- **Every floor stacks like the second:**
+  - Each floor sits 116.4″ (`UP`) above the one below, on a single 6½″ SIP floor, with no steel frame.
+  - A 1″ EPS pad goes only where a pod touches a pod of the floor right below.
+  - A pod has to sit on a pod of the floor right below, can hang over its edge, and can't overlap another pod on its own floor.
+- **Posts:** an overhang of 8′ or more gets 8×8 posts down to the ground (screw pile or Sonotube), or onto the roof of the highest pod further down that's in the way. Posts are listed by stock length.
+- **Stairs** go from a pod on any floor to the floor right above. The ＋ Stairs button shows on a pod with a pod above it or below it.
+- **Sheets:** A12 Main Level, A14 Second Floor, A14.2 Third Floor … (one per floor). The takeoff stage is called "Upper floors".
+
 ## Second floor and stairs (layout.js · stairs.js)
 - **Floor 1 / Floor 2** button beside 2D/3D. On Floor 2, pods dragged from the tray go upstairs (`lv:1` on the pod). Floor 1 hides the upstairs; Floor 2 shows both.
 - An upstairs pod has **no metal frame**. Its floor is one **6.5″ SIP** (`floor-up`, code FU) and it sits **116.4″** (`UP`) above the ground floor. A **1″ EPS pad** goes only where it touches the pod below. The lower pod keeps its full roof.

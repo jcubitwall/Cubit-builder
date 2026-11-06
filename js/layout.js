@@ -3,7 +3,7 @@
    Plan units are feet. Seen from above, +x is to the right and +z is down the screen, so going
    clockwise means S → E → N → W. A pod can be turned in 90° steps (rot 0/90/180/270, clockwise):
    at 0/180 its length runs along x, at 90/270 along z. */
-import { FT, H, GAP, POD, SIDE_NAME, LAYER_KINDS, SCREW_MAX, PAD_MAX, ICF, DECK, UP, LEVEL_KINDS } from './config.js';
+import { FT, H, GAP, POD, SIDE_NAME, LAYER_KINDS, SCREW_MAX, PAD_MAX, ICF, DECK, UP, LEVEL_KINDS, MAX_LV } from './config.js';
 const DG = DECK.gap/12;   // decks sit ¾″ off the house (siding), and butt straight up to each other
 import { MODELS, podById, deckById } from './data.js';
 import { pickFor, state, foundationOf } from './state.js';
@@ -12,8 +12,8 @@ const EPS = 1e-6;
 const podList = modelKey => MODELS[modelKey].pods.map((p,i)=>{
   const len=POD[p.t].len, rot=((p.rot||0)%360+360)%360, alongX = rot%180===0;
   const w = alongX ? len : 8, d = alongX ? 8 : len;
-  const lv=p.lv?1:0;   // 1 = on the second floor (sits on the pods below)
-  return {...p, i, rot, len, w, d, alongX, x1:p.x+w, z1:p.z+d, lv, y:lv?UP/FT:0, label:`Pod ${i+1}`, long:`Pod ${i+1} (${len}′)${lv?' · upstairs':''}`};
+  const lv=Math.max(0, Math.min(MAX_LV, Math.round(+p.lv||0)));   // its floor: 0 the ground floor, 1 the second … up to 98 (floor 99); it sits on the floor below
+  return {...p, i, rot, len, w, d, alongX, x1:p.x+w, z1:p.z+d, lv, y:lv*UP/FT, label:`Pod ${i+1}`, long:`Pod ${i+1} (${len}′)${lv?` · floor ${lv+1}`:''}`};
 });
 /* which world side a pod's own (local, unturned) side ends up on, and back */
 const ROT_SIDE = {0:{S:'S',E:'E',N:'N',W:'W'}, 90:{S:'E',E:'N',N:'W',W:'S'}, 180:{S:'N',E:'W',N:'S',W:'E'}, 270:{S:'W',E:'S',N:'E',W:'N'}};
@@ -63,8 +63,8 @@ function layoutOffsets(modelKey){
     if(!moved) break; }
   // upstairs: each group of joined upstairs pods lines up with the pod below it sits on most (so its walls stand
   // flush on that pod's)
-  P.filter(p=>p.lv && parent[p.i]===-1).forEach(r=>{
-    let best=null, area=0; P.filter(q=>!q.lv).forEach(q=>{ const a=Math.max(0,Math.min(r.x1,q.x1)-Math.max(r.x,q.x))*Math.max(0,Math.min(r.z1,q.z1)-Math.max(r.z,q.z)); if(a>area){ area=a; best=q; } });
+  P.filter(p=>p.lv && parent[p.i]===-1).sort((a,b)=>a.lv-b.lv).forEach(r=>{   // floor by floor, from the bottom up
+    let best=null, area=0; P.filter(q=>q.lv===r.lv-1).forEach(q=>{ const a=Math.max(0,Math.min(r.x1,q.x1)-Math.max(r.x,q.x))*Math.max(0,Math.min(r.z1,q.z1)-Math.max(r.z,q.z)); if(a>area){ area=a; best=q; } });
     if(!best) return; const dx=pods[best.i].ox-pods[r.i].ox, dz=pods[best.i].oz-pods[r.i].oz;
     [r.i, ...kids(r.i)].forEach(i=>{ pods[i].ox+=dx; pods[i].oz+=dz; }); });
   // decks take their place from the pod they touch (¾″ out from it, lined up along it); a deck that
@@ -501,24 +501,27 @@ function padsFor(modelKey, insetIn){
 const POST = 7.5/12;   // an 8×8 is 7½″
 function upstairs(modelKey){
   const LO=layoutOffsets(modelKey).pods, pl=podList(modelKey).map(p=>{ const o=LO[p.i]; return { ...p, x:p.x+o.ox, z:p.z+o.oz, x1:p.x1+o.ox, z1:p.z1+o.oz }; });
-  const low=pl.filter(p=>!p.lv), eps=[], posts=[];
+  const eps=[], posts=[];
   pl.filter(p=>p.lv).forEach(p=>{
-    low.forEach(q=>{ const x=Math.max(p.x,q.x), x1=Math.min(p.x1,q.x1), z=Math.max(p.z,q.z), z1=Math.min(p.z1,q.z1); if(x1-x>0.01 && z1-z>0.01) eps.push({ x, z, x1, z1, pod:p.i, on:q.i }); });
+    const low=pl.filter(q=>q.lv===p.lv-1);   // the floor right below
+    low.forEach(q=>{ const x=Math.max(p.x,q.x), x1=Math.min(p.x1,q.x1), z=Math.max(p.z,q.z), z1=Math.min(p.z1,q.z1); if(x1-x>0.01 && z1-z>0.01) eps.push({ x, z, x1, z1, pod:p.i, on:q.i, lv:p.lv }); });
     // along its length: where it's held from below
     const ax = p.alongX ? 'x' : 'z', a0 = ax==='x'?p.x:p.z, a1 = ax==='x'?p.x1:p.z1;
     const held = eps.filter(e=>e.pod===p.i).map(e=>ax==='x' ? [e.x,e.x1] : [e.z,e.z1]);
     const lo = held.length ? Math.min(...held.map(h=>h[0])) : a1, hi = held.length ? Math.max(...held.map(h=>h[1])) : a0;
     const h=POST/2, corner=(end)=>{ const at = end==='lo' ? a0+h : a1-h;
       return ax==='x' ? [[at, p.z+h],[at, p.z1-h]] : [[p.x+h, at],[p.x1-h, at]]; };
-    if(lo-a0 >= 8-0.05) corner('lo').forEach(([x,z])=>posts.push({ x, z, pod:p.i, end:'lo', over:+(lo-a0).toFixed(2) }));
-    if(a1-hi >= 8-0.05) corner('hi').forEach(([x,z])=>posts.push({ x, z, pod:p.i, end:'hi', over:+(a1-hi).toFixed(2) }));
+    // a post goes down to the ground, or to the roof of the highest pod further down that's in its way (rest: its floor)
+    const rest=(x,z)=>{ const q=pl.filter(o=>o.lv<p.lv-1 && x>=o.x-0.01 && x<=o.x1+0.01 && z>=o.z-0.01 && z<=o.z1+0.01).sort((a,b)=>b.lv-a.lv)[0]; return q ? q.lv : -1; };
+    if(lo-a0 >= 8-0.05) corner('lo').forEach(([x,z])=>posts.push({ x, z, pod:p.i, lv:p.lv, rest:rest(x,z), end:'lo', over:+(lo-a0).toFixed(2) }));
+    if(a1-hi >= 8-0.05) corner('hi').forEach(([x,z])=>posts.push({ x, z, pod:p.i, lv:p.lv, rest:rest(x,z), end:'hi', over:+(a1-hi).toFixed(2) }));
   });
   return { eps, posts };
 }
 /* Each pod has four horizontal layers: exterior floor, interior floor, interior ceiling, roof */
 function layerSlotsFor(modelKey){
   const OFF=podOffsets(modelKey);
-  return podList(modelKey).flatMap(p=>LEVEL_KINDS[p.lv].map(kind=>({ id:`${p.i}:${kind}`, layer:true, kind, pod:p, len:p.len, rot:p.rot,
+  return podList(modelKey).flatMap(p=>LEVEL_KINDS[p.lv?1:0].map(kind=>({ id:`${p.i}:${kind}`, layer:true, kind, pod:p, len:p.len, rot:p.rot,
     x:p.x+OFF[p.i].ox, z:p.z+OFF[p.i].oz, w:p.w, d:p.d, label:`${p.label} · ${LAYER_KINDS[kind].label}` })));
 }
 /* The neighbour's wall on the other side of the same joint (both pods keep their own 4½″ wall) */

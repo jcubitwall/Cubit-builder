@@ -26,7 +26,7 @@ const yd3 = ft3 => ft3/27;
 const TUBE = { d:10, deep:50 };   // inches: 10″ Sonotube, 4′ 2″ into the ground (below frost)
 /* every second-floor shopping line there can be (both foundations), so the price book always lists them */
 function upstairsBuyLines(){ const L=(LAYER_KINDS['floor-up'].z+UP-WALL_BASE)+FLOOR*12, st=Math.ceil(L/24-1e-6)*2;
-  return [`EPS ${EPS_PAD}″ sheet 4 × 8 (pad under upstairs pods)`, `8×8 pressure-treated post × ${st}′`, '8×8 post base', `${TUBE.d}″ Sonotube × 4′`, 'yd³ concrete (Sonotubes, incl. 10%)', 'ground screw, post head'].map(what=>({ group:'Second floor', what })); }
+  return [`EPS ${EPS_PAD}″ sheet 4 × 8 (pad under upstairs pods)`, `8×8 pressure-treated post × ${st}′`, '8×8 post base', `${TUBE.d}″ Sonotube × 4′`, 'yd³ concrete (Sonotubes, incl. 10%)', 'ground screw, post head'].map(what=>({ group:'Upper floors', what })); }
 function upstairsTakeoff(k=state.model){
   const ups=podList(k).filter(p=>p.lv); if(!ups.length) return null;
   const U=upstairs(k), conc=foundationOf(k)==='concrete';
@@ -35,10 +35,15 @@ function upstairsTakeoff(k=state.model){
   const SH=stairsOf(k).filter(st=>st.above!=null).flatMap(st=>st.holes);
   const ov=(e,H)=>Math.max(0, Math.min(e.x1,H.x1)-Math.max(e.x,H.x)) * Math.max(0, Math.min(e.z1,H.z1)-Math.max(e.z,H.z));
   const epsSqft=U.eps.reduce((a,e)=>a+(e.x1-e.x)*(e.z1-e.z) - SH.reduce((b,H)=>b+ov(e,H),0), 0);
-  const postLen=(LAYER_KINDS['floor-up'].z+UP-WALL_BASE)+FLOOR*12;   // underside of the home (screw cap / tube top) to under the upstairs floor
-  const stock=Math.ceil(postLen/24-1e-6)*2;                            // 8×8s come in even feet
+  // each post: from the underside of the home (screw cap / tube top), or from the roof of a pod further down it lands
+  // on, up to the underside of its pod's floor
+  const roofTop = r => LAYER_KINDS.roof.z+LAYER_KINDS.roof.t-WALL_BASE + r*UP;
+  const lens=U.posts.map(q=>{ const top=LAYER_KINDS['floor-up'].z+q.lv*UP-WALL_BASE, bot = q.rest<0 ? -FLOOR*12 : roofTop(q.rest); return { len:top-bot, ground:q.rest<0 }; });
+  const byStock={}; lens.forEach(l=>{ const st=Math.ceil(l.len/24-1e-6)*2; (byStock[st] ||= { stock:st, n:0, len:0 }).n++; byStock[st].len=Math.max(byStock[st].len, l.len); });   // 8×8s come in even feet
+  const postLen=lens.length ? Math.max(...lens.map(l=>l.len)) : 0, stock=Math.ceil(postLen/24-1e-6)*2;
   const tubeYd3=yd3(Math.PI*(TUBE.d/24)**2*(TUBE.deep/12));
-  return { pods:ups.length, panels, epsSqft, epsSheets:Math.ceil(epsSqft*1.1/32-1e-6), posts:U.posts.length, postLen, stock, conc, tubeYd3 };
+  return { pods:ups.length, panels, epsSqft, epsSheets:Math.ceil(epsSqft*1.1/32-1e-6), posts:U.posts.length, grounded:lens.filter(l=>l.ground).length, stocks:Object.values(byStock).sort((a,b)=>a.stock-b.stock), postLen, stock, conc, tubeYd3,
+    floors:Math.max(...ups.map(p=>p.lv))+1 };
 }
 /* item: { n, what, len?, note? } — n pieces of `what`, each `len` inches long when it's a cut piece */
 function homeTakeoff(){
@@ -94,11 +99,11 @@ function homeTakeoff(){
   { const T=upstairsTakeoff(); if(T){ const items=[
       {n:T.panels, what:`SIP floor panel ${LAYER_KINDS['floor-up'].t}″, 4 × 8`, note:`upstairs floor · one layer, no steel frame · ${T.pods} pod${T.pods>1?'s':''}`},
       {n:+T.epsSqft.toFixed(1), what:`sq ft EPS pad ${EPS_PAD}″`, note:`only where an upstairs pod sits on a pod below · ${T.epsSheets} sheets 4 × 8 with 10%`}];
-    if(T.posts){ items.push({n:T.posts, what:'8×8 post', len:T.postLen, note:`under overhangs of 8′ or more · cut from ${T.stock}′ stock`});
-      items.push({n:T.posts, what:'8×8 post base', note:T.conc?'anchored in the Sonotube':'on the ground screw cap'});
-      if(T.conc){ items.push({n:T.posts, what:`${TUBE.d}″ Sonotube`, len:TUBE.deep, note:'below frost'}); items.push({n:+(T.tubeYd3*T.posts).toFixed(2), what:'yd³ concrete, Sonotube fill', note:'net, order ~10% more'}); }
-      else items.push({n:T.posts, what:'ground screw, post head', note:'one under each post'}); }
-    add('up','Second floor',items,`${T.pods} upstairs pod${T.pods>1?'s':''}`); } }
+    if(T.posts){ T.stocks.forEach(s=>items.push({n:s.n, what:'8×8 post', len:s.len, note:`under overhangs of 8′ or more · cut from ${s.stock}′ stock`}));
+      items.push({n:T.posts, what:'8×8 post base', note:T.grounded<T.posts ? `${T.grounded} on the ground, ${T.posts-T.grounded} on the roof of a pod further down` : T.conc?'anchored in the Sonotube':'on the ground screw cap'});
+      const g=T.grounded; if(g){ if(T.conc){ items.push({n:g, what:`${TUBE.d}″ Sonotube`, len:TUBE.deep, note:'below frost'}); items.push({n:+(T.tubeYd3*g).toFixed(2), what:'yd³ concrete, Sonotube fill', note:'net, order ~10% more'}); }
+      else items.push({n:g, what:'ground screw, post head', note:'one under each post on the ground'}); } }
+    add('up','Upper floors',items,`${T.pods} pod${T.pods>1?'s':''} above the ground floor, ${T.floors} floors`); } }
   // Windows & doors
   { const g={}; let open=0;
     slotsFor(state.model).forEach(s=>{ const w=bodyWall(s, pickFor(s)); (w?.openings||[]).filter(catOf).forEach(o=>{ const r=unitFor(s,o);
@@ -132,10 +137,10 @@ function shoppingList(){
     Object.entries(T.frame.byLen).forEach(([ft,n])=>add('Decks', n, `2×8 × ${ft}′`));
     Object.entries(T.deckBoards.byLen).forEach(([ft,n])=>add('Decks', n, `${DECK.board.name} × ${ft}′`));
     add('Decks', T.angles, `${DECK.angle} × ${fin(T.angleLen)}`); }
-  { const T=upstairsTakeoff(); if(T){ add('Second floor', T.epsSheets, `EPS ${EPS_PAD}″ sheet 4 × 8 (pad under upstairs pods)`);
-    if(T.posts){ add('Second floor', T.posts, `8×8 pressure-treated post × ${T.stock}′`); add('Second floor', T.posts, '8×8 post base');
-      if(T.conc){ add('Second floor', T.posts, `${TUBE.d}″ Sonotube × 4′`); add('Second floor', +(T.tubeYd3*T.posts*1.1).toFixed(2), 'yd³ concrete (Sonotubes, incl. 10%)'); }
-      else add('Second floor', T.posts, 'ground screw, post head'); } } }
+  { const T=upstairsTakeoff(); if(T){ add('Upper floors', T.epsSheets, `EPS ${EPS_PAD}″ sheet 4 × 8 (pad under upstairs pods)`);
+    if(T.posts){ T.stocks.forEach(s=>add('Upper floors', s.n, `8×8 pressure-treated post × ${s.stock}′`)); add('Upper floors', T.posts, '8×8 post base');
+      const g=T.grounded; if(g){ if(T.conc){ add('Upper floors', g, `${TUBE.d}″ Sonotube × 4′`); add('Upper floors', +(T.tubeYd3*g*1.1).toFixed(2), 'yd³ concrete (Sonotubes, incl. 10%)'); }
+      else add('Upper floors', g, 'ground screw, post head'); } } } }
   const u={}; slotsFor(state.model).forEach(s=>{ const w=bodyWall(s, pickFor(s)); (w?.openings||[]).filter(catOf).forEach(o=>{ const r=unitFor(s,o); if(r) u[r.unit.name+' ('+r.unit.id+')']=(u[r.unit.name+' ('+r.unit.id+')']||0)+1; }); });
   Object.entries(u).forEach(([k,n])=>add('Windows & doors', n, k));
   { const S=sealRun(); if(S.n) add('Seals', +(S.tot/12*1.1).toFixed(0), `ft · ${SEAL.name}`); }

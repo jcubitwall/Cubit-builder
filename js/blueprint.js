@@ -418,10 +418,12 @@ function planFurniture(ctx, xf, opts){ return ctx.H_.items.map(I=>itemSVG(I, xf,
 /* stairs on a plan: downstairs the treads and an UP arrow; upstairs the opening with a guard line and DN */
 function stairSVG(xf, lv){
   let g='';
-  stairsOf().forEach(st=>{ const L=stairPlan(st), poly=r=>[[r.x,r.z],[r.x1,r.z],[r.x1,r.z1],[r.x,r.z1]].map(xf.P).map(p=>p.join(',')).join(' ');
+  const PL=podList(state.model);
+  stairsOf().forEach(st=>{ const from=st.p.lv||0, to=st.above!=null ? (PL[st.above]?.lv||0) : -1; if(from!==lv && to!==lv) return;   // its foot on this floor, or its opening
+    const L=stairPlan(st), poly=r=>[[r.x,r.z],[r.x1,r.z],[r.x1,r.z1],[r.x,r.z1]].map(xf.P).map(p=>p.join(',')).join(' ');
     const W=L.walk.map(xf.P), a=W[0], b=W[W.length-1], pb=W[W.length-2]||a, ang=Math.atan2(b[1]-pb[1], b[0]-pb[0]), hd=(p,s)=>`${p[0]-9*Math.cos(ang+s)},${p[1]-9*Math.sin(ang+s)}`;
     const walk=`<polyline points="${W.map(p=>p.join(',')).join(' ')}" fill="none" stroke="${INK}" stroke-width="1"/>`;
-    if(!lv){ g+=`<polygon points="${poly(st.foot)}" fill="#fff" stroke="${INK}" stroke-width="1.2"/>`;
+    if(from===lv){ g+=`<polygon points="${poly(st.foot)}" fill="#fff" stroke="${INK}" stroke-width="1.2"/>`;
       L.lines.forEach(([p,q])=>{ const [x1,y1]=xf.P(p), [x2,y2]=xf.P(q); g+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${INK}" stroke-width="0.7"/>`; });
       if(L.post){ const c=xf.P(L.post.c); g+=`<circle cx="${c[0]}" cy="${c[1]}" r="${Math.max(2, L.post.r*xf.k)}" fill="${INK}"/>`; }
       g+=walk+`<polyline points="${hd(b,0.45)} ${b.join(',')} ${hd(b,-0.45)}" fill="none" stroke="${INK}" stroke-width="1"/>`;
@@ -433,9 +435,9 @@ function stairSVG(xf, lv){
 }
 function sFloor(ctx, sh){
   const { H_ } = ctx, { xf, label } = planFit(ctx); sh.scale=label;
-  const up = !!ctx.H2 && H_===ctx.H2;
-  let g=deckSVG(H_, xf)+planFurniture(ctx, xf)+drawWalls(H_, xf)+stairSVG(xf, up?1:0)+roomLabels(H_, xf)+planDims(H_, xf)+elevMarkers(H_, xf)+sectionLine(H_, xf);
-  g+=northArrow(AREA.x1-40, AREA.y0+40)+scaleBar(AREA.x0+10, AREA.y1-14, xf.k)+viewTitle(AREA.x0+(AREA.x1-AREA.x0)/2-90, AREA.y1-10, '1', sh.no, up ? 'SECOND FLOOR PLAN' : 'MAIN LEVEL FLOOR PLAN', label);
+  const lv = sh.lv||0;
+  let g=deckSVG(H_, xf)+planFurniture(ctx, xf)+drawWalls(H_, xf)+stairSVG(xf, lv)+roomLabels(H_, xf)+planDims(H_, xf)+elevMarkers(H_, xf)+sectionLine(H_, xf);
+  g+=northArrow(AREA.x1-40, AREA.y0+40)+scaleBar(AREA.x0+10, AREA.y1-14, xf.k)+viewTitle(AREA.x0+(AREA.x1-AREA.x0)/2-90, AREA.y1-10, '1', sh.no, lv ? floorTitle(lv).toUpperCase() : 'MAIN LEVEL FLOOR PLAN', label);
   return g;
 }
 /* A13: pods numbered, every wall's code (1A, 1B …) and a wall schedule */
@@ -747,12 +749,15 @@ function sViews(ctx, sh){
   return g;
 }
 
+/* a floor's name: Second … Tenth, then Floor 11 … Floor 99 (lv 0 is the main level) */
+const FLOOR_WORDS=['Main','Second','Third','Fourth','Fifth','Sixth','Seventh','Eighth','Ninth','Tenth'];
+const floorName = lv => FLOOR_WORDS[lv] || `Floor ${lv+1}`;
+const floorTitle = lv => FLOOR_WORDS[lv] ? `${FLOOR_WORDS[lv]} Floor Plan` : `Floor ${lv+1} Plan`;
 /* ------------------------------------------------------------------ the set */
 const SHEETS = [
   { id:'cover', no:'A01', title:'Cover & General Notes', scale:'N.T.S.', fn:sCover },
   { id:'found', no:'A11', title:'Foundation Plan', fn:sFoundation },
   { id:'floor', no:'A12', title:'Main Level Floor Plan', fn:sFloor },
-  { id:'floor2', no:'A14', title:'Second Floor Plan', fn:(ctx, sh)=>sFloor({ ...ctx, H_:ctx.H2 }, sh), up:true },
   { id:'key',   no:'A13', title:'Pod & Wall Key Plan', fn:sKey },
   { id:'elec',  no:'E11', title:'Main Level Electrical Plan', fn:sElectrical },
   { id:'plumb', no:'P11', title:'Main Level Plumbing Plan', fn:sPlumbing },
@@ -763,13 +768,17 @@ const SHEETS = [
 ];
 /* ctx: everything the sheets share. found / concrete are passed in (to keep this file free of the sheet UI imports) */
 function makeContext({ bp=loadBP(), renders=[], found=null, concrete=null }={}){
-  const k=state.model, up=podList(k).some(p=>p.lv), H_=homeModel(k, up?0:null), H2=up?homeModel(k, 1):null, info=homeInfo(bp, k);
-  const counts={}, allPods=[...H_.pods, ...(H2?H2.pods:[])]; allPods.forEach(p=>counts[p.len]=(counts[p.len]||0)+1);
+  const k=state.model, top=Math.max(0, ...podList(k).map(p=>p.lv||0)), up=top>0, H_=homeModel(k, up?0:null), info=homeInfo(bp, k);
+  const HL=[H_]; for(let L=1; L<=top; L++) HL.push(homeModel(k, L)); const H2=HL[1]||null;   // each floor's plan
+  const counts={}, allPods=HL.flatMap(h=>h.pods); allPods.forEach(p=>counts[p.len]=(counts[p.len]||0)+1);
   const podsText=Object.entries(counts).sort((a,b)=>b[0]-a[0]).map(([l,n])=>(n>1?`${n} x `:'')+`${l}'`).join(' + ');
   const area=allPods.reduce((a,p)=>a+p.w*p.d, 0);
-  const on = (info.sheets ? SHEETS.filter(s=>info.sheets[s.id]!==false) : SHEETS).filter(s=>!s.up || up);
+  // a floor plan for each floor above the ground, right after the main level's: A14 for floor 2, A14.2 for floor 3 …
+  const ups=[]; for(let L=1; L<=top; L++) ups.push({ id:L===1?'floor2':`floor${L+1}`, no:L===1?'A14':`A14.${L}`, title:floorTitle(L), lv:L, fn:(c, sh)=>sFloor({ ...c, H_:HL[L] }, sh), up:true });
+  const all=SHEETS.flatMap(s=>s.id==='floor' ? [s, ...ups] : [s]);
+  const on = info.sheets ? all.filter(s=>info.sheets[s.id]!==false) : all;
   const list=on.map((s,i)=>({ ...s, i }));
-  return { k, bp, info, H_, H2, renders, found, concrete, model:MODELS[k]?.name||k, podsText, areaText:`${Math.round(area)} SQ FT (${(area*0.0929).toFixed(1)} M2)`, list, count:list.length };
+  return { k, bp, info, H_, H2, HL, renders, found, concrete, model:MODELS[k]?.name||k, podsText, areaText:`${Math.round(area)} SQ FT (${(area*0.0929).toFixed(1)} M2)`, list, count:list.length };
 }
 function buildSheet(ctx, sh){ const s={...sh}; const body=s.fn(ctx, s); return sheetSVG(ctx, s, body); }
 function buildSet(ctx){ return ctx.list.map(sh=>({ sh, svg:buildSheet(ctx, sh) })); }

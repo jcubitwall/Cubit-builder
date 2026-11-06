@@ -1297,3 +1297,7 @@ dialog.v3-dlg.v3-full .v3-cube{top:max(12px, env(safe-area-inset-top,0px));right
 .mid-len{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 6px}
 .mid-len .cw-f{max-width:150px}
 .mid-ends{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center;margin:4px 0 8px}
+/* floor stepper: ▼ Floor N ▲ */
+.vc-lvg{display:inline-flex;gap:2px;align-items:stretch}
+.vc-lvg .vc-lvs{min-width:30px;padding:0 6px;font-size:11px}
+.vc-lvg .vc-lvs:disabled{opacity:.35}
