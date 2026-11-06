@@ -92,22 +92,14 @@ function windGeo(S){
   for(let i=1;i<=WD.C;i++) treads.push(rect(w+(i-1)*run, w+i*run, b2, B2)); // back along the other wall
   const box=(a0,a1,b0,b1)=>{ const P=[C(a0,b0),C(a1,b1)]; return { u0:Math.min(P[0][0],P[1][0]), u1:Math.max(P[0][0],P[1][0]), v0:Math.min(P[0][1],P[1][1]), v1:Math.max(P[0][1],P[1][1]) }; };
   const top=w+WD.C*run;
-  // the spine: one beam up the middle of the walking path, under the middle of every tread, in climbing order
-  // (canonical a, b): up the first flight on its centre line, round each set of winders 18″ out from the pivot, across
-  // the end, back along the other flight; from the floor at the foot to the edge of the floor above
-  const mid=w/2, wpt=(pa,pb,d0,d1,k)=>{ const A0=Math.atan2(d0[1],d0[0]), A1=Math.atan2(d1[1],d1[0]); let da=A1-A0; if(da>Math.PI) da-=2*Math.PI; if(da<-Math.PI) da+=2*Math.PI; const a=A0+da*(k+0.5)/WD.W; return [pa+Math.cos(a)*mid, pb+Math.sin(a)*mid]; };
-  const spine=[];
-  for(let i=1;i<=WD.A;i++) spine.push([WD.foot-(i-0.5)*run, mid]);
-  for(let k=0;k<WD.W;k++) spine.push(wpt(w, w, [0,-1], [-1,0], k));
-  spine.push([w/2, w+WD.gap/2]);
-  for(let k=0;k<WD.W;k++) spine.push(wpt(w, b2, [-1,0], [0,1], k));
-  for(let i=1;i<=WD.C;i++) spine.push([w+(i-0.5)*run, b2+mid]);
+  // the column: one straight steel post, plumb, in the middle of the U (between the two winder corners), floor to floor
+  const col=[w, w+WD.gap/2];
   // the ceiling and roof below open from the 3rd step on (headroom over the first flight); the floor above only up to
   // the top step: from the last riser its floor runs on flush, the landing (and a level floor out to a door there)
   return { C, treads, foot:box(0, WD.foot, 0, B2), hole:box(-0.5, WD.open+0.5, -0.5, B2+0.5), holeUp:box(-0.5, top+0.5, -0.5, B2+0.5),
     footZones:[box(WD.foot, WD.foot+LAND, 0, w), box(WD.foot-LAND, WD.foot, b2, B2)],
     topZones:[box(top-LAND, top, B2, B2+LAND), box(top, top+LAND, b2, B2), box(top-LAND, top, -LAND, 0)],
-    arrive:{ p:C(top, b2+w/2), d:[-sg, 0] }, spine:spine.map(([a,b])=>C(a,b)), spineFoot:C(WD.foot, mid), spineTop:C(top+0.5, b2+mid) };
+    arrive:{ p:C(top, b2+w/2), d:[-sg, 0] }, col:C(...col), colTie:C(top+0.5, col[1]) };
 }
 /* the local footprint and openings of each kind (pod-local inch rects { u0,u1,v0,v1 }) */
 function shapeOf(S, o){
@@ -213,11 +205,32 @@ function stairParts(st){
     out.push({ kind:'poly', pts:pl(X.landing.pts), y0:G.Z(X.landing.z0), y1:G.Z(X.landing.z1) });
     return out; }
   if(o.kind==='wind'){ st.sh.G.treads.forEach((pts,i)=>out.push({ kind:'poly', pts:pts.map(P), y0:(i+1)*o.rise-T, y1:(i+1)*o.rise }));
-    // the centre spine: one beam (3½″ × 9½″) up the middle, under every tread; it bears on a plate on the floor at the
-    // foot and is fixed into the floor above where the landing starts. Each tread sits centred on it
-    const G=st.sh.G, BW=3.5, BD=9.5, pts=[{ p:G.spineFoot, y:BD/2 }, ...G.spine.map((q,i)=>({ p:q, y:(i+1)*o.rise-T-BD/2 })), { p:G.spineTop, y:R-3.25 }];
-    for(let i=0;i<pts.length-1;i++) out.push({ kind:'beam', a:P(pts[i].p), b:P(pts[i+1].p), ya:pts[i].y, yb:pts[i+1].y, w:BW/12, d:BD/12 });
-    const f=P(G.spineFoot); out.push({ kind:'box', x:f[0]-4/12, z:f[1]-4/12, x1:f[0]+4/12, z1:f[1]+4/12, y0:0, y1:0.5 });   // base plate
+    // one plumb steel column (HSS 4×4) in the middle of the U, floor to floor: a base plate on the floor, a bolting
+    // flange at the floor above (the next floor's column bolts on there) and a straight tie to the edge of that floor.
+    // Every tread on a straight steel arm (2×3 tube) welded or bolted to the column, under the tread from the column
+    // out past its middle, and a cleat (1½″ angle) across the tread on the arm. No curves. A tread whose arm would reach
+    // more than 4′ (the bottom steps of the first flight, near the floor) also gets a short leg down to the floor.
+    const G=st.sh.G, c=G.col, CW=4, AW=2, AD=3, CL=1.5, LEG=48, pl=G.treads;
+    const sq=(q,h,y0,y1)=>{ const a=P([q[0]-h,q[1]-h]), b=P([q[0]+h,q[1]+h]); return { kind:'box', x:Math.min(a[0],b[0]), z:Math.min(a[1],b[1]), x1:Math.max(a[0],b[0]), z1:Math.max(a[1],b[1]), y0, y1 }; };
+    out.push(sq(c, CW/2, 0.5, R));                     // the column
+    out.push(sq(c, 5, 0, 0.5));                        // base plate 10″ × 10″ × ½″
+    out.push(sq(c, 4, R-0.75, R));                     // bolting flange 8″ × 8″ × ¾″ at the floor above
+    out.push({ kind:'beam', a:P([c[0], c[1]]), b:P(G.colTie), ya:R-0.75-AD/2, yb:R-0.75-AD/2, w:AW/12, d:AD/12 });   // tie to the floor edge
+    const arms=[];
+    pl.forEach((pts,i)=>{ const yb=(i+1)*o.rise-T, n=pts.length, m=[pts.reduce((s,q)=>s+q[0],0)/n, pts.reduce((s,q)=>s+q[1],0)/n];
+      let ux=m[0]-c[0], uz=m[1]-c[1]; const ul=Math.hypot(ux,uz)||1; ux/=ul; uz/=ul;
+      const far=Math.min(Math.max(...pts.map(q=>(q[0]-c[0])*ux+(q[1]-c[1])*uz))-1.5, ul+8),   // out past the middle of the tread; the cleat spreads it
+         a0=[c[0]+ux*CW/2, c[1]+uz*CW/2], a1=[c[0]+ux*far, c[1]+uz*far];
+      out.push({ kind:'beam', a:P(a0), b:P(a1), ya:yb-AD/2, yb:yb-AD/2, w:AW/12, d:AD/12 });
+      // the cleat: through the middle of the tread, along its longest edge (its nosing), clipped to the tread less 1″
+      let best=[1,0], bl=0; pts.forEach((q,k)=>{ const r=pts[(k+1)%n], l=Math.hypot(r[0]-q[0], r[1]-q[1]); if(l>bl){ bl=l; best=[(r[0]-q[0])/l, (r[1]-q[1])/l]; } });
+      const hits=[]; pts.forEach((q,k)=>{ const r=pts[(k+1)%n], ex=r[0]-q[0], ez=r[1]-q[1], den=best[0]*ez-best[1]*ex; if(Math.abs(den)<1e-9) return;
+        const t=((q[0]-m[0])*ez-(q[1]-m[1])*ex)/den, s2=((q[0]-m[0])*best[1]-(q[1]-m[1])*best[0])/den; if(s2>=-1e-6 && s2<=1+1e-6) hits.push(t); });
+      if(hits.length>=2){ const t0=Math.min(...hits)+1, t1=Math.max(...hits)-1;
+        out.push({ kind:'beam', a:P([m[0]+best[0]*t0, m[1]+best[1]*t0]), b:P([m[0]+best[0]*t1, m[1]+best[1]*t1]), ya:yb-AD-CL/2, yb:yb-AD-CL/2, w:CL/12, d:CL/12 }); }
+      if(far>LEG){ out.push(sq(a1, 1, 0.25, yb-AD)); out.push(sq(a1, 2.5, 0, 0.25)); }
+      arms.push(Math.round(far)); });
+    st.arms=arms;
     return out; }
   const flight = (uFoot, d, v0, n, y0, landTo) => {   // n risers from y0; treads between them
     for(let i=0;i<n-1;i++){ const u=uFoot+d*i*o.run, r=rectPlan(st.ls, Math.min(u, u+d*(o.run+1)), Math.max(u, u+d*(o.run+1)), v0, v0+o.w); out.push({ kind:'box', ...r, y0:y0+(i+1)*o.rise-T, y1:y0+(i+1)*o.rise }); }
@@ -246,7 +259,7 @@ function stairPlan(st){
     return { lines, walk, post:{ c:P(G.c), r:X.post.r/12 } }; }
   if(o.kind==='wind'){ const G=st.sh.G, walk=[];
     G.treads.forEach(pts=>{ const Q=pts.map(P); Q.forEach((a,i)=>lines.push([a, Q[(i+1)%Q.length]])); const n=pts.length; walk.push(P([pts.reduce((s,q)=>s+q[0],0)/n, pts.reduce((s,q)=>s+q[1],0)/n])); });
-    return { lines, walk }; }
+    return { lines, walk, post:{ c:P(G.col), r:2/12 } }; }
   const fl = (uFoot, d, v0, n) => { for(let i=0;i<n;i++){ const u=uFoot+d*i*o.run; lines.push([P([u, v0]), P([u, v0+o.w])]); } return uFoot+d*(n-1)*o.run; };
   if(o.kind==='u'){ const sh=st.sh, Pp=sh.P, vmA=sh.vA0+o.w/2, vmB=sh.vB0+o.w/2;
     const uL=fl(st.S.u0, sg, sh.vA0, Pp.nA), uE=uL+sg*Pp.D; fl(uL, -sg, sh.vB0, Pp.nB);
