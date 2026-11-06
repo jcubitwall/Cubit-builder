@@ -649,5 +649,9 @@ copy goes into My Drafts as "(copy from this device)" and the latest save opens.
 - In the panel:
   - **Length** (typed) and **Keep in place**: which end stays put, either end or the middle. Ends are named by the real compass.
   - Each end shows "to the wall" or how far short it stops, with a **To the wall** button.
-  - **Thickness:** 3½ / 4½ / 5½ / 6½″ or typed (1–12″), default 4½″.
+  - **Thickness:** 2½ / 3½ / 4½ / 6½″ or typed (1–12″), default 4½″.
+- **Open joints and full-height openings count as no wall** (the same rule as the panels: floor to top, no SIP).
+  - A middle wall's end runs to the pod's edge there, and the panel says "open".
+  - **Continue into Pod N** adds the next pod's own piece on the same line and at the same thickness. Each pod still builds its own piece.
+  - A middle wall can be moved right up to (and into) an open joint or a full-height opening. It only keeps 1″ clear of walls that actually have SIP along its length (`partLimits`).
 - Stored on the part: `t` (when not 4½), and `e0` / `e1` (its ends in inches along its run in the pod's own frame; none = to the wall). Mirroring a pod flips them; a shortened end is a free end (no notch); the wall body is the same library wall with bigger trims, so doors, the panel builder, sheets and CNC all follow.

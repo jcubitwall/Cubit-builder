@@ -9,7 +9,7 @@ import { stairsOf, addStair, updateStair, removeStair, optionsFor as stairOption
 import { panelCount, thumbSVG, bodyWall, wallLen, layerHoles, outlinePts, shapeOf } from './panels.js';
 import { buildHome, highlight } from './scene3d.js';
 import { facing, fmtBearing, bearingOf, compass } from './orient.js';
-import { setDeckFoundation, rotatePod, deletePod, ensureDraft, mirrorPod, removeDeck, turnDeck, addPart, movePart, removePart, partSnaps, setPart, turnPart } from './pods.js';
+import { setDeckFoundation, rotatePod, deletePod, ensureDraft, mirrorPod, removeDeck, turnDeck, addPart, movePart, removePart, partSnaps, setPart, turnPart, partNext, continuePart } from './pods.js';
 import { checkpoint } from './history.js';
 import { openSheets } from './sheets.js';
 import { pickFor, save, state, choose, pickLayer, chooseLayer, foundationOf, setFoundation, deckOCOf } from './state.js';
@@ -164,9 +164,10 @@ function midBlock(s, w){
     <div class="mid-len"><label class="cw-f"><span>Length</span><input id="midLen" inputmode="decimal" value="${Math.round(B.len*16)/16}"><i>″</i></label>
       <span class="note">wall to wall ${fin(B.in1-B.in0)}</span></div>
     <div class="cw-opt"><span>Keep in place</span><div class="seg sm" role="group" aria-label="The end that stays put">${[['lo',`${endLo} end`],['mid','middle'],['hi',`${endHi} end`]].map(([v,l])=>`<button data-mkeep="${v}" aria-pressed="${midKeep===v}">${l}</button>`).join('')}</div></div>
-    <div class="mid-ends">${[[0,endLo,B.v0<=B.in0+0.01],[1,endHi,B.v1>=B.in1-0.01]].map(([e,nm,on])=>`<span class="note">${esc(nm)} end: ${on?'<b>to the wall</b>':`stops ${fin(e? B.in1-B.v1 : B.v0-B.in0)} short`}</span>${on?'':`<button class="btn ghost sm" data-mwall="${e}">To the wall</button>`}`).join('')}</div>
+    <div class="mid-ends">${[[0,endLo,B.v0<=B.in0+0.01,B.in0<=0.01],[1,endHi,B.v1>=B.in1-0.01,B.in1>=B.span-0.01]].map(([e,nm,on,open])=>{ const nx=on && open ? partNext(s, e) : null;
+      return `<span class="note">${esc(nm)} end: ${on ? (open ? `<b>open</b> · runs to the pod's edge (no wall there)` : '<b>to the wall</b>') : `stops ${fin(e? B.in1-B.v1 : B.v0-B.in0)} short`}</span>${on ? (nx ? `<button class="btn ghost sm" data-mnext="${e}">Continue into ${esc(nx.q.label)}</button>` : '<span></span>') : `<button class="btn ghost sm" data-mwall="${e}">To the wall</button>`}`; }).join('')}</div>
     <div class="eyebrow sm">Thickness</div>
-    <div class="mid-len"><div class="seg sm" role="group" aria-label="Thickness">${[3.5,4.5,5.5,6.5].map(t=>`<button data-mt="${t}" aria-pressed="${Math.abs(B.t-t)<1e-6}">${fin(t)}</button>`).join('')}</div>
+    <div class="mid-len"><div class="seg sm" role="group" aria-label="Thickness">${[2.5,3.5,4.5,6.5].map(t=>`<button data-mt="${t}" aria-pressed="${Math.abs(B.t-t)<1e-6}">${fin(t)}</button>`).join('')}</div>
       <label class="cw-f"><span>Custom</span><input id="midT" inputmode="decimal" value="${B.t}"><i>″</i></label></div>
     <p class="note">On the plan and in 3D: drag the ⇄ arrows at its ends to make it shorter or longer, the arrow in the middle to move it (it snaps flush with walls nearby, else to the inch), ↻ to turn it about its middle.</p>
     ${snaps.length?`<div class="eyebrow sm">Snap flush</div><div class="mid-snaps">${snaps.map(x=>`<button class="chip" data-msnap="${x.at}">${esc(x.label)} <small>${fin(x.at)}</small></button>`).join('')}</div>`:''}
@@ -188,6 +189,7 @@ function bindMid(s){
   root.querySelector('#midTurn').onclick=()=>go(turnPart(pi, q.id));
   root.querySelector('#midLen').onchange=e=>{ const v=parseFloat(e.target.value); if(isFinite(v) && v>=12) go(setPart(pi, q.id, { len:v, keep:midKeep })); else toast('At least 12″'); };
   root.querySelectorAll('[data-mkeep]').forEach(b=>b.onclick=()=>{ midKeep=b.dataset.mkeep; renderSide(); });
+  root.querySelectorAll('[data-mnext]').forEach(b=>b.onclick=()=>{ const id=continuePart(pi, q.id, +b.dataset.mnext); if(id){ go(id); toast('Carried on into the next pod: its own piece, on the same line'); } });
   root.querySelectorAll('[data-mwall]').forEach(b=>b.onclick=()=>go(setPart(pi, q.id, b.dataset.mwall==='0' ? { e0:null } : { e1:null })));
   root.querySelectorAll('[data-mt]').forEach(b=>b.onclick=()=>go(setPart(pi, q.id, { t:+b.dataset.mt })));
   root.querySelector('#midT').onchange=e=>{ const v=parseFloat(e.target.value); if(isFinite(v) && v>=1 && v<=12) go(setPart(pi, q.id, { t:v })); else toast('Between 1″ and 12″'); };

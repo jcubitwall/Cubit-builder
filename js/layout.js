@@ -188,8 +188,12 @@ function middleWalls(modelKey, slots, pods, shift, ends){
       slots.forEach(w=>{ if(w.pod!==p || w.side!==side || w.part) return;
         const u0=w.p0n[ax], u1=w.p1n[ax], d=Math.sign(u1-u0)||1, tr=w.trim||[0,0];
         const b0=u0+d*(+tr[0]||0)/12, b1=u1-d*(+tr[1]||0)/12;
-        if(Math.max(b0,b1) > L.c-T2+EPS && Math.min(b0,b1) < L.c+T2-EPS) best=Math.max(best, w.type==='int' ? 4.5 : (pickFor(w)?.t || 6.5)); });
-      return best || 6.5; };
+        if(!(Math.max(b0,b1) > L.c-T2+EPS && Math.min(b0,b1) < L.c+T2-EPS)) return;
+        // a full-height opening there (no SIP at all, like an open joint between pods): no wall to meet
+        const W=pickFor(w), x0=(L.c-T2-u0)*d*12, x1=(L.c+T2-u0)*d*12, lo=Math.min(x0,x1), hi=Math.max(x0,x1);
+        if((W?.openings||[]).some(o=>isGap(o) && o.x<=lo+0.01 && o.x+o.w>=hi-0.01)) return;
+        best=Math.max(best, w.type==='int' ? 4.5 : (W?.t || 6.5)); });
+      return best; };   // 0: nothing there, it runs to the pod's edge
     const ta=tAt(sideA), tb=tAt(sideB);
     // its own ends (e0 / e1, inches along its run in the pod's own frame; none = to the wall): as trims at the plan's
     // low (A) and high (B) ends, never into the walls it meets, at least 12″ long

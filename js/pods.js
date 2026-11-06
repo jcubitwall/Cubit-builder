@@ -14,11 +14,11 @@
 
    Pods sit on the 8′ grid: they dock flush end to end, or side by side in 8′ steps. Two pods must share
    at least 8′ of wall, may not overlap, and the ¾″ space at every joint is added by layout.js. */
-import { POD, LAYER_KINDS } from './config.js';
+import { POD, LAYER_KINDS, H } from './config.js';
 import { checkpoint } from './history.js';
 import { podRemoved } from './furniture.js';
 import { MODELS, mirrorId, layerMirrorId, LIB, LAYERLIB, PODLIB, byId, podById, deckById, DECKLIB, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib } from './data.js';
-import { slotsFor, layerSlotsFor, podList, localSide, midAt, MID_T, podOffsets, partRun } from './layout.js';
+import { slotsFor, layerSlotsFor, podList, localSide, midAt, midLine, MID_T, podOffsets, partRun } from './layout.js';
 import { state, save, pickFor, pickLayer } from './state.js';
 
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -166,9 +166,32 @@ function addPart(i, dir='cross', at=null){
   const q={ id:'m'+n, dir, at:clampAt(p, dir, at ?? partSpan(p,dir)/2) }; L.push(q); finish(key);
   return `${i}M${q.id}`;
 }
+/* how far a middle wall can move across (its at, inches): up to the walls beside it that it runs alongside — where
+   those have SIP along its length (1″ clear of their inside face); where they're open (a full-height opening, an open
+   joint between pods) right up to the pod's edge */
+const GAPO = o => o.gap===true || (o.gap!==false && !o.shape && o.y<=0.5 && o.y+o.h>=H-0.5);
+function partLimits(s){
+  const p=s.pod, q=s.part, fa = s.mid.axis==='x' ? 0 : 1, ra=1-fa, T=(s.body?.t||MID_T)/12;
+  const r=[s.n[1],-s.n[0]], A=s.p0n[ra]+r[ra]*s.trim[0]/12, B=s.p0n[ra]+r[ra]*(s.len-s.trim[1]/12), rLo=Math.min(A,B), rHi=Math.max(A,B);
+  const sides = fa===0 ? ['W','E'] : ['S','N'];
+  const tOn = side => { let best=0;
+    slotsFor(state.model).forEach(w=>{ if(w.pod.i!==p.i || w.side!==side || w.part) return;
+      const u0=w.p0n[ra], u1=w.p1n[ra], d=Math.sign(u1-u0)||1, tr=w.trim||[0,0], W=pickFor(w);
+      // its solid stretches along the run: its body less its full-height openings (plan feet)
+      const b0=u0+d*(+tr[0]||0)/12, b1=u1-d*(+tr[1]||0)/12; let segs=[[Math.min(b0,b1), Math.max(b0,b1)]];
+      (W?.openings||[]).filter(GAPO).forEach(o=>{ const g0=u0+d*o.x/12, g1=u0+d*(o.x+o.w)/12, gl=Math.min(g0,g1), gh=Math.max(g0,g1);
+        segs=segs.flatMap(([a,b])=> gh<=a||gl>=b ? [[a,b]] : [[a,gl],[gh,b]].filter(([x,y])=>y-x>0.01)); });
+      if(segs.some(([a,b])=>Math.min(b,rHi)-Math.max(a,rLo) > 0.5/12)) best=Math.max(best, w.type==='int' ? 4.5 : (W?.t || 6.5)); });
+    return best; };
+  const tl=tOn(sides[0]), th=tOn(sides[1]), e0 = fa===0 ? p.x : p.z, e1 = fa===0 ? p.x1 : p.z1;
+  const c0 = e0 + (tl ? tl+1 : 0)/12 + T/2, c1 = e1 - (th ? th+1 : 0)/12 - T/2;
+  const a0=midAt(p, q, c0), a1=midAt(p, q, c1);
+  return { lo:Math.min(a0,a1), hi:Math.max(a0,a1) };
+}
 function movePart(i, id, at, dir){
   const p=podList(state.model)[i]; const q0=(MODELS[state.model].pods[i]?.parts||[]).find(q=>q.id===id); if(!p||!q0) return '';
-  const d=dir||q0.dir, v=clampAt(p, d, at, q0.t||MID_T);
+  const sl=(!dir || dir===q0.dir) ? slotsFor(state.model).find(s=>s.part && s.pod.i===i && s.part.id===id) : null, lim=sl && partLimits(sl);
+  const d=dir||q0.dir, v = lim ? Math.round(Math.min(lim.hi, Math.max(lim.lo, at))*16)/16 : clampAt(p, d, at, q0.t||MID_T);
   if(v===q0.at && d===q0.dir) return `${i}M${id}`;
   const key=editKey(), q=MODELS[key].pods[i].parts.find(q=>q.id===id); q.at=v; if(d!==q.dir){ delete q.e0; delete q.e1; } q.dir=d; finish(key); return `${i}M${id}`;
 }
@@ -190,6 +213,28 @@ function setPart(i, id, patch){
   if(v0<=B.in0+0.01) delete q.e0; else q.e0=v0;
   if(v1>=B.in1-0.01) delete q.e1; else q.e1=v1;
   finish(key); return `${i}M${id}`;
+}
+/* the pod a middle wall's end runs into, where that end is open to it (no wall: an open joint): { q, dir, at } or null.
+   end: 0 = its run's low end (the pod's own S / W side), 1 = high */
+function partNext(s, end){
+  const p=s.pod, B=s.body; if(!B) return null;
+  if(end===0 ? B.in0>0.01 || B.v0>0.01 : B.in1<B.span-0.01 || B.v1<B.span-0.01) return null;
+  const fa = s.mid.axis==='x' ? 0 : 1, ra=1-fa, lowEdge = (end===0)===B.inc;
+  const edge = ra===0 ? (lowEdge ? p.x : p.x1) : (lowEdge ? p.z : p.z1), c=s.mid.c;
+  const q=podList(state.model).find(o=>o.i!==p.i && (o.lv||0)===(p.lv||0) && (ra===0 ? Math.abs((lowEdge ? o.x1 : o.x)-edge)<0.05 && c>o.z && c<o.z1
+                                                                                 : Math.abs((lowEdge ? o.z1 : o.z)-edge)<0.05 && c>o.x && c<o.x1));
+  if(!q) return null;
+  const dir=['cross','long'].find(d=>midLine(q, { dir:d, at:0 }).axis===s.mid.axis); if(!dir) return null;
+  const at=+midAt(q, { dir }, c).toFixed(3);
+  if((MODELS[state.model].pods[q.i].parts||[]).some(o=>o.dir===dir && Math.abs(o.at-at)<0.5)) return null;   // already one on this line
+  return { q, dir, at };
+}
+/* carry a middle wall on into the next pod, on the same line and as thick (each pod builds its own piece) */
+function continuePart(i, id, end){
+  const s=slotsFor(state.model).find(x=>x.part && x.pod.i===i && x.part.id===id), nx=s && partNext(s, end); if(!nx) return '';
+  const key=editKey(), L=(MODELS[key].pods[nx.q.i].parts ||= []); let n=1; while(L.some(o=>o.id==='m'+n)) n++;
+  const q={ id:'m'+n, dir:nx.dir, at:nx.at }; if(s.part.t) q.t=s.part.t; L.push(q); finish(key);
+  return `${nx.q.i}M${q.id}`;
 }
 /* a quarter turn about its middle: across ↔ along, the same length where it fits */
 function turnPart(i, id){
@@ -227,10 +272,10 @@ function removePart(i, id){
 /* where a middle wall can snap so a face is flush with another wall's face (or the middle of the pod):
    [{ at, label }] in its own at (inches) */
 function partSnaps(slot){
-  const k=state.model, p=slot.pod, q=slot.part, ax=slot.mid.axis, TQ=slot.body?.t||MID_T, T=TQ/12, out=[];
+  const k=state.model, p=slot.pod, q=slot.part, ax=slot.mid.axis, TQ=slot.body?.t||MID_T, T=TQ/12, out=[], LIM=partLimits(slot);
   const S=slotsFor(k);
   const add=(face, label, which)=>{ const c = which==='lo' ? face+T/2 : face-T/2; const at=midAt(p, q, c);
-    const span=partSpan(p,q.dir); if(at<6.5+TQ/2+0.5 || at>span-6.5-TQ/2-0.5) return; out.push({ at:+at.toFixed(3), label }); };
+    if(at<LIM.lo-0.01 || at>LIM.hi+0.01) return; out.push({ at:+at.toFixed(3), label }); };
   const off=podOffsets(k)[p.i], o = ax==='x' ? off.ox : off.oz;
   S.forEach(w=>{ if(w===slot || w.id===slot.id) return;
     const wa = Math.abs(w.n[0])>0.5 ? 'x' : 'z'; if(wa!==ax) return;
@@ -441,4 +486,4 @@ const countsText = c => {
 function renameLibPod(id, name){ const p=podById(id); if(p && p.src==='saved'){ p.name=name; savePodLib(); } }
 function deleteLibPod(id){ const k=PODLIB.findIndex(p=>p.id===id && p.src==='saved'); if(k>=0){ PODLIB.splice(k,1); savePodLib(); } }
 
-export { addPart, movePart, setPart, turnPart, partEndSnaps, removePart, partSnaps, clampAt, mirrorPod, isProtected, makeDraftCopy, ensureDraft, setDeckFoundation, deckFoot, LEDGER, addDeck, moveDeck, removeDeck, replaceDeck, deckSpots, turnDeck, foot, problem, bake, addPod, movePod, rotatePod, replacePod, deletePod, dockSpots, turnSpot, saveToLibraries, countsText, sizeText, renameLibPod, deleteLibPod, podSig };
+export { partNext, continuePart, partLimits, addPart, movePart, setPart, turnPart, partEndSnaps, removePart, partSnaps, clampAt, mirrorPod, isProtected, makeDraftCopy, ensureDraft, setDeckFoundation, deckFoot, LEDGER, addDeck, moveDeck, removeDeck, replaceDeck, deckSpots, turnDeck, foot, problem, bake, addPod, movePod, rotatePod, replacePod, deletePod, dockSpots, turnSpot, saveToLibraries, countsText, sizeText, renameLibPod, deleteLibPod, podSig };
