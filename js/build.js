@@ -117,17 +117,29 @@ async function drawPlan(){
   const sheet=new THREE.Mesh(new THREE.PlaneGeometry(W, D), new THREE.MeshBasicMaterial({ map:tex, transparent:true, depthWrite:false, depthTest:false }));
   sheet.rotation.x=-Math.PI/2; sheet.position.set((O.bb.x0+O.bb.x1)/2, 11, (O.bb.z0+O.bb.z1)/2); sheet.renderOrder=900; sheet.userData.plan=true;
   homeGroup.add(sheet); BP.objs.push(sheet);
+  // the floor's own lines (SIP panel joints, hole outlines, footprints) and the seals along the pod joints flicker
+  // through the paper from 2D's distance: hide them (every line below 6″, and the seals), keeping furniture and walls
+  hideLowLines();
   // the rooms: white paper over the floors (furniture stands on top of it)
   const white=new THREE.MeshBasicMaterial({ color:0xffffff });
   (H_.pods||[]).forEach(p=>{ const f=new THREE.Mesh(new THREE.PlaneGeometry(p.w, p.d), white); f.rotation.x=-Math.PI/2; f.position.set(p.x+p.w/2, 0.03, p.z+p.d/2); f.renderOrder=1; homeGroup.add(f); BP.objs.push(f); });
 }
+function hideLowLines(){
+  homeGroup.updateMatrixWorld(true); const v=new THREE.Vector3();
+  const SEALS=new Set([0xe8170f, 0x1f6fe0]);   // the compression seals along the pod joints (red high, blue low)
+  homeGroup.traverse(o=>{ if(o.isMesh && o.visible && SEALS.has(o.material?.color?.getHex?.())){ o.visible=false; o.userData.hid2d=true; return; }
+    if(!(o.isLine || o.isLineSegments) || o.userData.plan) return;
+    const g=o.geometry; if(!g.boundingBox) g.computeBoundingBox(); v.set(0, g.boundingBox.max.y, 0); o.localToWorld(v);
+    if(v.y < 0.5 && o.visible){ o.visible=false; o.userData.hid2d=true; } });
+}
+function showLowLines(){ homeGroup.traverse(o=>{ if(o.userData.hid2d){ o.visible=true; delete o.userData.hid2d; } }); }
 function paper(on){
   if(on){ if(!BP.bg) BP.bg=scene.background; scene.background=new THREE.Color(0xfbfbf8); BP.gridVis=grid.visible; grid.visible=false;
     BP.hemi=scene.children.find(o=>o.isHemisphereLight); if(BP.hemi){ BP.hemi.userData.i0 ??= BP.hemi.intensity; BP.hemi.intensity=1.35; }
     // a clean drawing: wall letters and panel numbers off while in 2D (Layers turns them back on)
     BP.lab={ letters:state.letters, nums:state.nums };
     if(state.letters || state.nums){ state.letters=false; state.nums=false; buildHome(); } else drawPlan(); }
-  else { BP.n++; clearPlan();
+  else { BP.n++; clearPlan(); showLowLines();
     if(BP.lab){ const back=(BP.lab.letters && !state.letters) || (BP.lab.nums && !state.nums); if(!state.letters) state.letters=BP.lab.letters; if(!state.nums) state.nums=BP.lab.nums; BP.lab=null; if(back) buildHome(); } if(BP.bg) scene.background=BP.bg; BP.bg=null; grid.visible=BP.gridVis; if(BP.hemi && BP.hemi.userData.i0!=null) BP.hemi.intensity=BP.hemi.userData.i0; }
 }
 onBuilt(()=>{ BP.objs=[]; if(TWO_D) drawPlan(); });

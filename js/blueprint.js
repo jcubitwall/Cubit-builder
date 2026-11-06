@@ -182,7 +182,7 @@ function drawWalls(H_, xf, o={}){
         const mid=t/2, gl=0.5/FT;
         g+=line(...P(W.at(a,mid-gl)), ...P(W.at(b,mid-gl)), 0.5)+line(...P(W.at(a,mid+gl)), ...P(W.at(b,mid+gl)), 0.5);
       } else if(op.kind==='opening'){
-        g+=jamb(a)+jamb(b)+line(...P(W.at(a)), ...P(W.at(b)), 0.5, INK, '4 3')+line(...P(W.at(a,t)), ...P(W.at(b,t)), 0.5, INK, '4 3');
+        g+=jamb(a)+jamb(b)+(o.openJoints===false && b-a>6 ? '' : line(...P(W.at(a)), ...P(W.at(b)), 0.5, INK, '4 3')+line(...P(W.at(a,t)), ...P(W.at(b,t)), 0.5, INK, '4 3'));   // openJoints false (Build's 2D): no dashes where two pods are open to each other
       } else if(op.kind==='patio'){
         g+=jamb(a)+jamb(b); const mid=t/2, off=0.8/FT, h=(b-a)/2, ov=1/FT;
         if(q.owner){ g+=line(...P(W.at(a,mid-off)), ...P(W.at(a+h+ov,mid-off)), 1.1)+line(...P(W.at(b-h-ov,mid+off)), ...P(W.at(b,mid+off)), 1.1); }
@@ -751,7 +751,7 @@ function planOverlay(sel=null, k=48){
   const H_=homeModel(state.model), bb=H_.bb, m=6;   // m: feet of margin round the home (room for the dimensions)
   const B={ x0:bb.x0-m, z0:bb.z0-m, x1:bb.x1+m, z1:bb.z1+m }, w=Math.round((B.x1-B.x0)*k), h=Math.round((B.z1-B.z0)*k);
   const xf=planXf(bb, { x0:0, y0:0, x1:w, y1:h }, k);
-  let g=drawWalls(H_, xf)+roomLabels(H_, xf, { dims:true })+planDims(H_, xf);
+  let g=drawWalls(H_, xf, { openJoints:false })+roomLabels(H_, xf, { dims:true })+planDims(H_, xf);
   const W=sel && H_.walls.find(W=>W.s.id===sel);
   if(W){ const c=[W.at(0,0), W.at(W.L,0), W.at(W.L,W.t), W.at(0,W.t)].map(xf.P); g+=`<polygon points="${c.map(p=>p.join(',')).join(' ')}" fill="#e0864a" fill-opacity="0.85" stroke="#9a4a14" stroke-width="2"/>`; }
   return { svg:`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${g}</svg>`, bb:B, w, h, k };
