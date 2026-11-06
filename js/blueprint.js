@@ -152,7 +152,7 @@ function homeModel(k=state.model){
 }
 /* interior size of a pod (inches): along its length and across, between the inside faces of its walls */
 function podInterior(H_, p){
-  const ws=H_.walls.filter(w=>w.s.pod.i===p.i), tOf = side => Math.max(0, ...ws.filter(w=>w.s.side===side).map(w=>w.t*FT));
+  const ws=H_.walls.filter(w=>w.s.pod.i===p.i && !w.s.part), tOf = side => Math.max(0, ...ws.filter(w=>w.s.side===side).map(w=>w.t*FT));
   const ix = p.w*FT - tOf('W') - tOf('E'), iz = p.d*FT - tOf('S') - tOf('N');
   return { ix, iz, cx: p.x + (tOf('W') + ix/2)/FT, cz: p.z + (tOf('S') + iz/2)/FT };
 }
@@ -287,11 +287,17 @@ function planDims(H_, xf, { openings=true }={}){
 }
 /* room labels: the pod's name (or Pod n) and its inside size */
 function roomLabels(H_, xf, { dims=true }={}){
-  let g=''; H_.pods.forEach(p=>{ const I=podInterior(H_, p), [x,y]=xf.P([I.cx, I.cz]);
-    const nm=(p.name || p.label).toUpperCase();
-    const a=p.alongX ? ftin(I.ix) : ftin(I.iz), b=p.alongX ? ftin(I.iz) : ftin(I.ix);
-    g+=tx(x, y-2, nm, { size:12, anchor:'middle', weight:'bold', fill:BLUE });
-    if(dims) g+=tx(x, y+11, `${a} X ${b}`, { size:9, anchor:'middle', fill:BLUE });
+  let g=''; H_.pods.forEach(p=>{ const I=podInterior(H_, p), nm=(p.name || p.label).toUpperCase();
+    // middle walls split the pod into rooms: each gets its size; the biggest carries the pod's name
+    const x0=I.cx-I.ix/2/FT, x1=I.cx+I.ix/2/FT, z0=I.cz-I.iz/2/FT, z1=I.cz+I.iz/2/FT, T=4.5/FT/2;
+    const xs=[x0], zs=[z0];
+    H_.walls.filter(W=>W.s.part && W.s.pod.i===p.i).forEach(W=>{ const c=W.at(W.L/2, W.t/2); if(W.s.mid.axis==='x') xs.push(c[0]-T, c[0]+T); else zs.push(c[1]-T, c[1]+T); });
+    xs.push(x1); zs.push(z1); xs.sort((a,b)=>a-b); zs.sort((a,b)=>a-b);
+    const cells=[]; for(let i=0;i+1<xs.length;i+=2) for(let j=0;j+1<zs.length;j+=2){ const w=xs[i+1]-xs[i], d=zs[j+1]-zs[j]; if(w>0.5 && d>0.5) cells.push({ cx:(xs[i]+xs[i+1])/2, cz:(zs[j]+zs[j+1])/2, w, d }); }
+    const big=cells.reduce((m,c)=>!m||c.w*c.d>m.w*m.d?c:m, null);
+    cells.forEach(c=>{ const [x,y]=xf.P([c.cx, c.cz]), a=p.alongX ? ftin(c.w*FT) : ftin(c.d*FT), b=p.alongX ? ftin(c.d*FT) : ftin(c.w*FT);
+      if(c===big) g+=tx(x, y-2, nm, { size:12, anchor:'middle', weight:'bold', fill:BLUE });
+      if(dims) g+=tx(x, c===big ? y+11 : y+3, `${a} X ${b}`, { size:9, anchor:'middle', fill:BLUE }); });
   }); return g;
 }
 function northArrow(x, y, k=state.model){

@@ -1273,3 +1273,11 @@ dialog.v3-dlg.v3-full .v3-cube{top:max(12px, env(safe-area-inset-top,0px));right
 .dev-dlg input,.dev-dlg select{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
 .dv-feats{border:1px solid var(--line);border-radius:8px;display:flex;flex-wrap:wrap;gap:4px 12px;padding:6px 10px}
 .dv-feats .chk{flex-direction:row;align-items:center;gap:5px;margin:0}
+/* a middle wall (inside a pod) */
+.mid-box{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:8px 0;background:var(--surface)}
+.mid-box .eyebrow.sm{margin-top:8px;font-size:10.5px}
+.mid-pos{display:flex;align-items:flex-end;gap:6px;margin:4px 0}
+.mid-pos .cw-f{flex:1}
+.mid-snaps{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
+.mid-snaps .chip small{color:var(--muted);margin-left:4px}
+.pod-mid{display:inline-flex;gap:6px;flex-wrap:wrap}

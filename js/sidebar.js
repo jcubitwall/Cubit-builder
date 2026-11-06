@@ -4,11 +4,11 @@ import { jointInfo, makeLead, setFree, differs } from './joints.js';
 import { planWindowOverSink, centreWindowOverSink } from './sink-window.js';
 import { LIB, MODELS, optionsFor, saveCustomModels, layerOptions, mirrorId, layerMirrorId } from './data.js';
 import { LAYER_KINDS } from './config.js';
-import { screwsFor, slotsFor, podList, CW, layerSlotsFor, partnerOf, deckList } from './layout.js';
+import { screwsFor, slotsFor, podList, CW, layerSlotsFor, partnerOf, deckList, worldSide } from './layout.js';
 import { panelCount, thumbSVG, bodyWall, wallLen, layerHoles, outlinePts, shapeOf } from './panels.js';
 import { buildHome, highlight } from './scene3d.js';
 import { facing, fmtBearing } from './orient.js';
-import { setDeckFoundation, rotatePod, deletePod, ensureDraft, mirrorPod, removeDeck, turnDeck } from './pods.js';
+import { setDeckFoundation, rotatePod, deletePod, ensureDraft, mirrorPod, removeDeck, turnDeck, addPart, movePart, removePart, partSnaps } from './pods.js';
 import { checkpoint } from './history.js';
 import { openSheets } from './sheets.js';
 import { pickFor, save, state, choose, pickLayer, chooseLayer, foundationOf, setFoundation, deckOCOf } from './state.js';
@@ -109,6 +109,54 @@ async function newFamily(){
   try{ const id=await addFamily(v); openFam=id; renderModels(); toast(`“${v.trim()}” added. Adopt a home into it from Purgatory (Adopt into Cubit Homes).`); }
   catch(e){ toast('Not added: '+(e.message||e)); }
 }
+/* ---------------------------------------------------------------- a middle wall: where it sits, and its door */
+const DOORS=[[30,32.5],[32,34.5],[34,36.5],[36,38.5]];   // slab ″ → rough opening ″ (prehung)
+let midDoorW=34, midStep=1;
+function midBlock(s, w){
+  const q=s.part, p=s.pod, ws=worldSideName(p, q.dir==='long'?'S':'W'), span=(q.dir==='long'?8:p.len)*12;
+  const snaps=partSnaps(s).filter(x=>Math.abs(x.at-q.at)>0.01).slice(0, 12);
+  const doorOf=()=>{ const o=(w?.openings||[]).find(o=>o.kind==='door'); if(!o) return 'none'; const L=s.len*12, a=s.trim[0], b=L-s.trim[1], c=o.x+o.w/2; return Math.abs(c-(a+b)/2)<3 ? 'mid' : c<(a+b)/2 ? 'left' : 'right'; };
+  const cur=doorOf();
+  return `<div class="mid-box"><div class="eyebrow">Middle wall ${esc(s.letter)} · ${q.dir==='long'?'along':'across'} ${esc(p.label)}</div>
+    <div class="eyebrow sm">Door</div>
+    <div class="seg wrap" role="group" aria-label="Door">${[['none','No door'],['left','Door left'],['mid','Door middle'],['right','Door right']].map(([v,l])=>`<button data-mdoor="${v}" aria-pressed="${cur===v}">${l}</button>`).join('')}</div>
+    <div class="cw-opt"><span>Door size</span><div class="seg sm" role="group" aria-label="Door size">${DOORS.map(([d])=>`<button data-mdw="${d}" aria-pressed="${midDoorW===d}">${d}″</button>`).join('')}</div></div>
+    <p class="note">Left and right seen from the ${esc(s.n[0]>0.5?'east':s.n[0]<-0.5?'west':s.n[1]>0.5?'south':'north')} side. More choices (pocket doors, two doors, windows) in the wall options below or the panel builder.</p>
+    <div class="eyebrow sm">Where it sits</div>
+    <div class="mid-pos"><button class="btn ghost" data-mnud="-1" aria-label="Move toward the ${esc(ws)} end">◀</button>
+      <label class="cw-f"><span>Middle, from the ${esc(ws)} ${q.dir==='long'?'side':'end'}</span><input id="midAt" inputmode="decimal" value="${Math.round(q.at*16)/16}"><i>″</i></label>
+      <button class="btn ghost" data-mnud="1" aria-label="Move away from the ${esc(ws)} end">▶</button></div>
+    <div class="cw-opt"><span>Each tap</span><div class="seg sm">${[[1,'1″'],[0.5,'½″'],[12,'1′']].map(([v,l])=>`<button data-mstep="${v}" aria-pressed="${midStep===v}">${l}</button>`).join('')}</div></div>
+    <p class="note">${fin(q.at-2.25-6.5)} clear on one side, ${fin(span-q.at-2.25-6.5)} on the other (to the outside walls' inside, roughly).</p>
+    ${snaps.length?`<div class="eyebrow sm">Snap flush</div><div class="mid-snaps">${snaps.map(x=>`<button class="chip" data-msnap="${x.at}">${esc(x.label)} <small>${fin(x.at)}</small></button>`).join('')}</div>`:''}
+    <div class="row"><button class="btn ghost sm" id="midTurn">${q.dir==='long'?'Make it across':'Make it along'}</button><button class="btn ghost sm danger" id="midRm">Remove this wall</button></div></div>`;
+}
+const worldSideName = (p, local) => ({ S:'south', N:'north', W:'west', E:'east' })[worldSide(p.rot, local)];
+function bindMid(s){
+  const q=s.part, pi=s.pod.i, root=sideB.querySelector('.mid-box'); if(!root) return;
+  const go=id=>{ if(!id) return; state.selected=id; renderModels(); buildHome(); highlight(); renderSide(); };
+  root.querySelectorAll('[data-mnud]').forEach(b=>b.onclick=()=>go(movePart(pi, q.id, q.at + (+b.dataset.mnud)*midStep)));
+  root.querySelectorAll('[data-mstep]').forEach(b=>b.onclick=()=>{ midStep=+b.dataset.mstep; renderSide(); });
+  root.querySelector('#midAt').onchange=e=>{ const v=parseFloat(e.target.value); if(isFinite(v)) go(movePart(pi, q.id, v)); };
+  root.querySelectorAll('[data-msnap]').forEach(b=>b.onclick=()=>{ go(movePart(pi, q.id, +b.dataset.msnap)); toast(`Snapped ${b.firstChild.textContent.trim()}`); });
+  root.querySelector('#midTurn').onclick=()=>{ const d=q.dir==='long'?'cross':'long', span=(d==='long'?8:s.pod.len)*12; go(movePart(pi, q.id, span/2, d)); };
+  root.querySelector('#midRm').onclick=e=>{ const b=e.target; if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to remove'; return; } removePart(pi, q.id); state.selected=null; renderModels(); buildHome(); highlight(); renderSide(); toast('Middle wall removed'); };
+  root.querySelectorAll('[data-mdw]').forEach(b=>b.onclick=()=>{ midDoorW=+b.dataset.mdw; renderSide(); });
+  root.querySelectorAll('[data-mdoor]').forEach(b=>b.onclick=()=>midDoor(s, b.dataset.mdoor));
+}
+/* a door in a middle wall: a library interior wall of its length with one door there (made once, then reused) */
+async function midDoor(s, where){
+  if(where==='none'){ checkpoint(); ensureDraft(); const pk=state.picks[state.model]; if(pk) delete pk[s.id]; const mp=MODELS[state.model].picks; if(mp) delete mp[s.id]; save(); buildHome(); renderSide(); toast('No door: a solid wall'); return; }
+  const RO=(DOORS.find(d=>d[0]===midDoorW)||DOORS[2])[1], H=80.75, L=s.len*12, a=s.trim[0], b=L-s.trim[1];
+  if(b-a < RO+8){ toast('Too short for that door.'); return; }
+  const x = where==='left' ? a+6 : where==='right' ? b-6-RO : (a+b)/2-RO/2;
+  const same=LIB.find(w=>!w.deleted && w.type==='int' && w.len===s.len && (w.openings||[]).length===1 && w.openings[0].kind==='door' && Math.abs(w.openings[0].x-x)<0.25 && Math.abs(w.openings[0].w-RO)<0.25 && !(w.inside||[]).length && !(w.outside||[]).length);
+  if(same){ choose(s, same.id); buildHome(); renderSide(); toast(`${same.name} · ${midDoorW}″ door`); return; }
+  try{ const { saveWallFor }=await import('./wall-builder.js');
+    await saveWallFor({ name:`${s.len}′ interior · 1 door ${where==='mid'?'middle':where} (${midDoorW}″) · middle wall`, len:s.len, type:'int', openings:[{ kind:'door', x:+x.toFixed(4), y:0, w:RO, h:H }], inside:[], outside:[], shapes:[] }, s);
+    buildHome(); renderSide(); toast(`${midDoorW}″ door ${where==='mid'?'in the middle':'on the '+where}`); }
+  catch(e){ toast('Not made: '+(e.message||e)); }
+}
 const showHomeCat = c => { homeCat=c; renderModels(); };
 
 /* ---------------------------------------------------------------- rename / delete a home from the Homes window
@@ -191,6 +239,9 @@ function renderSide(){
   if(Number.isFinite(pi) && sideB && canSave() && MODELS[state.model].pods[pi]){
     sideB.insertAdjacentHTML('afterbegin', `<div class="pod-acts"><b>${esc(withName(`Pod ${pi+1}`, 'p:'+pi))}</b><button class="btn ghost sm" id="podName">Name</button><button class="btn ghost sm" id="podTurn">Turn 90°</button><button class="btn ghost sm" id="podMir" title="End for end: left ↔ right">Mirror</button><button class="btn ghost sm" id="podFlip" title="Front ↔ back">Flip</button><button class="btn ghost sm" id="podRm">Remove pod</button></div>`);
     const go=(why,msg)=>{ if(why){ toast(why); return; } state.selected=null; renderModels(); buildHome(); renderSide(); toast(msg); };
+    sideB.querySelector('.pod-acts').insertAdjacentHTML('beforeend', `<span class="pod-mid"><button class="btn ghost sm" id="midX" title="A wall across the pod, to split off a bathroom, a bedroom …">＋ Wall across</button><button class="btn ghost sm" id="midL" title="A wall along the pod">＋ Wall along</button></span>`);
+    const addMid=dir=>{ const id=addPart(pi, dir); if(!id) return; state.selected=id; renderModels(); buildHome(); highlight(); renderSide(); toast('Middle wall added · slide it, snap it flush, or tap a door option'); };
+    sideB.querySelector('#midX').onclick=()=>addMid('cross'); sideB.querySelector('#midL').onclick=()=>addMid('long');
     sideB.querySelector('#podTurn').onclick=()=>go(rotatePod(pi),'Pod turned 90°');
     bindName(sideB, 'podName', 'p:'+pi, `Name Pod ${pi+1}`, 'e.g. Bedroom pod');
     sideB.querySelector('#podMir').onclick=()=>go(mirrorPod(pi,'x'),'Pod mirrored end for end');
@@ -247,11 +298,12 @@ function renderSideInner(){
     const isInt=s.type==='int';
     sideH.innerHTML=`<div class="eyebrow">${isInt?'Interior wall · 4½″':'Exterior wall · 6½″'} · ${s.len}′ · ${s.len/4} panels</div><h2>${esc(withName(s.label, 'w:'+s.id))}${nameBtn('nmWall')}</h2><p>${s.detail} · faces ${fmtBearing(facing(s))} · now <b>${w?esc(w.id):'—'}</b> ${w?esc(w.name):''}${w&&!w.blank?' <button class="linkbtn ren-link editor-only" id="renWall">Rename</button>':''}</p>`;
     const rw=sideH.querySelector('#renWall'); if(rw) rw.onclick=()=>askRename('walls', w.mirrorOf||w.id);
+    setTimeout(()=>{ if(s.part) bindMid(s); }, 0);
     bindName(sideH, 'nmWall', 'w:'+s.id, `Name ${s.label}`, 'e.g. Kitchen wall');
     sideB.innerHTML=`
       <div class="row"><button class="btn" id="toSheet">Assembly sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===s.id}">${state.isolate===s.id?'Exit isolate':'Isolate'}</button>${s.short ? `<button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button>` : ''}${w&&!w.blank?`<button class="btn ghost edit-only" id="wMir" title="The same wall the other way round (left ↔ right)">Mirror wall</button>`:''}<button class="btn ghost edit-only" id="wBuild" title="Openings, boxes, holes and shapes for this wall">Panel builder</button></div>
       ${(state.wallA?.[state.model]?.[s.pod.i] || m.pods[s.pod.i]?.a) ? `<p class="note">Wall A for ${s.pod.label} was set by hand. <button class="linkbtn" id="autoA">Go back to automatic</button></p>`:''}
-      ${isInt?jointBlock(s):''}
+      ${s.part?midBlock(s,w):isInt?jointBlock(s):''}
       ${unitsBlock(s, bodyWall(s,w))}
       ${elecWallBlock(s)}
       ${plumbWallBlock(s)}
@@ -260,7 +312,7 @@ function renderSideInner(){
           <div class="seg wrap" role="group" aria-label="Deepest cabinet on this wall">${CAB_PRESETS.map(([n,v])=>`<button data-cab="${v}" data-cabn="${n}" aria-pressed="${kind===n}">${n}${v?` ${v}″`:''}</button>`).join('')}</div>
           <label class="lt-sp">Deepest unit <input type="number" id="cabD" min="0" max="48" step="0.5" value="${d}"> ″ out from the wall</label>
           ${d?`<p class="note">The ceiling lights along this wall sit ${fin(d+6)} out from it (6″ in front of the ${kind.toLowerCase()==='custom'?'units':kind.toLowerCase()}).</p>`:''}</div>`; })()}
-      <div class="eyebrow">${opts.length} options for a ${s.len}′ ${isInt?'interior':'exterior'} wall · seen from ${isInt?s.other.label:'outside'}</div>
+      <div class="eyebrow">${opts.length} options for a ${s.len}′ ${isInt?'interior':'exterior'} wall · seen from ${isInt?(s.other?.label||'the other side'):'outside'}</div>
       ${opts.length?'':`<p class="note">Nothing in the library for a ${s.len}′ ${isInt?'interior':'exterior'} wall yet. Upload a STEP file of a home that has one and it will be added.</p>`}
       <div class="opts">${opts.map(o=>`<button class="opt" data-o="${esc(o.id)}" aria-pressed="${w&&o.id===w.id}">${thumbSVG(o)}<b>${esc(o.name)}</b><code>${esc(o.id)}${o.src==='imported'?' · uploaded':''}${o.src==='saved'?' · saved here':''}${o.model?' · this home':''}</code></button>`).join('')}</div>`;
     sideB.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
@@ -272,7 +324,7 @@ function renderSideInner(){
     sideB.querySelector('#wMir')?.addEventListener('click',()=>{ const id=mirrorId(w.id); choose(s, id); const pt=partnerOf(s, slots); if(pt) choose(pt, mirrorId(id), {follow:true}); buildHome(); renderSide(); toast(`${s.label} mirrored`+(pt?` · ${pt.label} follows`:'')); });
     bindUnits(s, bodyWall(s,w));
     bindElecWall(sideB, s);
-    sideB.querySelector('#jLead')?.addEventListener('click',()=>{ makeLead(s); buildHome(); renderSide(); toast(`${s.other.label}'s wall now takes this wall's openings`); });
+    sideB.querySelector('#jLead')?.addEventListener('click',()=>{ makeLead(s); buildHome(); renderSide(); toast(`${s.other?.label||'The other'}'s wall now takes this wall's openings`); });
     sideB.querySelector('#jFree')?.addEventListener('click',()=>{ const f=!jointInfo(s)?.free; setFree(s, f); buildHome(); renderSide(); toast(f?'The two walls can now differ':'The two walls match again'); });
     sideB.querySelectorAll('[data-cab]').forEach(b=>b.onclick=()=>{ setCabinet(state.model, s.id, +b.dataset.cab, b.dataset.cabn); buildHome(); renderSide(); });
     const cd=sideB.querySelector('#cabD'); if(cd) cd.onchange=()=>{ setCabinet(state.model, s.id, Math.max(0,+cd.value||0), 'Custom'); buildHome(); renderSide(); };
@@ -332,7 +384,7 @@ function unitsBlock(s, w){
   const ops=(w?.openings||[]).filter(catOf).sort((a,b)=>a.x-b.x);
   if(!ops.length) return '';
   const n={};
-  return `<div class="eyebrow">Windows &amp; doors · seen from ${s.type==='int'?esc(s.other.label):'outside'}, left to right</div><div class="units">${ops.map(o=>{
+  return `<div class="eyebrow">Windows &amp; doors · seen from ${s.type==='int'?esc(s.other?.label||'the other side'):'outside'}, left to right</div><div class="units">${ops.map(o=>{
     n[o.kind]=(n[o.kind]||0)+1;
     const pr=pairOf(s,o), own=doorOwner(s,o).id===s.id;
     if(pr && !own) return `<div class="unit-row"><div class="unit-pic">${unitSVG('none','L',o.w,o.h)}</div><div class="unit-main"><b>${KIND_NAME[o.kind]} ${n[o.kind]}</b> <span class="muted">${fin(o.w)} × ${fin(o.h)} R.O. · between ${esc(s.pod.label)} and ${esc(pr.slot.pod.label)}</span>

@@ -17,7 +17,8 @@ import { canSave } from './role.js';
 import { podList, slotsFor, layerSlotsFor } from './layout.js';
 import { setIsolate, setPod, openLayers } from './layers.js';
 import { camera, controls, renderer, homeGroup, pickables, buildHome, highlight } from './scene3d.js';
-import { addPod, movePod, rotatePod, addDeck, moveDeck, dockSpots, deckSpots, foot, deckFoot } from './pods.js';
+import { addPod, movePod, rotatePod, addDeck, moveDeck, dockSpots, deckSpots, foot, deckFoot, addPart, movePart, partSnaps } from './pods.js';
+import { podOffsets, midAt } from './layout.js';
 import { renderModels, renderSide, toast } from './sidebar.js';
 import { deckName } from './deckframe.js';
 import { furnMeshes, furnById, snap, addItem, updateItem, refreshItem, applyFurniture, showFurnGhost, hideFurnGhost, turnItem, setHolderVisible, handleMeshes, roomBeyond, stretchTo, rotXZ, turnStart, turnTo, groupMembers, setMany, moveHolder, addRecipe, furnitureOf, onFurnChanged } from './furniture.js';
@@ -448,11 +449,13 @@ function renderTray(){
   const dk=DECKLIB.filter(d=>!d.deleted);
   tray.innerHTML = tabs + `
     ${[['P8',8],['P16',16],['L24',24]].map(([t,len])=>`<button class="tray-it" data-t="${t}">${podMini(len)}<b>8′ × ${len}′</b><small>pod</small></button>`).join('')}
+    <button class="tray-it mid" data-mid="1" title="Drag into a pod: a wall across it (or along it, dropped near a long side)"><svg viewBox="0 0 22 12" aria-hidden="true"><rect x="1" y="1" width="20" height="10" fill="none" stroke="#8a8f94" stroke-width=".8"/><rect x="9.6" y="1" width="2" height="10" fill="#6b5530"/></svg><b>Middle wall</b><small>splits a pod</small></button>
     ${dk.map(L=>`<button class="tray-it deck" data-deck="${L.id}"><svg viewBox="0 0 22 12" aria-hidden="true"><rect x="1" y="1" width="20" height="10" fill="#d9c49b" stroke="#6b5530" stroke-width=".6"/><line x1="1" y1="1" x2="21" y2="1" stroke="#3b2a12" stroke-width="1.4"/></svg><b>${deckName(L)}</b><small>deck</small></button>`).join('')}`;
 }
 tray.addEventListener('pointerdown', e=>{
   const b=e.target.closest('.tray-it'); if(!b || !editable() || b.dataset.open) return;
   const sx=e.clientX, sy=e.clientY, id=e.pointerId;
+  if(b.dataset.mid){ dragMid(e, b); return; }
   const cab=b.dataset.k, kit=b.dataset.kit && kitchenById(b.dataset.kit);
   const item = cab||b.dataset.deck ? null : b.dataset.lib ? {lib:b.dataset.lib} : {t:b.dataset.t};
   const t = item ? (item.lib ? podById(item.lib).t : item.t) : null;
@@ -477,6 +480,31 @@ tray.addEventListener('pointerdown', e=>{
     after(d.deck ? addDeck(d.lib, d.at.x, d.at.z, d.rot) : addPod(d.item, d.at.x, d.at.z, d.rot), d.deck ? 'Deck added' : 'Pod added'); };
   window.addEventListener('pointermove',mv); window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up);
 });
+/* a middle wall from the tray: dropped in a pod it goes across (along, when dropped within 2′ of a long side's middle
+   third … kept simple: across unless the drop is nearer a long wall than an end), its middle where it was dropped,
+   to the inch, or flush with a wall face within 3″ */
+function dragMid(e, b){
+  const sx=e.clientX, sy=e.clientY, id=e.pointerId; let moved=false;
+  const mv=ev=>{ if(ev.pointerId!==id) return; if(!moved && Math.hypot(ev.clientX-sx, ev.clientY-sy)>14){ moved=true; document.body.classList.add('dragging'); controls.enabled=false; } };
+  const up=ev=>{ if(ev.pointerId!==id) return; window.removeEventListener('pointermove',mv); window.removeEventListener('pointerup',up); window.removeEventListener('pointercancel',up);
+    document.body.classList.remove('dragging'); controls.enabled=true; if(!moved){ toast('Drag it into a pod'); return; }
+    trayDragAt=performance.now();
+    const at=planAt(ev.clientX, ev.clientY); if(!at){ toast('Drop it inside a pod'); return; }
+    const OFF=podOffsets(state.model), P=podList(state.model).find(p=>{ const o=OFF[p.i]; return at.x>p.x+o.ox && at.x<p.x1+o.ox && at.z>p.z+o.oz && at.z<p.z1+o.oz; });
+    if(!P){ toast('Drop it inside a pod'); return; }
+    const o=OFF[P.i], x=at.x-o.ox, z=at.z-o.oz;
+    // across or along: along when the drop is closer to the pod's middle line along its length than to its middle across
+    const lenAxisX = P.alongX, dLen = lenAxisX ? Math.abs(z-(P.z+P.z1)/2) : Math.abs(x-(P.x+P.x1)/2), dAcr = lenAxisX ? Math.abs(x-(P.x+P.x1)/2) : Math.abs(z-(P.z+P.z1)/2);
+    const dir = P.len>8 && dLen < 1.2 && dAcr > 3 ? 'long' : 'cross';
+    const q={ dir }, c = (dir==='cross') === lenAxisX ? x : z;
+    let v=Math.round(midAt(P, q, c));
+    const sid=addPart(P.i, dir, v); if(!sid){ return; }
+    const S=slotsFor(state.model).find(s=>s.id===sid), near=S && partSnaps(S).filter(x=>x.label!=='middle of the pod').sort((a,b)=>Math.abs(a.at-v)-Math.abs(b.at-v))[0];
+    let id2=sid; if(near && Math.abs(near.at-v)<=3) id2=movePart(P.i, S.part.id, near.at)||sid;
+    state.selected=id2; renderModels(); buildHome(); highlight(); renderSide(); if(!panelOpen()) setPanel(true);
+    toast(`Middle wall ${dir==='long'?'along':'across'} ${P.label}${near && Math.abs(near.at-v)<=3 ? ` · ${near.label}` : ''} · tap a door option`); };
+  window.addEventListener('pointermove',mv); window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up);
+}
 tray.addEventListener('change', e=>{ if(e.target.id==='trayCat'){ trayCat=e.target.value; renderTray(); tray.scrollLeft=0; } });
 /* a tap on a tray item: add it at the first spot it fits (cabinets: against the wall nearest the middle of the first pod) */
 let trayDragAt=0;

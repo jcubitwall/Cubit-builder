@@ -47,7 +47,8 @@ function pickFor(slot){
   const seg = podSeg(slot);
   w = seg && byId(seg.wall);
   if(fits(w,slot)) return w;
-  if(MODELS[state.model]?.scratch) return blankWall(slot);   // a home started from scratch: plain walls until you pick
+  if(slot.part){ w=byId(slot.part.wall); if(fits(w,slot)) return w; }
+  if(MODELS[state.model]?.scratch || slot.part) return blankWall(slot);   // a middle wall starts solid: tap it for doors   // a home started from scratch: plain walls until you pick
   const ty = slot.type||'ext';
   const opts = optionsFor(slot.len, ty, state.model);
   if(opts.length) return opts[0];

@@ -132,15 +132,53 @@ function slotsFor(modelKey){
   });
   fitShortWalls(slots, pods);
   assignLetters(modelKey, slots, pods);
+  middleWalls(modelKey, slots, pods, shift, ends);
   slots.forEach(s=>{
     // which ends of the wall sit at a corner of its pod (where the steel spine notch is)
     const P=s.pod, isCorner = c => (Math.abs(c[0]-P.x)<EPS||Math.abs(c[0]-P.x1)<EPS) && (Math.abs(c[1]-P.z)<EPS||Math.abs(c[1]-P.z1)<EPS);
     s.corner=[isCorner(s.p0n), isCorner(s.p1n)];
     s.label = `${s.pod.label} · Wall ${s.letter}`;
-    s.detail = s.type==='int' ? `interior, faces ${s.other.label}` : (s.len < s.sideLen ? 'exterior part' : 'exterior');
+    s.detail = s.part ? 'middle wall (inside the pod)' : s.type==='int' ? `interior, faces ${s.other.label}` : (s.len < s.sideLen ? 'exterior part' : 'exterior');
   });
   slots.sort((a,b)=> a.pod.i-b.pod.i || a.letter.localeCompare(b.letter, undefined, {numeric:true}));
   return slots;
+}
+
+/* ============================================================ middle walls (inside a pod)
+   A wall inside a pod to split off a bathroom, a bedroom … : MODELS[k].pods[i].parts = [{ id, dir, at }], in the
+   pod's own frame so it moves and turns with the pod.
+     dir 'cross'  across the pod (8′ long between the long walls); at = inches from the pod's own W end to its middle
+     dir 'long'   along the pod (between the end walls); at = inches from the pod's own S side to its middle
+   It's an interior wall (4½″) like any other: a library wall of the pod's width / length fitted between the inside
+   faces of the walls it meets (trim), with doors, the panel builder, plugs and switches, sheets and CNC. Its faces:
+   the "outside" one looks to +x or +z, the other back. Letters M1, M2 … in the pod. */
+const MID_T = 4.5;
+function midLine(p, q){   // the line of a middle wall in plan feet: { axis:'x'|'z' (what's fixed), c (its middle) }
+  const ws = q.dir==='long' ? worldSide(p.rot,'S') : worldSide(p.rot,'W'), at=(+q.at||0)/12;
+  if(ws==='W') return { axis:'x', c:p.x+at }; if(ws==='E') return { axis:'x', c:p.x1-at };
+  if(ws==='S') return { axis:'z', c:p.z+at }; return { axis:'z', c:p.z1-at };
+}
+/* back from a middle on that line (plan feet) to the stored at (inches) */
+function midAt(p, q, c){
+  const ws = q.dir==='long' ? worldSide(p.rot,'S') : worldSide(p.rot,'W');
+  const f = ws==='W' ? c-p.x : ws==='E' ? p.x1-c : ws==='S' ? c-p.z : p.z1-c; return +(f*12).toFixed(3);
+}
+function middleWalls(modelKey, slots, pods, shift, ends){
+  pods.forEach(p=>{ (MODELS[modelKey].pods[p.i].parts||[]).forEach((q,qi)=>{
+    const L=midLine(p, q), T=MID_T/12;
+    const n = L.axis==='x' ? [1,0] : [0,1], fixed=L.c+T/2;
+    const a = L.axis==='x' ? p.z : p.x, b = L.axis==='x' ? p.z1 : p.x1;
+    // the walls it meets at its ends: their thickness (whatever stands on that side of the pod at this spot)
+    const sideA = L.axis==='x' ? 'S' : 'W', sideB = L.axis==='x' ? 'N' : 'E';
+    const tAt = side => { const w=slots.find(s=>s.pod===p && s.side===side && !s.part && Math.min(s.a,s.b)-EPS<=L.c && L.c<=Math.max(s.a,s.b)+EPS); return w ? (pickFor(w)?.t || (w.type==='int'?4.5:6.5)) : 6.5; };
+    const ta=tAt(sideA), tb=tAt(sideB);
+    const S={ axis:L.axis==='x'?'z':'x', fixed, n };
+    const A = S.axis==='x' ? [a,fixed] : [fixed,a];
+    const [p0,p1]=ends(S, a, b);
+    const atA = Math.abs(p0[0]-A[0])<EPS && Math.abs(p0[1]-A[1])<EPS;
+    slots.push({ id:`${p.i}M${q.id}`, type:'int', part:q, pod:p, other:null, side:'M', a, b, len:b-a, p0n:p0, p1n:p1, p0:shift(p0,p.i), p1:shift(p1,p.i), n,
+      sideLen:b-a, from:0, local:'M', trim: atA ? [ta,tb] : [tb,ta], through:[false,false], snap:[false,false], short:false, letter:`M${qi+1}`, mid:L });
+  }); });
 }
 
 /* ============================================================ long vs short walls
@@ -435,4 +473,4 @@ const partnerOf = (slot, slots) => slot.type!=='int' ? null :
   slots.find(q=>q.type==='int' && q.pod===slot.other && q.other===slot.pod && Math.abs(q.a-slot.a)<EPS && Math.abs(q.b-slot.b)<EPS) || null;
 const podLabels = modelKey => podList(modelKey).reduce((a,p)=>(a[p.i]=p.long,a),{});
 
-export { padsFor, deckList, layoutOffsets, podOffsets, slotsFor, NORM, screwsFor, screwPlan, HEAD_FOR, podList, podLabels, CW, layerSlotsFor, partnerOf, worldSide, localSide, isLongSide, ROT_SIDE };
+export { midLine, midAt, MID_T, padsFor, deckList, layoutOffsets, podOffsets, slotsFor, NORM, screwsFor, screwPlan, HEAD_FOR, podList, podLabels, CW, layerSlotsFor, partnerOf, worldSide, localSide, isLongSide, ROT_SIDE };

@@ -90,7 +90,7 @@ function renderSheet(){
   const s=slotsFor(state.model).find(x=>x.id===state.sheetSlot); const w=bodyWall(s, pickFor(s));
   const isInt = s.type==='int';
   const faceA = isInt ? `Side A · faces ${s.pod.label}` : 'Front · interior side';
-  const faceB = isInt ? `Side B · faces ${s.other.label}` : 'Back · exterior side';
+  const faceB = isInt ? `Side B · faces ${s.other?.label||'the other side of the pod'}` : 'Back · exterior side';
   if(!w){ el.innerHTML='<p>No wall option exists for this length yet.</p>'; return; }
   const n=panelCount(w); const face=faceFor(s); state.face=face; state.reverse=false;
   if(!n){ el.innerHTML=`<div class="sheet-title"><div><div class="eyebrow" style="color:#555">Assembly sheet · Cubit Home</div><h3>${esc(withName(s.label, 'w:'+s.id))} · ${s.detail} — ${w.id}</h3></div></div><p>No SIP panels: this wall is one full-height opening with no SIP in it.</p>`; return; }

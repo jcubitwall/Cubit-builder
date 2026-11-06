@@ -18,7 +18,7 @@ import { POD, LAYER_KINDS } from './config.js';
 import { checkpoint } from './history.js';
 import { podRemoved } from './furniture.js';
 import { MODELS, mirrorId, layerMirrorId, LIB, LAYERLIB, PODLIB, byId, podById, deckById, DECKLIB, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib } from './data.js';
-import { slotsFor, layerSlotsFor, podList, localSide } from './layout.js';
+import { slotsFor, layerSlotsFor, podList, localSide, midAt, MID_T, podOffsets } from './layout.js';
 import { state, save, pickFor, pickLayer } from './state.js';
 
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -82,7 +82,7 @@ function explicitA(key, i){
 function describe(key, i, slots, lslots){
   const p = MODELS[key].pods[i], rot=((p.rot||0)%360+360)%360;
   const walls={S:[],E:[],N:[],W:[]};
-  slots.filter(s=>s.pod.i===i).forEach(s=>{
+  slots.filter(s=>s.pod.i===i && !s.part).forEach(s=>{
     const w=pickFor(s), f=state.faces?.[key]?.[s.id];
     const g={from:s.from, len:s.len, type:s.type, wall:w&&!w.blank ? w.id : null};
     const old = (p.walls?.[s.local]||[]).find(o=>Math.abs(o.from-s.from)<1e-6 && o.len===s.len && o.type===s.type);
@@ -93,6 +93,8 @@ function describe(key, i, slots, lslots){
   const layers={};
   lslots.filter(l=>l.pod.i===i).forEach(l=>{ const L=pickLayer(l); if(L && !L.blank) layers[l.kind]=L.id; });
   const out={t:p.t, x:p.x, z:p.z, rot, walls, layers};
+  // middle walls ride along, each with the wall chosen for it
+  if(p.parts?.length) out.parts=p.parts.map(q=>{ const sl=slots.find(x=>x.part && x.pod.i===i && x.part.id===q.id), w=sl && pickFor(sl); const o={ id:q.id, dir:q.dir, at:q.at }; if(w && !w.blank) o.wall=w.id; return o; });
   if(p.src) out.src=p.src;
   if(p.elec) out.elec=1;   // plugs and switches by the electrical rules
   const ex=explicitA(key,i); if(ex) out.a=localSide(rot, ex); else if(p.a) out.a=p.a;
@@ -147,6 +149,46 @@ function finish(key){
 }
 function sizeText(pods){ const c={}; pods.forEach(p=>c[POD[p.t].len]=(c[POD[p.t].len]||0)+1); return Object.entries(c).sort((a,b)=>b[0]-a[0]).map(([l,n])=>(n>1?n+'×':'')+l).join(' + '); }
 
+/* ---------------------------------------------------------------- middle walls (inside a pod; layout.js)
+   at: inches to its middle — from the pod's own W end ('cross') or its own S side ('long'). Kept off the walls it
+   runs beside: its face at least 1″ clear of their inside face. Returns its slot id. */
+const partSpan = (p, dir) => (dir==='long' ? 8 : p.len)*12;
+function clampAt(p, dir, at){ const span=partSpan(p,dir), lo=6.5+MID_T/2+1, hi=span-lo; return Math.round(Math.min(hi, Math.max(lo, at))*16)/16; }
+function addPart(i, dir='cross', at=null){
+  const p=podList(state.model)[i]; if(!p) return null;
+  const key=editKey(), P=MODELS[key].pods[i], L=(P.parts ||= []);
+  let n=1; while(L.some(q=>q.id==='m'+n)) n++;
+  const q={ id:'m'+n, dir, at:clampAt(p, dir, at ?? partSpan(p,dir)/2) }; L.push(q); finish(key);
+  return `${i}M${q.id}`;
+}
+function movePart(i, id, at, dir){
+  const p=podList(state.model)[i]; const q0=(MODELS[state.model].pods[i]?.parts||[]).find(q=>q.id===id); if(!p||!q0) return '';
+  const d=dir||q0.dir, v=clampAt(p, d, at);
+  if(v===q0.at && d===q0.dir) return `${i}M${id}`;
+  const key=editKey(), q=MODELS[key].pods[i].parts.find(q=>q.id===id); q.at=v; q.dir=d; finish(key); return `${i}M${id}`;
+}
+function removePart(i, id){
+  if(!(MODELS[state.model].pods[i]?.parts||[]).some(q=>q.id===id)) return;
+  const key=editKey(), P=MODELS[key].pods[i]; P.parts=P.parts.filter(q=>q.id!==id); if(!P.parts.length) delete P.parts;
+  const pk=state.picks?.[key]; if(pk) delete pk[`${i}M${id}`]; finish(key);
+}
+/* where a middle wall can snap so a face is flush with another wall's face (or the middle of the pod):
+   [{ at, label }] in its own at (inches) */
+function partSnaps(slot){
+  const k=state.model, p=slot.pod, q=slot.part, ax=slot.mid.axis, T=MID_T/12, out=[];
+  const S=slotsFor(k);
+  const add=(face, label, which)=>{ const c = which==='lo' ? face+T/2 : face-T/2; const at=midAt(p, q, c);
+    const span=partSpan(p,q.dir); if(at<6.5+MID_T/2+0.5 || at>span-6.5-MID_T/2-0.5) return; out.push({ at:+at.toFixed(3), label }); };
+  const off=podOffsets(k)[p.i], o = ax==='x' ? off.ox : off.oz;
+  S.forEach(w=>{ if(w===slot || w.id===slot.id) return;
+    const wa = Math.abs(w.n[0])>0.5 ? 'x' : 'z'; if(wa!==ax) return;
+    const t=(pickFor(w)?.t || (w.type==='int'?4.5:6.5))/12;
+    const line=(ax==='x'? w.p0[0] : w.p0[1]) - o, nn = ax==='x' ? w.n[0] : w.n[1];
+    const f1=line, f2=line-nn*t;   // its outside and inside faces
+    [f1,f2].forEach(f=>{ add(f, `flush with ${w.label}`, 'lo'); add(f, `flush with ${w.label}`, 'hi'); }); });
+  out.push({ at:partSpan(p,q.dir)/2, label:'middle of the pod' });
+  const seen=new Set(); return out.filter(x=>{ const kk=x.at.toFixed(2); if(seen.has(kk)) return false; seen.add(kk); return true; }).sort((a,b)=>a.at-b.at);
+}
 /* a fresh pod from a palette item: {t} for a blank pod, {lib:id} for a library pod */
 function podFrom(item, x, z, rot){
   if(item.lib){ const L=podById(item.lib); return { t:L.t, x, z, rot, src:L.id, walls:clone(L.walls), layers:clone(L.layers||{}), ...(L.a?{a:L.a}:{}) }; }
@@ -251,6 +293,8 @@ function mirrorPod(i, ax='x'){
   SIDES.forEach(k=>walls[k].sort((a,b)=>a.from-b.from));
   p.walls=walls; if(p.a) p.a=sw[p.a]||p.a;
   if(p.layers) Object.keys(p.layers).forEach(k=>{ p.layers[k]=layerMirrorId(p.layers[k], ax); });
+  // middle walls go to the mirrored spot: end for end moves the ones across, front to back the ones along
+  (p.parts||[]).forEach(q=>{ if(ax==='x' && q.dir==='cross') q.at=+(L*12-q.at).toFixed(3); if(ax==='z' && q.dir==='long') q.at=+(96-q.at).toFixed(3); });
   delete p.src;   // no longer the library pod as it was drawn
   finish(key); return '';
 }
@@ -342,4 +386,4 @@ const countsText = c => {
 function renameLibPod(id, name){ const p=podById(id); if(p && p.src==='saved'){ p.name=name; savePodLib(); } }
 function deleteLibPod(id){ const k=PODLIB.findIndex(p=>p.id===id && p.src==='saved'); if(k>=0){ PODLIB.splice(k,1); savePodLib(); } }
 
-export { mirrorPod, isProtected, makeDraftCopy, ensureDraft, setDeckFoundation, deckFoot, LEDGER, addDeck, moveDeck, removeDeck, replaceDeck, deckSpots, turnDeck, foot, problem, bake, addPod, movePod, rotatePod, replacePod, deletePod, dockSpots, turnSpot, saveToLibraries, countsText, sizeText, renameLibPod, deleteLibPod, podSig };
+export { addPart, movePart, removePart, partSnaps, clampAt, mirrorPod, isProtected, makeDraftCopy, ensureDraft, setDeckFoundation, deckFoot, LEDGER, addDeck, moveDeck, removeDeck, replaceDeck, deckSpots, turnDeck, foot, problem, bake, addPod, movePod, rotatePod, replacePod, deletePod, dockSpots, turnSpot, saveToLibraries, countsText, sizeText, renameLibPod, deleteLibPod, podSig };

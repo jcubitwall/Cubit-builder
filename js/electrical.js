@@ -192,7 +192,7 @@ function compute(k){
     const start={ S:0, E:ix, N:ix+iz, W:2*ix+iz }, len={ S:ix, E:iz, N:ix, W:iz };
     const uOn=(side,[x,z])=> side==='S' ? (x-x0)*FT : side==='E' ? ix+(z-z0)*FT : side==='N' ? ix+iz+(x1-x)*FT : 2*ix+iz+(z1-z)*FT;
     const L={ p, P:2*(ix+iz), ix, iz, x0, x1, z0, z1, walls:[], uOn, start, len };
-    walls.filter(W=>W.s.pod.i===p.i).forEach(W=>{
+    walls.filter(W=>W.s.pod.i===p.i && !W.s.part).forEach(W=>{   // middle walls aren't on the pod's loop
       const side=W.s.side, u0=uOn(side, W.at(0, W.t)), u1=uOn(side, W.at(W.L, W.t)), dir=u1>=u0?1:-1;
       const lo=Math.max(start[side], Math.min(u0,u1)), hi=Math.min(start[side]+len[side], Math.max(u0,u1));
       if(hi-lo<1) return;
@@ -209,7 +209,7 @@ function compute(k){
   function okAt(W, face, a, y, rk, o={}){
     if(!o.any && !o.furn && !W.auto) return false;   // furniture's own plugs go on every wall; the rest only on walls by the rules
     const {w,h}=sz(rk), hw=w/2, hh=h/2;
-    if(face==='in'){ const l=W.loop; if(!l) return false; const u=uOf(W,a); if(u<l.lo+CORNER || u>l.hi-CORNER) return false; }
+    if(face==='in'){ const l=W.loop; if(l){ const u=uOf(W,a); if(u<l.lo+CORNER || u>l.hi-CORNER) return false; } else if(a<CORNER || a>W.Lin-CORNER) return false; }
     else if(a<CORNER+1.75 || a>W.Lin-CORNER-1.75) return false;
     if((W.w.openings||[]).some(op=>a+hw+STUD>op.x && a-hw-STUD<op.x+op.w && y+hh+STUD>op.y && y-hh-STUD<op.y+op.h)) return false;
     if(RCPT.has(rk) && underWindow(W, a, y, hw)) return false;   // never under a window: the nearest chase beside it instead
