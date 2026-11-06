@@ -619,3 +619,10 @@ screen (the app opening on it, or picked in the Homes list) it's checked against
 `refreshOpen`): nothing unsaved here → the latest save opens; unsaved changes here → they're combined with the latest
 save (same-thing conflicts are asked about at Save, as before); no record of the starting version → this device's
 copy goes into My Drafts as "(copy from this device)" and the latest save opens. A short message says which.
+
+## Second floor and stairs (layout.js · stairs.js)
+- **Floor 1 / Floor 2** button beside 2D/3D. On Floor 2, pods dragged from the tray go upstairs (`lv:1` on the pod). Floor 1 hides the upstairs; Floor 2 shows both.
+- An upstairs pod has **no metal frame**. Its floor is one **6.5″ SIP** (`floor-up`, code FU) and it sits **116.4″** (`UP`) above the ground floor. A **1″ EPS pad** goes only where it touches the pod below. The lower pod keeps its full roof.
+- Upstairs pods snap to 8′ and can hang over the edge. An overhang of **8′ or more** gets **8×8″ posts** at the ends, flush with the outermost walls, down to a ground screw or a **10″ Sonotube** depending on the foundation. An upstairs pod has to sit on some pod below and can't overlap another upstairs pod.
+- **Stairs**: pick a ground-floor pod → **＋ Stairs**. You get a straight 36″ stair along a long wall, with three legal options (NBC 9.8): Shortest (7⅞″ rise / 10⅛″ run), Standard (~7½ / 10½) and Comfortable (~7 / 11). Tap the stair to slide it, put it on the other wall, turn it round or remove it. The **stair opening** is cut in the lower pod's ceiling and roof and in the upper pod's floor. In 2D and on the sheets it shows as treads with **UP** downstairs and a dashed opening with **DN** upstairs (A12 main floor, A14 second floor). Saved in `MODELS[k].stairs`.
+- Not done yet: weatherproofing where pods meet, takeoff/price lines for the upstairs SIP floor, EPS, posts and Sonotubes, and handrails and guards (the builder supplies these).

@@ -114,7 +114,7 @@ function wallFraming(slot, w0){
 function podRims(){
   const t=FRAME.lvl.t;
   return podList(state.model).map(p=>{ const long=p.len*FT-2*t, short=96-2*t;
-    return { pod:p, pieces:[['Floor rim LVL', FRAME.lvl.floor, long, 2], ['Floor rim LVL', FRAME.lvl.floor, short, 2], ['Roof rim LVL', FRAME.lvl.roof, long, 2], ['Roof rim LVL', FRAME.lvl.roof, short, 2]] }; });
+    return { pod:p, pieces:[...(p.lv?[]:[['Floor rim LVL', FRAME.lvl.floor, long, 2], ['Floor rim LVL', FRAME.lvl.floor, short, 2]]), ['Roof rim LVL', FRAME.lvl.roof, long, 2], ['Roof rim LVL', FRAME.lvl.roof, short, 2]] }; });
 }
 function homeFraming(){
   return slotsFor(state.model).map(s=>{ const w=pickFor(s); return w ? wallFraming(s,w) : null; }).filter(Boolean);
@@ -181,7 +181,7 @@ function floorBuild(p){
   const acp=[]; for(let u0=0; u0<L-1; u0+=F.acp.sheet[0]) acp.push([u0, u0+F.acp.sheet[0], 0, W]);
   return { eps, blocks, epsLens:[W-2*t, W-2*t, ...lens, ...lens], frames, tubes, tubeLens:frames.flatMap(()=>[fr.size, fr.size, W-2*fr.w, W-2*fr.w]), acp };
 }
-const floorBuilds = () => podList(state.model).map(p=>({ pod:p, ...floorBuild(p) }));
+const floorBuilds = () => podList(state.model).filter(p=>!p.lv).map(p=>({ pod:p, ...floorBuild(p) }));
 /* the same in the 1⅞″ gap between the interior ceiling and the roof: EPS strips against the rims, blocks across the joints */
 function roofBuild(p){
   const F=ROOF_BUILD, t=FRAME.lvl.t, L=p.len*FT, W=96, e=F.eps, o=t+e.off;

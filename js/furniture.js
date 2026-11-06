@@ -25,7 +25,7 @@ const shownCat = c => state.show['cw-'+c] !== false;
 let frames=[], group=null, models=new Map(), lastPods=[];
 function podFrame(p){
   const g=new THREE.Group(), L=p.len, off={0:[0,0],90:[8,0],180:[L,8],270:[0,L]}[p.rot||0];
-  g.position.set(p.x+off[0], 0, p.z+off[1]); g.rotation.y=-(p.rot||0)*Math.PI/180; g.userData.pod=p.i; return g;
+  g.position.set(p.x+off[0], p.y||0, p.z+off[1]); g.rotation.y=-(p.rot||0)*Math.PI/180; g.userData.pod=p.i; return g;   // y: upstairs pods stand higher
 }
 /* draw every placed item; called from buildHome with the pods where they sit on screen */
 function buildFurniture(homeGroup, pods){
@@ -52,10 +52,12 @@ function refreshItem(it){ if(!it) return; const old=models.get(it.id); if(old){ 
 /* picked: the tapped item, the rest of its group, and anything multi-selected */
 const isSel = id => { if(state.selFurn===id || (state.selSet||[]).includes(id)) return true; const g=byId(state.selFurn)?.grp?.id; return !!g && byId(id)?.grp?.id===g; };
 let afterApply=null; const onFurnApplied = fn => { afterApply=fn; };
+let levelOK = () => true;   // scene3d says which floor shows
+const setLevelTest = f => { levelOK=f; };
 function applyFurniture(){
   if(!group) return;
   const F=state.focusPod;
-  models.forEach(({holder, m},id)=>{ const it=byId(id); holder.visible = !!it && (state.isolate ? isoMine(id) : shownCat(holder.userData.cat) && (F==null || it.pod===F));
+  models.forEach(({holder, m},id)=>{ const it=byId(id); holder.visible = !!it && (state.isolate ? isoMine(id) : shownCat(holder.userData.cat) && (F==null || it.pod===F) && levelOK(it.pod));
     m.select(null);
     if(isSel(id) && !state.isolate) m.meshes.forEach(x=>{ x.material = x.material.clone(); x.material.emissive?.set(0x6a2a08); }); });
   updateHandles();
@@ -89,7 +91,7 @@ const ray=new THREE.Raycaster();
 /* walls to snap to: the wall meshes (not the see-through panes, seals or labels) */
 function wallMeshes(wallGroups){ const out=[]; wallGroups.forEach(g=>{ if(!g.visible) return; g.traverse(o=>{ if(o.isMesh && o.visible && o.userData.slotId && !o.userData.pickPane && !o.userData.seal && !o.userData.framing && !o.userData.unit && !o.userData.letter && !o.isSprite) out.push(o); }); }); return out; }
 /* which pod a home-frame point (feet) is in */
-function podAt(pt, pods){ return pods.find(p=>pt.x>=p.x-0.01 && pt.x<=p.x+p.w+0.01 && pt.z>=p.z-0.01 && pt.z<=p.z+p.d+0.01); }
+function podAt(pt, pods){ const L=pods.filter(p=>pt.x>=p.x-0.01 && pt.x<=p.x+p.w+0.01 && pt.z>=p.z-0.01 && pt.z<=p.z+p.d+0.01); return L.find(p=>(p.lv||0)===(state.level||0)) || L.find(p=>levelOK(p.i)) || L[0]; }   // the floor being worked on first
 /* snap an item (size in inches) dropped at home-frame point `pt` (THREE.Vector3, feet): back against the nearest
    wall within reach, clear of the walls at the ends, butted to its neighbours. Returns {pod,u,v,a,wall} or null. */
 /* lockA: one touch, one wall. While a drag goes on, the item keeps the wall it started on (its back to it): it slides
@@ -553,4 +555,4 @@ const DEPTH_CATS=new Set(['base','upper','tall','linen','wardrobe','vanity','app
 function wallDepths(k=state.model){ const out={}; list(k).forEach(it=>{ if(it.wall && DEPTH_CATS.has(itemDef(it.k)?.cat)) out[it.wall]=Math.max(out[it.wall]||0, it.d); }); return out; }
 
 const podsShown = () => lastPods;
-export { onFurnChanged, centreUnderWindow, sinksOnWall, windowsIn, fitBaseToSink, dockAt, turnStart, turnTo, freeSpot, clash, setWalls, handleMeshes, roomBeyond, stretchTo, updateHandles, onFurnApplied, setCabExplode, resetCabExplode, cabExploded, explodeFurniture, furnHolder, podsShown, showFurnGhost, hideFurnGhost, setHolderVisible, list as furnitureOf, byId as furnById, buildFurniture, refreshItem, applyFurniture, furnMeshes, snap, podAt, addItem, updateItem, removeItem, duplicateItem, turnItem, podRemoved, wallDepths, shownCat, CATS as FURN_CATS , cabExplodeGoal , rotXZ, groupMembers, makeGroup, ungroup, relinkGroup, renameGroup, setGroupFrom, removeGroup, setMany, moveHolder, groupRecipe, placeRecipe, addRecipe };
+export { setLevelTest, onFurnChanged, centreUnderWindow, sinksOnWall, windowsIn, fitBaseToSink, dockAt, turnStart, turnTo, freeSpot, clash, setWalls, handleMeshes, roomBeyond, stretchTo, updateHandles, onFurnApplied, setCabExplode, resetCabExplode, cabExploded, explodeFurniture, furnHolder, podsShown, showFurnGhost, hideFurnGhost, setHolderVisible, list as furnitureOf, byId as furnById, buildFurniture, refreshItem, applyFurniture, furnMeshes, snap, podAt, addItem, updateItem, removeItem, duplicateItem, turnItem, podRemoved, wallDepths, shownCat, CATS as FURN_CATS , cabExplodeGoal , rotXZ, groupMembers, makeGroup, ungroup, relinkGroup, renameGroup, setGroupFrom, removeGroup, setMany, moveHolder, groupRecipe, placeRecipe, addRecipe };

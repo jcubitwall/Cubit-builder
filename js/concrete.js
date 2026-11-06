@@ -82,7 +82,7 @@ function concretePlan(modelKey){
   const C=(state.icf?.core||ICF.core)/FT, F=ICF.foam/FT, FW=ICF.footW/FT, FTk=ICF.footT/FT;
   const brand=ICF.brands[state.icf?.brand] || ICF.brands.nudura, BH=brand.h/FT;
   const LO=layoutOffsets(modelKey), pl=podList(modelKey);
-  const rects=pl.map(p=>{ const x=p.x+LO.pods[p.i].ox, z=p.z+LO.pods[p.i].oz; return [x,z,x+p.w,z+p.d]; });
+  const rects=pl.filter(p=>!p.lv).map(p=>{ const x=p.x+LO.pods[p.i].ox, z=p.z+LO.pods[p.i].oz; return [x,z,x+p.w,z+p.d]; });
   const loops=outline(rects);
   // offsets from the home's outer face, + outward: outside foam, core, inside foam, footing (centred under the ICF)
   const mid=-C/2, off={ foamOut:F, core0:0, core1:-C, foamIn:-C-F, foot0:mid+FW/2, foot1:mid-FW/2 };

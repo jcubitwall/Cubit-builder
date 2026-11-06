@@ -4,7 +4,8 @@ import { jointInfo, makeLead, setFree, differs } from './joints.js';
 import { planWindowOverSink, centreWindowOverSink } from './sink-window.js';
 import { LIB, MODELS, optionsFor, saveCustomModels, layerOptions, mirrorId, layerMirrorId } from './data.js';
 import { LAYER_KINDS } from './config.js';
-import { screwsFor, slotsFor, podList, CW, layerSlotsFor, partnerOf, deckList, worldSide } from './layout.js';
+import { screwsFor, slotsFor, podList, CW, layerSlotsFor, partnerOf, deckList, worldSide, podOffsets } from './layout.js';
+import { stairsOf, addStair, updateStair, removeStair, optionsFor as stairOptions } from './stairs.js';
 import { panelCount, thumbSVG, bodyWall, wallLen, layerHoles, outlinePts, shapeOf } from './panels.js';
 import { buildHome, highlight } from './scene3d.js';
 import { facing, fmtBearing } from './orient.js';
@@ -108,6 +109,34 @@ async function newFamily(){
   const v=await askName({ title:'New model name', current:'', placeholder:'e.g. Summit', note:'Shown as a model name in Cubit Homes and the Save window for the whole team. Homes are filed under it when they are adopted into Cubit Homes from Purgatory.' }); if(v==null || !v.trim()) return;
   try{ const id=await addFamily(v); openFam=id; renderModels(); toast(`“${v.trim()}” added. Adopt a home into it from Purgatory (Adopt into Cubit Homes).`); }
   catch(e){ toast('Not added: '+(e.message||e)); }
+}
+/* ---------------------------------------------------------------- stairs (stairs.js) */
+let stairStep=1;
+function renderStairSide(id){
+  const S=(MODELS[state.model].stairs||[]).find(x=>x.id===id), st=S && stairsOf(state.model).find(x=>x.S.id===id);
+  if(!S || !st){ state.selected=null; renderSide(); return; }
+  const P=podList(state.model), lo=P[S.pod], up=st.above!=null ? P[st.above] : null, o=st.o;
+  sideH.innerHTML=`<div class="eyebrow">Stairs · ${o.label.toLowerCase()} · ${o.w}″ wide</div><h2>${esc(lo.label)} up to ${up?esc(up.label):'—'}</h2>
+    <p>${o.n} risers of ${fin(Math.round(o.rise*16)/16)}, ${o.n-1} treads of ${fin(o.run)} · ${fin(Math.round(o.total))} long · opening ${fin(Math.round((st.op.b-st.op.a)))} × ${fin(o.w+1)} in the ceiling, roof and the floor above</p>`;
+  const opts=stairOptions(id);
+  sideB.innerHTML=`<div class="mid-box"><div class="eyebrow">Stair</div>
+    ${st.why?`<p class="note el-warn">${esc(st.why)}</p>`:''}
+    <div class="st-opts">${opts.map(x=>`<button class="st-opt" data-sopt="${x.key}" aria-pressed="${S.opt===x.key}" ${x.fits?'':'disabled'}><b>${esc(x.label)}</b><small>${esc(x.note)}</small>${x.fits?'':`<small class="el-warn">${esc(x.why||'doesn’t fit here')}</small>`}</button>`).join('')}</div>
+    <p class="note">Legal for a house (National Building Code 9.8): risers 7⅞″ or less, runs 10⅛″ or more, 6′ 4¾″ headroom, 34″ or wider. Handrail and guards by the builder.</p>
+    <div class="eyebrow sm">Where it sits</div>
+    <div class="mid-pos"><button class="btn ghost" data-sst="-1" aria-label="Slide back">◀</button>
+      <label class="cw-f"><span>Foot of the stair from ${esc(lo.label)}'s end</span><input id="stU" inputmode="decimal" value="${Math.round(S.u0*16)/16}"><i>″</i></label>
+      <button class="btn ghost" data-sst="1" aria-label="Slide on">▶</button></div>
+    <div class="cw-opt"><span>Each tap</span><div class="seg sm">${[[1,'1″'],[12,'1′']].map(([v,l])=>`<button data-sstep="${v}" aria-pressed="${stairStep===v}">${l}</button>`).join('')}</div></div>
+    <div class="row"><button class="btn ghost sm" id="stSide">Other wall</button><button class="btn ghost sm" id="stDir">Turn it round</button><button class="btn ghost sm danger" id="stRm">Remove stairs</button></div></div>`;
+  const go=patch=>{ updateStair(id, patch); renderModels(); buildHome(); highlight(); renderSide(); };
+  sideB.querySelectorAll('[data-sopt]').forEach(b=>b.onclick=()=>{ const x=opts.find(q=>q.key===b.dataset.sopt); go(x.why && x.alt ? { ...x.alt, opt:x.key } : { opt:x.key }); });
+  sideB.querySelectorAll('[data-sstep]').forEach(b=>b.onclick=()=>{ stairStep=+b.dataset.sstep; renderSide(); });
+  sideB.querySelectorAll('[data-sst]').forEach(b=>b.onclick=()=>go({ u0:S.u0 + (+b.dataset.sst)*stairStep }));
+  sideB.querySelector('#stU').onchange=e=>{ const v=parseFloat(e.target.value); if(isFinite(v)) go({ u0:v }); };
+  sideB.querySelector('#stSide').onclick=()=>go({ side:S.side==='S'?'N':'S' });
+  sideB.querySelector('#stDir').onclick=()=>go({ dir:-S.dir, u0:S.u0+S.dir*o.total });
+  sideB.querySelector('#stRm').onclick=e=>{ const b=e.target; if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to remove'; return; } removeStair(id); state.selected=null; renderModels(); buildHome(); highlight(); renderSide(); toast('Stairs removed (the openings close)'); };
 }
 /* ---------------------------------------------------------------- a middle wall: where it sits, and its door */
 const DOORS=[[30,32.5],[32,34.5],[34,36.5],[36,38.5]];   // slab ″ → rough opening ″ (prehung)
@@ -240,6 +269,13 @@ function renderSide(){
     sideB.insertAdjacentHTML('afterbegin', `<div class="pod-acts"><b>${esc(withName(`Pod ${pi+1}`, 'p:'+pi))}</b><button class="btn ghost sm" id="podName">Name</button><button class="btn ghost sm" id="podTurn">Turn 90°</button><button class="btn ghost sm" id="podMir" title="End for end: left ↔ right">Mirror</button><button class="btn ghost sm" id="podFlip" title="Front ↔ back">Flip</button><button class="btn ghost sm" id="podRm">Remove pod</button></div>`);
     const go=(why,msg)=>{ if(why){ toast(why); return; } state.selected=null; renderModels(); buildHome(); renderSide(); toast(msg); };
     sideB.querySelector('.pod-acts').insertAdjacentHTML('beforeend', `<span class="pod-mid"><button class="btn ghost sm" id="midX" title="A wall across the pod, to split off a bathroom, a bedroom …">＋ Wall across</button><button class="btn ghost sm" id="midL" title="A wall along the pod">＋ Wall along</button></span>`);
+    { const P=podList(state.model), me=P[pi], OFF=podOffsets(state.model), ov=(a,b)=>{ const oa=OFF[a.i], ob=OFF[b.i]; return Math.min(a.x1+oa.ox,b.x1+ob.ox)-Math.max(a.x+oa.ox,b.x+ob.ox)>0.1 && Math.min(a.z1+oa.oz,b.z1+ob.oz)-Math.max(a.z+oa.oz,b.z+ob.oz)>0.1; };
+      const can = me && (me.lv ? P.some(q=>!q.lv && ov(q,me)) : P.some(q=>q.lv && ov(q,me))) && me.len>8;
+      if(me && P.some(q=>q.lv && q!==me && ov(q,me)) || (me && me.lv && P.some(q=>!q.lv && ov(q,me)))) sideB.querySelector('.pod-acts').insertAdjacentHTML('beforeend', `<button class="btn ghost sm" id="podStair" title="A legal stair up to the pod above, with the opening cut">＋ Stairs</button>`);
+      sideB.querySelector('#podStair')?.addEventListener('click', ()=>{ let id=null;
+        if(me.lv){ for(const q of P.filter(q=>!q.lv && ov(q,me))){ id=addStair(q.i); if(id) break; } } else id=addStair(pi);
+        if(!id){ toast('No room for a stair here: it needs about 12′ clear along a pod, under the pod above.'); return; }
+        state.selected='stair:'+id; renderModels(); buildHome(); highlight(); renderSide(); toast('Stairs added · pick another option or slide them'); }); }
     const addMid=dir=>{ const id=addPart(pi, dir); if(!id) return; state.selected=id; renderModels(); buildHome(); highlight(); renderSide(); toast('Middle wall added · slide it, snap it flush, or tap a door option'); };
     sideB.querySelector('#midX').onclick=()=>addMid('cross'); sideB.querySelector('#midL').onclick=()=>addMid('long');
     sideB.querySelector('#podTurn').onclick=()=>go(rotatePod(pi),'Pod turned 90°');
@@ -270,6 +306,7 @@ function renderSideInner(){
   const ls=layerSlotsFor(state.model).find(x=>x.id===state.selected);
   if(ls){ renderLayerSide(ls); return; }
   if(/^deck:\d+$/.test(state.selected||'')){ renderDeckSide3d(+state.selected.slice(5)); return; }
+  if(/^stair:/.test(state.selected||'')){ renderStairSide(state.selected.slice(6)); return; }
   const s=slots.find(x=>x.id===state.selected);
   if(!s){
     const pods=m.pods.length, panels=slots.reduce((a,x)=>a+(pickFor(x)?panelCount(bodyWall(x,pickFor(x))):0),0);

@@ -12,7 +12,7 @@ import { state } from './state.js';
 /* ---------- foundation: one data model drives the on-screen sheet and the PDF ---------- */
 function foundationData(){
   const m=MODELS[state.model]; const OFF=podOffsets(state.model);
-  const pods=podList(state.model).map((p,i)=>({...p,x:p.x+OFF[i].ox,z:p.z+OFF[i].oz}));
+  const pods=podList(state.model).map((p,i)=>({...p,x:p.x+OFF[i].ox,z:p.z+OFF[i].oz})).filter(p=>!p.lv);
   const LOd0=layoutOffsets(state.model).decks, B=pods.map(p=>[p.x,p.z,p.x+p.w,p.z+p.d]).concat(deckList(state.model).map((d,k)=>[d.x+LOd0[k].ox,d.z+LOd0[k].oz,d.x1+LOd0[k].ox,d.z1+LOd0[k].oz]));
   const minx=Math.min(...B.map(b=>b[0])), maxx=Math.max(...B.map(b=>b[2]));
   const minz=Math.min(...B.map(b=>b[1])), maxz=Math.max(...B.map(b=>b[3]));

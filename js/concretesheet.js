@@ -18,7 +18,7 @@ const vol = ft3 => `${ft3.toFixed(1)} ft³ · ${yd3(ft3).toFixed(2)} yd³ · ${m
 function sheetData(){
   const cp=concretePlan(state.model), m=MODELS[state.model];
   const LO=layoutOffsets(state.model);
-  const pods=podList(state.model).map(p=>({...p, x:p.x+LO.pods[p.i].ox, z:p.z+LO.pods[p.i].oz}));
+  const pods=podList(state.model).filter(p=>!p.lv).map(p=>({...p, x:p.x+LO.pods[p.i].ox, z:p.z+LO.pods[p.i].oz}));
   const decks=deckList(state.model).map(d=>({...d, x:d.x+LO.decks[d.k].ox, z:d.z+LO.decks[d.k].oz}));
   const footPolys=cp.loops.map(l=>offsetLoop(l,cp.off.foot0));
   const all=footPolys.flat().concat(decks.flatMap(d=>[[d.x,d.z],[d.x+d.w,d.z+d.d]]));

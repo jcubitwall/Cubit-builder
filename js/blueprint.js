@@ -20,6 +20,7 @@ import { itemDef, plumbOf } from './casework.js';
 import { nameOf } from './names.js';
 import { northVec, getBearing, compass } from './orient.js';
 import { fin } from './format.js';
+import { stairsOf, stairPlan } from './stairs.js';
 
 /* ------------------------------------------------------------------ page, colours, text */
 const PW=1728, PH=1296, M=36, TBW=296;               // page, border margin, title block width
@@ -122,9 +123,10 @@ function noteVars(k=state.model){
 
 /* ------------------------------------------------------------------ the home, in plan (feet) */
 const PLAN_KINDS = new Set(['window','door','patio','opening']);
-function homeModel(k=state.model){
+/* lv: just that floor (0 the ground floor, 1 upstairs); null = everything (the electrical rules) */
+function homeModel(k=state.model, lv=null){
   const m=MODELS[k]; const OFF=layoutOffsets(k);
-  const pods=podList(k).map((p,i)=>{ const x=p.x+OFF.pods[i].ox, z=p.z+OFF.pods[i].oz; return {...p, x, z, x1:x+p.w, z1:z+p.d, name:nameOf('p:'+i, k)}; });
+  let pods=podList(k).map((p,i)=>{ const x=p.x+OFF.pods[i].ox, z=p.z+OFF.pods[i].oz; return {...p, x, z, x1:x+p.w, z1:z+p.d, name:nameOf('p:'+i, k)}; });
   const decks=deckList(k).map(d=>{ const x=d.x+OFF.decks[d.k].ox, z=d.z+OFF.decks[d.k].oz; return {...d, x, z, x1:x+d.w, z1:z+d.d}; });
   const slots=slotsFor(k);
   const walls=slots.map(s=>{ const w=bodyWall(s, pickFor(s)); if(!w) return null;
@@ -145,10 +147,13 @@ function homeModel(k=state.model){
   }).filter(Boolean);
   const lights=ceil.flatMap(ls=>{ const L=pickLayer(ls), toW=ceilingFrame(ls).toW; let pts=[]; try{ pts=lightsIn(L, ls, k); }catch(e){}
     return pts.map(p=>({ p:toW(p.x,p.z), pod:ls.pod.i })); });
-  const B=pods.map(p=>[p.x,p.z,p.x1,p.z1]).concat(decks.map(d=>[d.x,d.z,d.x1,d.z1]));
+  let W=walls, IT=items, LT=lights, DK=decks;
+  if(lv!=null){ const on=new Set(pods.filter(p=>p.lv===lv).map(p=>p.i)); pods=pods.filter(p=>on.has(p.i)); W=walls.filter(w=>on.has(w.s.pod.i)); IT=items.filter(I=>on.has(I.it.pod)); LT=lights.filter(L=>on.has(L.pod)); if(lv) DK=[]; }
+  if(!pods.length) pods=podList(k).filter(p=>!p.lv).map(p=>({ ...p, x:p.x+OFF.pods[p.i].ox, z:p.z+OFF.pods[p.i].oz, x1:p.x1+OFF.pods[p.i].ox, z1:p.z1+OFF.pods[p.i].oz }));
+  const B=pods.map(p=>[p.x,p.z,p.x1,p.z1]).concat(DK.map(d=>[d.x,d.z,d.x1,d.z1]));
   const bb={ x0:Math.min(...B.map(b=>b[0])), z0:Math.min(...B.map(b=>b[1])), x1:Math.max(...B.map(b=>b[2])), z1:Math.max(...B.map(b=>b[3])) };
   const hb={ x0:Math.min(...pods.map(p=>p.x)), z0:Math.min(...pods.map(p=>p.z)), x1:Math.max(...pods.map(p=>p.x1)), z1:Math.max(...pods.map(p=>p.z1)) };
-  return { k, m, pods, decks, walls, items, lights, bb, hb, slots };
+  return { k, m, pods, decks:DK, walls:W, items:IT, lights:LT, bb, hb, slots, lv };
 }
 /* interior size of a pod (inches): along its length and across, between the inside faces of its walls */
 function podInterior(H_, p){
@@ -410,10 +415,25 @@ function planFit(ctx, extra=150, max=27){
   return { xf:planXf(hb, { x0:AREA.x0, y0:AREA.y0, x1:AREA.x1, y1:AREA.y1-40 }, k), label };
 }
 function planFurniture(ctx, xf, opts){ return ctx.H_.items.map(I=>itemSVG(I, xf, opts)).join(''); }
+/* stairs on a plan: downstairs the treads and an UP arrow; upstairs the opening with a guard line and DN */
+function stairSVG(xf, lv){
+  let g='';
+  stairsOf().forEach(st=>{ const L=stairPlan(st), poly=r=>[[r.x,r.z],[r.x1,r.z],[r.x1,r.z1],[r.x,r.z1]].map(xf.P).map(p=>p.join(',')).join(' ');
+    const [a,b]=L.walk.map(xf.P), ang=Math.atan2(b[1]-a[1], b[0]-a[0]), hd=(p,s)=>`${p[0]-9*Math.cos(ang+s)},${p[1]-9*Math.sin(ang+s)}`;
+    if(!lv){ g+=`<polygon points="${poly(st.foot)}" fill="#fff" stroke="${INK}" stroke-width="1.2"/>`;
+      L.lines.forEach(([p,q])=>{ const [x1,y1]=xf.P(p), [x2,y2]=xf.P(q); g+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${INK}" stroke-width="0.7"/>`; });
+      g+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${INK}" stroke-width="1"/><polyline points="${hd(b,0.45)} ${b.join(',')} ${hd(b,-0.45)}" fill="none" stroke="${INK}" stroke-width="1"/>`;
+      const m=[a[0]+(b[0]-a[0])*0.5, a[1]+(b[1]-a[1])*0.5]; g+=rect(m[0]-22, m[1]-15, 44, 12, { fill:'#fff', stroke:'none' })+tx(m[0], m[1]-5, `UP ${st.o.n}R`, { size:9, anchor:'middle', weight:'bold' }); }
+    else { g+=`<polygon points="${poly(st.hole)}" fill="none" stroke="${INK}" stroke-width="1" stroke-dasharray="6 3"/>`;
+      g+=`<line x1="${b[0]}" y1="${b[1]}" x2="${a[0]}" y2="${a[1]}" stroke="${INK}" stroke-width="0.8"/>`;
+      const h=xf.P([(st.hole.x+st.hole.x1)/2, (st.hole.z+st.hole.z1)/2]); g+=tx(h[0], h[1]+14, 'DN · OPEN TO BELOW · GUARD', { size:8, anchor:'middle', weight:'bold' }); } });
+  return g;
+}
 function sFloor(ctx, sh){
   const { H_ } = ctx, { xf, label } = planFit(ctx); sh.scale=label;
-  let g=deckSVG(H_, xf)+planFurniture(ctx, xf)+drawWalls(H_, xf)+roomLabels(H_, xf)+planDims(H_, xf)+elevMarkers(H_, xf)+sectionLine(H_, xf);
-  g+=northArrow(AREA.x1-40, AREA.y0+40)+scaleBar(AREA.x0+10, AREA.y1-14, xf.k)+viewTitle(AREA.x0+(AREA.x1-AREA.x0)/2-90, AREA.y1-10, '1', sh.no, 'MAIN LEVEL FLOOR PLAN', label);
+  const up = !!ctx.H2 && H_===ctx.H2;
+  let g=deckSVG(H_, xf)+planFurniture(ctx, xf)+drawWalls(H_, xf)+stairSVG(xf, up?1:0)+roomLabels(H_, xf)+planDims(H_, xf)+elevMarkers(H_, xf)+sectionLine(H_, xf);
+  g+=northArrow(AREA.x1-40, AREA.y0+40)+scaleBar(AREA.x0+10, AREA.y1-14, xf.k)+viewTitle(AREA.x0+(AREA.x1-AREA.x0)/2-90, AREA.y1-10, '1', sh.no, up ? 'SECOND FLOOR PLAN' : 'MAIN LEVEL FLOOR PLAN', label);
   return g;
 }
 /* A13: pods numbered, every wall's code (1A, 1B …) and a wall schedule */
@@ -730,6 +750,7 @@ const SHEETS = [
   { id:'cover', no:'A01', title:'Cover & General Notes', scale:'N.T.S.', fn:sCover },
   { id:'found', no:'A11', title:'Foundation Plan', fn:sFoundation },
   { id:'floor', no:'A12', title:'Main Level Floor Plan', fn:sFloor },
+  { id:'floor2', no:'A14', title:'Second Floor Plan', fn:(ctx, sh)=>sFloor({ ...ctx, H_:ctx.H2 }, sh), up:true },
   { id:'key',   no:'A13', title:'Pod & Wall Key Plan', fn:sKey },
   { id:'elec',  no:'E11', title:'Main Level Electrical Plan', fn:sElectrical },
   { id:'plumb', no:'P11', title:'Main Level Plumbing Plan', fn:sPlumbing },
@@ -740,24 +761,24 @@ const SHEETS = [
 ];
 /* ctx: everything the sheets share. found / concrete are passed in (to keep this file free of the sheet UI imports) */
 function makeContext({ bp=loadBP(), renders=[], found=null, concrete=null }={}){
-  const k=state.model, H_=homeModel(k), info=homeInfo(bp, k);
-  const counts={}; H_.pods.forEach(p=>counts[p.len]=(counts[p.len]||0)+1);
+  const k=state.model, up=podList(k).some(p=>p.lv), H_=homeModel(k, up?0:null), H2=up?homeModel(k, 1):null, info=homeInfo(bp, k);
+  const counts={}, allPods=[...H_.pods, ...(H2?H2.pods:[])]; allPods.forEach(p=>counts[p.len]=(counts[p.len]||0)+1);
   const podsText=Object.entries(counts).sort((a,b)=>b[0]-a[0]).map(([l,n])=>(n>1?`${n} x `:'')+`${l}'`).join(' + ');
-  const area=H_.pods.reduce((a,p)=>a+p.w*p.d, 0);
-  const on = info.sheets ? SHEETS.filter(s=>info.sheets[s.id]!==false) : SHEETS;
+  const area=allPods.reduce((a,p)=>a+p.w*p.d, 0);
+  const on = (info.sheets ? SHEETS.filter(s=>info.sheets[s.id]!==false) : SHEETS).filter(s=>!s.up || up);
   const list=on.map((s,i)=>({ ...s, i }));
-  return { k, bp, info, H_, renders, found, concrete, model:MODELS[k]?.name||k, podsText, areaText:`${Math.round(area)} SQ FT (${(area*0.0929).toFixed(1)} M2)`, list, count:list.length };
+  return { k, bp, info, H_, H2, renders, found, concrete, model:MODELS[k]?.name||k, podsText, areaText:`${Math.round(area)} SQ FT (${(area*0.0929).toFixed(1)} M2)`, list, count:list.length };
 }
 function buildSheet(ctx, sh){ const s={...sh}; const body=s.fn(ctx, s); return sheetSVG(ctx, s, body); }
 function buildSet(ctx){ return ctx.list.map(sh=>({ sh, svg:buildSheet(ctx, sh) })); }
 
 /* the plan as a blueprint, for Build's 2D view: walls (dark, cut), openings and door swings, room names and the
    outside dimensions, on a transparent sheet k px per foot, the picked wall in orange → { svg, bb, w, h, k, m } */
-function planOverlay(sel=null, k=48){
-  const H_=homeModel(state.model), bb=H_.bb, m=6;   // m: feet of margin round the home (room for the dimensions)
+function planOverlay(sel=null, k=48, lv=null){
+  const H_=homeModel(state.model, podList(state.model).some(p=>p.lv) ? (lv||0) : null), bb=H_.bb, m=6;   // m: feet of margin round the home (room for the dimensions)
   const B={ x0:bb.x0-m, z0:bb.z0-m, x1:bb.x1+m, z1:bb.z1+m }, w=Math.round((B.x1-B.x0)*k), h=Math.round((B.z1-B.z0)*k);
   const xf=planXf(bb, { x0:0, y0:0, x1:w, y1:h }, k);
-  let g=drawWalls(H_, xf, { openJoints:false })+roomLabels(H_, xf, { dims:true })+planDims(H_, xf);
+  let g=drawWalls(H_, xf, { openJoints:false })+stairSVG(xf, lv||0)+roomLabels(H_, xf, { dims:true })+planDims(H_, xf);
   const W=sel && H_.walls.find(W=>W.s.id===sel);
   if(W){ const c=[W.at(0,0), W.at(W.L,0), W.at(W.L,W.t), W.at(0,W.t)].map(xf.P); g+=`<polygon points="${c.map(p=>p.join(',')).join(' ')}" fill="#e0864a" fill-opacity="0.85" stroke="#9a4a14" stroke-width="2"/>`; }
   return { svg:`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${g}</svg>`, bb:B, w, h, k };

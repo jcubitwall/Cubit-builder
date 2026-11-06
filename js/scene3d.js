@@ -1,13 +1,14 @@
 /* Cubit Builder — scene3d.js */
-import { CEIL, FLOOR, FT, H, POD, PW, T, WALL_BASE, LAYER_KINDS, NOTCH } from './config.js';
+import { CEIL, FLOOR, FT, H, POD, PW, T, WALL_BASE, LAYER_KINDS, NOTCH, UP, EPS_PAD } from './config.js';
 import { MODELS } from './data.js';
-import { podOffsets, screwsFor, slotsFor, layerSlotsFor, podList, deckList, layoutOffsets, padsFor } from './layout.js';
+import { podOffsets, screwsFor, slotsFor, layerSlotsFor, podList, deckList, layoutOffsets, padsFor, upstairs, POST } from './layout.js';
 import { boolTree } from './geom2d.js';
 import { crossesJoint, notchedOutline, panelCells, panelCount, panelNum, wallLen, panelSpans, panelAt, bodyWall, layerHoles, isShaped, shapeOf, outlinePts, faceShape, handOf } from './panels.js';
 import { w3 } from './sheets.js';
 import { renderSide } from './sidebar.js';
 import { pickFor, pickLayer, state } from './state.js';
 import { withCuts } from './plumbing.js';
+import { stairsOf, stairParts } from './stairs.js';
 import { sealRole, sealsFor, SEAL } from './seals.js';
 import { getBearing } from './orient.js';
 import { symbol, unitFor, pairOf, doorOwner } from './units.js';
@@ -18,7 +19,7 @@ import { FRAME, FLOOR_BUILD, ROOF_BUILD } from './config.js';
 import { DECK } from './config.js';
 import { foundationOf } from './state.js';
 import { pickLightAt, selectedLights, onMarkers, lightsOfSlot } from './light-edit-ui.js';
-import { buildFurniture, applyFurniture, furnMeshes, explodeFurniture, furnHolder, onFurnApplied, setWalls, handleMeshes } from './furniture.js';
+import { setLevelTest, buildFurniture, applyFurniture, furnMeshes, explodeFurniture, furnHolder, onFurnApplied, setWalls, handleMeshes } from './furniture.js';
 
 /* ============================================================ 3D studio */
 const stage = document.getElementById('stage');
@@ -319,6 +320,47 @@ function buildDeckMesh(L, mat){
   deckMembers(L).forEach(([nm,x0,x1,z0,z1])=>{ const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT,h/FT,(z1-z0)/FT),mat); m.position.set((x0+x1)/2/FT,h/2/FT,(z0+z1)/2/FT); g.add(m); });
   return g;
 }
+/* the second floor: its pods' walls, layers and roof framing go up by UP; they have no floor cassette, rims or steel
+   frame (one 6½″ SIP floor instead), a 1″ EPS pad where they sit on a pod below, and 8×8 posts under an end that
+   hangs 8′ or more past the pods below, down to a screw pile or a 10″ Sonotube */
+const EPS_MAT=new THREE.MeshStandardMaterial({ color:0xf3f4f2, roughness:0.95 }), POST_MAT=new THREE.MeshStandardMaterial({ color:0x9c8a62, roughness:0.85 }), TUBE_MAT=new THREE.MeshStandardMaterial({ color:0xa7a9a4, roughness:0.95 });
+let upGroup=null;
+function buildUpstairs(pods){
+  const ups=new Set(pods.filter(p=>p.lv).map(p=>p.i)); upGroup=null; if(!ups.size) return;
+  const dy=UP/FT, lift=(o, base)=>{ o.position.y+=dy; if(base) base.y+=dy; };
+  wallGroups.forEach(g=>{ if(ups.has(g.userData.slot.pod.i)) lift(g, g.userData.base); });
+  layerGroups.forEach(g=>{ if(ups.has(g.userData.pod)){ lift(g); g.userData.baseY+=dy; } });
+  rimGroup.children.slice().forEach(m=>{ if(!ups.has(m.userData.pod)) return;
+    if(m.userData.lay==='floor-int' || m.userData.lay==='frame'){ rimGroup.remove(m); framingMeshes=framingMeshes.filter(x=>x!==m); plateMeshes=plateMeshes.filter(x=>x!==m); return; }
+    lift(m, m.userData.base); });
+  upGroup=new THREE.Group(); upGroup.userData.up=true; homeGroup.add(upGroup);
+  const U=upstairs(state.model), padY=(LAYER_KINDS.roof.z+LAYER_KINDS.roof.t-WALL_BASE)/FT, t=EPS_PAD/FT;
+  U.eps.forEach(e=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(e.x1-e.x, t, e.z1-e.z), EPS_MAT); m.position.set((e.x+e.x1)/2, padY+t/2, (e.z+e.z1)/2); m.userData={ pod:e.pod, lay:'floor-up', base:m.position.clone(), build:'eps-pad' }; upGroup.add(m); });
+  const top=(LAYER_KINDS['floor-up'].z+UP-WALL_BASE)/FT, bot=-FLOOR, conc=foundationOf(state.model)==='concrete';
+  U.posts.forEach(q=>{ const h=top-bot, m=new THREE.Mesh(new THREE.BoxGeometry(POST, h, POST), POST_MAT); m.position.set(q.x, bot+h/2, q.z); m.userData={ pod:q.pod, lay:'post', base:m.position.clone(), build:'post' }; upGroup.add(m);
+    if(conc){ const c=new THREE.Mesh(new THREE.CylinderGeometry(5/FT, 5/FT, 4.2, 20), TUBE_MAT); c.position.set(q.x, bot-2.1+2/FT, q.z); c.userData={ lay:'post', build:'sonotube' }; upGroup.add(c); }
+    else { const sh=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,5.5,10), MAT.steel); sh.position.set(q.x, bot-2.75, q.z); upGroup.add(sh);
+      const cap=new THREE.Mesh(new THREE.BoxGeometry(0.75,0.06,0.75), MAT.steel); cap.position.set(q.x, bot-0.03, q.z); upGroup.add(cap); } });
+}
+/* stairs up to the second floor (stairs.js): treads and stringers, picked as one ('stair:<id>') */
+const STAIR_MAT=new THREE.MeshStandardMaterial({ color:0xc8a26e, roughness:0.8 }), STAIR_SEL=new THREE.MeshStandardMaterial({ color:0xe0864a, roughness:0.7, emissive:0x3a1a05 });
+let stairGroup=null;
+function buildStairs(){
+  stairGroup=new THREE.Group(); homeGroup.add(stairGroup);
+  stairsOf(state.model).forEach(st=>{ const g=new THREE.Group(); g.userData={ stair:st.S.id, pod:st.S.pod };
+    stairParts(st).forEach(q=>{ const h=(q.y1-q.y0)/FT, m=new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.02,q.x1-q.x), q.kind==='stringer'?h:h, Math.max(0.02,q.z1-q.z)), state.selected==='stair:'+st.S.id?STAIR_SEL:STAIR_MAT);
+      if(q.kind==='stringer'){ // a sloped board: a thin box tilted along the run
+        const run=Math.hypot(q.x1-q.x, q.z1-q.z)>0 ? Math.max(q.x1-q.x, q.z1-q.z) : 1, ang=Math.atan2(UP/FT, run), len=Math.hypot(run, UP/FT), along=(q.x1-q.x)>(q.z1-q.z);
+        m.geometry.dispose(); m.geometry=new THREE.BoxGeometry(along?len:Math.max(0.02,q.x1-q.x), 0.8, along?Math.max(0.02,q.z1-q.z):len);
+        const up = st.S.dir>0 ? 1 : -1, sgn = (along ? (st.foot.x1-st.foot.x) : (st.foot.z1-st.foot.z));
+        // which way it climbs in plan: from the foot toward the top
+        const footP=stairParts(st).find(t=>t.kind==='tread'), topP=stairParts(st).filter(t=>t.kind==='tread').slice(-1)[0], dirPlan = along ? Math.sign((topP.x+topP.x1)-(footP.x+footP.x1)) : Math.sign((topP.z+topP.z1)-(footP.z+footP.z1));
+        if(along) m.rotation.z = dirPlan*ang; else m.rotation.x = -dirPlan*ang;
+        m.position.set((q.x+q.x1)/2, UP/FT/2 - 0.2, (q.z+q.z1)/2); }
+      else m.position.set((q.x+q.x1)/2, (q.y0+q.y1)/2/FT, (q.z+q.z1)/2);
+      m.userData={ stair:st.S.id, slotId:'stair:'+st.S.id }; g.add(m); pickables.push(m); });
+    stairGroup.add(g); });
+}
 /* other modules add their own things to the home after it's built (electrical-ui.js: the 3-way switch links) */
 const builtHooks=[];
 const onBuilt = fn => { builtHooks.push(fn); };
@@ -506,6 +548,8 @@ function buildHome(){
       R.eps.forEach(r=>putR(r, FRAME_MAT.eps, 'eps')); R.blocks.forEach(r=>putR(r, FRAME_MAT.lvl, 'block')); });
   }
   unitMeshes=[]; wallGroups.forEach(g=>g.traverse(o=>{ if(o.userData.unit) unitMeshes.push(o); }));
+  buildUpstairs(pods);
+  buildStairs();
   // cabinets, appliances and furniture, each standing in its pod
   buildFurniture(homeGroup, pods);
   // faces sit a hair behind their own edge lines, so panel seams and outlines draw cleanly instead of flickering
@@ -582,7 +626,7 @@ const ease = (a,b,t) => { const u=Math.min(1,Math.max(0,(t-a)/(b-a))); return u*
 function applyExplode(){
   const e=explodeT, eP=ease(0,0.55,e), eW=ease(0.4,1,e);   // stage 1: pods apart · stage 2: each pod comes apart
   const lift = e*4.5;   // the house rises off its foundation, high enough that the frames clear the screw heads
-  const OFFS = {frame:-3.6, 'floor-ext':-2.2, 'floor-int':0, 'ceiling-int':5, 'roof':7.5};
+  const OFFS = {frame:-3.6, 'floor-ext':-2.2, 'floor-int':0, 'floor-up':-1, 'ceiling-int':5, 'roof':7.5};
   const sp = k => state.focusPod!=null ? [0,0] : (spread.pods[k]||[0,0]);   // one pod on its own comes apart where it stands
   layerGroups.forEach(g=>{ const u=g.userData, v=sp(u.pod);
     g.position.set(u.bx+v[0]*eP, u.baseY + lift + eW*OFFS[u.layerSlot.kind], u.bz+v[1]*eP); });
@@ -592,7 +636,7 @@ function applyExplode(){
     const u=g.userData, v=sp(u.slot.pod.i);
     g.position.copy(u.base).addScaledVector(u.n, eW*WALL_OUT);
     g.position.x += v[0]*eP; g.position.z += v[1]*eP;
-    g.position.y = lift + eW*0.6;
+    g.position.y = u.base.y + lift + eW*0.6;   // base.y: upstairs walls stand higher
   });
   plateMeshes.forEach(m=>{ const u=m.userData.plate, v=sp(u.pod); m.position.set(u.base.x+v[0]*eP, u.base.y+lift+eW*(u.top?OFFS['ceiling-int']:OFFS['floor-int']), u.base.z+v[1]*eP); });
   if(rimGroup) rimGroup.children.forEach(m=>{ const u=m.userData, v=sp(u.pod); m.position.set(u.base.x+v[0]*eP, u.base.y+lift+eW*OFFS[u.lay], u.base.z+v[1]*eP); });
@@ -605,14 +649,22 @@ function applyRimVis(){
   rimGroup.visible=!state.isolate;   // an isolated part shows on its own
   rimGroup.children.forEach(m=>{ const u=m.userData, layerOn = u.lay==='floor-int' ? S.floors : (S.ceiling||S.roof);
     // the steel frames and ACM under the floor are their own layer
-    m.visible = (F==null || u.pod===F) && (u.lay==='frame' ? S.frames!==false : S.framing); });   // their own switches, exploded or not
+    m.visible = (F==null || u.pod===F) && levelShows(u.pod) && (u.lay==='frame' ? S.frames!==false : S.framing); });   // their own switches, exploded or not
 }
 /* what shows: each layer on its own (Layers menu) */
+/* which floor shows: on the ground floor (state.level 0) the upstairs pods are hidden so you can work inside; on
+   upstairs both show in 3D; the 2D plan shows one floor at a time */
+let LV=[];
+setTimeout(()=>setLevelTest(i=>levelShows(i)), 0);
+const levelShows = i => { const lv=LV[i]||0; return document.body.classList.contains('two-d') ? lv===(state.level||0) : (!lv || !!state.level); };
 function applyLayers(){
   if(!floorGroup) return;
+  LV=podList(state.model).map(p=>p.lv);
   isoHidden.forEach(o=>{ o.visible=true; }); isoHidden=[];   // put back what an isolate hid; the switches below decide the rest
-  const S=state.show, F=state.focusPod, inPod = i => F==null || i===F;
+  const S=state.show, F=state.focusPod, inPod = i => (F==null || i===F) && levelShows(i);
   wallGroups.forEach(g=>g.visible=S.walls && inPod(g.userData.slot.pod.i));
+  if(upGroup) upGroup.visible = !!state.level && !document.body.classList.contains('two-d');
+  if(stairGroup) stairGroup.children.forEach(g=>{ g.visible = (state.focusPod==null || g.userData.pod===state.focusPod) && levelShows(g.userData.pod); });
   homeGroup.children.forEach(o=>{ if(o.userData.swlinks) o.visible = S.swlinks!==false && S.walls && F==null; });
   floorGroup.visible=S.floors; ceilGroup.visible=S.ceiling; roofGroup.visible=S.roof;
   layerGroups.forEach(g=>g.visible=inPod(g.userData.pod));
@@ -750,4 +802,4 @@ function setExplodeGoal(v){ explodeGoal=v; }
 function explodeAt(v){ explodeT=v; explodeGoal=v; applyExplode(); }
 
 
-export { onBuilt, buildUnit, northGroup, explodeAt, buildLayerMesh, buildDeckMesh, DECK_MAT, LAYER_COLOR, applyGhost, focusIsolated, isoTarget, stage, renderer, scene, camera, controls, sun, grid, homeGroup, wallGroups, themeColors, applyTheme, MAT, lineMat, numberSprite, buildWallMesh, buildHome, explodeT, applyExplode, highlight, resize, ray, loop, setExplodeGoal, applyLayers, focusCamera, podCentres, roofGroup, floorGroup, screwGroup, pickables, explodeGoal, mouse };
+export { levelShows, onBuilt, buildUnit, northGroup, explodeAt, buildLayerMesh, buildDeckMesh, DECK_MAT, LAYER_COLOR, applyGhost, focusIsolated, isoTarget, stage, renderer, scene, camera, controls, sun, grid, homeGroup, wallGroups, themeColors, applyTheme, MAT, lineMat, numberSprite, buildWallMesh, buildHome, explodeT, applyExplode, highlight, resize, ray, loop, setExplodeGoal, applyLayers, focusCamera, podCentres, roofGroup, floorGroup, screwGroup, pickables, explodeGoal, mouse };

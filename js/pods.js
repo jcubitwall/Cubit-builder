@@ -53,8 +53,13 @@ function deckDocked(f, others){
 }
 /* why a layout isn't allowed, or '' when it is */
 function problem(pods, decks=MODELS[state.model]?.decks||[]){
+  if(!pods.map(foot).every(onGrid)) return 'Pods sit on the 8′ grid.';
+  // upstairs: no two overlap, and each one sits on at least one pod below (it may hang over the edge)
+  const U=pods.filter(p=>p.lv).map(foot), G0=pods.filter(p=>!p.lv).map(foot);
+  for(let i=0;i<U.length;i++){ for(let j=i+1;j<U.length;j++) if(overlaps(U[i],U[j])) return 'That spot overlaps another pod upstairs.';
+    if(!G0.some(g=>overlaps(g,U[i]))) return 'An upstairs pod has to sit on a pod below (it can hang over the edge).'; }
+  pods=pods.filter(p=>!p.lv); if(!pods.length) return 'The ground floor needs a pod.';
   const F=pods.map(foot), K=decks.map(deckFoot);
-  if(!F.every(onGrid)) return 'Pods sit on the 8′ grid.';
   for(let i=0;i<F.length;i++) for(let j=i+1;j<F.length;j++) if(overlaps(F[i],F[j])) return 'That spot overlaps another pod.';
   for(let i=0;i<K.length;i++){
     if(F.some(f=>overlaps(f,K[i])) || K.some((g,j)=>j!==i && overlaps(g,K[i]))) return 'That spot overlaps a pod or a deck.';
@@ -191,8 +196,8 @@ function partSnaps(slot){
 }
 /* a fresh pod from a palette item: {t} for a blank pod, {lib:id} for a library pod */
 function podFrom(item, x, z, rot){
-  if(item.lib){ const L=podById(item.lib); return { t:L.t, x, z, rot, src:L.id, walls:clone(L.walls), layers:clone(L.layers||{}), ...(L.a?{a:L.a}:{}) }; }
-  return { t:item.t, x, z, rot };
+  if(item.lib){ const L=podById(item.lib); return { t:L.t, x, z, rot, ...(item.lv?{lv:1}:{}), src:L.id, walls:clone(L.walls), layers:clone(L.layers||{}), ...(L.a?{a:L.a}:{}) }; }
+  return { t:item.t, x, z, rot, ...(item.lv?{lv:1}:{}) };
 }
 /* each edit returns '' when done, or the reason it couldn't be done */
 function tryLayout(pods){ const why=problem(pods); return why; }
@@ -249,7 +254,7 @@ function deletePod(i){
 }
 /* every grid spot where a footprint w×d could dock (used to snap a drag to the nearest good spot) */
 function dockSpots(item, rot, skip=-1){
-  const pods=MODELS[state.model].pods.filter((_,j)=>j!==skip);
+  const pods=MODELS[state.model].pods.filter((_,j)=>j!==skip), lv=item.lv?1:0;
   const t = item.lib ? podById(item.lib).t : item.t;
   const probe=foot({t,x:0,z:0,rot});
   const F=pods.map(foot); if(!F.length) return [{x:0,z:0}];
@@ -257,7 +262,7 @@ function dockSpots(item, rot, skip=-1){
   const minz=Math.min(...F.map(f=>f.z))-probe.d, maxz=Math.max(...F.map(f=>f.z+f.d));
   const out=[];
   for(let x=Math.floor(minx/8)*8;x<=maxx;x+=8) for(let z=Math.floor(minz/8)*8;z<=maxz;z+=8){
-    const trial=pods.concat([{t,x,z,rot}]); if(!problem(trial)) out.push({x,z});
+    const trial=pods.concat([{t,x,z,rot,...(lv?{lv:1}:{})}]); if(!problem(trial)) out.push({x,z});
   }
   return out;
 }

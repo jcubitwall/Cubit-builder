@@ -22,6 +22,7 @@ import { layerSlotsFor } from './layout.js';
 import { withLights } from './lights.js';
 import { FT, PW } from './config.js';
 import { fin } from './format.js';
+import { stairHoles } from './stairs.js';
 
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const ON_WALL = 2;      // a fixture's end within 2″ of a wall's inside face is against it
@@ -105,6 +106,8 @@ const fixtureOf = id => plumbing().fixtures.find(F=>F.id===id) || null;
    (they move, mirror and go with the fixture) */
 function withCuts(L, ls, k=state.model){
   L=withLights(L, ls, k);
+  // stair openings: the lower pod's ceiling and roof, the upper pod's floor (stairs.js)
+  if(L){ const SH=stairHoles(ls, k); if(SH.length) L={ ...L, holes:[...(L.holes||[]), ...SH] }; }
   if(!L || ls.kind!=='floor-int') return L;
   const H=plumbing(k).fixtures.filter(F=>F.cut?.ls===ls.id).map(F=>F.cut.hole); if(!H.length) return L;
   return { ...L, holes:[...(L.holes||[]), ...H].sort((a,b)=>a.x-b.x || a.z-b.z), drains:H.length };

@@ -1281,3 +1281,11 @@ dialog.v3-dlg.v3-full .v3-cube{top:max(12px, env(safe-area-inset-top,0px));right
 .mid-snaps{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
 .mid-snaps .chip small{color:var(--muted);margin-left:4px}
 .pod-mid{display:inline-flex;gap:6px;flex-wrap:wrap}
+
+/* stairs */
+.st-opts{display:flex;flex-direction:column;gap:6px;margin:6px 0}
+.st-opt{text-align:left;border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:8px 10px;color:var(--ink);font:inherit;cursor:pointer}
+.st-opt[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.st-opt:disabled{opacity:.55;cursor:default}
+.st-opt b{display:block;font-size:13.5px}.st-opt small{display:block;font-size:11.5px;color:var(--ink-2)}
+.vc-lv{white-space:nowrap;min-width:64px}

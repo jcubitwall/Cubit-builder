@@ -19,6 +19,8 @@ import { setIsolate, setPod, openLayers } from './layers.js';
 import { camera, controls, renderer, homeGroup, pickables, buildHome, highlight } from './scene3d.js';
 import { addPod, movePod, rotatePod, addDeck, moveDeck, dockSpots, deckSpots, foot, deckFoot, addPart, movePart, partSnaps } from './pods.js';
 import { podOffsets, midAt } from './layout.js';
+import { UP } from './config.js';
+const UPF = UP/12;
 import { renderModels, renderSide, toast } from './sidebar.js';
 import { deckName } from './deckframe.js';
 import { furnMeshes, furnById, snap, addItem, updateItem, refreshItem, applyFurniture, showFurnGhost, hideFurnGhost, turnItem, setHolderVisible, handleMeshes, roomBeyond, stretchTo, rotXZ, turnStart, turnTo, groupMembers, setMany, moveHolder, addRecipe, furnitureOf, onFurnChanged } from './furniture.js';
@@ -83,6 +85,14 @@ function set2D(on){
   btn2D.textContent = on ? '3D' : '2D'; btn2D.setAttribute('aria-pressed', on); btn2D.title = on ? 'Back to the 3D view' : 'Flat top view (true 2D) for placing cabinets';
   badge();
 }
+/* which floor: Floor 1 (the upstairs hidden, to work inside) or Floor 2 (both show; the tray's pods go upstairs,
+   onto the pods below, hanging over if need be); the 2D plan shows the one picked */
+const btnLv=document.createElement('button'); btnLv.className='vc-b vc-lv'; btnLv.id='vcLv';
+function setLevel(lv){ state.level=lv?1:0; btnLv.textContent = state.level ? 'Floor 2' : 'Floor 1'; btnLv.setAttribute('aria-pressed', !!state.level);
+  btnLv.title = state.level ? 'Upstairs: pods dragged in go on the second floor. Tap for the ground floor' : 'Ground floor (upstairs hidden). Tap for the second floor';
+  import('./scene3d.js').then(m=>{ m.applyLayers(); }); if(TWO_D) drawPlan(); renderTray(); badge?.(); }
+btnLv.onclick=()=>{ setLevel(!state.level); toast(state.level ? 'Floor 2 · drag pods from the tray onto the pods below (they can hang over the edge; 8′ or more gets posts)' : 'Floor 1'); };
+setTimeout(()=>{ document.querySelector('.vcube-wrap .vc-hist')?.appendChild(btnLv); setLevel(0); }, 0);
 const btn2D=document.createElement('button'); btn2D.className='vc-b vc-2d'; btn2D.id='vc2D'; btn2D.textContent='2D'; btn2D.setAttribute('aria-pressed','false'); btn2D.title='Flat top view (true 2D) for placing cabinets';
 btn2D.onclick=()=>set2D(!TWO_D);
 document.querySelector('.vcube-wrap .vc-hist')?.appendChild(btn2D);
@@ -107,7 +117,8 @@ async function drawPlan(){
   BP.sel=state.selected||null; const n=++BP.n;
   const { planOverlay, homeModel } = await import('./blueprint.js');
   if(!TWO_D || n!==BP.n) return;
-  let O, H_; try{ O=planOverlay(BP.sel, 20); H_=homeModel(state.model); }catch(e){ console.warn('2D plan', e); return; }
+  const up=podList(state.model).some(p=>p.lv), lv=up?(state.level||0):null;
+  let O, H_; try{ O=planOverlay(BP.sel, 20, lv); H_=homeModel(state.model, lv); }catch(e){ console.warn('2D plan', e); return; }
   const S=3, cv2=document.createElement('canvas'); cv2.width=O.w*S; cv2.height=O.h*S;
   const img=new Image(); img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(O.svg);
   await img.decode().catch(()=>{}); if(!TWO_D || n!==BP.n) return;
@@ -116,14 +127,14 @@ async function drawPlan(){
   const tex=new THREE.CanvasTexture(cv2); tex.anisotropy=8;
   const W=O.bb.x1-O.bb.x0, D=O.bb.z1-O.bb.z0;
   const sheet=new THREE.Mesh(new THREE.PlaneGeometry(W, D), new THREE.MeshBasicMaterial({ map:tex, transparent:true, depthWrite:false, depthTest:false }));
-  sheet.rotation.x=-Math.PI/2; sheet.position.set((O.bb.x0+O.bb.x1)/2, 11, (O.bb.z0+O.bb.z1)/2); sheet.renderOrder=900; sheet.userData.plan=true;
+  sheet.rotation.x=-Math.PI/2; sheet.position.set((O.bb.x0+O.bb.x1)/2, 11+(lv?UPF:0), (O.bb.z0+O.bb.z1)/2); sheet.renderOrder=900; sheet.userData.plan=true;
   homeGroup.add(sheet); BP.objs.push(sheet);
   // the floor's own lines (SIP panel joints, hole outlines, footprints) and the seals along the pod joints flicker
   // through the paper from 2D's distance: hide them (every line below 6″, and the seals), keeping furniture and walls
   hideLowLines();
   // the rooms: white paper over the floors (furniture stands on top of it)
   const white=new THREE.MeshBasicMaterial({ color:0xffffff });
-  (H_.pods||[]).forEach(p=>{ const f=new THREE.Mesh(new THREE.PlaneGeometry(p.w, p.d), white); f.rotation.x=-Math.PI/2; f.position.set(p.x+p.w/2, 0.03, p.z+p.d/2); f.renderOrder=1; homeGroup.add(f); BP.objs.push(f); });
+  (H_.pods||[]).forEach(p=>{ const f=new THREE.Mesh(new THREE.PlaneGeometry(p.w, p.d), white); f.rotation.x=-Math.PI/2; f.position.set(p.x+p.w/2, (p.y||0)+0.03, p.z+p.d/2); f.renderOrder=1; homeGroup.add(f); BP.objs.push(f); });
 }
 function hideLowLines(){
   homeGroup.updateMatrixWorld(true); const v=new THREE.Vector3();
@@ -311,7 +322,7 @@ function grabAt(x,y){
   const o=ownerOf(ph); if(!o) return null;
   const at=planAt(x,y), m=MODELS[state.model]; if(!at) return null;
   if(o.deck){ const q=m.decks[o.i]; return {mode:'move', deck:true, i:o.i, lib:q.lib, rot:q.rot||0, grab:{x:at.x, z:at.z, x0:q.x, z0:q.z}, sx:x, sy:y, started:false}; }
-  const raw=m.pods[o.i]; return {mode:'move', deck:false, i:o.i, item:{t:raw.t}, t:raw.t, rot:raw.rot||0, grab:{x:at.x, z:at.z, x0:raw.x, z0:raw.z}, sx:x, sy:y, started:false};
+  const raw=m.pods[o.i]; return {mode:'move', deck:false, i:o.i, item:{t:raw.t, ...(raw.lv?{lv:1}:{})}, t:raw.t, rot:raw.rot||0, grab:{x:at.x, z:at.z, x0:raw.x, z0:raw.z}, sx:x, sy:y, started:false};
 }
 const centroid=()=>{ const v=[...pointers.values()]; return v.reduce((s,p)=>s+p.x,0)/v.length; };
 /* turn the view about the vertical through its centre (two-finger twist on empty space) */
@@ -457,7 +468,7 @@ tray.addEventListener('pointerdown', e=>{
   const sx=e.clientX, sy=e.clientY, id=e.pointerId;
   if(b.dataset.mid){ dragMid(e, b); return; }
   const cab=b.dataset.k, kit=b.dataset.kit && kitchenById(b.dataset.kit);
-  const item = cab||b.dataset.deck ? null : b.dataset.lib ? {lib:b.dataset.lib} : {t:b.dataset.t};
+  const item = cab||b.dataset.deck ? null : b.dataset.lib ? {lib:b.dataset.lib, ...(state.level?{lv:1}:{})} : {t:b.dataset.t, ...(state.level?{lv:1}:{})};
   const t = item ? (item.lib ? podById(item.lib).t : item.t) : null;
   const mv=ev=>{ if(ev.pointerId!==id) return;
     if(!D){ if(Math.abs(ev.clientY-sy) < 14 || Math.abs(ev.clientY-sy) < Math.abs(ev.clientX-sx)) return;   // sideways: the tray scrolls
@@ -534,4 +545,4 @@ onFurnChanged(()=>{ clearTimeout(elecT); elecT=setTimeout(function again(){
   const s=elecSigNow(); if(s===elecSig) return;
   elecSig=s; buildHome(); highlight(); }, 150); });
 window.addEventListener('cubit:home', ()=>{ elecSig=elecSigNow(); });
-export { startBuild, flatten, isFlat, renderTray, set2D, is2D };
+export { setLevel, startBuild, flatten, isFlat, renderTray, set2D, is2D };

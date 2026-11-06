@@ -57,5 +57,11 @@ const LAYER_KINDS = {
   'floor-int':   { label:'Interior floor',   short:'Int. floor',  code:'FI', z:6.08,   t:4.48 },
   'ceiling-int': { label:'Interior ceiling', short:'Ceiling',     code:'CI', z:106.6,  t:6.5 },   // ½″ OSB + 5½″ EPS + ½″ OSB
   'roof':        { label:'Roof',             short:'Roof',        code:'RF', z:114.975, t:4.5 },  // ½″ OSB + 3½″ core + ½″ OSB
+  'floor-up':    { label:'Upper floor',      short:'Up. floor',   code:'FU', z:4.06,   t:6.5, up:true },   // second floor: one 6½″ SIP, no steel frame
 };
-export { ROOF_BUILD, FLOOR_BUILD, SPINE_SCREWS, SPINE, FRAME, DECK, ICF, PAD_MAX, SCREW_MAX, NOTCH, H, T, TI, FLOOR, GAP, CEIL, PW, FT, POD, SIDE_NAME, WALL_BASE, LAYER_KINDS };
+/* a second floor: its pods sit on the pods below — a 1″ EPS pad on the lower roof where they touch, then the 6½″ SIP
+   floor, then the walls. UP = how far up its own frame is moved (inches): its EPS bottom on the lower roof top */
+const EPS_PAD = 1;
+const UP = (114.975 + 4.5) - (4.06 - EPS_PAD);   // = 116.415″ (9′ 8.4″)
+const LEVEL_KINDS = [['floor-ext','floor-int','ceiling-int','roof'], ['floor-up','ceiling-int','roof']];
+export { EPS_PAD, UP, LEVEL_KINDS, ROOF_BUILD, FLOOR_BUILD, SPINE_SCREWS, SPINE, FRAME, DECK, ICF, PAD_MAX, SCREW_MAX, NOTCH, H, T, TI, FLOOR, GAP, CEIL, PW, FT, POD, SIDE_NAME, WALL_BASE, LAYER_KINDS };
