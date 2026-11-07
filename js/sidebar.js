@@ -161,8 +161,9 @@ let midDoorW=34, midStep=1, midKeep='mid';
 function midBlock(s, w){
   const q=s.part, p=s.pod, span=(q.dir==='long'?8:p.len)*12, B=s.body;
   // by the real compass (its place counts from the pod's own W end across, or own S side along; its run the other way)
-  const nm = local => compassName(...sideVec(p, local)), ws=nm(q.dir==='long'?'S':'W');
-  const endLo=nm(q.dir==='long'?'W':'S'), endHi=nm(q.dir==='long'?'E':'N');
+  // every reference by the letter of the pod wall it meets or faces (A, B1, C …), never by the compass
+  const { lo:endLo, hi:endHi, at:wsL, facing } = midLetters(s);
+  const ws=wsL, wsOther=midLetters(s).other;
   const snaps=partSnaps(s).filter(x=>Math.abs(x.at-q.at)>0.01).slice(0, 12);
   const doorOf=()=>{ const o=(w?.openings||[]).find(o=>o.kind==='door'); if(!o) return 'none'; const L=s.len*12, a=s.trim[0], b=L-s.trim[1], c=o.x+o.w/2; return Math.abs(c-(a+b)/2)<3 ? 'mid' : c<(a+b)/2 ? 'left' : 'right'; };
   const cur=doorOf();
@@ -170,13 +171,13 @@ function midBlock(s, w){
     <div class="eyebrow sm">Door</div>
     <div class="seg wrap" role="group" aria-label="Door">${[['none','No door'],['left','Door left'],['mid','Door middle'],['right','Door right']].map(([v,l])=>`<button data-mdoor="${v}" aria-pressed="${cur===v}">${l}</button>`).join('')}</div>
     <div class="cw-opt"><span>Door size</span><div class="seg sm" role="group" aria-label="Door size">${DOORS.map(([d])=>`<button data-mdw="${d}" aria-pressed="${midDoorW===d}">${d}″</button>`).join('')}</div></div>
-    <p class="note">Left and right seen from the ${esc(s.n[0]>0.5?'east':s.n[0]<-0.5?'west':s.n[1]>0.5?'south':'north')} side. More choices (pocket doors, two doors, windows) in the wall options below or the panel builder.</p>
+    <p class="note">Left and right seen from the ${esc(facing)} side. More choices (pocket doors, two doors, windows) in the wall options below or the panel builder.</p>
     <div class="eyebrow sm">Where it sits</div>
-    <div class="mid-pos"><button class="btn ghost" data-mnud="-1" aria-label="Move toward the ${esc(ws)} end">◀</button>
-      <label class="cw-f"><span>Middle, from the ${esc(ws)} ${q.dir==='long'?'side':'end'}</span><input id="midAt" inputmode="decimal" value="${Math.round(q.at*16)/16}"><i>″</i></label>
-      <button class="btn ghost" data-mnud="1" aria-label="Move away from the ${esc(ws)} end">▶</button></div>
+    <div class="mid-pos"><button class="btn ghost" data-mnud="-1" aria-label="Move toward ${esc(ws)}">◀</button>
+      <label class="cw-f"><span>Middle, from ${esc(ws)}</span><input id="midAt" inputmode="decimal" value="${Math.round(q.at*16)/16}"><i>″</i></label>
+      <button class="btn ghost" data-mnud="1" aria-label="Move away from ${esc(ws)}">▶</button></div>
     <div class="cw-opt"><span>Each tap</span><div class="seg sm">${[[1,'1″'],[0.5,'½″'],[12,'1′']].map(([v,l])=>`<button data-mstep="${v}" aria-pressed="${midStep===v}">${l}</button>`).join('')}</div></div>
-    <p class="note">${fin(q.at-B.t/2-6.5)} clear on one side, ${fin(span-q.at-B.t/2-6.5)} on the other (to the outside walls' inside, roughly).</p>
+    <p class="note">${fin(q.at-B.t/2-6.5)} clear to ${esc(ws)}, ${fin(span-q.at-B.t/2-6.5)} to ${esc(wsOther)} (to the walls' inside faces, roughly).</p>
     <div class="eyebrow sm">Length</div>
     <div class="mid-len"><label class="cw-f"><span>Length</span><input id="midLen" inputmode="decimal" value="${Math.round(B.len*16)/16}"><i>″</i></label>
       <span class="note">wall to wall ${fin(B.in1-B.in0)}</span></div>
@@ -189,6 +190,20 @@ function midBlock(s, w){
     <p class="note">On the plan and in 3D: drag the ⇄ arrows at its ends to make it shorter or longer, the arrow in the middle to move it (it snaps flush with walls nearby, else to the inch), ↻ to turn it about its middle.</p>
     ${snaps.length?`<div class="eyebrow sm">Snap flush</div><div class="mid-snaps">${snaps.map(x=>`<button class="chip" data-msnap="${x.at}">${esc(x.label)} <small>${fin(x.at)}</small></button>`).join('')}</div>`:''}
     <div class="row"><button class="btn ghost sm" id="midTurn">${q.dir==='long'?'Make it across':'Make it along'}</button><button class="btn ghost sm danger" id="midRm">Remove this wall</button></div></div>`;
+}
+/* the walls a middle wall meets and faces, by their letters: lo / hi = the pod walls at its two ends (where it would
+   join them), at = the wall its place is measured from, other = the one across from that, facing = the wall on the
+   side its left / right are seen from. A side split in two (B1, B2) gives the piece that's actually there. */
+function midLetters(s){
+  const p=s.pod, q=s.part, sl=slotsFor(state.model).filter(x=>x.pod.i===p.i && !x.part);
+  const r=[s.n[1],-s.n[0]], tl=(s.trim?.[0]||0)/FT, tr=(s.trim?.[1]||0)/FT;
+  const A=[s.p0[0]+r[0]*tl, s.p0[1]+r[1]*tl], Bp=[s.p0[0]+r[0]*(s.len-tr), s.p0[1]+r[1]*(s.len-tr)], mid=[(A[0]+Bp[0])/2, (A[1]+Bp[1])/2];
+  const dSeg=(P,x)=>{ const dx=x.p1[0]-x.p0[0], dz=x.p1[1]-x.p0[1], L2=dx*dx+dz*dz||1e-9, t=Math.max(0,Math.min(1,((P[0]-x.p0[0])*dx+(P[1]-x.p0[1])*dz)/L2)); return Math.hypot(P[0]-x.p0[0]-dx*t, P[1]-x.p0[1]-dz*t); };
+  const on=(local, P)=>{ const c=sl.filter(x=>x.local===local); if(!c.length) return `the ${local} side`; const b=c.sort((u,v)=>dSeg(P,u)-dSeg(P,v))[0]; return `Wall ${b.letter}`; };
+  const lo=q.dir==='long'?'W':'S', hi=q.dir==='long'?'E':'N', at=q.dir==='long'?'S':'W', ot=q.dir==='long'?'N':'E';
+  const near=(local)=>{ const c=sl.filter(x=>x.local===local); return c.length ? (dSeg(A,c[0])<dSeg(Bp,c[0]) ? A : Bp) : mid; };
+  const facingLocal=['S','N','E','W'].find(k=>{ const v=sideVec(p,k); return Math.abs(v[0]-s.n[0])<0.5 && Math.abs(v[1]-s.n[1])<0.5; }) || at;
+  return { lo:on(lo, near(lo)), hi:on(hi, near(hi)), at:on(at, mid), other:on(ot, mid), facing:on(facingLocal, mid) };
 }
 const worldSideName = (p, local) => ({ S:'south', N:'north', W:'west', E:'east' })[worldSide(p.rot, local)];
 /* the real compass name of a plan direction (the north arrow can point anywhere) */
@@ -627,7 +642,7 @@ document.getElementById('fileIn').addEventListener('change',e=>{
 });
 let toastT; function toast(msg, ms=2400){ let t=document.querySelector('.toast'); if(!t){t=document.createElement('div');t.className='toast';document.body.appendChild(t);} t.textContent=msg; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true,ms||2400); }
 
-export { showHomeCat, catOfHome, sideH, renderModels, wallListHTML, renderSide, importBlock, toast, sideB, layerThumb };
+export { midLetters, showHomeCat, catOfHome, sideH, renderModels, wallListHTML, renderSide, importBlock, toast, sideB, layerThumb };
 
 /* a team home was brought up to its latest save (projects.js refreshOpen): say so */
 window.addEventListener('cubit:refreshed', e=>{ const d=e.detail||{}, by=d.by||'someone';

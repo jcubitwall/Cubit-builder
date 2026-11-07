@@ -14,6 +14,7 @@ import { homeGroup, onBuilt, addHandleSource } from './scene3d.js';
 import { H, UP, FT } from './config.js';
 
 const SNAP = 2;   // inches: a flush spot this close wins over the inch
+let ML=null; import('./sidebar.js').then(m=>{ ML=m.midLetters; }).catch(()=>{});   // the walls it meets, by letter
 let group=null, shownFor=null, ghost=null;
 const mats={};
 function tex(kind){
@@ -81,7 +82,7 @@ function trackMid(d, P){
     // the outline where it'd sit: the same ends, its centre line moved to the new spot
     const c1=midLine(s.pod, { ...s.part, at }).c + o[fa], c0=(b.A[fa]+b.B[fa])/2, dd=c1-c0;
     const A=[...b.A], B=[...b.B]; A[fa]+=dd; B[fa]+=dd; showGhost(s, A, B, b.t, b.y);
-    return `${fin(at)} from the ${s.part.dir==='long'?'side':'end'}${why?' · '+why:''}`;
+    return `${fin(at)} from ${ML ? ML(s).at : 'the '+(s.part.dir==='long'?'side':'end')}${why?' · '+why:''}`;
   }
   if(d.h==='endA' || d.h==='endB'){
     const B0=s.body, lo=(ra===0?s.pod.x:s.pod.z), toV=f=>{ const dd=(f-o[ra]-lo)*12; return B0.inc ? dd : B0.span-dd; }, toW=v=>(B0.inc ? v : B0.span-v)/12+lo+o[ra];
