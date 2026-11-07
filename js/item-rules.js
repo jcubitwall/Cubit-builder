@@ -15,7 +15,7 @@ function itemRules(k){
   if(d.tv) add('Height', `Middle of the screen at 42″ (seated eye level), the bottom never under 24″: this one goes ${fin(tvY(d.h))} to the bottom. Change its Height on any one to override.`);
   else if(it.y>0) add('Height', `Placed ${fin(it.y)} off the floor${cat && cat.y===it.y ? ` (the ${cat.name.toLowerCase()} height)` : ''}. Change its Height on any one to override.`);
   if(d.cat==='heat' && /^HP-/.test(k)) add('Height', 'High on an outside wall, about 6″ under the ceiling, clear each side; line set, condensate and power through the wall behind it.', 'Heating rules');
-  if(d.cat==='heat' && /^BB-/.test(k)) add('Heating', 'Usually under a window, on its own 240 V circuit and thermostat.', 'Heating rules');
+  if(/^BB-/.test(k)) add('Heating', `Usually under a window, on its own 240 V circuit${/^BB-DX/.test(k)?'; the thermostat is built into the heater (no wall thermostat)':' and thermostat'}.`, 'Heating rules');
   itemElecRules(d).forEach(t=>add('Electrical', t, 'Electrical rules'));
   const P=plumbOf(it);
   if(P){

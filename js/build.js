@@ -483,7 +483,7 @@ let trayTab='pods', trayCat='base';
 function renderTray(){
   const tabs=`<div class="tray-tabs" role="tablist"><button role="tab" data-tab="pods" aria-selected="${trayTab==='pods'}">Pods</button><button role="tab" data-tab="cab" aria-selected="${trayTab==='cab'}">Cabinets</button></div>`;
   if(trayTab==='cab'){
-    const items=ITEMS.filter(d=>d.cat===trayCat && !d.deleted);
+    const items=ITEMS.filter(d=>d.cat===trayCat && !d.deleted && !d.legacy);
     const sel = `<label class="tray-cat"><span>Category</span><select id="trayCat" aria-label="Category"><option value="__kit" ${trayCat==='__kit'?'selected':''}>Kitchens &amp; groups</option>${CATS.map(c=>`<option value="${c.k}" ${c.k===trayCat?'selected':''}>${c.name}</option>`).join('')}</select></label>`;
     if(trayCat==='__kit'){ tray.innerHTML = tabs + sel + (KITCHENS.map(K=>{ const u=kitchenPicture('kit:'+K.id+':'+(K.rev||0), K.items); return `<button class="tray-it cab kit" data-kit="${K.id}" title="${K.name.replace(/"/g,'&quot;')}">${u?`<span class="tray-cab tray-kit"><img src="${u}" alt=""></span>`:''}<b>${K.name.replace(/</g,'&lt;')}</b><small>${K.items.length} items</small></button>`; }).join('') || '<span class="tray-none">No saved kitchens yet. Group cabinets in a home, then save the group.</span>') + `<button class="tray-it more" data-open="lib"><b>Library…</b><small>kitchens in 3D</small></button>`; return; }
     tray.innerHTML = tabs + sel

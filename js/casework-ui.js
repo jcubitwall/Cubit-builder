@@ -69,7 +69,7 @@ const NAV_BASE = [
   ['Bathroom', ['bath']],
   ['Plumbing', ['sink','plumb']],
   ['Electrical', ['elec']],
-  ['Heating', ['fire','heat']],
+  ['Heating', ['fire','baseboard','heat']],
   ['Furniture & TVs', ['furniture','tv']],
 ];
 /* the makers' catalogues (brands.js) fill their group once loaded */
@@ -113,7 +113,7 @@ function setTab(cat){
   if(cat==='b:walls' || cat==='b:layers') return ['Wall rules','walls'];
   if(cat==='elec') return ['Electrical rules','elec'];
   if(cat==='bath' || cat==='plumb') return ['Plumbing rules','plumb'];
-  if(cat==='heat') return ['Heating rules','heat'];
+  if(cat==='heat' || cat==='baseboard') return ['Heating rules','heat'];
   if(cat==='appliance' || cat.startsWith('d:')) return ['Electrical rules','elec'];
   return null;
 }
@@ -124,7 +124,7 @@ const LAYER_NAME = {'floor-ext':'Exterior floor','floor-int':'Interior floor','c
 const U_OF = { 'u:win':u=>TYPES[u.type]?.cat==='window', 'u:ext':u=>TYPES[u.type]?.cat!=='window' && u.place!=='int', 'u:int':u=>u.place==='int' };
 const live = x => !x.deleted && !x.purged;
 const homeGroups = () => { const G=new Map(); try{ furnitureOf().forEach(o=>{ if(o.grp?.id) (G.get(o.grp.id)||G.set(o.grp.id,[]).get(o.grp.id)).push(o); }); }catch(e){} return [...G.values()]; };
-const countOf = c => c.startsWith('s:') ? (storeById(c.split(':')[1])?.cats?.[c.split(':')[2]]||[]).length : c==='d:bx' ? BOXLIB.length : c==='k:kit' ? KITCHENS.length : c.startsWith('u:cat:') ? catalogOf(c.slice(6)).length : c.startsWith('d:') ? DEVICES.filter(d=>d.kind===c.slice(2) && live(d)).length : c.startsWith('b:') ? B_LIST[c]().filter(live).length : c.startsWith('u:') ? UNITLIB.filter(u=>U_OF[c](u) && live(u)).length : ITEMS.filter(i=>i.cat===c && live(i)).length;
+const countOf = c => c.startsWith('s:') ? (storeById(c.split(':')[1])?.cats?.[c.split(':')[2]]||[]).length : c==='d:bx' ? BOXLIB.length : c==='k:kit' ? KITCHENS.length : c.startsWith('u:cat:') ? catalogOf(c.slice(6)).length : c.startsWith('d:') ? DEVICES.filter(d=>d.kind===c.slice(2) && live(d)).length : c.startsWith('b:') ? B_LIST[c]().filter(live).length : c.startsWith('u:') ? UNITLIB.filter(u=>U_OF[c](u) && live(u)).length : ITEMS.filter(i=>i.cat===c && live(i) && !i.legacy).length;
 const navName = c => (c.startsWith('b:')||c.startsWith('u:')||c.startsWith('d:')||c.startsWith('k:')||c.startsWith('s:')) ? (NAV().flatMap(([,cs])=>cs).find(x=>Array.isArray(x) && x[0]===c)||[0,c])[1] : (CATS.find(x=>x.k===c)?.name || c);
 let showGone=false;
 /* undo / redo of the item on screen: its sizes, options and mirror */
@@ -179,7 +179,7 @@ function renderInner(){
   if(view.cat.startsWith('u:')){ body.innerHTML=nav+unitGrid(view.cat); bindNav(body); bindUnitGrid(body); return; }
   // every other card: tap to open it; 3D quick view, and (editors) Rename and Delete, on each
   const unitCat=view.cat.startsWith('u:'), kind=unitCat?'units':'casework';
-  const all=unitCat ? UNITLIB.filter(u=>U_OF[view.cat](u) && !u.purged) : ITEMS.filter(i=>i.cat===view.cat && !i.purged);
+  const all=unitCat ? UNITLIB.filter(u=>U_OF[view.cat](u) && !u.purged) : ITEMS.filter(i=>i.cat===view.cat && !i.purged && !i.legacy);
   const items=all.filter(x=>!x.deleted), gone=all.length-items.length;
   const acts=id=>`<div class="cw-bact"><button class="btn ghost sm" data-c3d="${esc(id)}">3D</button><button class="btn ghost sm editor-only" data-cren="${esc(id)}">Rename</button><button class="btn ghost sm danger editor-only" data-cdel="${esc(id)}">Delete</button></div>`;
   const card = unitCat

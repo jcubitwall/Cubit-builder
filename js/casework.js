@@ -382,7 +382,8 @@ const CATS = [
   { k:'bath',      name:'Bathroom fixtures', y:0 },
   { k:'sink',      name:'Sinks',             y:27 },
   { k:'furniture', name:'Furniture',         y:0 },
-  { k:'heat',      name:'Heat pumps & baseboards', y:0 },
+  { k:'heat',      name:'Heat pumps',        y:0 },
+  { k:'baseboard', name:'Baseboard heaters', y:1 },
   { k:'plumb',     name:'Water heaters & plumbing', y:0 },
   { k:'elec',      name:'Electrical panels', y:48 },
   { k:'tv',        name:'TVs',               y:0 },
@@ -783,9 +784,21 @@ const white = 'porcelain';
 [['HP-09','Heat pump wall unit 9 000 BTU (typical)',31.4,11.6,9.1],['HP-12','Heat pump wall unit 12 000 BTU (typical)',31.4,11.6,9.1],['HP-18','Heat pump wall unit 18 000 BTU (typical)',39.4,12.8,10.1]].forEach(([k,name,w,h,d])=>
   def({ k, cat:'heat', name, w, h, d, y:82, fixed:true, note:'Ductless mini-split indoor head (e.g. Mitsubishi, Fujitsu): keep about 6″ under the ceiling and clear to each side; line set, condensate and power through the wall behind it. Check the model',
     build:it=>[ fx('Unit',white,[0,0,0,it.w,it.h,it.d],{ note:'indoor head' }), fx('Vane','steel',[1.5,0.4,it.d-0.3,it.w-3,1.2,0.4]) ] }));
-// electric baseboard heaters, 240 V: usually under a window; no plug above one
+// electric baseboard heaters, 240 V: usually under a window; no plug above one.
+// The Library offers Dimplex Eclipse only: the thermostat is built into the unit (electronic, on its right end), so
+// no wall thermostat box. Sizes from homedepot.ca (2026-11-07): 6⅝″ high, 2⅜″ deep; 240 / 208 V.
+const ECLIPSE = [ // length, watts 240 V / 208 V, Dimplex model, Home Depot SKU, price CAD (blank: not shown that day)
+  [20, 500, 375, '400001237', '1000709635', null], [25, 750, 563, '400001238', '1000709636', null], [30, 1000, 750, '400001239', '1000709637', 152.99],
+  [35, 1250, 938, '400001240', '1000709638', 143], [40, 1500, 1125, '400001241', '1000709639', 167.49], [50, 2000, 1500, '400001242', '1000709640', 186.99],
+  [60, 2500, 1875, '400001243', '1000709641', 179] ];
+ECLIPSE.forEach(([w,watt,w208,model,sku,price])=>
+  def({ k:`BB-DX-${w}`, cat:'baseboard', name:`Dimplex Eclipse baseboard ${w}″ · ${watt} W, built-in thermostat`, w, h:6.625, d:2.375, y:1, fixed:true, brand:'Dimplex', model, sku, price,
+    url:`https://www.homedepot.ca/product/${sku}`,
+    note:`Dimplex Eclipse ${model}, ${watt} W at 240 V (${w208} W at 208 V), built-in electronic thermostat, white. Home Depot SKU ${sku}${price?` · $${price}`:''}. Its own 240 V circuit; usually under a window. No plug above it`,
+    build:it=>[ fx('Heater',white,[0,0,0,it.w,it.h,it.d]), fx('Grille','steel',[1.5,it.h-1.4,it.d-0.15,it.w-6.5,1,0.2]), fx('Thermostat','steel',[it.w-4.2,it.h-2.2,it.d-0.05,3,1.6,0.3],{ note:'built-in electronic thermostat' }) ] }));
+// the earlier generic baseboards: kept so homes that have one still draw it, no longer offered in the Library
 [[24,500],[36,750],[48,1000],[60,1250],[72,1500]].forEach(([w,watt])=>
-  def({ k:`BB-${w}`, cat:'heat', name:`Baseboard heater ${w}″ · ${watt} W (typical)`, w, h:7.5, d:3.25, y:1, fixed:true, note:`Electric baseboard, 240 V, ${watt} W; its own thermostat or a wall one. Usually under a window. No plug above it`,
+  def({ k:`BB-${w}`, cat:'baseboard', legacy:true, name:`Baseboard heater ${w}″ · ${watt} W (typical)`, w, h:7.5, d:3.25, y:1, fixed:true, note:`Electric baseboard, 240 V, ${watt} W. No plug above it`,
     build:it=>[ fx('Heater',white,[0,0,0,it.w,it.h,it.d]), fx('Grille','steel',[2,it.h-1.6,it.d-0.2,it.w-4,1.2,0.25]) ] }));
 // water heaters and the laundry box
 def({ k:'WH-40', cat:'plumb', name:'Water heater, electric 40 gal (typical)', w:20.25, h:50, d:20.25, fixed:true, note:'Tank, about 20¼″ across, 50″ high: cold in, hot out on top, relief valve and drain pan. Check the model and its clearances',
