@@ -24,7 +24,9 @@
    library's plugs and switches; the rest (wall plugs, switches, outside, data) only on walls by the rules.
      · Outside: at least one weatherproof plug, beside the main door.
      · Switches 48″, centre 6″ from the door's rough opening on the side you walk through at (a man door: the latch side;
-       a patio slider: the moving panel's side), on the side the door swings into
+       a patio slider: the moving panel's side), on the side the door swings into. A door in a middle wall: on the middle
+       wall beside its latch, else round the corner on the wall it meets. Nothing goes where a middle wall meets a wall,
+       and a door's switch never walks past a middle wall into the next room.
        (an outside door: inside). A room with two or more entrances gets 3-way switches (confirmed by the team).
        An outside door gets a double box (the room's lights + the outside light).
      · Walls between pods: boxes only on the face toward the wall's own pod.
@@ -210,6 +212,17 @@ function compute(k){
   const uOf = (W,a) => W.loop.u0 + W.loop.dir*a;
   const aOf = (W,u) => (u - W.loop.u0)*W.loop.dir;
   const mod = (u,P) => ((u%P)+P)%P;
+  /* where each middle wall meets the pod's inside face: { u (on the loop), half (half its thickness, inches) }. Nothing
+     goes there (the middle wall stands on it), and a door's switch never walks past one into the next room */
+  loops.forEach(L=>{ L.mids=[];
+    walls.filter(W=>W.s.part && W.s.pod.i===L.p.i).forEach(Wm=>[0, Wm.L].forEach(aE=>{ const P=Wm.at(aE, Wm.t/2);
+      let best=null; L.walls.forEach(Wl=>{ const a=(P[0]-Wl.S[0])*Wl.d[0]+(P[1]-Wl.S[1])*Wl.d[1], off=Math.abs((P[0]-Wl.S[0])*Wl.m[0]+(P[1]-Wl.S[1])*Wl.m[1]);
+        if(a>=-0.01 && a<=Wl.L+0.01 && off<=Wl.t+0.2 && (!best || off<best.off)) best={ Wl, a:a*FT, off }; });
+      if(best) L.mids.push({ u:mod(uOf(best.Wl, best.a), L.P), half:Wm.t*FT/2, Wm }); })); });
+  const midAt = (W, a, hw) => { const L=W.loop?.L; if(!L) return false; const u=uOf(W,a), P=L.P;
+    return L.mids.some(m=>{ const d=Math.min(mod(u-m.u,P), mod(m.u-u,P)); return d < m.half+hw+STUD; }); };
+  // walking round the loop from u0 by dir: does it pass a middle wall before reaching u?
+  const pastMid = (L, u0, u, dir) => { const P=L.P, t=mod((u-u0)*dir, P); return (L.mids||[]).some(m=>{ const tm=mod((m.u-u0)*dir, P); return tm>0.01 && tm<t; }); };
   const at = (L,u) => { u=mod(u,L.P); for(const W of L.walls){ const l=W.loop; if(u>=l.lo-1e-6 && u<=l.hi+1e-6) return { W, a:aOf(W,u), edge:Math.min(u-l.lo, l.hi-u) }; } return null; };
 
   /* ---- can a box go here? */
@@ -224,6 +237,7 @@ function compute(k){
     if(face==='in' && RCPT.has(rk) && nearTub(tubs, W, a, hw)) return false;   // 500 mm clear of a tub or shower
     if(face==='in' && RCPT.has(rk) && W.items.some(it=>/^BB-/.test(it.I.it.k||'') && a+hw>it.a0-1 && a-hw<it.a1+1)) return false;   // never above a baseboard heater
     if(W.joints.some(j=>Math.abs(a-j)<JOINT)) return false;
+    if(face==='in' && midAt(W, a, hw)) return false;   // a middle wall meets this face here
     if(face==='in' && W.items.some(it=>it.I!==o.ignore && blocks(it.I) && a+hw>it.a0-0.5 && a-hw<it.a1+0.5 && y+hh>it.y0 && y-hh<it.y1)) return false;
     if(boxes.some(b=>b.W===W && b.face===face && Math.abs(b.a-a)<BOX_GAP && Math.abs(b.y-y)<BOX_GAP+2)) return false;
     if(!W.auto && (face==='in' ? W.w.inside : W.w.outside||[]).some(b=>isElecBox(b) && Math.abs((face==='in' ? W.Lin-b.x : b.x)-a)<BOX_GAP && Math.abs(b.y-y)<BOX_GAP+2)) return false;   // the library's own boxes
@@ -299,13 +313,29 @@ function compute(k){
     if(op.kind==='door' && (swing==='in' || W.s.type==='int')) swingZones.push({ L, a:mod(uH-dir*op.w,L.P), b:uH, dir });
     if(!F.auto) return;
     const ext=W.s.type==='ext', rk=ext?'double':'switch', R=roomOf(F.s.pod.i);
-    const s=spotOnLoop(L, uL+dir*SW_OFF, H[rk], rk, { dir, from:uL, min:STUD+sz(rk).w/2, scan:120 })
-         || spotOnLoop(L, uH-dir*(op.w+SW_OFF), H[rk], rk, { dir:-dir, from:uH, min:op.w+STUD, scan:120 });
+    const s=spotOnLoop(L, uL+dir*SW_OFF, H[rk], rk, { dir, from:uL, min:STUD+sz(rk).w/2, scan:120, inside:u=>!pastMid(L, uL, u, dir) })
+         || spotOnLoop(L, uH-dir*(op.w+SW_OFF), H[rk], rk, { dir:-dir, from:uH, min:op.w+STUD, scan:120, inside:u=>!pastMid(L, uH, u, -dir) });
     const doorName = `${ext?'outside ':''}${op.kind==='patio'?'patio door':'door'} on ${W.s.label}`;
     if(!s){ flags.push({ t:`No spot for the switch at the ${doorName}`, w:F.s.id }); return; }
     const b=add(s.W,'in',s,H[rk],rk,`sw:${W.key}:${Math.round(op.x)}`,{ note:ext?'room lights + outside light':'', why:`switch, ${doorName}`, room:R.key });
     if(s.blocked) b.flags.push(`moved off the 6″ rule (blocked)`);
     R.entries.push(b);
+  }));
+  // a door in a middle wall: its switch beside the latch, on the side it swings into, on the middle wall itself; when the
+  // door is too near the end, round the corner on the wall the middle wall meets there, just past its face
+  walls.filter(W=>W.s.part && W.auto).forEach(W=>W.ops.forEach(q=>{
+    const op=q.o; if(op.kind!=='door' || !q.owner) return;
+    const hand=q.ur?.hand||'L', swing=q.ur?.swing||'in', latchA=hand==='R'?op.x:op.x+op.w, dir=hand==='R'?-1:1, face=swing==='in'?'in':'out', hw=sz('switch').w/2, R=roomOf(W.s.pod.i);
+    const why={ why:`switch, door on ${W.s.label}`, room:R.key };
+    const s=spotOnWall(W, face, latchA+dir*SW_OFF, H.switch, 'switch', { within:a=>dir>0 ? a>=latchA+STUD+hw : a<=latchA-STUD-hw, scan:18 });
+    if(s){ const b=add(W, face, s, H.switch, 'switch', `sw:${W.key}:${Math.round(op.x)}`, why); R.entries.push(b); return; }
+    const L=loops[W.s.pod.i]; if(!L) return;
+    const toward = swing==='in' ? W.m : W.n, P=W.at(dir>0 ? W.L : 0, W.t/2), k=W.t/2+(SW_OFF+hw)/FT, T=[P[0]+toward[0]*k, P[1]+toward[1]*k];
+    let best=null; L.walls.forEach(Wl=>{ const a=(T[0]-Wl.S[0])*Wl.d[0]+(T[1]-Wl.S[1])*Wl.d[1], off=Math.abs((T[0]-Wl.S[0])*Wl.m[0]+(T[1]-Wl.S[1])*Wl.m[1]);
+      if(a>=0 && a<=Wl.L && off<=Wl.t+0.3 && (!best || off<best.off)) best={ Wl, a:a*FT, off }; });
+    const s2=best && spotOnWall(best.Wl, 'in', best.a, H.switch, 'switch', { scan:12 });
+    if(!s2){ flags.push({ t:`No spot for the switch at the door on ${W.s.label}`, w:W.s.id }); return; }
+    const b=add(best.Wl, 'in', s2, H.switch, 'switch', `sw:${W.key}:${Math.round(op.x)}`, { ...why, why:`switch, door on ${W.s.label} (round the corner)` }); R.entries.push(b);
   }));
   // a room with no door of its own (reached through a narrow cased opening): a switch beside that opening
   Object.values(rooms).forEach(R=>{ if(R.entries.length) return;
