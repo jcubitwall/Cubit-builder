@@ -568,6 +568,26 @@ def({ k:'FP', cat:'fire', name:'Fireplace surround, linear electric', w:72, h:40
     P.push({ ...solid(`Electric insert ${I.w}″`, 'appliance', [fx, iy, dc-I.d+0.75, fw, I.h, I.d], [0,0,3.2]), note:'Generic linear electric insert, check the model’s size and clearances' });
     return P; } });
 
+/* a product adopted from a store catalogue (stores.js) into the Cubit library: a fixed-size item drawn from its
+   size and kind. Fireplaces: a linear / built-in insert or a firebox is also offered as an Insert in the surround
+   (FP), so the surround's cut-out fits that exact unit. */
+function defStoreItem(cat, P){
+  const k=`HD${P.sku}`; if(ITEMS.some(x=>x.k===k)) return ITEMS.find(x=>x.k===k);
+  const kind=P.kind||'box', y = kind==='linear' ? 36 : kind==='insert'||kind==='firebox' ? 18 : 0;
+  const note=`${P.brand} ${P.model} · ${P.store||'store'} SKU ${P.sku}${P.price?` · $${P.price}`:''}${P.power?` · ${P.power}`:''}${P.note?` · ${P.note}`:''}`;
+  const d={ k, cat, name:P.name, w:+P.w, h:+P.h, d:+P.d, fixed:true, y, note, store:{ id:P.storeId, sku:P.sku, url:P.url, price:P.price },
+    build: it => { const W=it.w, H=it.h, D=it.d;
+      if(kind==='mantel'){ const ow=Math.min(24, W*0.55), oh=Math.min(20, H*0.55);
+        return [ solid('Mantel','furnwood',[0,0,0,W,H,D],[0,0,0]), solid('Firebox glass','screen',[(W-ow)/2,6,D-0.2,ow,oh,0.4],[0,0,1.5]), solid('Mantel shelf','furnwood2',[-1,H-1.5,-0.5,W+2,1.5,D+1.5],[0,1.2,0]) ]; }
+      if(kind==='stove') return [ solid('Stove body','appliance',[2,4,1,W-4,H-6,D-2],[0,0,0]), solid('Top','appliance',[0,H-2,0,W,2,D],[0,1,0]), solid('Base','appliance',[1,0,1,W-2,4,D-2],[0,-0.5,0]), solid('Glass door','screen',[W*0.2,H*0.3,D-1,W*0.6,H*0.4,0.3],[0,0,1.5]) ];
+      const fr=Math.min(1.5, H*0.08);
+      return [ solid('Body','appliance',[0,0,0,W,H,D-0.4],[0,0,0]), solid('Glass','screen',[fr,fr,D-0.4,W-2*fr,H-2*fr,0.4],[0,0,1.5]) ]; } };
+  def(d);
+  // fireplaces that go into a framed opening: an Insert choice in the surround too
+  if(cat==='fire' && P.recess){ const fp=ITEMS.find(x=>x.k==='FP'); INSERTS[k]={ w:+P.w, h:+P.h, d:+P.d, name:`${P.brand} ${P.model}` };
+    const o=fp?.opts?.find(o=>o[0]==='insert'); if(o && !o[2].includes(k)) o[2].push(k); }
+  return ITEMS[ITEMS.length-1];
+}
 /* the fireplace insert's power, where it goes in the wall behind the surround (electrical.js places it and it moves with
    the fireplace): Plug → a receptacle, Hardwired → a junction box, either way inside the insert's cavity, to one
    side of the insert, half way up it, on its own circuit. { hard, y (from the floor under the surround), off (from
@@ -918,4 +938,4 @@ function csv(it, name){
   rows.unshift([`${name} — ${fmt(it.w)} W × ${fmt(it.h)} H × ${fmt(it.d)} D (inches)`]);
   return rows.map(r=>r.map(v=>/[",\n]/.test(String(v))?`"${String(v).replace(/"/g,'""')}"`:v).join(',')).join('\n');
 }
-export { tvY, firePower, plumbOf, sinkHole, sinkBaseMin, fx3, hingeSpec, runnerSpec, handleById, SETTINGS_V, loadFixtures, DEFAULTS, MM, CATS, ITEMS, itemDef, catOf, newItem, partsOf, cutList, hardwareOf, totals, csv, fmt, fmtU, settings, loadSettings, saveSettings, th, nomOf };
+export { defStoreItem, INSERTS, tvY, firePower, plumbOf, sinkHole, sinkBaseMin, fx3, hingeSpec, runnerSpec, handleById, SETTINGS_V, loadFixtures, DEFAULTS, MM, CATS, ITEMS, itemDef, catOf, newItem, partsOf, cutList, hardwareOf, totals, csv, fmt, fmtU, settings, loadSettings, saveSettings, th, nomOf };

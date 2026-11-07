@@ -1,5 +1,6 @@
 /* Cubit Builder — casework-ui.js : the Cabinet library window (browse, resize, 3D with exploded view and parts,
    cut list), the shop settings (plywood, edge band, joinery, hardware), and the options of a placed item. */
+import { INSERTS, defStoreItem } from './casework.js';
 import { CATS, ITEMS, itemDef, catOf, newItem, partsOf, cutList, hardwareOf, totals, csv, fmt, fmtU, fx3, settings, saveSettings, loadSettings, DEFAULTS, MM } from './casework.js';
 import { partSVG, opsTable } from './casework-parts.js';
 import { cabinetJob, jobZip, sheetSVG, CAB_CNC } from './cabcnc.js';
@@ -44,6 +45,7 @@ import { makeHistory, histButtons, bindHistory } from './local-history.js';
 import { LIB, LAYERLIB, DECKLIB } from './data.js';
 import { UNITLIB, TYPES, unitSVG, saveTeamUnit, unitById, onUnitsChanged } from './units.js';
 import { BOXLIB, THIN_BELOW, boxSVG } from './boxes.js';
+import { STORES, storeById, storesFor, isAdopted, adopt as adoptStore, onAdoptedChanged } from './stores.js';
 import { BRANDS, brandById, brandKeyOf, brandName, rsoOf, bmOf, catalogOf } from './brands.js';
 import { itemRules, unitRules, rulesBox } from './item-rules.js';
 import { DEVICES, deviceSVG, saveDevice, newDeviceId, deviceById } from './devices.js';
@@ -71,7 +73,12 @@ const NAV_BASE = [
   ['Furniture & TVs', ['furniture','tv']],
 ];
 /* the makers' catalogues (brands.js) fill their group once loaded */
-const NAV = () => NAV_BASE.map(([g,cs])=>g==='Maker catalogues' ? [g, BRANDS.map(b=>[`u:cat:${b.id}`, `${b.name} catalogue`])] : [g,cs]).filter(([,cs])=>cs.length);
+/* …and each store's list goes right under the category it's for ("Home Depot store" under Fireplaces) */
+const storeKey = c => String(c).replace(/^d:/,'');
+const withStores = cs => cs.flatMap(c=>{ const k=Array.isArray(c)?c[0]:c; return [c, ...storesFor(storeKey(k)).map(({store})=>[`s:${store.id}:${storeKey(k)}`, `${store.name} store`])]; });
+const NAV = () => NAV_BASE.map(([g,cs])=>g==='Maker catalogues' ? [g, BRANDS.map(b=>[`u:cat:${b.id}`, `${b.name} catalogue`])] : [g, withStores(cs)]).filter(([,cs])=>cs.length);
+/* an option's label: an adopted fireplace insert by its maker and model */
+const optLabel = (k, v) => k==='insert' && INSERTS[v]?.name ? `${INSERTS[v].name} (${INSERTS[v].w}″)` : (k==='insert' && /^\d+$/.test(v) ? `${v}″ generic` : v);
 const SHOP_CATS = new Set(['base','upper','tall','linen','wardrobe','vanity','bench','shelf','counter','sink','fire']);
 /* what the second tab is for this category: [label, kind] or null (none) */
 function setTab(cat){
@@ -90,8 +97,8 @@ const LAYER_NAME = {'floor-ext':'Exterior floor','floor-int':'Interior floor','c
 const U_OF = { 'u:win':u=>TYPES[u.type]?.cat==='window', 'u:ext':u=>TYPES[u.type]?.cat!=='window' && u.place!=='int', 'u:int':u=>u.place==='int' };
 const live = x => !x.deleted && !x.purged;
 const homeGroups = () => { const G=new Map(); try{ furnitureOf().forEach(o=>{ if(o.grp?.id) (G.get(o.grp.id)||G.set(o.grp.id,[]).get(o.grp.id)).push(o); }); }catch(e){} return [...G.values()]; };
-const countOf = c => c==='d:bx' ? BOXLIB.length : c==='k:kit' ? KITCHENS.length : c.startsWith('u:cat:') ? catalogOf(c.slice(6)).length : c.startsWith('d:') ? DEVICES.filter(d=>d.kind===c.slice(2) && live(d)).length : c.startsWith('b:') ? B_LIST[c]().filter(live).length : c.startsWith('u:') ? UNITLIB.filter(u=>U_OF[c](u) && live(u)).length : ITEMS.filter(i=>i.cat===c && live(i)).length;
-const navName = c => (c.startsWith('b:')||c.startsWith('u:')||c.startsWith('d:')||c.startsWith('k:')) ? (NAV().flatMap(([,cs])=>cs).find(x=>Array.isArray(x) && x[0]===c)||[0,c])[1] : (CATS.find(x=>x.k===c)?.name || c);
+const countOf = c => c.startsWith('s:') ? (storeById(c.split(':')[1])?.cats?.[c.split(':')[2]]||[]).length : c==='d:bx' ? BOXLIB.length : c==='k:kit' ? KITCHENS.length : c.startsWith('u:cat:') ? catalogOf(c.slice(6)).length : c.startsWith('d:') ? DEVICES.filter(d=>d.kind===c.slice(2) && live(d)).length : c.startsWith('b:') ? B_LIST[c]().filter(live).length : c.startsWith('u:') ? UNITLIB.filter(u=>U_OF[c](u) && live(u)).length : ITEMS.filter(i=>i.cat===c && live(i)).length;
+const navName = c => (c.startsWith('b:')||c.startsWith('u:')||c.startsWith('d:')||c.startsWith('k:')||c.startsWith('s:')) ? (NAV().flatMap(([,cs])=>cs).find(x=>Array.isArray(x) && x[0]===c)||[0,c])[1] : (CATS.find(x=>x.k===c)?.name || c);
 let showGone=false;
 /* undo / redo of the item on screen: its sizes, options and mirror */
 const pickIt = it => it ? JSON.parse(JSON.stringify({ w:it.w, h:it.h, d:it.d, y:it.y||0, opt:it.opt||{}, mirror:!!it.mirror })) : null;
@@ -129,6 +136,7 @@ function render(){
   if(view.item){ renderDetail(body); return; }
   if(view.cat.startsWith('b:')){ body.innerHTML=nav+buildingGrid(view.cat); bindNav(body); bindBuilding(body); return; }
   if(view.cat==='d:bx'){ body.innerHTML=nav+boxGrid(); bindNav(body); return; }
+  if(view.cat.startsWith('s:')){ const [,sid,key]=view.cat.split(':'); body.innerHTML=nav+storeGrid(sid,key); bindNav(body); bindStore(body,sid,key); return; }
   if(view.cat.startsWith('d:')){ body.innerHTML=nav+deviceGrid(view.cat); bindNav(body); bindDevices(body); return; }
   if(view.cat==='k:kit'){ body.innerHTML=nav+kitchenGrid(); bindNav(body); bindKitchens(body); return; }
   if(view.cat.startsWith('u:cat:')){ body.innerHTML=nav+catalogueGrid(view.cat.slice(6)); bindNav(body); bindCatalogue(body, view.cat.slice(6)); return; }
@@ -289,6 +297,25 @@ function editUnit(u){
 }
 onUnitsChanged(()=>{ if(dlg?.open && view.cat.startsWith('u:') && view.tab==='lib') render(); });
 
+/* a store's list for one category: what can be ordered online and shipped to Cubit; Adopt puts it in the Cubit library */
+function storeGrid(sid, key){
+  const S=storeById(sid), L=S?.cats?.[key]||[], ed=canEdit(), catName=navName(CATS.some(c=>c.k===key)?key:'d:'+key);
+  const card=P=>{ const done=isAdopted(sid, key, P.sku), mine=done && ITEMS.find(x=>x.k===`HD${P.sku}`);
+    return `<div class="cw-card cw-bcard cw-catc${done?' in':''}"><div class="cw-thumb">${mine?frontSVG(newItem(mine.k)):`<svg viewBox="0 0 ${P.w+4} ${P.h+4}" aria-hidden="true"><rect x="2" y="2" width="${P.w}" height="${P.h}" fill="#cfd3d6" stroke="#1c211e" stroke-width="${Math.max(P.w,P.h)/90}"/><rect x="${2+P.w*0.06}" y="${2+P.h*0.1}" width="${P.w*0.88}" height="${P.h*0.8}" fill="#24282c"/></svg>`}</div>
+      <b>${esc(P.name)}</b><small><code>${esc(P.model)}</code> · SKU ${esc(P.sku)} · ${fin2(P.w)} × ${fin2(P.h)} × ${fin2(P.d)}${P.lbs?` · ${P.lbs} lb`:''}</small>
+      <small>${P.price?`<b>$${P.price.toLocaleString('en-CA',{minimumFractionDigits:P.price%1?2:0})}</b> · `:''}${[P.btu?`${P.btu.toLocaleString()} BTU`:'', P.watts?`${P.watts} W`:'', P.power||''].filter(Boolean).join(' · ')}</small>
+      ${P.note?`<p class="note">${esc(P.note)}</p>`:''}
+      <div class="cw-bact"><a class="btn ghost sm" href="${esc(P.url)}" target="_blank" rel="noopener">Home Depot</a>${done?`<span class="note">✓ In the Cubit library${mine?'':''}</span>`:ed?`<button class="btn sm" data-sadopt="${esc(P.sku)}">Adopt</button>`:''}</div></div>`; };
+  return `<section class="cw-grid cw-bgrid"><div class="cw-span cat-head"><h3>${esc(S?.name||sid)} store · ${esc(catName)} <a href="${esc(S?.url||'')}" target="_blank" rel="noopener" class="linkbtn">${esc((S?.url||'').replace(/^https?:\/\/(www\.)?/,''))}</a></h3>
+      <p class="note">${esc(S?.note||'')} Ships to ${esc(S?.shipTo||'')}${S?.pickup?` (or pick up at ${esc(S.pickup)})`:''}. Checked ${esc(S?.checked||'')}. ${ed?'<b>Adopt</b> puts one in the Cubit library for the whole team.':'Editors and admins adopt these into the Cubit library.'}</p></div>
+    ${L.map(card).join('') || '<p class="note">Nothing listed yet.</p>'}</section>`;
+}
+function bindStore(body, sid, key){
+  body.querySelectorAll('[data-sadopt]').forEach(b=>b.onclick=async()=>{ if(!canEdit()){ toast('Editors and admins adopt store products.'); return; }
+    const P=(storeById(sid)?.cats?.[key]||[]).find(p=>p.sku===b.dataset.sadopt); if(!P) return; b.disabled=true;
+    try{ await adoptStore(sid, key, P); toast(`${P.brand} ${P.model} adopted into the Cubit ${navName(CATS.some(c=>c.k===key)?key:'d:'+key).toLowerCase()} library`); render(); }catch(err){ toast('Not adopted: '+err.message); b.disabled=false; } });
+}
+onAdoptedChanged(()=>{ if(dlg?.open && view.tab==='lib' && !view.item) render(); });
 /* the electrical device boxes (boxes.js): which walls get which, and the pocket the CNC cuts for each */
 function boxGrid(){
   const card=b=>`<div class="cw-card cw-bcard"><div class="cw-thumb">${boxSVG(b)}</div><b>${esc(b.name)}</b>
@@ -465,7 +492,7 @@ function renderDetail(body){
         ${sizeRow('d','Depth',it.d,d.dSizes,d.dR,d.fixed)}
         ${sizeRow('y','Off the floor',it.y||0,null,[0,96],false)}
       </div>
-      ${(d.opts||[]).map(([k,l,vals])=>`<div class="cw-opt"><span>${l}</span><div class="seg wrap">${vals.map(v=>`<button data-opt="${k}" data-v="${esc(v)}" aria-pressed="${String((it.opt||{})[k] ?? d.opt?.[k])===String(v)}">${esc(v)}</button>`).join('')}</div></div>`).join('')}
+      ${(d.opts||[]).map(([k,l,vals])=>`<div class="cw-opt"><span>${l}</span><div class="seg wrap">${vals.map(v=>`<button data-opt="${k}" data-v="${esc(v)}" aria-pressed="${String((it.opt||{})[k] ?? d.opt?.[k])===String(v)}">${esc(optLabel(k,v))}</button>`).join('')}</div></div>`).join('')}
       ${parts.some(p=>p.role==='front' && p.cnc) ? `<div class="cw-opt"><span>Handles</span><div class="seg wrap"><button data-handle="later" aria-pressed="${(it.opt?.handle ?? settings().handle)==='later'}">Drill later</button>${(settings().handles||[]).map(h=>`<button data-handle="${esc(h.id)}" aria-pressed="${(it.opt?.handle ?? settings().handle)===h.id}">${esc(h.name)}</button>`).join('')}</div></div>` : ''}
       <div class="cw-opt"><span>Mirror</span><div class="seg"><button data-mir="0" aria-pressed="${!it.mirror}">As drawn</button><button data-mir="1" aria-pressed="${!!it.mirror}">Mirrored (left ↔ right)</button></div></div>
       <div class="row cw-acts">
@@ -792,7 +819,7 @@ function furnSide(sideH, sideB){
     <div class="cw-sizes compact">
       ${['w','h','d','y'].map(k=>`<label class="cw-f"><span>${{w:'Width',h:'Height',d:'Depth',y:'Off the floor'}[k]}</span><input data-fl="${k}" value="${esc(show(it[k]||0))}" inputmode="decimal" ${!ed||(d.fixed&&k!=='y')?'disabled':''}><i>${unitSign()}</i></label>`).join('')}
     </div>
-    ${(d.opts||[]).map(([k,l,vals])=>`<div class="cw-opt"><span>${l}</span><div class="seg wrap">${vals.map(v=>`<button data-fo="${k}" data-v="${esc(v)}" aria-pressed="${String((it.opt||{})[k] ?? d.opt?.[k])===String(v)}" ${ed?'':'disabled'}>${esc(v)}</button>`).join('')}</div></div>`).join('')}
+    ${(d.opts||[]).map(([k,l,vals])=>`<div class="cw-opt"><span>${l}</span><div class="seg wrap">${vals.map(v=>`<button data-fo="${k}" data-v="${esc(v)}" aria-pressed="${String((it.opt||{})[k] ?? d.opt?.[k])===String(v)}" ${ed?'':'disabled'}>${esc(optLabel(k,v))}</button>`).join('')}</div></div>`).join('')}
     ${kitchenNote(it, d, ed)}
     ${plumbNote(it)}
     <p class="note">Drag it in the plan (Build) to move it along the walls; it backs onto the nearest wall and butts up to the cabinets beside it. Drag the round green handle at its front corner to turn it, 45° at a time.${it.wall?' Its depth counts for the pot lights along this wall.':''}</p>`;
