@@ -29,6 +29,7 @@
    Save puts the shape in the Shape library; the wall and floor / ceiling / roof builders place it (Add shape). */
 import { flatten, area, bbox, bboxAll, segCount, segType, segLength, bulgeArc, fillet, offset, bool, asCut, mapAll, mirrorAll,
   arrangement, inRegion, interiorPoint, simplify, crossings, distToSeg, inPoly, R_BIT } from './geom2d.js';
+import { slopePts, centreLine, slopeLength, along } from './slope.js';
 import { SHAPELIB, shapeById, nextShapeId, saveShape, deleteShape, sharedShapes, shapeThumb } from './shapes.js';
 import { makeHistory } from './local-history.js';
 import { canSave, canEdit } from './role.js';
@@ -67,7 +68,7 @@ const TOOLS = [['select','Select','V'],['line','Line','L'],['rect','Rect','R'],[
 const ICON = { select:'↖', line:'╱', rect:'▭', circle:'◯', arc:'◠', spline:'∿', fillet:'◜', offset:'⧈', trim:'✂', mirror:'⇋' };
 let S=null, dlg=null, svg=null, tool='select', mode={rect:'corner', circle:'centre'}, sel=[], view={cx:12, cy:8, k:24}, snapOn=true, grid=0.125, origin=null;
 let mirrorStep=1;
-let slopePick=null;   // { k (region), end 'a'|'b' }: the next tap on the drawing sets that end of the slope
+let slopePick=null;   // { k (region), mode 'add'|'del' }: the next tap on the drawing adds / removes a point of the slope's path
 let draft=null, hover=null, typed={f:0, v:['','']}, drag=null, libOpen=false, editor=null, REG=[], regKey='', lastTap={t:0, key:''};
 const HIST = makeHistory(()=>S, v=>{ S=v; sel=[]; draft=null; regKey=''; });
 let uid=1; const newId = () => 'e'+Date.now().toString(36)+(uid++);
@@ -302,9 +303,14 @@ function closeChain(){ const c=contEnt(); if(c) closeIfEnds(c); draft=null; comm
 
 function down(p, e){
   const pen = e.pointerType!=='touch';
-  if(slopePick){ const r=REG[slopePick.k]; if(r?.set.slope){ const q=snapPt(p).p; r.set.slope[slopePick.end]=[+q[0].toFixed(4), +q[1].toFixed(4)];
-      S.regs=REG.map(g=>({seed:g.seed, ...g.set})); HIST.track(); toast(`${slopePick.end==='a'?'Start':'End'} of the slope set`); }
+  if(slopePick){ const r=REG[slopePick.k], st=r?.set.slope;
+    if(st){ const P=slopePts(st).map(q=>q.slice());
+      if(slopePick.mode==='add'){ const q=snapPt(p).p; let bi=0, bd=Infinity; for(let i=0;i<P.length-1;i++){ const d=along([P[i],P[i+1]], q).d; if(d<bd){ bd=d; bi=i; } }
+        P.splice(bi+1, 0, [+q[0].toFixed(4), +q[1].toFixed(4)]); toast('Point added to the slope'); }
+      else { const i=P.findIndex(q=>hyp(q[0]-p[0], q[1]-p[1])*view.k<14); if(i>=0 && P.length>2){ P.splice(i,1); toast('Point taken out'); } else toast(P.length>2?'Tap right on a point to take it out':'A slope needs its two ends'); }
+      st.pts=P; delete st.a; delete st.b; S.regs=REG.map(g=>({seed:g.seed, ...g.set})); HIST.track(); }
     slopePick=null; render(); return; }
+  if(tool==='select'){ const g=slopeGrab(p); if(g){ drag={ t:'slopePt', ...g, undo:clone(S) }; return; } }
   if(tool==='select'){
     const h=hit(p);
     if(!h){ drag = pen ? { t:'box', a:p, b:p, add:e.shiftKey } : { t:'pan', s:[e.clientX,e.clientY], v:{...view} }; return; }
@@ -337,6 +343,7 @@ function move(p, e){
     if(['line','spline','rect','circle','arc'].includes(tool)){ const sp=snapPt(p, { from:lastPt(), prevDir:prevDir() }); hover={ p:sp.p, snap:sp }; render(); }
     else { const h=hit(p); const k=h?JSON.stringify(h):''; if(k!==hover?.k){ hover={k, h}; render(); } }
     return; }
+  if(drag.t==='slopePt'){ const st=REG[drag.k]?.set.slope; if(st){ const q=snapPt(p).p; st.pts=slopePts(st).map(x=>x.slice()); st.pts[drag.i]=[+q[0].toFixed(4), +q[1].toFixed(4)]; delete st.a; delete st.b; } render(); return; }
   if(drag.t==='box'){ drag.b=p; render(); return; }
   if(drag.t==='press'){ const d=hyp(p[0]-drag.start[0], p[1]-drag.start[1])*view.k; if(d<5) return; drag.moved=true; beginMove(drag.h, drag.start); if(!drag || drag.t==='pan') return; if(drag.t==='box'){ drag.b=p; render(); return; } }
   if(drag.t==='node'){ const sp=snapPt(p, { skip:{e:drag.e, n:drag.n} }), c=ent(drag.e), n=c.nodes[drag.n], dx=sp.p[0]-n.x, dy=sp.p[1]-n.y;
@@ -380,6 +387,7 @@ function startMoveSel(start){
 }
 function up(p, e){
   const d=drag; drag=null; if(!d){ return; }
+  if(d.t==='slopePt'){ S.regs=REG.map(g=>({seed:g.seed, ...g.set})); HIST.track(); render(); return; }
   if(d.t==='box'){ boxSelect(d.a, d.b, d.add); render(); return; }
   if(d.t==='press'){ tapSelect(d.h, e); return; }   // (in the line tool too: it picks what was tapped)
   if(['node','handle','seg','bulge','rim','moveSel','fillet'].includes(d.t)){ hover=null; commit(); return; }
@@ -694,10 +702,10 @@ function render(){
     if(on) g+=`<path d="${d}" fill-rule="evenodd" class="ss-r ss-rsel"/>`;
     if(cut!=='none'){ tight+=r.tight.length; if(r.tight.length) asCut([r.outer,...r.holes]).forEach(q=>{ g+=`<path d="${pathD(q,true)}" class="ss-cut"/>`; }); r.tight.forEach(p=>{ const [x,y]=toS(p); top+=`<circle cx="${x}" cy="${y}" r="8" class="ss-tight"><title>Tighter than ⅜″: the ¾″ bit leaves a ⅜″ radius here</title></circle>`; }); }
     const sl=cut==='pocket' && r.set.slope, tp=cut!=='none' && r.set.taper;
-    if(sl){ const [ax,ay]=toS(sl.a), [bx,by]=toS(sl.b), ang=Math.atan2(by-ay,bx-ax), k=10;
-      top+=`<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" class="ss-slope"/><path d="M${bx} ${by} L${bx-k*Math.cos(ang-0.45)} ${by-k*Math.sin(ang-0.45)} M${bx} ${by} L${bx-k*Math.cos(ang+0.45)} ${by-k*Math.sin(ang+0.45)}" class="ss-slope"/>`;
-      top+=`<circle cx="${ax}" cy="${ay}" r="6" class="ss-sa"/><circle cx="${bx}" cy="${by}" r="6" class="ss-sb"/>`;
-      top+=bubble(sl.a, fin(sl.d0)+' deep', { cls:'ss-tag', dy:-16 })+bubble(sl.b, fin(sl.d1)+' deep', { cls:'ss-tag', dy:-16 }); }
+    if(sl){ const P=slopePts(sl), Q=P.map(toS), n=Q.length, [bx,by]=Q[n-1], [px,py]=Q[n-2], ang=Math.atan2(by-py,bx-px), k=11;
+      top+=`<polyline points="${Q.map(q=>q.map(v=>v.toFixed(1)).join(',')).join(' ')}" class="ss-slope"/><path d="M${bx} ${by} L${bx-k*Math.cos(ang-0.45)} ${by-k*Math.sin(ang-0.45)} M${bx} ${by} L${bx-k*Math.cos(ang+0.45)} ${by-k*Math.sin(ang+0.45)}" class="ss-slope"/>`;
+      Q.forEach(([x,y],i)=>{ top+= i===0 ? `<circle cx="${x}" cy="${y}" r="7" class="ss-sa"/>` : i===n-1 ? `<circle cx="${x}" cy="${y}" r="7" class="ss-sb"/>` : `<circle cx="${x}" cy="${y}" r="5" class="ss-sm"/>`; });
+      top+=bubble(P[0], fin(sl.d0)+' deep', { cls:'ss-tag', dy:-18 })+bubble(P[n-1], fin(sl.d1)+' deep', { cls:'ss-tag', dy:-18 }); }
     if(tp){ const R=roundOf(r); if(R){ const [cx,cy]=toS(R.c); top+=`<circle cx="${cx}" cy="${cy}" r="${(tp.d1/2*view.k).toFixed(1)}" class="ss-taper"/>`; } }
     const tag = cut==='none' ? '' : `${r.set.name?r.set.name+' · ':''}${tp ? `tapered ⌀ ${fin(2*(roundOf(r)?.r||0))} → ${fin(tp.d1)}, ${cut==='thru'?'through':fin(+r.set.depth||0)+' deep'}` : sl ? `slope ${fin(sl.d0)} → ${fin(sl.d1)}` : cut==='thru'?'through':fin(+r.set.depth||0)+' deep'}`;
     if(tag && (on || view.k*Math.sqrt(Math.abs(r.net))>70)) top+=bubble(r.seed, tag, { cls:'ss-tag' });
@@ -792,6 +800,12 @@ function status(tight){
   const nr=REG.filter(r=>r.set.cut!=='none').length;
   dlg.querySelector('.ss-status').innerHTML=`<span>${hint}</span>${REG.length?`<span>${REG.length} region${REG.length>1?'s':''} · ${nr} cut</span>`:''}${tight?`<span class="ss-warn">${tight} inside corner${tight>1?'s':''} tighter than ⅜″: the ¾″ bit leaves ⅜″ round (dashed red)</span>`:''}`;
 }
+/* a point of the slope path of a picked region, under the finger: { k, i } */
+function slopeGrab(p){
+  for(const q of sel.filter(x=>x.t==='reg')){ const st=REG[q.k]?.set.slope; if(!st || REG[q.k].set.cut!=='pocket') continue;
+    const P=slopePts(st), i=P.findIndex(x=>hyp(x[0]-p[0], x[1]-p[1])*view.k<14); if(i>=0) return { k:q.k, i }; }
+  return null;
+}
 /* a round region (drawn as a circle): { c, r }, else null */
 function roundOf(r){
   const P=r.outer; if(!P || P.length<8 || r.holes?.length) return null;
@@ -805,10 +819,11 @@ function depthModes(r){
   if(st.cut==='none') return '';
   const m = st.taper ? 'taper' : st.slope && st.cut==='pocket' ? 'slope' : 'flat';
   let h=`<div class="eyebrow sm">Depth</div><div class="seg sm">${st.cut==='pocket'?`<button data-dm="flat" aria-pressed="${m==='flat'}">Flat</button><button data-dm="slope" aria-pressed="${m==='slope'}">Sloped</button>`:`<button data-dm="flat" aria-pressed="${m==='flat'}">Straight</button>`}${R?`<button data-dm="taper" aria-pressed="${m==='taper'}">Tapered</button>`:''}</div>`;
-  if(m==='slope'){ const sl=st.slope;
-    h+=`<div class="ss-slrow"><button class="btn ghost sm${slopePick?.end==='a'?' on':''}" data-sp="a">${slopePick?.end==='a'?'Tap the start…':'Pick start'}</button>${f('d0','Start depth',sl.d0)}</div>
-      <div class="ss-slrow"><button class="btn ghost sm${slopePick?.end==='b'?' on':''}" data-sp="b">${slopePick?.end==='b'?'Tap the end…':'Pick end'}</button>${f('d1','End depth',sl.d1)}</div>
-      <p class="note">Tap <b>Pick start</b>, then a point on the drawing (it snaps), and type its depth; the same for the end. The depth runs evenly from one to the other and stays the same straight across. Cut with the ¾″ bullnose bit, passes along the slope.</p>`; }
+  if(m==='slope'){ const sl=st.slope, n=slopePts(sl).length;
+    h+=`<div class="cw-fs">${f('d0','Start depth',sl.d0)}${f('d1','End depth',sl.d1)}</div>
+      <div class="seg wrap sm"><button data-sl="auto">Centre line</button><button data-sl="straight">Straight</button><button data-sl="rev">Reverse</button></div>
+      <div class="row"><button class="btn ghost sm${slopePick?.mode==='add'?' on':''}" data-sl="add">${slopePick?.mode==='add'?'Tap where…':'＋ Point'}</button><button class="btn ghost sm${slopePick?.mode==='del'?' on':''}" data-sl="del" ${n>2?'':'disabled'}>${slopePick?.mode==='del'?'Tap a point…':'− Point'}</button></div>
+      <p class="note">The slope follows the orange path from the hollow end (start) to the filled end, ${fin(slopeLength(sl))} long, in ${n-1} straight run${n>2?'s':''}: the depth at any spot is the depth at the nearest point of the path, so a channel keeps sloping round its bends. <b>Centre line</b> finds the middle of the pocket; drag any point to move it (it snaps), ＋ / − to add or take out points. Cut with the ¾″ bullnose bit.</p>`; }
   if(m==='taper'){ const tp=st.taper, ce=S.ents.find(e=>e.kind==='circle' && hyp(e.cx-R.c[0], e.cy-R.c[1])<0.05); if(ce) R.r=ce.rad;
     h+=`<div class="cw-fs">${f('td0','Top ⌀',2*R.r)}${f('td1','Bottom ⌀',tp.d1)}</div><p class="note">A cone: ⌀ ${fin(2*R.r)} at the face, ⌀ ${fin(tp.d1)} at ${st.cut==='thru'?'the far face (right through)':fin(+st.depth||0)+' deep'}. Cut with the ¾″ bullnose bit, in rings stepping down; the bottom ⌀ can't be under ¾″.</p>`; }
   return h;
@@ -847,10 +862,15 @@ function inspector(){
   box.querySelectorAll('[data-cut]').forEach(b=>b.onclick=()=>{ regs.forEach(r=>{ r.set.cut=b.dataset.cut; if(r.set.cut==='pocket' && !(r.set.depth>0)) r.set.depth=1; r.tight = r.set.cut==='none'?[]:tightSpots(r); }); S.regs=REG.map(r=>({seed:r.seed, ...r.set})); HIST.track(); render(); });
   box.querySelectorAll('[data-dm]').forEach(b=>b.onclick=()=>{ const r=regs[0], st=r.set, m=b.dataset.dm; slopePick=null;
     if(m==='flat'){ delete st.slope; delete st.taper; }
-    if(m==='slope'){ delete st.taper; const B=bbox(r.outer), y=(B.y0+B.y1)/2; st.slope ||= { a:[+B.x0.toFixed(4), +y.toFixed(4)], b:[+B.x1.toFixed(4), +y.toFixed(4)], d0:+st.depth||1, d1:Math.max(0.25, (+st.depth||1)+1) }; }
+    if(m==='slope'){ delete st.taper; if(!st.slope){ const B=bbox(r.outer), y=(B.y0+B.y1)/2, c=centreLine(r.outer, r.holes); st.slope={ pts:c || [[+B.x0.toFixed(4), +y.toFixed(4)],[+B.x1.toFixed(4), +y.toFixed(4)]], d0:+st.depth||1, d1:Math.max(0.25, (+st.depth||1)+1) }; } }
     if(m==='taper'){ delete st.slope; const R=roundOf(r); st.taper ||= { d1:+Math.max(0.75, 2*R.r-1).toFixed(4) }; }
     S.regs=REG.map(g=>({seed:g.seed, ...g.set})); HIST.track(); render(); });
-  box.querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>{ const k=sel.find(q=>q.t==='reg')?.k; slopePick = slopePick?.end===b.dataset.sp ? null : { k, end:b.dataset.sp }; render(); if(slopePick) toast(`Tap the ${b.dataset.sp==='a'?'start':'end'} of the slope on the drawing`); });
+  box.querySelectorAll('[data-sl]').forEach(b=>b.onclick=()=>{ const r=regs[0], st=r?.set.slope; if(!st) return; const a=b.dataset.sl;
+    if(a==='add'||a==='del'){ slopePick = slopePick?.mode===a ? null : { k:sel.find(q=>q.t==='reg')?.k, mode:a }; render(); if(slopePick) toast(a==='add'?'Tap on the drawing where the new point goes':'Tap the point to take out'); return; }
+    if(a==='auto'){ const c=centreLine(r.outer, r.holes); if(c){ st.pts=c; toast(`Centre line: ${c.length} points`); } else toast('Couldn’t find a centre line: use Straight and add points'); }
+    if(a==='straight'){ const P=slopePts(st); st.pts=[P[0], P[P.length-1]]; }
+    if(a==='rev'){ st.pts=slopePts(st).slice().reverse(); }
+    delete st.a; delete st.b; S.regs=REG.map(g=>({seed:g.seed, ...g.set})); HIST.track(); render(); });
   box.querySelector('[data-sn]')?.addEventListener('change', e=>{ regs[0].set.name=e.target.value.trim(); S.regs=REG.map(r=>({seed:r.seed, ...r.set})); HIST.track(); render(); });
   box.querySelectorAll('[data-sf]').forEach(i=>i.onchange=()=>{ const v=parseIn(i.value); if(!isFinite(v)) return render(); setVal(i.dataset.sf, v, regs, ents); });
   box.querySelectorAll('[data-sa]').forEach(b=>b.onclick=()=>act(b.dataset.sa, ents));

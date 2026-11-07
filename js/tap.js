@@ -23,6 +23,7 @@ import { gcode, TOOLS, SKIN, THRU } from './gcode.js';
 import { cncSettings, zip } from './cnc.js';
 import { fin } from './format.js';
 import { bool, boolTree, toolRings, area } from './geom2d.js';
+import { slopeDepth, mapSlope, slopePts } from './slope.js';
 
 const BLANK = 48, R = TOOLS[13].d/2;
 const SLOT = { in:1.375, z:0.53, over:0.1875 };
@@ -69,20 +70,23 @@ function extend(p, q, open, {L,Rr,B,T,W}){
 function bullnoseOp(ops, o, U, t, warn){
   const T=TOOLS[14], R=T.d/2, out=[];
   if(o.slope){
+    // passes 0.15″ apart, lengthwise along the slope's longest straight run (a channel's long legs get long passes),
+    // inside the bit's reach of the outline; the tip's Z at every ¼″ from the depth along the slope's path
     const rings=(o.tool||[]).map(r=>r.map(([x,y])=>[U(x), y])); if(!rings.length){ warn.push(`sloped pocket ${o.name||''} is narrower than the ¾″ bit: not cut`); return; }
-    const Bd=rings.reduce((a,r)=>Math.abs(area(r))>Math.abs(area(a))?r:a), A=[U(o.slope.a[0]), o.slope.a[1]], B=[U(o.slope.b[0]), o.slope.b[1]];
-    const v=[B[0]-A[0], B[1]-A[1]], L=Math.hypot(v[0],v[1])||1e-6, u=[v[0]/L, v[1]/L], n=[-u[1], u[0]], d0=+o.slope.d0, d1=+o.slope.d1;
-    const zAt = s => Math.max(THRU, t-(d0+(d1-d0)*Math.max(0, Math.min(1, s/L))));
-    const dot=(p,w)=>(p[0]-A[0])*w[0]+(p[1]-A[1])*w[1], ns=Bd.map(p=>dot(p,n)), lo=Math.min(...ns), hi=Math.max(...ns);
+    const Bd=rings.reduce((a,r)=>Math.abs(area(r))>Math.abs(area(a))?r:a), SL=mapSlope(o.slope, ([x,y])=>[U(x),y]), SP=slopePts(SL);
+    let u=[1,0], best=0; for(let i=0;i<SP.length-1;i++){ const dx=SP[i+1][0]-SP[i][0], dy=SP[i+1][1]-SP[i][1], l=Math.hypot(dx,dy); if(l>best){ best=l; u=[dx/l, dy/l]; } }
+    const n=[-u[1], u[0]], A=SP[0]||[0,0], dot=(p,w)=>(p[0]-A[0])*w[0]+(p[1]-A[1])*w[1], ns=Bd.map(p=>dot(p,n)), lo=Math.min(...ns), hi=Math.max(...ns);
+    const zAt = P => Math.max(THRU, t-slopeDepth(SL, P));
     let k=0;
     for(let c=lo+0.002; c<=hi-0.002+1e-9; c+=T.finish, k++){
       const xs=[]; for(let i=0;i<Bd.length;i++){ const p=Bd[i], q=Bd[(i+1)%Bd.length], a=dot(p,n)-c, b=dot(q,n)-c; if((a<0)!==(b<0)){ const f=a/(a-b); xs.push(dot([p[0]+f*(q[0]-p[0]), p[1]+f*(q[1]-p[1])], u)); } }
       xs.sort((a,b)=>a-b);
       for(let j=0;j+1<xs.length;j+=2){ const s0=xs[j], s1=xs[j+1]; if(s1-s0<0.01) continue;
-        const ss=[s0, ...[0,L].filter(x=>x>s0 && x<s1), s1], at=s=>[A[0]+u[0]*s+n[0]*c, A[1]+u[1]*s+n[1]*c];
-        let run=ss.map(s=>{ const P=at(s); return [+P[0].toFixed(4), +P[1].toFixed(4), +zAt(s).toFixed(4)]; }); if(k%2) run=run.reverse(); out.push(run); } }
+        const N=Math.max(1, Math.ceil((s1-s0)/0.25)), run=[];
+        for(let m=0;m<=N;m++){ const sv=s0+(s1-s0)*m/N, P=[A[0]+u[0]*sv+n[0]*c, A[1]+u[1]*sv+n[1]*c]; run.push([+P[0].toFixed(4), +P[1].toFixed(4), +zAt(P).toFixed(4)]); }
+        out.push(k%2 ? run.reverse() : run); } }
     if(!out.length){ warn.push(`sloped pocket ${o.name||''}: no room for the bullnose`); return; }
-    ops.push({ tp:'bullnose', kind:'path3', runs:out, tool:14, what:`${o.name||'sloped pocket'} (slope ${fin(d0)} → ${fin(d1)}, ¾″ bullnose)` });
+    ops.push({ tp:'bullnose', kind:'path3', runs:out, tool:14, what:`${o.name||'sloped pocket'} (slope ${fin(+o.slope.d0)} → ${fin(+o.slope.d1)} along its path, ¾″ bullnose)` });
     return;
   }
   // tapered round hole

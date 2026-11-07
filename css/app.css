@@ -1352,3 +1352,4 @@ dialog.v3-dlg.v3-full .v3-cube{top:max(12px, env(safe-area-inset-top,0px));right
 .ss-taper{fill:none;stroke:#d9682b;stroke-width:2;stroke-dasharray:6 4}
 .ss-slrow{display:flex;align-items:flex-end;gap:8px;margin:6px 0}
 .ss-slrow .btn.on{background:#d9682b;color:#fff;border-color:#d9682b}
+.ss-sm{fill:#fff;stroke:#d9682b;stroke-width:2}

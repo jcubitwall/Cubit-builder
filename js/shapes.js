@@ -14,6 +14,7 @@
    cuts with their depth. A pocket as deep as the panel is a through cut. */
 import { canSave, canEdit } from './role.js';
 import { flatten, bbox, bboxAll, mirrorAll, normalize, toolRings, area } from './geom2d.js';
+import { mapSlope } from './slope.js';
 
 const SHAPELIB=[];
 const KEY='cubit-shapes';
@@ -51,14 +52,14 @@ function boxOf(s){ if(s.regs?.length) return bbox(s.regs.flatMap(r=>r.outer)); r
 function placeItem(shape){
   const B=boxOf(shape), m=P=>P.map(([x,y])=>[+(x-B.x0).toFixed(4), +(y-B.y0).toFixed(4)]);
   const base={ kind:'shape', ref:shape.id, name:shape.name, w:+B.w.toFixed(4), h:+B.h.toFixed(4), mx:false, my:false };
-  if(shape.regs?.length) return { ...base, regs:shape.regs.map(r=>({ outer:m(r.outer), holes:(r.holes||[]).map(m), cut:r.cut, depth:r.depth, name:r.name||'', ...(r.slope?{ slope:{ ...r.slope, a:m([r.slope.a])[0], b:m([r.slope.b])[0] } }:{}), ...(r.taper?{ taper:{ ...r.taper } }:{}) })) };
+  if(shape.regs?.length) return { ...base, regs:shape.regs.map(r=>({ outer:m(r.outer), holes:(r.holes||[]).map(m), cut:r.cut, depth:r.depth, name:r.name||'', ...(r.slope?{ slope:mapSlope(r.slope, q=>m([q])[0]) }:{}), ...(r.taper?{ taper:{ ...r.taper } }:{}) })) };
   return { ...base, geo:normalize(shape.contours) };
 }
 /* the item's regions as outlines (+ islands), lower-left of its box at 0,0, mirrored as asked (y up) */
 function regionsOf(it){
   if(it.regs){ const f=P=>P.map(([x,y])=>[it.mx?it.w-x:x, it.my?it.h-y:y]);
     return it.regs.filter(r=>r.cut==='thru'||r.cut==='pocket').map(r=>({ pts:f(r.outer), holes:(r.holes||[]).map(f), cut:r.cut, depth:+r.depth||0, name:r.name||'',
-      ...(r.slope?{ slope:{ ...r.slope, a:f([r.slope.a])[0], b:f([r.slope.b])[0] } }:{}), ...(r.taper?{ taper:{ ...r.taper } }:{}) })); }
+      ...(r.slope?{ slope:mapSlope(r.slope, q=>f([q])[0]) }:{}), ...(r.taper?{ taper:{ ...r.taper } }:{}) })); }
   const geo=normalize(mirrorAll(it.geo||[], !!it.mx, !!it.my));
   return geo.filter(c=>(c.kind==='circle' || c.closed) && c.cut!=='none').map(c=>({ pts:flatten(c, 0.005), holes:[], cut:c.cut||'pocket', depth:+c.depth||0, name:c.name||'' }));
 }
@@ -78,7 +79,7 @@ function expandWallShapes(w){
         return; }
       if(isThru(r,t)){ out.openings.push({ kind:'shape', shape:'poly', name:nm, path:pts, ...(isl.length?{islands:isl}:{}), tool:toolRings([pts,...isl],true), x:r4(B.x0), y:r4(B.y0), w:r4(B.x1-B.x0), h:r4(B.y1-B.y0), key }); return; }
       const inside=it.face==='inside', fl=P=>inside ? P.map(([x,y])=>[r4(L-x),y]) : P, P=fl(pts), I=isl.map(fl), Q=bb(P);
-      const sl=r.slope ? { ...r.slope, a:fl(mv([r.slope.a]))[0], b:fl(mv([r.slope.b]))[0] } : null;
+      const sl=r.slope ? mapSlope(r.slope, q=>fl(mv([q]))[0]) : null;
       (inside?out.inside:out.outside).push({ kind:'pocket', shape:'poly', name:nm, path:P, ...(I.length?{islands:I}:{}), ...(sl?{ slope:sl }:{}), tool:toolRings([P,...I],false), depth:r.depth, x:r4((Q.x0+Q.x1)/2), y:r4((Q.y0+Q.y1)/2), w:r4(Q.x1-Q.x0), h:r4(Q.y1-Q.y0), key });
     });
   });
