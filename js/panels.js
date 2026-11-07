@@ -79,6 +79,8 @@ function bodyWall(slot, w){
   // a wall between pods taken out: no SIP at all, one full-height opening wall to wall, nothing on its faces
   if(jt===0) return { ...out, removed:true, openings:[{ kind:'opening', gap:true, x:0, y:0, w:out.L, h:H, key:'removed', bare:true }], inside:[], outside:[] };
   if(elecHook) out=elecHook(slot, out);
+  // a face item past the wall's end (it was placed on a longer wall) is never drawn hanging in the air
+  if(out?.L){ const inL=b=>isShaped(b) || (b.x>0 && b.x<out.L); out={ ...out, inside:(out.inside||[]).filter(inL), outside:(out.outside||[]).filter(inL) }; }
   return shallowBoxes(out);
 }
 /* a wall thinner than 4½″ gets the shallow device box (boxes.js): its pocket depth, unless set by hand */

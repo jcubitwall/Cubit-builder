@@ -727,3 +727,8 @@ Pick a wall where two pods join and its panel shows **Between pods · thickness*
 ### Cubit catalogue ⇄ outside catalogues, inside every category
 
 Every Library category with an outside catalogue has a switch at the top: **Cubit catalogue** (what Cubit homes use) and the outside one — a maker's (North Air under Windows) or a store's (Home Depot under Fireplaces). When a category has several outside catalogues, a drop-down picks which one. The choice is remembered per category in this browser, so flipping between Cubit's own and a maker's is one tap. Adopted items show up in the Cubit catalogue straight away. Categories without an outside catalogue show no switch.
+
+### Electrical fixes: shortened walls, hardwired fireplaces
+
+- **A plug on a wall that got shorter** (a middle wall cut back after a plug was added or moved by hand) used to keep its old place along the full 8′ and was drawn hanging in the air past the wall's end, even outside the house. It's now pulled back onto the wall, to the nearest chase inside it, and flagged *the wall got shorter: moved back onto it, check where it goes*; and no face item is ever drawn past a wall's end.
+- **Fireplace Power: Plug ⇄ Hardwired** now changes the hole in the wall too: Plug → a device box (pocket 2⅜ × 3⅜″, 3″ deep); Hardwired → a 4″ square junction box (pocket 4⅜ × 4⅜″, 2¼″ deep; 1⅝″ in walls thinner than 4½″), in the 3D, sheets and the CNC .tap files. The junction box is in Library → Plugs & switches → Device boxes.

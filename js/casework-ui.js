@@ -358,7 +358,7 @@ function boxGrid(){
   const card=b=>`<div class="cw-card cw-bcard"><div class="cw-thumb">${boxSVG(b)}</div><b>${esc(b.name)}</b>
     <small>${b.model?`<code>${esc(b.model)}</code> · `:''}${b.w} × ${b.h} × ${b.d}″ deep${b.cuin?` · ${b.cuin} cu in`:''}${b.price?` · $${b.price.toFixed(2)}`:''}</small>
     <small>CNC pocket ${fin2(b.pocket.w)} × ${fin2(b.pocket.h)}, <b>${fin2(b.pocket.depth)} deep</b></small>
-    <p class="note">${b.use==='shallow'?`<b>Automatic in walls thinner than ${fin2(THIN_BELOW)}</b>. `:`<b>Automatic in walls ${fin2(THIN_BELOW)} and thicker</b>. `}${esc(b.note||'')}${b.url?` <a class="linkbtn" href="${esc(b.url)}" target="_blank" rel="noopener">Home Depot</a>`:''}</p></div>`;
+    <p class="note">${b.use==='jbox'?'<b>Automatic for hardwired fireplaces</b>. ':b.use==='shallow'?`<b>Automatic in walls thinner than ${fin2(THIN_BELOW)}</b>. `:`<b>Automatic in walls ${fin2(THIN_BELOW)} and thicker</b>. `}${esc(b.note||'')}${b.url?` <a class="linkbtn" href="${esc(b.url)}" target="_blank" rel="noopener">Home Depot</a>`:''}</p></div>`;
   return `<section class="cw-grid cw-bgrid"><p class="note cw-span">The box a plug, switch or data jack sits in. Each wall gets one by its thickness, and the CNC pocket follows (a box's depth unlocked by hand in the panel builder keeps its own).</p>${BOXLIB.map(card).join('')}</section>`;
 }
 /* fold away a category group (left) or a heading's cards (right); remembered in this browser */

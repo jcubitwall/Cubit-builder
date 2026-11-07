@@ -12,6 +12,8 @@ const BOXLIB = [
     pocket:{ w:2.375, h:3.375, depth:1.625 }, use:'shallow', gangable:true, steel:true, csa:true, price:6.47, sku:'1000106184',
     url:'https://www.homedepot.ca/product/iberville-3-x-2-x-1-1-2-d-gangable-8-cu-inch-rectangle-steel-device-box/1000106184',
     note:'Galvanized steel, flush mounting ears, gangs to 2 or 3 gangs. For walls thinner than 4½″.' },
+  { id:'BX-JB-4SQ', name:'4″ square junction box (hardwired)', maker:'', model:'', w:4, h:4, d:2.125, cuin:null,
+    pocket:{ w:4.375, h:4.375, depth:2.25 }, use:'jbox', note:'For a hardwired fireplace insert (its Power set to Hardwired): the plug box becomes this one, and the CNC pocket changes with it. In walls thinner than 4½″: the 1½″ deep version, pocket 1⅝″.' },
 ];
 const THIN_BELOW = 4.5;          // walls thinner than this get the shallow box
 const boxById = id => BOXLIB.find(b=>b.id===id) || null;

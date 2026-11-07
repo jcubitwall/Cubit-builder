@@ -49,7 +49,7 @@ const REACH = { plug:18, counter:18, gfci:18, appl:18, data:18, wp:18, switch:6,
 const R_WALL = 70.866, R_COUNTER = 35.433, MIN_RUN = 35.433, MIN_COUNTER = 11.8, BASIN = 39.37;
 const NUDGE = 2;   // a box up to 2″ either side of a chase's centre still counts as on it (centre first)
 const SW_OFF = 6, CORNER = 3, JOINT = 2.9, STUD = 1.5, BOX_GAP = 4;
-const BOX = { std:{w:2.375, h:3.375}, double:{w:4.125, h:3.625} };
+const BOX = { std:{w:2.375, h:3.375}, double:{w:4.125, h:3.625}, jbox:{w:4.375, h:4.375} };   // jbox: a 4″ square junction box (boxes.js)
 /* box size by gang (single / double / triple): any box can be set to any of them, per home (ov.g) */
 const GANG = { 1:{w:2.375, h:3.375}, 2:{w:4.125, h:3.625}, 3:{w:5.875, h:3.625} };
 const gangOf = b => b.g || (b.rk==='double' || b.rk==='tvr' ? 2 : 1);
@@ -62,6 +62,13 @@ const NAME = { plug:'Plug box', counter:'Counter plug box', gfci:'GFCI plug box'
 const RCPT = new Set(['plug','counter','gfci','appl','data','wp','tvr']);
 const underWindow = (W, a, y, hw=BOX.std.w/2) => (W.w.openings||[]).some(op=>op.kind==='window' && y<op.y && a+hw+STUD>op.x && a-hw-STUD<op.x+op.w);
 const NUDGES = [0,0.5,-0.5,1,-1,1.5,-1.5,2,-2];
+/* a box placed or moved by hand on a wall that has since got shorter (a middle wall cut back, a pod change): pulled
+   back onto the wall, to the nearest chase inside it, and flagged; never left hanging past the wall's end */
+function onWall(W, a){
+  const lo=CORNER+1.25, hi=W.Lin-CORNER-1.25; if(a>=lo && a<=hi) return { a, moved:false };
+  const c=W.chases.filter(x=>x>=lo && x<=hi).sort((p,q)=>Math.abs(p-a)-Math.abs(q-a))[0];
+  return { a:+(c ?? Math.max(lo, Math.min(hi, a))).toFixed(3), moved:true };
+}
 const onChase = (W, a) => W.chases.some(c=>Math.abs(c-a)<=NUDGE+0.01);
 const ROUND = v => Math.round(v*8)/8;
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -205,7 +212,7 @@ function compute(k){
   const at = (L,u) => { u=mod(u,L.P); for(const W of L.walls){ const l=W.loop; if(u>=l.lo-1e-6 && u<=l.hi+1e-6) return { W, a:aOf(W,u), edge:Math.min(u-l.lo, l.hi-u) }; } return null; };
 
   /* ---- can a box go here? */
-  const sz = rk => rk==='double' || rk==='tvr' ? BOX.double : BOX.std;
+  const sz = rk => rk==='double' || rk==='tvr' ? BOX.double : rk==='jbox' ? BOX.jbox : BOX.std;
   function okAt(W, face, a, y, rk, o={}){
     if(!o.any && !o.furn && !W.auto) return false;   // furniture's own plugs go on every wall; the rest only on walls by the rules
     const {w,h}=sz(rk), hw=w/2, hh=h/2;
@@ -470,10 +477,11 @@ function compute(k){
   boxes.forEach(b=>{ if(!b.id) return; if(b.lock){ out.push(b); return; }   // a locked box (the fireplace's) ignores hand changes
     if(ov.del?.[b.id]){ b.removed=true; return; }
     if(ov.g?.[b.id]) b.g=ov.g[b.id];
-    const mv=ov.mv?.[b.id]; if(mv){ if(mv.a!=null) b.a=mv.a; if(mv.y!=null) b.y=mv.y; b.moved=true; b.chase=onChase(b.W,b.a); b.flags=b.flags.filter(f=>f!=='needs a chase'); if(!b.chase) b.flags.push('needs a chase'); if(RCPT.has(b.rk) && underWindow(b.W,b.a,b.y)) b.flags.push('under a window'); if(b.face==='in' && RCPT.has(b.rk) && nearTub(tubs,b.W,b.a,BOX.std.w/2)) b.flags.push('within 500 mm of the tub / shower'); }
+    const mv=ov.mv?.[b.id]; if(mv){ if(mv.a!=null){ const fit=onWall(b.W, mv.a); b.a=fit.a; if(fit.moved) b.shrunk=true; } if(mv.y!=null) b.y=mv.y; b.moved=true; b.chase=onChase(b.W,b.a); b.flags=b.flags.filter(f=>f!=='needs a chase'); if(!b.chase) b.flags.push('needs a chase'); if(RCPT.has(b.rk) && underWindow(b.W,b.a,b.y)) b.flags.push('under a window'); if(b.face==='in' && RCPT.has(b.rk) && nearTub(tubs,b.W,b.a,BOX.std.w/2)) b.flags.push('within 500 mm of the tub / shower'); }
     out.push(b); });
-  (ov.add||[]).forEach(u=>{ const W=byKey[u.w]; if(!W) return; const chase=onChase(W,u.a);
-    out.push({ id:u.id, W, face:u.face||'in', a:u.a, y:u.y, rk:u.rk, ...(u.g?{ g:u.g }:{}), chase, user:true, note:u.note||'', why:'added by hand', flags:[...(chase||u.face==='out'?[]:['needs a chase']), ...(RCPT.has(u.rk) && underWindow(W,u.a,u.y)?['under a window']:[]), ...((u.face||'in')==='in' && RCPT.has(u.rk) && nearTub(tubs,W,u.a,BOX.std.w/2)?['within 500 mm of the tub / shower']:[])] }); });
+  (ov.add||[]).forEach(u=>{ const W=byKey[u.w]; if(!W) return; const fit=onWall(W, u.a), chase=onChase(W,fit.a);
+    out.push({ id:u.id, W, face:u.face||'in', a:fit.a, ...(fit.moved?{ shrunk:true }:{}), y:u.y, rk:u.rk, ...(u.g?{ g:u.g }:{}), chase, user:true, note:u.note||'', why:'added by hand', flags:[...(chase||u.face==='out'?[]:['needs a chase']), ...(RCPT.has(u.rk) && underWindow(W,u.a,u.y)?['under a window']:[]), ...((u.face||'in')==='in' && RCPT.has(u.rk) && nearTub(tubs,W,u.a,BOX.std.w/2)?['within 500 mm of the tub / shower']:[])] }); });
+  out.forEach(b=>{ if(b.shrunk) b.flags.push('the wall got shorter: moved back onto it, check where it goes'); });
 
   /* ---- switches: a number each (S1, S2 … for the electrician) and what each switch in the box does.
      By the rules: the room's lights (3-way / 4-way with the room's other doors when the room has 3-way), an outside
@@ -514,9 +522,9 @@ function compute(k){
 
   /* ---- into the walls */
   const byWall={};
-  out.forEach(b=>{ const {w,h}=GANG[gangOf(b)]||sz(b.rk), W=b.W, o=(byWall[W.s.id] ||= { inside:[], outside:[] });
+  out.forEach(b=>{ const {w,h}=b.rk==='jbox' ? BOX.jbox : (GANG[gangOf(b)]||sz(b.rk)), W=b.W, o=(byWall[W.s.id] ||= { inside:[], outside:[] });
     const nm = b.rk==='switch' && b.way>1 ? `${b.way}-way switch box` : NAME[b.rk] || 'Box';
-    const item={ kind:'box', shape:'rect', w, h, depth:3, x:+(b.face==='in' ? W.Lin-b.a : b.a).toFixed(4), y:b.y, rk:b.rk==='wp'?'plug':b.rk, name:nm, gang:gangOf(b), devs:(b.devs||[]).map(id=>deviceById(id)?.name).filter(Boolean), ...(b.sn?{ sn:b.sn, uses:b.useText, links:b.uses.filter(u=>u.grp).map(u=>({ grp:u.grp, order:u.order.map(id=>outById[id]?.sn) })) }:{}), auto:b.id, ...(b.chase?{}:{ offChase:true }) };
+    const item={ kind:'box', shape:'rect', w, h, depth:b.rk==='jbox' ? 2.25 : 3, ...(b.rk==='jbox'?{ box:'BX-JB-4SQ' }:{}), x:+(b.face==='in' ? W.Lin-b.a : b.a).toFixed(4), y:b.y, rk:b.rk==='wp'?'plug':b.rk, name:nm, gang:gangOf(b), devs:(b.devs||[]).map(id=>deviceById(id)?.name).filter(Boolean), ...(b.sn?{ sn:b.sn, uses:b.useText, links:b.uses.filter(u=>u.grp).map(u=>({ grp:u.grp, order:u.order.map(id=>outById[id]?.sn) })) }:{}), auto:b.id, ...(b.chase?{}:{ offChase:true }) };
     (b.face==='in' ? o.inside : o.outside).push(item); b.name=nm; });
   const removed=boxes.filter(b=>b.removed);
   return { byWall, boxes:out, removed, flags, confirms, rooms:Object.values(rooms).map(R=>({ key:R.key, name:R.name, entries:R.entries.length, bath:R.bath, kitchen:R.kitchen, bed:R.bed })) };
