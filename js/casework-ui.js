@@ -8,7 +8,8 @@ import { itemModel } from './casework3d.js';
 import { frontSVG } from './casework-svg.js';
 import { centreUnderWindow, fitBaseToSink, furnitureOf, furnById, updateItem, removeItem, duplicateItem, turnItem, refreshItem, addItem, snap, applyFurniture, podsShown, freeSpot, groupMembers, makeGroup, ungroup, relinkGroup, renameGroup, setGroupFrom, removeGroup, groupRecipe } from './furniture.js';
 import { plumbNote } from './plumbing.js';
-import { kitchenById, newKitchenId, saveKitchen } from './kitchens.js';
+import { KITCHENS, kitchenById, newKitchenId, saveKitchen, deleteKitchen, onKitchensChanged } from './kitchens.js';
+import { kitchenPicture, recipeOf } from './kitchen3d.js';
 import { state, save } from './state.js';
 import { canSave, canEdit } from './role.js';
 import { homeGroup, wallGroups, highlight } from './scene3d.js';
@@ -57,6 +58,7 @@ const NAV = [
   ['Building', [['b:walls','Walls'],['b:layers','Floors, ceilings & roofs'],['b:decks','Decks']]],
   ['Windows & doors', [['u:win','Windows'],['u:ext','Exterior doors'],['u:int','Interior doors']]],
   ['Plugs & switches', [['d:sw','Switches'],['d:rc','Plugs (receptacles)'],['d:dt','Data & TV']]],
+  ['Kitchens & groups', [['k:kit','Kitchens & groups']]],
   ['Cabinets & wardrobes', ['base','upper','tall','linen','wardrobe','vanity','bench','shelf','counter']],
   ['Kitchen & laundry', ['appliance']],
   ['Bathroom', ['bath']],
@@ -82,8 +84,9 @@ const LAYER_NAME = {'floor-ext':'Exterior floor','floor-int':'Interior floor','c
 /* windows & doors (units.js): windows · exterior doors (man doors and patio doors) · interior doors (place 'int') */
 const U_OF = { 'u:win':u=>TYPES[u.type]?.cat==='window', 'u:ext':u=>TYPES[u.type]?.cat!=='window' && u.place!=='int', 'u:int':u=>u.place==='int' };
 const live = x => !x.deleted && !x.purged;
-const countOf = c => c.startsWith('d:') ? DEVICES.filter(d=>d.kind===c.slice(2) && live(d)).length : c.startsWith('b:') ? B_LIST[c]().filter(live).length : c.startsWith('u:') ? UNITLIB.filter(u=>U_OF[c](u) && live(u)).length : ITEMS.filter(i=>i.cat===c && live(i)).length;
-const navName = c => (c.startsWith('b:')||c.startsWith('u:')||c.startsWith('d:')) ? NAV.flatMap(([,cs])=>cs).find(x=>Array.isArray(x) && x[0]===c)[1] : (CATS.find(x=>x.k===c)?.name || c);
+const homeGroups = () => { const G=new Map(); try{ furnitureOf().forEach(o=>{ if(o.grp?.id) (G.get(o.grp.id)||G.set(o.grp.id,[]).get(o.grp.id)).push(o); }); }catch(e){} return [...G.values()]; };
+const countOf = c => c==='k:kit' ? KITCHENS.length : c.startsWith('d:') ? DEVICES.filter(d=>d.kind===c.slice(2) && live(d)).length : c.startsWith('b:') ? B_LIST[c]().filter(live).length : c.startsWith('u:') ? UNITLIB.filter(u=>U_OF[c](u) && live(u)).length : ITEMS.filter(i=>i.cat===c && live(i)).length;
+const navName = c => (c.startsWith('b:')||c.startsWith('u:')||c.startsWith('d:')||c.startsWith('k:')) ? NAV.flatMap(([,cs])=>cs).find(x=>Array.isArray(x) && x[0]===c)[1] : (CATS.find(x=>x.k===c)?.name || c);
 let showGone=false;
 /* undo / redo of the item on screen: its sizes, options and mirror */
 const pickIt = it => it ? JSON.parse(JSON.stringify({ w:it.w, h:it.h, d:it.d, y:it.y||0, opt:it.opt||{}, mirror:!!it.mirror })) : null;
@@ -121,6 +124,7 @@ function render(){
   if(view.item){ renderDetail(body); return; }
   if(view.cat.startsWith('b:')){ body.innerHTML=nav+buildingGrid(view.cat); bindNav(body); bindBuilding(body); return; }
   if(view.cat.startsWith('d:')){ body.innerHTML=nav+deviceGrid(view.cat); bindNav(body); bindDevices(body); return; }
+  if(view.cat==='k:kit'){ body.innerHTML=nav+kitchenGrid(); bindNav(body); bindKitchens(body); return; }
   // every other card: tap to open it; 3D quick view, and (editors) Rename and Delete, on each
   const unitCat=view.cat.startsWith('u:'), kind=unitCat?'units':'casework';
   const all=unitCat ? UNITLIB.filter(u=>U_OF[view.cat](u) && !u.purged) : ITEMS.filter(i=>i.cat===view.cat && !i.purged);
@@ -142,6 +146,39 @@ function render(){
   body.querySelectorAll('.cw-bcard[data-uid]').forEach(c=>c.onclick=e=>{ if(e.target.closest('button')) return; import('./viewer3d.js').then(m=>m.openViewer('units', c.dataset.uid)); });
   body.querySelectorAll('.cw-bcard[data-k]').forEach(c=>c.onclick=e=>{ if(e.target.closest('button')) return; view.item=newItem(c.dataset.k); view.edit=null; view.explode=0; view.sel=null; HIST.reset(); render(); });
 }
+
+/* ---------------------------------------------------------------- Kitchens & groups: the saved kitchens (the team's),
+   then the groups in the home on screen that aren't saved yet. Tap a card for it in 3D. */
+const kitPic = (key, items) => { const u=kitchenPicture(key, items); return u ? `<img src="${u}" alt="">` : `<span class="note">${items.length} items</span>`; };
+function kitchenGrid(){
+  const ed=canEdit(), H=homeGroups().filter(M=>!M[0].grp.from || !kitchenById(M[0].grp.from));
+  const card=K=>`<div class="cw-card cw-bcard cw-kit" data-kid="${esc(K.id)}"><div class="cw-thumb">${kitPic('kit:'+K.id+':'+(K.rev||0), K.items)}</div><b>${esc(K.name)}</b>
+    <small>${K.items.length} items${K.note?` · ${esc(K.note)}`:''}</small>
+    <div class="cw-bact"><button class="btn ghost sm" data-k3d="${esc(K.id)}">3D</button>${ed?`<button class="btn ghost sm" data-kren="${esc(K.id)}">Rename</button><button class="btn ghost sm danger" data-kdel="${esc(K.id)}">Delete</button>`:''}</div></div>`;
+  const hcard=M=>{ const g=M[0].grp; return `<div class="cw-card cw-bcard cw-kit" data-hgid="${esc(g.id)}"><div class="cw-thumb">${kitPic('home:'+g.id, recipeOf(M))}</div><b>${esc(g.name)}</b>
+    <small>${M.length} items · in ${esc(MODELS[state.model]?.name||'this home')}, not saved yet</small>
+    <div class="cw-bact"><button class="btn ghost sm" data-h3d="${esc(g.id)}">3D</button>${ed?`<button class="btn ghost sm" data-hsave="${esc(g.id)}">Save to the library…</button>`:''}</div></div>`; };
+  return `<section class="cw-grid cw-bgrid"><div class="cw-bbar"><input type="search" id="cwQ" placeholder="Search kitchens" aria-label="Search"></div>
+    ${KITCHENS.map(card).join('') || '<p class="note">No saved kitchens yet. In a home, pick several cabinets, Group them, then Save to kitchen library.</p>'}
+    ${H.length?`<div class="cw-ng cw-span">In this home · not in the library yet</div>${H.map(hcard).join('')}`:''}</section>`;
+}
+function bindKitchens(body){
+  const again=()=>render(), view3d=(name, items, sub)=>import('./viewer3d.js').then(m=>m.openViewer('kitchen', null, { name, items, sub }));
+  const q=body.querySelector('#cwQ'); if(q) q.oninput=()=>{ const Q=q.value.toLowerCase(); body.querySelectorAll('.cw-kit').forEach(c=>{ c.hidden=!!Q && !c.textContent.toLowerCase().includes(Q); }); };
+  const openK=id=>{ const K=kitchenById(id); if(K) view3d(K.name, K.items, `saved kitchen · ${K.items.length} items`); };
+  const openH=gid=>{ const M=groupMembers(gid); if(M.length) view3d(M[0].grp.name, recipeOf(M), `group in this home · ${M.length} items`); };
+  body.querySelectorAll('[data-k3d]').forEach(b=>b.onclick=()=>openK(b.dataset.k3d));
+  body.querySelectorAll('[data-h3d]').forEach(b=>b.onclick=()=>openH(b.dataset.h3d));
+  body.querySelectorAll('.cw-kit[data-kid]').forEach(c=>c.onclick=e=>{ if(!e.target.closest('button')) openK(c.dataset.kid); });
+  body.querySelectorAll('.cw-kit[data-hgid]').forEach(c=>c.onclick=e=>{ if(!e.target.closest('button')) openH(c.dataset.hgid); });
+  body.querySelectorAll('[data-kren]').forEach(b=>b.onclick=async()=>{ const K=kitchenById(b.dataset.kren); if(!K) return; const v=await askName({ title:'Rename the kitchen', current:K.name }); if(!v || v===K.name) return;
+    try{ await saveKitchen({ ...K, name:v }, true); toast(`Renamed to “${v}”`); again(); }catch(err){ toast('Not renamed: '+err.message); } });
+  body.querySelectorAll('[data-kdel]').forEach(b=>b.onclick=async()=>{ const K=kitchenById(b.dataset.kdel); if(!K) return;
+    if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to delete'; return; }
+    try{ await deleteKitchen(K.id); toast(`“${K.name}” deleted · homes that have it keep their copy`); again(); }catch(err){ toast('Not deleted: '+err.message); } });
+  body.querySelectorAll('[data-hsave]').forEach(b=>b.onclick=()=>{ const M=groupMembers(b.dataset.hsave); if(M[0]) saveGroupDialog(M[0]); });
+}
+onKitchensChanged(()=>{ if(dlg?.open && view.cat==='k:kit' && !view.item && view.tab==='lib') render(); });
 
 function bindNav(body){ body.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{ view.cat=b.dataset.cat; view.item=null; showGone=false; if(view.tab==='set' && !setTab(view.cat)) view.tab='lib'; render(); }); }
 /* walls, floors / ceilings / roofs, decks: cards; tap for 3D; editors rename and delete (2 weeks to bring back) */

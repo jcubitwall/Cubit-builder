@@ -26,7 +26,8 @@ import { deckName } from './deckframe.js';
 import { furnMeshes, furnById, snap, addItem, updateItem, refreshItem, applyFurniture, showFurnGhost, hideFurnGhost, turnItem, setHolderVisible, handleMeshes, roomBeyond, stretchTo, rotXZ, turnStart, turnTo, groupMembers, setMany, moveHolder, addRecipe, furnitureOf, onFurnChanged } from './furniture.js';
 import { planFor } from './electrical.js';
 import { midHandleMeshes, startMid, trackMid, endMid, handleY } from './midhandles.js';
-import { KITCHENS, kitchenById } from './kitchens.js';
+import { KITCHENS, kitchenById, onKitchensChanged } from './kitchens.js';
+import { kitchenPicture } from './kitchen3d.js';
 import { fmt as fmtCw, settings as cwSettings } from './casework.js';
 const fmtIn = v => fmtCw(v)+(cwSettings().units==='mm'?' mm':'″');
 import { CATS, ITEMS, newItem, itemDef, partsOf } from './casework.js';
@@ -484,7 +485,7 @@ function renderTray(){
   if(trayTab==='cab'){
     const items=ITEMS.filter(d=>d.cat===trayCat && !d.deleted);
     const sel = `<label class="tray-cat"><span>Category</span><select id="trayCat" aria-label="Category"><option value="__kit" ${trayCat==='__kit'?'selected':''}>Kitchens &amp; groups</option>${CATS.map(c=>`<option value="${c.k}" ${c.k===trayCat?'selected':''}>${c.name}</option>`).join('')}</select></label>`;
-    if(trayCat==='__kit'){ tray.innerHTML = tabs + sel + (KITCHENS.map(K=>`<button class="tray-it cab kit" data-kit="${K.id}" title="${K.name.replace(/"/g,'&quot;')}"><b>${K.name.replace(/</g,'&lt;')}</b><small>${K.items.length} items</small></button>`).join('') || '<span class="tray-none">No saved kitchens yet. Group cabinets in a home, then save the group.</span>'); return; }
+    if(trayCat==='__kit'){ tray.innerHTML = tabs + sel + (KITCHENS.map(K=>{ const u=kitchenPicture('kit:'+K.id+':'+(K.rev||0), K.items); return `<button class="tray-it cab kit" data-kit="${K.id}" title="${K.name.replace(/"/g,'&quot;')}">${u?`<span class="tray-cab tray-kit"><img src="${u}" alt=""></span>`:''}<b>${K.name.replace(/</g,'&lt;')}</b><small>${K.items.length} items</small></button>`; }).join('') || '<span class="tray-none">No saved kitchens yet. Group cabinets in a home, then save the group.</span>') + `<button class="tray-it more" data-open="lib"><b>Library…</b><small>kitchens in 3D</small></button>`; return; }
     tray.innerHTML = tabs + sel
       + items.map(d=>{ const it=newItem(d.k); return `<button class="tray-it cab" data-k="${d.k}" title="${d.name.replace(/"/g,'&quot;')}"><span class="tray-cab">${frontSVG(it,{pad:1})}</span><b>${d.name.replace(/ · .*/,'')}</b><small>${d.name.includes(' · ')?d.name.split(' · ')[1]:`${Math.round(it.w*8)/8}″ wide`}</small></button>`; }).join('')
       + `<button class="tray-it more" data-open="lib"><b>Library…</b><small>sizes, 3D, parts</small></button>`;
@@ -553,14 +554,15 @@ function dragMid(e, b){
 tray.addEventListener('change', e=>{ if(e.target.id==='trayCat'){ trayCat=e.target.value; renderTray(); tray.scrollLeft=0; } });
 /* a tap on a tray item: add it at the first spot it fits (cabinets: against the wall nearest the middle of the first pod) */
 let trayDragAt=0;
+onKitchensChanged(()=>{ if(trayTab==='cab' && trayCat==='__kit') renderTray(); });
 tray.addEventListener('click', e=>{
   if(performance.now()-trayDragAt < 800) return;
   const tb=e.target.closest('[data-tab]'); if(tb){ trayTab=tb.dataset.tab; renderTray(); return; }
     const b=e.target.closest('.tray-it'); if(!b) return;
-  if(b.dataset.open){ openCaseLib({cat:trayCat}); return; }
+  if(b.dataset.open){ openCaseLib({cat: trayCat==='__kit' ? 'k:kit' : trayCat}); return; }
   if(!editable()) return;
   if(b.dataset.k){ openCaseLib({k:b.dataset.k}); return; }
-  if(b.dataset.kit){ toast('Drag the kitchen into a pod. It backs onto the wall you drop it on.'); return; }
+  if(b.dataset.kit){ const K=kitchenById(b.dataset.kit); if(K) import('./viewer3d.js').then(m=>m.openViewer('kitchen', null, { name:K.name, items:K.items, sub:`saved kitchen · ${K.items.length} items · drag it from the tray into a pod to add it` })); return; }
   if(b.dataset.deck){ const s=deckSpots(b.dataset.deck,0)[0]; if(!s){ toast('No place for this deck yet.'); return; } after(addDeck(b.dataset.deck, s.x, s.z, 0), 'Deck added'); return; }
   const item = b.dataset.lib ? {lib:b.dataset.lib} : {t:b.dataset.t};
   const s=dockSpots(item, 0)[0]; if(!s){ toast('No place for this pod yet.'); return; } after(addPod(item, s.x, s.z, 0), 'Pod added');

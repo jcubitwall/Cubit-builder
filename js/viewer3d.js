@@ -13,6 +13,7 @@ import { buildWallMesh, buildLayerMesh, buildDeckMesh, buildHome, explodeAt, the
 import * as S3 from './scene3d.js';
 import { buildUnit } from './scene3d.js';
 import { itemModel } from './casework3d.js';
+import { kitchenModel } from './kitchen3d.js';
 import { newItem, itemDef } from './casework.js';
 import { UNITLIB, TYPES } from './units.js';
 import { deviceById, deviceSVG } from './devices.js';
@@ -130,6 +131,8 @@ function showCase(it){
   spread(g.children, c=>{ const [a,b,e]=c.userData.ex||[0,0,0]; return new THREE.Vector3(a*k, b*k, e*k); });
 }
 /* a window or door, standing in a rough opening just bigger than it */
+/* a kitchen or a group of cabinets: each cabinet where the group puts it; exploded, they step apart from the middle */
+function showKitchen(items){ const g=kitchenModel(items); content=new THREE.Group(); content.add(g); radial(g.children[0], 0.5); }
 function showUnit(u){
   const o={ x:0, y:0, w:u.w+0.25, h:u.h+0.25, kind:TYPES[u.type]?.cat||'window' };
   const g=buildUnit(o, { unit:u, hand:u.hand||'L', swing:u.swing||'in' }, Math.max(0.4,(u.d||4.5)/12+0.05), u.place==='int');
@@ -223,6 +226,7 @@ function openViewer(kind, id, opts={}){
     else if(kind==='casework'){ const d=itemDef(id); if(!d) return; const it=newItem(id); title=d.name; sub=`${id} · ${it.w} × ${it.h} × ${it.d}″`; showCase(it); }
     else if(kind==='units'){ const u=UNITLIB.find(x=>x.id===id); if(!u) return; title=u.name; sub=`${u.id} · ${TYPES[u.type]?.label||u.type}${u.place==='int'?' · interior':''} · ${u.w} × ${u.h}″`; showUnit(u); }
     else if(kind==='devices'){ const d=deviceById(id); if(!d) return; title=d.name; sub=`${d.id} · ${d.kind==='sw'?'switch':d.kind==='rc'?'plug (receptacle)':'data / TV'} · with its box behind`; showDevice(d); }
+    else if(kind==='kitchen'){ if(!opts.items?.length) return; title=opts.name||'Kitchen'; sub=opts.sub||`${opts.items.length} items`; showKitchen(opts.items); }
     else if(kind==='decks'){ const D=DECKLIB.find(x=>x.id===id); if(!D) return; title=D.name; sub=`${D.id} · ${D.w}′ × ${D.d}′ deck`; showDeck(D); }
   }catch(e){ console.error(e); }
   if(!content){ return; }

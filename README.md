@@ -694,3 +694,7 @@ copy goes into My Drafts as "(copy from this device)" and the latest save opens.
   - **Continue into Pod N** adds the next pod's own piece on the same line and at the same thickness. Each pod still builds its own piece.
   - A middle wall can be moved right up to (and into) an open joint or a full-height opening. It only keeps 1″ clear of walls that actually have SIP along its length (`partLimits`).
 - Stored on the part: `t` (when not 4½), and `e0` / `e1` (its ends in inches along its run in the pod's own frame; none = to the wall). Mirroring a pod flips them; a shortened end is a free end (no notch); the wall body is the same library wall with bigger trims, so doors, the panel builder, sheets and CNC all follow.
+
+### Kitchens & groups
+
+Saved kitchens (cabinet groups) have their own place in the Library, **Kitchens & groups**, at the top of the inside categories. Each card shows a 3D picture of the kitchen, its item count and note; tap it (or 3D) to open it in the 3D viewer with exploded view, like any cabinet. Editors can rename or delete it there (homes that already have it keep their copy). Under them, the groups in the home on screen that aren't in the library yet, each with **Save to the library…**. In Build's bottom bar, Cabinets → Kitchens & groups shows the same pictures: drag one into a pod to add it, or tap it to see it in 3D. The pictures are drawn once from the Library's own cabinet models (js/kitchen3d.js).
