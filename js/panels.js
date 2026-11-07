@@ -2,6 +2,7 @@
 import { FT, H, PW, NOTCH, TI } from './config.js';
 import { expandWallShapes, expandLayerShapes } from './shapes.js';
 import { jointWallT } from './state.js';
+import { boxForWall } from './boxes.js';
 
 /* ============================================================ panel geometry (shared by 3D + 2D) */
 /* Walls are measured in inches from the LEFT END SEEN FROM OUTSIDE (x = 0) to L.
@@ -77,7 +78,14 @@ function bodyWall(slot, w){
   if(jointHook) out=jointHook(slot, out);
   // a wall between pods taken out: no SIP at all, one full-height opening wall to wall, nothing on its faces
   if(jt===0) return { ...out, removed:true, openings:[{ kind:'opening', gap:true, x:0, y:0, w:out.L, h:H, key:'removed', bare:true }], inside:[], outside:[] };
-  return elecHook ? elecHook(slot, out) : out;
+  if(elecHook) out=elecHook(slot, out);
+  return shallowBoxes(out);
+}
+/* a wall thinner than 4½″ gets the shallow device box (boxes.js): its pocket depth, unless set by hand */
+function shallowBoxes(w){
+  const bx=boxForWall(w?.t); if(!w || !bx || bx.use!=='shallow') return w;
+  const fix=b=>isElecBox(b) && !b.free?.depth ? { ...b, depth:bx.pocket.depth, box:bx.id } : b;
+  return { ...w, inside:(w.inside||[]).map(fix), outside:(w.outside||[]).map(fix) };
 }
 let jointHook=null;
 const setJointHook = fn => { jointHook=fn; };

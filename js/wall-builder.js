@@ -21,6 +21,7 @@ import { choose } from './state.js';
 import { fin } from './format.js';
 import { UNITLIB, TYPES, unitById, unitSVG } from './units.js';
 import { rsoOf, brandKeyOf, brandName } from './brands.js';
+import { boxForWall } from './boxes.js';
 import { panelSpans, wallGaps, wallStretches, isGapOpening, isElecBox } from './panels.js';
 import { kindChooser, switchKind } from './panel-builder.js';
 import { SHAPELIB, placeItem, regionsOf, shapeThumb } from './shapes.js';
@@ -362,6 +363,7 @@ function fields(){
       ${centred(k,it) ? f('y','Centre from the floor', ruleY(k,it)) : f('y','Bottom from the floor', it.y)}
       ${!isOp ? f('depth','Depth', it.depth||3) : ''}</div>
     <div class="rf-wrap">${RF.panel()}</div>
+    ${!isOp && it.kind==='box' && boxForWall(W.t).use==='shallow' ? `<p class="note">Thin wall (${fin(W.t)}): ${esc(boxForWall(W.t).name)} (${esc(boxForWall(W.t).model)}), pocket ${fin(boxForWall(W.t).pocket.depth)} deep.</p>` : ''}
     ${!isOp && (it.depth||3) >= W.t-0.0625 ? `<p class="note">As deep as the wall: it goes right through. The CNC cuts it as a hole through the panel, the same as a round hole.</p>` : ''}
     ${sel.k==='op' && !it.shape && it.y<=0.5 && it.y+it.h>=H-0.5 ? `<label class="wb-chk"><input type="checkbox" id="wbGap" ${isGapOpening(it)?'checked':''}> No SIP in this opening — panels laid out round it (full panels, one cut panel per side)</label>` : ''}
     ${sideNote}${yNote}
@@ -430,6 +432,7 @@ function add(kind){
   if(BOX[kind] || kind==='pocket' || kind==='light'){ const k=near(view), r=ruleFor(kind)||{};
     const b = kind==='pocket' ? {kind:'pocket', shape:'round', d:3, x:0, name:'Round pocket', rk:'pocket'} : kind==='light' ? {kind:'pocket', shape:'round', d:4, x:0, name:'Wall light box', rk:'light'} : {kind:'box', shape:'rect', ...BOX[kind], x:0, rk:kind};
     b.y = r.y ?? 48; b.depth = r.depth ?? 3;
+    { const bx=boxForWall(W.t); if(bx.use==='shallow' && b.kind==='box'){ b.depth=bx.pocket.depth; b.box=bx.id; } }   // a thin wall: the shallow box
     b.x=fromDrawX(k,b,c+ (W[k].length%3)*6); snapToChase(k,b); W[k].push(b); sel={k, i:W[k].length-1}; }
   else { const o = kind==='window' ? {kind, x:0, y:36, ...STD_RO.window} : kind==='door' ? {kind, x:0, y:0, ...(W.type==='int' ? {w:36.5, h:80.75} : STD_RO.door)} : kind==='patio' ? {kind, x:0, y:0, ...STD_RO.patio} : kind==='opening' ? {kind, x:0, y:0, w:48, h:82} : kind==='round' ? {kind:'window', shape:'round', d:ROUND_RO, x:0, y:36, w:ROUND_RO, h:ROUND_RO} : {kind:'vent', shape:'round', d:4, x:0, y:84, w:4, h:4};
     if(isUnitOp('op',o)){ const P=poolFor(o), u=P.find(u=>!u.sample && !u.confirm) || P.find(u=>!u.sample) || P[0]; if(u){ const rr=rsoOf(u); o.unit=u.id; o.w=rr.w; o.h=rr.h; } }

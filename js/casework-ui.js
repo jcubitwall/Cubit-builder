@@ -43,6 +43,7 @@ let dlg=null, view={ tab:'lib', cat:'base', item:null, edit:null, explode:0, sel
 import { makeHistory, histButtons, bindHistory } from './local-history.js';
 import { LIB, LAYERLIB, DECKLIB } from './data.js';
 import { UNITLIB, TYPES, unitSVG, saveTeamUnit, unitById, onUnitsChanged } from './units.js';
+import { BOXLIB, THIN_BELOW, boxSVG } from './boxes.js';
 import { BRANDS, brandById, brandKeyOf, brandName, rsoOf, bmOf, catalogOf } from './brands.js';
 import { itemRules, unitRules, rulesBox } from './item-rules.js';
 import { DEVICES, deviceSVG, saveDevice, newDeviceId, deviceById } from './devices.js';
@@ -59,7 +60,7 @@ const NAV_BASE = [
   ['Building', [['b:walls','Walls'],['b:layers','Floors, ceilings & roofs'],['b:decks','Decks']]],
   ['Windows & doors', [['u:win','Windows'],['u:ext','Exterior doors'],['u:int','Interior doors']]],
   ['Maker catalogues', []],
-  ['Plugs & switches', [['d:sw','Switches'],['d:rc','Plugs (receptacles)'],['d:dt','Data & TV']]],
+  ['Plugs & switches', [['d:sw','Switches'],['d:rc','Plugs (receptacles)'],['d:dt','Data & TV'],['d:bx','Device boxes']]],
   ['Kitchens & groups', [['k:kit','Kitchens & groups']]],
   ['Cabinets & wardrobes', ['base','upper','tall','linen','wardrobe','vanity','bench','shelf','counter']],
   ['Kitchen & laundry', ['appliance']],
@@ -89,7 +90,7 @@ const LAYER_NAME = {'floor-ext':'Exterior floor','floor-int':'Interior floor','c
 const U_OF = { 'u:win':u=>TYPES[u.type]?.cat==='window', 'u:ext':u=>TYPES[u.type]?.cat!=='window' && u.place!=='int', 'u:int':u=>u.place==='int' };
 const live = x => !x.deleted && !x.purged;
 const homeGroups = () => { const G=new Map(); try{ furnitureOf().forEach(o=>{ if(o.grp?.id) (G.get(o.grp.id)||G.set(o.grp.id,[]).get(o.grp.id)).push(o); }); }catch(e){} return [...G.values()]; };
-const countOf = c => c==='k:kit' ? KITCHENS.length : c.startsWith('u:cat:') ? catalogOf(c.slice(6)).length : c.startsWith('d:') ? DEVICES.filter(d=>d.kind===c.slice(2) && live(d)).length : c.startsWith('b:') ? B_LIST[c]().filter(live).length : c.startsWith('u:') ? UNITLIB.filter(u=>U_OF[c](u) && live(u)).length : ITEMS.filter(i=>i.cat===c && live(i)).length;
+const countOf = c => c==='d:bx' ? BOXLIB.length : c==='k:kit' ? KITCHENS.length : c.startsWith('u:cat:') ? catalogOf(c.slice(6)).length : c.startsWith('d:') ? DEVICES.filter(d=>d.kind===c.slice(2) && live(d)).length : c.startsWith('b:') ? B_LIST[c]().filter(live).length : c.startsWith('u:') ? UNITLIB.filter(u=>U_OF[c](u) && live(u)).length : ITEMS.filter(i=>i.cat===c && live(i)).length;
 const navName = c => (c.startsWith('b:')||c.startsWith('u:')||c.startsWith('d:')||c.startsWith('k:')) ? (NAV().flatMap(([,cs])=>cs).find(x=>Array.isArray(x) && x[0]===c)||[0,c])[1] : (CATS.find(x=>x.k===c)?.name || c);
 let showGone=false;
 /* undo / redo of the item on screen: its sizes, options and mirror */
@@ -127,6 +128,7 @@ function render(){
   if(view.tab==='set'){ if(st[1]==='shop'){ renderSettings(body); return; } body.innerHTML=nav+`<section class="cw-rules">${rulesFor(st[1])}</section>`; bindNav(body); bindRules(body); return; }
   if(view.item){ renderDetail(body); return; }
   if(view.cat.startsWith('b:')){ body.innerHTML=nav+buildingGrid(view.cat); bindNav(body); bindBuilding(body); return; }
+  if(view.cat==='d:bx'){ body.innerHTML=nav+boxGrid(); bindNav(body); return; }
   if(view.cat.startsWith('d:')){ body.innerHTML=nav+deviceGrid(view.cat); bindNav(body); bindDevices(body); return; }
   if(view.cat==='k:kit'){ body.innerHTML=nav+kitchenGrid(); bindNav(body); bindKitchens(body); return; }
   if(view.cat.startsWith('u:cat:')){ body.innerHTML=nav+catalogueGrid(view.cat.slice(6)); bindNav(body); bindCatalogue(body, view.cat.slice(6)); return; }
@@ -287,7 +289,33 @@ function editUnit(u){
 }
 onUnitsChanged(()=>{ if(dlg?.open && view.cat.startsWith('u:') && view.tab==='lib') render(); });
 
-function bindNav(body){ body.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{ view.cat=b.dataset.cat; view.item=null; showGone=false; if(view.tab==='set' && !setTab(view.cat)) view.tab='lib'; render(); }); }
+/* the electrical device boxes (boxes.js): which walls get which, and the pocket the CNC cuts for each */
+function boxGrid(){
+  const card=b=>`<div class="cw-card cw-bcard"><div class="cw-thumb">${boxSVG(b)}</div><b>${esc(b.name)}</b>
+    <small>${b.model?`<code>${esc(b.model)}</code> · `:''}${b.w} × ${b.h} × ${b.d}″ deep${b.cuin?` · ${b.cuin} cu in`:''}${b.price?` · $${b.price.toFixed(2)}`:''}</small>
+    <small>CNC pocket ${fin2(b.pocket.w)} × ${fin2(b.pocket.h)}, <b>${fin2(b.pocket.depth)} deep</b></small>
+    <p class="note">${b.use==='shallow'?`<b>Automatic in walls thinner than ${fin2(THIN_BELOW)}</b>. `:`<b>Automatic in walls ${fin2(THIN_BELOW)} and thicker</b>. `}${esc(b.note||'')}${b.url?` <a class="linkbtn" href="${esc(b.url)}" target="_blank" rel="noopener">Home Depot</a>`:''}</p></div>`;
+  return `<section class="cw-grid cw-bgrid"><p class="note cw-span">The box a plug, switch or data jack sits in. Each wall gets one by its thickness, and the CNC pocket follows (a box's depth unlocked by hand in the panel builder keeps its own).</p>${BOXLIB.map(card).join('')}</section>`;
+}
+/* fold away a category group (left) or a heading's cards (right); remembered in this browser */
+const FOLD_KEY='cubit-lib-folds';
+let folds=new Set(); try{ folds=new Set(JSON.parse(localStorage.getItem(FOLD_KEY)||'[]')); }catch(e){}
+const saveFolds=()=>{ try{ localStorage.setItem(FOLD_KEY, JSON.stringify([...folds])); }catch(e){} };
+function bindFolds(body){
+  // left: each group's name folds its categories (the one open stays shown)
+  body.querySelectorAll('.cw-cats .cw-ng').forEach(h=>{ const key='nav:'+h.textContent.trim(); h.classList.add('fold');
+    const items=[]; for(let n=h.nextElementSibling; n && !n.classList.contains('cw-ng'); n=n.nextElementSibling) items.push(n);
+    const cur=items.some(n=>n.getAttribute('aria-current')==='true');
+    const set=()=>{ const shut=folds.has(key) && !cur; h.classList.toggle('shut', shut); items.forEach(n=>n.hidden=shut); };
+    h.onclick=()=>{ if(folds.has(key)) folds.delete(key); else folds.add(key); saveFolds(); set(); }; set(); });
+  // right: a heading in the cards (a brand, a group) folds the cards under it
+  body.querySelectorAll('.cw-grid > .cw-ng.cw-span').forEach(h=>{ const key='grid:'+view.cat+':'+h.firstChild?.textContent?.trim(); h.classList.add('fold');
+    const items=[]; for(let n=h.nextElementSibling; n && !n.classList.contains('cw-ng'); n=n.nextElementSibling) items.push(n);
+    const set=()=>{ const shut=folds.has(key); h.classList.toggle('shut', shut); items.forEach(n=>n.hidden=shut); };
+    h.onclick=()=>{ if(folds.has(key)) folds.delete(key); else folds.add(key); saveFolds(); set(); }; set(); });
+}
+
+function bindNav(body){ bindFolds(body); body.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{ view.cat=b.dataset.cat; view.item=null; showGone=false; if(view.tab==='set' && !setTab(view.cat)) view.tab='lib'; render(); }); }
 /* walls, floors / ceilings / roofs, decks: cards; tap for 3D; editors rename and delete (2 weeks to bring back) */
 function buildingGrid(cat){
   const all=B_LIST[cat]().filter(x=>!x.purged), gone=all.filter(x=>x.deleted), list=all.filter(x=>showGone ? x.deleted : !x.deleted)

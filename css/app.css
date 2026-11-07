@@ -1337,3 +1337,7 @@ dialog.v3-dlg.v3-full .v3-cube{top:max(12px, env(safe-area-inset-top,0px));right
 .wb-usz button small{font-size:10px;opacity:.75}
 .wb-usz button[aria-pressed="true"]{background:var(--ink,#1c211e);color:#fff;border-color:var(--ink,#1c211e)}
 .wb-rso{margin:4px 0}
+/* library: groups fold away */
+.cw-ng.fold{cursor:pointer;user-select:none}
+.cw-ng.fold::before{content:'▾';display:inline-block;width:1em;transition:transform .15s}
+.cw-ng.fold.shut::before{transform:rotate(-90deg)}

@@ -10,7 +10,7 @@
        the opening that lies on a panel edge isn't cut, the cut runs out to that edge.
      · A panel cut to width is trimmed last in the interior pass: one line ⅜″ outside the finished edge,
        from Y −1/16 to 96 1/16. Its factory edge stays on the joint side.
-     · Boxes: 3″ pockets on the face they belong to. Vents: rectangular through-holes, two passes.
+     · Boxes: pockets on the face they belong to, 3″ deep (the shallow box in walls thinner than 4½″: 1⅝″, boxes.js). Vents: rectangular through-holes, two passes.
      · Einspine corner (end walls): from the exterior face, a ¾″ slot 1″–1¾″ in from the corner edge, down to
        Z 0.53 (leaves the inside skin). Taken from the shop's A and C wall files; still to be confirmed.
 */
@@ -162,10 +162,10 @@ function tapPlan(){
       p.extCuts.filter(b=>b.shape).forEach(b=>{ const z=t-(b.depth||DEPTH);
         if(z<=0.0625+1e-6) shapedOp(I, b, xo=>u(xo), t, z, W, warn, true); else shapedOp(E, b, xo=>BLANK-u(xo), t, z, W, warn, true); });
       p.intCuts.filter(b=>!b.shape).forEach(b=>{ const s=boxSize(b.kind), c=u(L-b.x);
-        I.push({tp:'boxes', kind:'pocket', x0:c-s.w/2, x1:c+s.w/2, y0:b.y-s.h/2, y1:b.y+s.h/2, z:t-DEPTH, what:b.kind}); });
+        I.push({tp:'boxes', kind:'pocket', x0:c-s.w/2, x1:c+s.w/2, y0:b.y-s.h/2, y1:b.y+s.h/2, z:t-(b.depth||DEPTH), what:b.kind+(b.box?` (${b.box})`:'')}); });
       // boxes, exterior face (mirror across the blank)
       p.extCuts.filter(b=>!b.shape).forEach(b=>{ const s=boxSize(b.kind), c=BLANK-u(b.x);
-        E.push({tp:'boxes', kind:'pocket', x0:c-s.w/2, x1:c+s.w/2, y0:b.y-s.h/2, y1:b.y+s.h/2, z:t-DEPTH, what:b.kind}); });
+        E.push({tp:'boxes', kind:'pocket', x0:c-s.w/2, x1:c+s.w/2, y0:b.y-s.h/2, y1:b.y+s.h/2, z:t-(b.depth||DEPTH), what:b.kind+(b.box?` (${b.box})`:'')}); });
       // Einspine corner slot(s), exterior face
       if(p.notch){
         const corners=[]; if(w.notch?.[0] && x0<=0.01) corners.push(W); if(w.notch?.[1] && x1>=L-0.01) corners.push(0);
