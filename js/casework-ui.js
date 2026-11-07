@@ -42,7 +42,8 @@ function download(name, text, type='text/csv'){ const a=document.createElement('
 let dlg=null, view={ tab:'lib', cat:'base', item:null, edit:null, explode:0, sel:null };
 import { makeHistory, histButtons, bindHistory } from './local-history.js';
 import { LIB, LAYERLIB, DECKLIB } from './data.js';
-import { UNITLIB, TYPES, unitSVG } from './units.js';
+import { UNITLIB, TYPES, unitSVG, saveTeamUnit, unitById, onUnitsChanged } from './units.js';
+import { BRANDS, brandById, brandKeyOf, brandName, rsoOf, bmOf, catalogOf } from './brands.js';
 import { itemRules, unitRules, rulesBox } from './item-rules.js';
 import { DEVICES, deviceSVG, saveDevice, newDeviceId, deviceById } from './devices.js';
 import { thumbSVG } from './panels.js';
@@ -54,9 +55,10 @@ import { rules, saveRules, sharedRules } from './wall-rules.js';
    wardrobes, kitchen & laundry, bathroom, plumbing, electrical, heating, furniture). Right: cards. The second tab is
    that category's settings: Shop settings (cabinets, countertops, sinks), Wall rules (walls, floors, electrical
    heights and locks), the electrical / plumbing / heating rules. */
-const NAV = [
+const NAV_BASE = [
   ['Building', [['b:walls','Walls'],['b:layers','Floors, ceilings & roofs'],['b:decks','Decks']]],
   ['Windows & doors', [['u:win','Windows'],['u:ext','Exterior doors'],['u:int','Interior doors']]],
+  ['Maker catalogues', []],
   ['Plugs & switches', [['d:sw','Switches'],['d:rc','Plugs (receptacles)'],['d:dt','Data & TV']]],
   ['Kitchens & groups', [['k:kit','Kitchens & groups']]],
   ['Cabinets & wardrobes', ['base','upper','tall','linen','wardrobe','vanity','bench','shelf','counter']],
@@ -67,6 +69,8 @@ const NAV = [
   ['Heating', ['fire','heat']],
   ['Furniture & TVs', ['furniture','tv']],
 ];
+/* the makers' catalogues (brands.js) fill their group once loaded */
+const NAV = () => NAV_BASE.map(([g,cs])=>g==='Maker catalogues' ? [g, BRANDS.map(b=>[`u:cat:${b.id}`, `${b.name} catalogue`])] : [g,cs]).filter(([,cs])=>cs.length);
 const SHOP_CATS = new Set(['base','upper','tall','linen','wardrobe','vanity','bench','shelf','counter','sink','fire']);
 /* what the second tab is for this category: [label, kind] or null (none) */
 function setTab(cat){
@@ -85,8 +89,8 @@ const LAYER_NAME = {'floor-ext':'Exterior floor','floor-int':'Interior floor','c
 const U_OF = { 'u:win':u=>TYPES[u.type]?.cat==='window', 'u:ext':u=>TYPES[u.type]?.cat!=='window' && u.place!=='int', 'u:int':u=>u.place==='int' };
 const live = x => !x.deleted && !x.purged;
 const homeGroups = () => { const G=new Map(); try{ furnitureOf().forEach(o=>{ if(o.grp?.id) (G.get(o.grp.id)||G.set(o.grp.id,[]).get(o.grp.id)).push(o); }); }catch(e){} return [...G.values()]; };
-const countOf = c => c==='k:kit' ? KITCHENS.length : c.startsWith('d:') ? DEVICES.filter(d=>d.kind===c.slice(2) && live(d)).length : c.startsWith('b:') ? B_LIST[c]().filter(live).length : c.startsWith('u:') ? UNITLIB.filter(u=>U_OF[c](u) && live(u)).length : ITEMS.filter(i=>i.cat===c && live(i)).length;
-const navName = c => (c.startsWith('b:')||c.startsWith('u:')||c.startsWith('d:')||c.startsWith('k:')) ? NAV.flatMap(([,cs])=>cs).find(x=>Array.isArray(x) && x[0]===c)[1] : (CATS.find(x=>x.k===c)?.name || c);
+const countOf = c => c==='k:kit' ? KITCHENS.length : c.startsWith('u:cat:') ? catalogOf(c.slice(6)).length : c.startsWith('d:') ? DEVICES.filter(d=>d.kind===c.slice(2) && live(d)).length : c.startsWith('b:') ? B_LIST[c]().filter(live).length : c.startsWith('u:') ? UNITLIB.filter(u=>U_OF[c](u) && live(u)).length : ITEMS.filter(i=>i.cat===c && live(i)).length;
+const navName = c => (c.startsWith('b:')||c.startsWith('u:')||c.startsWith('d:')||c.startsWith('k:')) ? (NAV().flatMap(([,cs])=>cs).find(x=>Array.isArray(x) && x[0]===c)||[0,c])[1] : (CATS.find(x=>x.k===c)?.name || c);
 let showGone=false;
 /* undo / redo of the item on screen: its sizes, options and mirror */
 const pickIt = it => it ? JSON.parse(JSON.stringify({ w:it.w, h:it.h, d:it.d, y:it.y||0, opt:it.opt||{}, mirror:!!it.mirror })) : null;
@@ -119,12 +123,14 @@ function render(){
   dlg.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected', b.dataset.tab===view.tab));
   const body=dlg.querySelector('.cw-body');
   stopViewer();
-  const nav=`<nav class="cw-cats" aria-label="Categories">${NAV.map(([g,cs])=>`<div class="cw-ng">${esc(g)}</div>${cs.map(c=>{ const k=Array.isArray(c)?c[0]:c; return `<button data-cat="${k}" aria-current="${k===view.cat}"><span>${esc(navName(k))}</span><small>${countOf(k)}</small></button>`; }).join('')}`).join('')}</nav>`;
+  const nav=`<nav class="cw-cats" aria-label="Categories">${NAV().map(([g,cs])=>`<div class="cw-ng">${esc(g)}</div>${cs.map(c=>{ const k=Array.isArray(c)?c[0]:c; return `<button data-cat="${k}" aria-current="${k===view.cat}"><span>${esc(navName(k))}</span><small>${countOf(k)}</small></button>`; }).join('')}`).join('')}</nav>`;
   if(view.tab==='set'){ if(st[1]==='shop'){ renderSettings(body); return; } body.innerHTML=nav+`<section class="cw-rules">${rulesFor(st[1])}</section>`; bindNav(body); bindRules(body); return; }
   if(view.item){ renderDetail(body); return; }
   if(view.cat.startsWith('b:')){ body.innerHTML=nav+buildingGrid(view.cat); bindNav(body); bindBuilding(body); return; }
   if(view.cat.startsWith('d:')){ body.innerHTML=nav+deviceGrid(view.cat); bindNav(body); bindDevices(body); return; }
   if(view.cat==='k:kit'){ body.innerHTML=nav+kitchenGrid(); bindNav(body); bindKitchens(body); return; }
+  if(view.cat.startsWith('u:cat:')){ body.innerHTML=nav+catalogueGrid(view.cat.slice(6)); bindNav(body); bindCatalogue(body, view.cat.slice(6)); return; }
+  if(view.cat.startsWith('u:')){ body.innerHTML=nav+unitGrid(view.cat); bindNav(body); bindUnitGrid(body); return; }
   // every other card: tap to open it; 3D quick view, and (editors) Rename and Delete, on each
   const unitCat=view.cat.startsWith('u:'), kind=unitCat?'units':'casework';
   const all=unitCat ? UNITLIB.filter(u=>U_OF[view.cat](u) && !u.purged) : ITEMS.filter(i=>i.cat===view.cat && !i.purged);
@@ -179,6 +185,107 @@ function bindKitchens(body){
   body.querySelectorAll('[data-hsave]').forEach(b=>b.onclick=()=>{ const M=groupMembers(b.dataset.hsave); if(M[0]) saveGroupDialog(M[0]); });
 }
 onKitchensChanged(()=>{ if(dlg?.open && view.cat==='k:kit' && !view.item && view.tab==='lib') render(); });
+
+/* ---------------------------------------------------------------- windows & doors, by brand
+   The Cubit library: what homes use. Sorted under each maker, the ones still to confirm with the maker flagged.
+   Editors and admins edit any of them to any size (the rough opening follows unless set by hand). */
+const fin2 = v => { const w=Math.floor(v+1e-6), f=Math.round((v-w)*16), g=(a,b)=>b?g(b,a%b):a; return f ? (f===16?`${w+1}″`:`${w} ${f/g(f,16)}/${16/g(f,16)}″`) : `${w}″`; };
+const unitLine = u => { const r=rsoOf(u); return `${esc(TYPES[u.type]?.label||u.type)} · ${fin2(u.w)} × ${fin2(u.h)} unit${r?` · RSO ${fin2(r.w)} × ${fin2(r.h)}`:''}`; };
+function unitGrid(cat){
+  const ed=canEdit(), all=UNITLIB.filter(u=>U_OF[cat](u) && !u.purged), items=all.filter(u=>!u.deleted), gone=all.length-items.length;
+  const groups={}; items.forEach(u=>(groups[brandKeyOf(u)] ||= []).push(u));
+  const order=Object.keys(groups).sort((a,b)=>(a==='sample')-(b==='sample') || brandName(a).localeCompare(brandName(b)));
+  const card=u=>`<div class="cw-card cw-bcard" data-uid="${esc(u.id)}"><div class="cw-thumb">${unitSVG(u.type, u.hand||'L', u.w, u.h, 120, u.place==='int', TYPES[u.type]?.round)}</div><b>${esc(u.name)}</b>
+    <small><code>${esc(u.id)}</code> · ${unitLine(u)}${u.sample?' · sample':''}</small>${u.confirm?'<small class="flipflag">size to confirm with the maker</small>':''}
+    <div class="cw-bact"><button class="btn ghost sm" data-c3d="${esc(u.id)}">3D</button>${ed?`<button class="btn ghost sm" data-uedit="${esc(u.id)}">Edit</button><button class="btn ghost sm" data-cren="${esc(u.id)}">Rename</button><button class="btn ghost sm danger" data-cdel="${esc(u.id)}">Delete</button>`:''}</div></div>`;
+  const cats=BRANDS.map(b=>`<button class="linkbtn" data-cat="u:cat:${esc(b.id)}">${esc(b.name)} catalogue →</button>`).join(' ');
+  return `<section class="cw-grid cw-bgrid"><div class="cw-bbar"><input type="search" id="cwQ" placeholder="Search names, IDs, brands" aria-label="Search">${gone?`<button class="linkbtn editor-only" id="cwGone">Deleted (${gone})</button>`:''}</div>
+    <p class="note cw-span">The Cubit library: only these go into homes and the panel builder. ${ed?`Add more from a maker's catalogue (${cats}), or ⋯ → Upload STEP → Window / door.`:'Editors and admins adopt new ones from the makers’ catalogues.'}</p>
+    ${order.map(k=>`<div class="cw-ng cw-span">${esc(brandName(k))} <small>${groups[k].length}</small></div>${groups[k].map(card).join('')}`).join('') || '<p class="note">None yet.</p>'}</section>`;
+}
+function bindUnitGrid(body){
+  const again=()=>render(), lib=()=>import('./library-ui.js');
+  body.querySelector('#cwGone')?.addEventListener('click', ()=>import('./trash-ui.js').then(m=>m.openTrash('units')));
+  const q=body.querySelector('#cwQ'); if(q) q.oninput=()=>{ const Q=q.value.toLowerCase(); body.querySelectorAll('.cw-bcard').forEach(c=>{ c.hidden=!!Q && !(c.textContent+' '+(c.dataset.uid||'')).toLowerCase().includes(Q); }); };
+  body.querySelectorAll('[data-c3d]').forEach(b=>b.onclick=()=>import('./viewer3d.js').then(m=>m.openViewer('units', b.dataset.c3d)));
+  body.querySelectorAll('[data-cren]').forEach(b=>b.onclick=()=>lib().then(m=>m.askRename('units', b.dataset.cren, again)));
+  body.querySelectorAll('[data-cdel]').forEach(b=>b.onclick=()=>lib().then(m=>m.askDelete(b, 'units', b.dataset.cdel, again)));
+  body.querySelectorAll('[data-uedit]').forEach(b=>b.onclick=()=>editUnit(unitById(b.dataset.uedit)));
+  body.querySelectorAll('.cw-bcard[data-uid]').forEach(c=>c.onclick=e=>{ if(e.target.closest('button')) return; import('./viewer3d.js').then(m=>m.openViewer('units', c.dataset.uid)); });
+  body.querySelectorAll('.cw-bbar ~ .note [data-cat], .cw-span [data-cat]').forEach(b=>b.onclick=()=>{ view.cat=b.dataset.cat; render(); });
+}
+/* a maker's catalogue: every style and size as scanned, with what the maker offers; Adopt puts one in the Cubit library */
+let catStyle=null;
+function catalogueGrid(bid){
+  const b=brandById(bid); if(!b) return '<p class="note">No such catalogue.</p>';
+  const ed=canEdit(), all=catalogOf(bid), st=catStyle && b.styles.some(s=>s.key===catStyle) ? catStyle : b.styles[0]?.key, S=b.styles.find(s=>s.key===st);
+  const have=new Set(UNITLIB.filter(u=>!u.deleted).map(u=>u.adoptedFrom||u.id));
+  const items=all.filter(u=>u.style===st), O=b.options||{};
+  const card=u=>{ const r=u.rso, inLib=have.has(u.id);
+    return `<div class="cw-card cw-bcard cw-catc${inLib?' in':''}" data-cid="${esc(u.id)}"><div class="cw-thumb">${unitSVG(u.type, 'L', u.w, u.h, 90)}</div><b>${fin2(u.w)} × ${fin2(u.h)}</b>
+      <small><code>${esc(u.id)}</code> · RSO ${fin2(r.w)} × ${fin2(r.h)}</small>
+      <div class="cw-bact"><button class="btn ghost sm" data-c3u="${esc(u.id)}">3D</button>${inLib?'<span class="note">✓ In the Cubit library</span>':ed?`<button class="btn sm" data-adopt="${esc(u.id)}">Adopt</button>`:''}</div></div>`; };
+  const rates=(S?.ratings||[]).length?`<table class="cat-rt"><tr><th>Glass</th><th>Grilles</th><th>ER</th><th>PG</th><th>Air</th><th>Water</th><th>Wind</th></tr>${S.ratings.map(r=>`<tr><td>${r.glass}</td><td>${r.grilles?'yes':'no'}</td><td>${r.ER}</td><td>${r.PG}</td><td>${r.air}</td><td>${r.water}</td><td>${r.wind}</td></tr>`).join('')}</table>`:'';
+  return `<section class="cw-grid cw-bgrid"><div class="cw-span cat-head">
+      <h3>${esc(b.name)} <a href="${esc(b.url)}" target="_blank" rel="noopener" class="linkbtn">${esc(b.url.replace(/^https?:\/\//,''))}</a></h3>
+      <p class="note">Scanned ${esc(b.scanned)}. ${esc(b.note)} Rough opening: unit + ${fin2(b.rso.dw)} wide and high${b.bm?`; brickmould unit + ${fin2(b.bm.dw)}`:''}. ${ed?'<b>Adopt</b> puts a size into the Cubit library, where it can be edited to the exact size North Air will make.':'Editors and admins adopt sizes into the Cubit library.'}</p>
+      <div class="seg wrap sm cat-styles">${b.styles.map(s=>`<button data-cst="${esc(s.key)}" aria-pressed="${s.key===st}">${esc(s.name)} <small>${s.w.length*s.h.length}</small></button>`).join('')}</div>
+      ${S?`<details class="cat-info" open><summary><b>${esc(S.name)}</b> · ${esc(S.note)} <a href="${esc(S.url)}" target="_blank" rel="noopener" class="linkbtn">maker's page</a></summary>
+        <div class="cat-cols"><div><div class="eyebrow sm">Features</div><ul>${S.features.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>${S.hardware.length?`<div class="eyebrow sm">Hardware</div><ul>${S.hardware.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}</div>
+        <div><div class="eyebrow sm">Colours</div><p class="note">Outside: ${esc((O.exterior||[]).join(', '))}<br>Inside: ${esc((O.interior||[]).join(', '))}</p><div class="eyebrow sm">Glass & grilles</div><p class="note">${esc((O.glass||[]).join(' · '))}<br>${esc((O.grilles||[]).join(', '))} · ${esc((O.grilleBars||[]).join('; '))}</p>${rates}</div></div>
+        <p class="note">Sizes: ${S.w.map(fin2).join(', ')} wide × ${S.h.map(fin2).join(', ')} high (a grid of common sizes, to confirm with ${esc(b.name)}).</p></details>`:''}
+      ${ed?`<div class="row"><button class="btn ghost sm" id="catAll">Adopt all ${items.filter(u=>!have.has(u.id)).length} ${esc(S?.name||'')} sizes</button></div>`:''}</div>
+    ${items.map(card).join('')}</section>`;
+}
+async function adopt(u){ return saveTeamUnit({ ...u, adoptedFrom:u.id, rsoAuto:true, adopted:new Date().toISOString() }); }
+function bindCatalogue(body, bid){
+  body.querySelectorAll('[data-cst]').forEach(b=>b.onclick=()=>{ catStyle=b.dataset.cst; render(); });
+  const byId=id=>catalogOf(bid).find(u=>u.id===id);
+  body.querySelectorAll('[data-c3u]').forEach(b=>b.onclick=()=>{ const u=byId(b.dataset.c3u); if(u) import('./viewer3d.js').then(m=>m.openViewer('unit', null, { unit:u })); });
+  body.querySelectorAll('[data-adopt]').forEach(b=>b.onclick=async()=>{ if(!canEdit()){ toast('Editors and admins adopt windows and doors.'); return; } const u=byId(b.dataset.adopt); if(!u) return; b.disabled=true;
+    try{ await adopt(u); toast(`${u.name} adopted into the Cubit library`); render(); }catch(err){ toast('Not adopted: '+err.message); b.disabled=false; } });
+  body.querySelector('#catAll')?.addEventListener('click', async e=>{ const b=e.target; if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to adopt them all'; return; } b.disabled=true;
+    const have=new Set(UNITLIB.filter(u=>!u.deleted).map(u=>u.adoptedFrom||u.id)), st=body.querySelector('[data-cst][aria-pressed="true"]')?.dataset.cst, L=catalogOf(bid).filter(u=>u.style===st && !have.has(u.id));
+    let n=0; for(const u of L){ try{ await adopt(u); n++; }catch(err){ toast('Stopped: '+err.message); break; } } toast(`${n} adopted into the Cubit library`); render(); });
+}
+/* edit a Cubit library window or door: every size; the rough opening follows the brand's rule unless set by hand */
+function editUnit(u){
+  if(!u) return; if(!canEdit()){ toast('Editors and admins edit windows and doors.'); return; }
+  let d=document.getElementById('unitDlg'); if(!d){ d=document.createElement('dialog'); d.id='unitDlg'; d.className='lib-dlg'; document.body.appendChild(d); }
+  const x={ ...u, rso:u.rso?{...u.rso}:null }, cat=TYPES[u.type]?.cat;
+  const types=Object.entries(TYPES).filter(([,t])=>t.cat===cat && !t.round===!TYPES[u.type]?.round);
+  const draw=()=>{ const auto=x.rsoAuto || !x.rso, r=auto ? rsoOf({ ...x, rso:null, rsoAuto:true }) : x.rso, T=TYPES[x.type]||{};
+    const fld=(k,l,v)=>`<label class="cw-f"><span>${l}</span><input data-uf="${k}" inputmode="decimal" value="${v}"><i>″</i></label>`;
+    d.innerHTML=`<form method="dialog" class="dlg ue-dlg"><div class="dlg-h"><h2>Edit ${esc(u.id)}</h2><button class="btn ghost" value="cancel">Cancel</button></div>
+      <p class="note">${esc(brandName(brandKeyOf(u)))}${u.adoptedFrom?` · adopted from the catalogue (${esc(u.adoptedFrom)})`:''}. Window and door makers build to size: set it to exactly what will be ordered.</p>
+      <label class="fld">Name<input id="ueN" value="${esc(x.name)}" maxlength="100"></label>
+      <div class="eyebrow sm">Type</div><div class="seg wrap sm">${types.map(([k,t])=>`<button type="button" data-ut="${k}" aria-pressed="${x.type===k}">${esc(t.label)}</button>`).join('')}</div>
+      <div class="eyebrow sm">The unit</div><div class="cw-fs">${fld('w','Width',x.w)}${fld('h','Height',x.h)}${fld('d','Frame depth',x.d||4.5)}</div>
+      ${T.hand?`<div class="eyebrow sm">${esc(T.hand)} (seen from outside)</div><div class="seg sm">${['L','R'].map(h=>`<button type="button" data-uh="${h}" aria-pressed="${(x.hand||'L')===h}">${h==='L'?'Left':'Right'}</button>`).join('')}</div>`:''}
+      ${T.swing?`<div class="eyebrow sm">Swing</div><div class="seg sm">${['in','out'].map(v=>`<button type="button" data-us="${v}" aria-pressed="${(x.swing||'in')===v}">${v==='in'?'In':'Out'}</button>`).join('')}</div>`:''}
+      ${cat==='door'?`<div class="eyebrow sm">Where</div><div class="seg sm"><button type="button" data-up="ext" aria-pressed="${x.place!=='int'}">Exterior</button><button type="button" data-up="int" aria-pressed="${x.place==='int'}">Interior</button></div>`:''}
+      <div class="eyebrow sm">Rough stud opening</div>
+      <label class="wb-chk"><input type="checkbox" id="ueAuto" ${auto?'checked':''}> From the unit (${esc(brandName(brandKeyOf(u)))} rule: + ${fin2((brandById(brandKeyOf(u))?.rso?.dw)??1.25)})</label>
+      <div class="cw-fs">${auto?`<p class="note">RSO <b>${fin2(r.w)} × ${fin2(r.h)}</b></p>`:fld('rw','RSO width',r.w)+fld('rh','RSO height',r.h)}</div>
+      <label class="wb-chk"><input type="checkbox" id="ueOk" ${x.confirm?'':'checked'}> Size confirmed with the maker</label>
+      <div class="row"><button class="btn" type="button" id="ueSave">Save to the Cubit library</button></div>
+      <p class="note">Walls already drawn with ${esc(u.id)} keep their rough opening until it's updated: opening one in the panel builder flags it, with a button to update it.</p></form>`;
+    d.querySelectorAll('[data-uf]').forEach(i=>i.onchange=()=>{ const v=parseFloat(i.value); if(!isFinite(v)||v<=0) return; const k=i.dataset.uf;
+      if(k==='rw'||k==='rh'){ x.rso={ ...(x.rso||r), [k==='rw'?'w':'h']:v }; x.rsoAuto=false; } else x[k]=v; setTimeout(draw); });
+    d.querySelectorAll('[data-ut]').forEach(b=>b.onclick=()=>{ x.type=b.dataset.ut; draw(); });
+    d.querySelectorAll('[data-uh]').forEach(b=>b.onclick=()=>{ x.hand=b.dataset.uh; draw(); });
+    d.querySelectorAll('[data-us]').forEach(b=>b.onclick=()=>{ x.swing=b.dataset.us; draw(); });
+    d.querySelectorAll('[data-up]').forEach(b=>b.onclick=()=>{ if(b.dataset.up==='int') x.place='int'; else delete x.place; draw(); });
+    d.querySelector('#ueN').onchange=e=>{ x.name=e.target.value.trim()||x.name; };
+    d.querySelector('#ueAuto').onchange=e=>{ if(e.target.checked){ x.rsoAuto=true; } else { x.rso=rsoOf({ ...x, rso:null, rsoAuto:true }); x.rsoAuto=false; } draw(); };
+    d.querySelector('#ueOk').onchange=e=>{ x.confirm=!e.target.checked; };
+    d.querySelector('#ueSave').onclick=async e=>{ e.target.disabled=true; x.name=d.querySelector('#ueN').value.trim()||x.name;
+      if(x.rsoAuto){ x.rso=rsoOf({ ...x, rso:null, rsoAuto:true }); const bm=bmOf({ ...x, bm:null, rsoAuto:true }); if(bm) x.bm=bm; }
+      try{ await saveTeamUnit(x); d.close(); toast(`${x.id} saved · ${fin2(x.w)} × ${fin2(x.h)}, RSO ${fin2(x.rso.w)} × ${fin2(x.rso.h)}`); if(dlg?.open) render(); }catch(err){ toast('Not saved: '+err.message); e.target.disabled=false; } };
+  };
+  draw(); d.showModal();
+}
+onUnitsChanged(()=>{ if(dlg?.open && view.cat.startsWith('u:') && view.tab==='lib') render(); });
 
 function bindNav(body){ body.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{ view.cat=b.dataset.cat; view.item=null; showGone=false; if(view.tab==='set' && !setTab(view.cat)) view.tab='lib'; render(); }); }
 /* walls, floors / ceilings / roofs, decks: cards; tap for 3D; editors rename and delete (2 weeks to bring back) */

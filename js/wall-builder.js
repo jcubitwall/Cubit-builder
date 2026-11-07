@@ -19,6 +19,8 @@ import { buildHome } from './scene3d.js';
 import { renderSide, toast } from './sidebar.js';
 import { choose } from './state.js';
 import { fin } from './format.js';
+import { UNITLIB, TYPES, unitById, unitSVG } from './units.js';
+import { rsoOf, brandKeyOf, brandName } from './brands.js';
 import { panelSpans, wallGaps, wallStretches, isGapOpening, isElecBox } from './panels.js';
 import { kindChooser, switchKind } from './panel-builder.js';
 import { SHAPELIB, placeItem, regionsOf, shapeThumb } from './shapes.js';
@@ -300,6 +302,43 @@ function elevation(){
   return `<svg class="wb-svg" viewBox="${-pad} ${-pad} ${len+2*pad} ${H+2*pad+8}" role="img" aria-label="The wall seen from ${view}">${g}${RF.overlay()}${TP.overlay()}
     <text x="0" y="${H+7}" class="wb-end">◀ left end seen from ${view}</text><text x="0" y="${H+12}" class="wb-end">${fitL()||fitR() ? `${fin(netL())} long (${W.len}′ less its ends)` : `${W.len}′ full length`} · ${W.t}″ thick · 96″ high</text></svg>`;
 }
+/* ---------------------------------------------------------------- the window / door in an opening
+   A window, door or patio opening takes a unit from the Cubit library (only those: adopt more in the Library), and
+   its rough stud opening comes from that unit: the size isn't typed. Type → maker → size → hinge / swing. */
+const UNIT_KINDS = ['window','door','patio'];
+const isUnitOp = (k, it) => k==='op' && it && UNIT_KINDS.includes(it.kind) && it.shape!=='round';
+function poolFor(it){
+  const int=W.type==='int';
+  return UNITLIB.filter(u=>!u.deleted && TYPES[u.type]?.cat===it.kind && !TYPES[u.type]?.round && (it.kind!=='door' || (int ? u.place==='int' : u.place!=='int')));
+}
+let pickType=null, pickBrand=null, pickKey=null;
+function unitPicker(it){
+  const key=`${sel?.k}:${sel?.i}`; if(key!==pickKey){ pickKey=key; pickType=null; pickBrand=null; }
+  const pool=poolFor(it), same=u=>{ const r=rsoOf(u); return Math.abs(r.w-it.w)<0.07 && Math.abs(r.h-it.h)<0.07; };
+  // an opening drawn before units were picked here: the library unit its size matches, if any
+  const cur=it.unit ? unitById(it.unit) : (pool.find(u=>same(u) && !u.sample) || pool.find(same) || null), matched=!it.unit && !!cur;
+  if(!pool.length) return `<div class="wb-unit"><p class="note">No ${it.kind==='patio'?'patio door':it.kind} in the Cubit library for this wall yet. Adopt one in the Library (Windows & doors → a maker's catalogue).</p></div>`;
+  const types=[...new Set(pool.filter(u=>!u.sample).map(u=>u.type)), ...new Set(pool.map(u=>u.type))].filter((v,i,a)=>a.indexOf(v)===i), t=(cur && types.includes(cur.type) && pickType==null) ? cur.type : (types.includes(pickType) ? pickType : types[0]);
+  const ofT=pool.filter(u=>u.type===t), brands=[...new Set(ofT.map(brandKeyOf))].sort((p,q)=>(p==='sample')-(q==='sample')), b=(cur && cur.type===t && pickBrand==null) ? brandKeyOf(cur) : (brands.includes(pickBrand) ? pickBrand : brands[0]);
+  const sizes=ofT.filter(u=>brandKeyOf(u)===b).sort((p,q)=>p.w-q.w || p.h-q.h), T=TYPES[t]||{};
+  const r=cur ? rsoOf(cur) : null;
+  return `<div class="wb-unit"><div class="eyebrow sm">${it.kind==='patio'?'Patio door':it.kind==='door'?'Door':'Window'} from the Cubit library</div>
+    ${cur?`<div class="wb-ucur">${unitSVG(cur.type, it.hand||cur.hand||'L', cur.w, cur.h, 40, cur.place==='int')}<span><b>${esc(cur.name)}</b><small><code>${esc(cur.id)}</code> · unit ${fin(cur.w)} × ${fin(cur.h)} · RSO <b>${fin(r.w)} × ${fin(r.h)}</b>${cur.confirm?' · <span class="flipflag">to confirm</span>':''}${matched?' · matched by its size':''}</small></span></div>`+(it.unit && cur && !same(cur) ? `<p class="note flipflag">${esc(cur.id)} was changed in the library since this opening was drawn (now RSO ${fin(rsoOf(cur).w)} × ${fin(rsoOf(cur).h)}). <button class="linkbtn" data-unit="${esc(cur.id)}">Update this opening</button></p>` : ''):`<p class="note flipflag">No unit picked yet: pick one and the opening takes its rough opening.</p>`}
+    <div class="wb-ug"><span class="wb-k">Type</span><div class="seg wrap sm">${types.map(k=>`<button data-utype="${k}" aria-pressed="${k===t}">${esc(TYPES[k]?.label||k)}</button>`).join('')}</div></div>
+    ${brands.length>1?`<div class="wb-ug"><span class="wb-k">Maker</span><div class="seg wrap sm">${brands.map(k=>`<button data-ubrand="${esc(k)}" aria-pressed="${k===b}">${esc(brandName(k))}</button>`).join('')}</div></div>`:''}
+    <div class="wb-ug"><span class="wb-k">Size</span><div class="wb-usz">${sizes.map(u=>{ const q=rsoOf(u); return `<button data-unit="${esc(u.id)}" aria-pressed="${cur?.id===u.id}" title="${esc(u.name)}"><b>${fin(u.w)} × ${fin(u.h)}</b><small>RSO ${fin(q.w)} × ${fin(q.h)}</small></button>`; }).join('')}</div></div>
+    ${cur && T.hand?`<div class="wb-ug"><span class="wb-k">${esc(T.hand)}</span><div class="seg sm">${['L','R'].map(h=>`<button data-uhand="${h}" aria-pressed="${(it.hand||cur.hand||'L')===h}">${h==='L'?'Left':'Right'}</button>`).join('')}</div></div>`:''}
+    ${cur && T.swing?`<div class="wb-ug"><span class="wb-k">Swing</span><div class="seg sm">${['in','out'].map(v=>`<button data-uswing="${v}" aria-pressed="${(it.swing||cur.swing||'in')===v}">${v==='in'?'In':'Out'}</button>`).join('')}</div></div>`:''}
+    <p class="note">The opening is the unit's rough stud opening; the size can't be typed here. A size that isn't listed: an editor adopts or edits one in the Library.</p></div>`;
+}
+/* put unit u in the opening: its rough opening, centred where the opening was */
+function setOpUnit(it, u){
+  const r=rsoOf(u); if(!r) return;
+  const cx=it.x+it.w/2; it.unit=u.id; it.w=r.w; it.h=r.h; it.x=Math.round((cx-r.w/2)*16)/16;
+  if(it.kind!=='window') it.y=0;
+  delete it.hand; delete it.swing;
+  snapToChase('op',it); snapToJoint('op',it);
+}
 function fields(){
   if(!sel) return `<p class="wb-mini">Tap an item to pick it · drag a picked item to move it · pinch to zoom</p>`;
   const it=listOf(sel.k)[sel.i]; if(!it) return '';
@@ -317,7 +356,8 @@ function fields(){
   return `<div class="wb-sel"><div class="eyebrow">${isOp ? (round?(it.kind==='window'?'Round window · 32″ window, 33″ R.O.':'Round hole through the wall'):it.kind==='opening'?'Cased opening':it.kind==='window'?'Window opening':'Door opening') : (it.name||(round?'Round pocket':'Box'))+` · ${sel.k} face`}</div>
     <label class="cw-f wb-name"><span>Name <small>(optional, shown on the sheets)</small></span><input data-nm="${isOp?'name':'label'}" value="${esc(isOp?it.name||'':it.label||'')}" placeholder="${esc(isOp?(round?(it.kind==='window'?'Round window':'Round hole'):it.kind==='opening'?'Cased opening':it.kind==='window'?'Window':'Door'):(it.name||'Box'))}" maxlength="60"></label>
     ${!isOp && isRcptBox(it) ? gangSeg(gangOfItem(it), 'data-wg') : ''}
-    <div class="cw-fs">${round && it.kind==='window' ? `<p class="note">Round window: 32″ across, so the rough opening is a fixed ⌀ 33″ circle. Set where it sits.</p>` : round ? f('d','Diameter',it.d) : f('w','Width',w)+f('h','Height',h)}
+    ${isUnitOp(k,it) ? unitPicker(it) : ''}
+    <div class="cw-fs">${round && it.kind==='window' ? `<p class="note">Round window: 32″ across, so the rough opening is a fixed ⌀ 33″ circle. Set where it sits.</p>` : round ? f('d','Diameter',it.d) : isUnitOp(k,it) ? `<p class="note wb-rso">Rough opening <b>${fin(w)} × ${fin(h)}</b></p>` : f('w','Width',w)+f('h','Height',h)}
       ${f('x', isOp?'Left edge from the left end':'Centre from the left end', x-cutSeen())}
       ${centred(k,it) ? f('y','Centre from the floor', ruleY(k,it)) : f('y','Bottom from the floor', it.y)}
       ${!isOp ? f('depth','Depth', it.depth||3) : ''}</div>
@@ -392,6 +432,7 @@ function add(kind){
     b.y = r.y ?? 48; b.depth = r.depth ?? 3;
     b.x=fromDrawX(k,b,c+ (W[k].length%3)*6); snapToChase(k,b); W[k].push(b); sel={k, i:W[k].length-1}; }
   else { const o = kind==='window' ? {kind, x:0, y:36, ...STD_RO.window} : kind==='door' ? {kind, x:0, y:0, ...(W.type==='int' ? {w:36.5, h:80.75} : STD_RO.door)} : kind==='patio' ? {kind, x:0, y:0, ...STD_RO.patio} : kind==='opening' ? {kind, x:0, y:0, w:48, h:82} : kind==='round' ? {kind:'window', shape:'round', d:ROUND_RO, x:0, y:36, w:ROUND_RO, h:ROUND_RO} : {kind:'vent', shape:'round', d:4, x:0, y:84, w:4, h:4};
+    if(isUnitOp('op',o)){ const P=poolFor(o), u=P.find(u=>!u.sample && !u.confirm) || P.find(u=>!u.sample) || P[0]; if(u){ const rr=rsoOf(u); o.unit=u.id; o.w=rr.w; o.h=rr.h; } }
     o.x=fromDrawX('op',o,c-o.w/2); const r=ruleOf('op',o); if(r?.y!=null) setRuleY('op',o,r.y); snapToChase('op',o); snapToJoint('op',o);
     W.openings.push(o); sel={k:'op', i:W.openings.length-1}; }
   render();
@@ -404,6 +445,7 @@ function addShape(id){
 }
 function setField(f, v){
   const it=listOf(sel.k)[sel.i]; if(!it || !isFinite(v)) return;
+  if((f==='w'||f==='h') && isUnitOp(sel.k,it)){ toast('The size comes from the window or door picked (its rough opening).'); render(); return; }
   if(locked(sel.k,it,f)){ toast('Locked by the wall rules: tap 🔒 to unlock this one.'); render(); return; }
   if(f==='y'){ setRuleY(sel.k,it,v); render(); return; }
   if(f==='x'){ v+=cutSeen(); it.x=fromDrawX(sel.k,it,v); if(snapToChase(sel.k,it)) toast(`Snapped to the nearest chase (${fin(drawX(sel.k,it)-cutSeen())}). “Place freely” to put it off the chases.`); render(); return; }
@@ -426,6 +468,11 @@ function bind(){
     W.inside.forEach(it=>{ it.x += L()-old; }); resnapAll(); render(); });
   dlg.querySelectorAll('[data-fit]').forEach(b=>b.onclick=()=>{ W.fit=[fitL(), fitR()]; W.fit[+b.dataset.fit]=+b.dataset.v; resnapAll(); render(); });
   dlg.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>add(b.dataset.add));
+  dlg.querySelectorAll('[data-utype]').forEach(b=>b.onclick=()=>{ pickType=b.dataset.utype; pickBrand=null; render(); });
+  dlg.querySelectorAll('[data-ubrand]').forEach(b=>b.onclick=()=>{ pickBrand=b.dataset.ubrand; render(); });
+  dlg.querySelectorAll('[data-unit]').forEach(b=>b.onclick=()=>{ const it=listOf(sel.k)[sel.i], u=unitById(b.dataset.unit); if(!it||!u) return; setOpUnit(it, u); pickType=null; pickBrand=null; render(); const r=rsoOf(u); toast(`${u.name} · rough opening ${fin(r.w)} × ${fin(r.h)}`); });
+  dlg.querySelectorAll('[data-uhand]').forEach(b=>b.onclick=()=>{ const it=listOf(sel.k)[sel.i]; if(it){ it.hand=b.dataset.uhand; render(); } });
+  dlg.querySelectorAll('[data-uswing]').forEach(b=>b.onclick=()=>{ const it=listOf(sel.k)[sel.i]; if(it){ it.swing=b.dataset.uswing; render(); } });
   dlg.querySelectorAll('[data-f]').forEach(inp=>inp.onchange=()=>{ const s=String(inp.value).trim(), m=s.match(/^(\d+(?:\.\d+)?)?[\s-]*(?:(\d+)\/(\d+))?$/); const v=m?(m[1]?+m[1]:0)+(m[2]?(+m[2])/(+m[3]):0):NaN; setField(inp.dataset.f, v); });
   dlg.querySelectorAll('[data-unlock]').forEach(b=>b.onclick=e=>{ e.preventDefault(); const it=listOf(sel.k)[sel.i], f=b.dataset.unlock; unlock(sel.k,it,f);
     toast(f==='x' ? 'This one can go anywhere along the wall' : `${f==='y'?'Height':f==='depth'?'Depth':'Place'} unlocked for this item only`); render(); });

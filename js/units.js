@@ -29,15 +29,42 @@ const TYPES = {
   casement: { label:'Casement',        cat:'window', hand:'Hinge' },
   awning:   { label:'Awning',          cat:'window' },
   single:   { label:'Single hung',     cat:'window' },
+  double:   { label:'Double hung',     cat:'window' },
   slider:   { label:'Slider',          cat:'window', hand:'Moving panel' },
+  slider3:  { label:'3-lite end vent slider', cat:'window' },
+  dslider:  { label:'Double lift slider', cat:'window' },
+  bay:      { label:'Bay',             cat:'window' },
+  bow:      { label:'Bow',             cat:'window' },
   entry:    { label:'Man door',        cat:'door',   hand:'Hinge', swing:true },
   patio:    { label:'Patio slider',    cat:'patio',  hand:'Moving panel' },
   round:    { label:'Round (fixed)',   cat:'window', round:true },
 };
 const CAT_OF = { window:'window', door:'door', patio:'patio' };   // opening kind → unit category
 const UNITLIB = [];
+/* the library: data/units.json (uploads), then the team's adopted and edited units (api/units on the private
+   site; this browser when opened locally) laid over it, same id = replaces it */
+let teamRemote=false; const TEAM_LOCAL='cubit-units-team'; const unitSubs=[];
+const onUnitsChanged = fn => unitSubs.push(fn);
+function layTeam(list){
+  list.forEach(t=>{ const i=UNITLIB.findIndex(u=>u.id===t.id); const v={ ...t, src:'team' };
+    if(i>=0){ if(!UNITLIB[i].base) v.base=UNITLIB[i].base||{ ...UNITLIB[i] }; UNITLIB[i]=v; } else UNITLIB.push(v); });
+}
 async function loadUnits(){
   try{ const r=await fetch('data/units.json'); if(r.ok) (await r.json()).forEach(u=>UNITLIB.push(u)); }catch(e){}
+  let team=null;
+  try{ const r=await fetch('api/units',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ team=await r.json(); teamRemote=true; } }catch(e){}
+  if(!team){ try{ team=JSON.parse(localStorage.getItem(TEAM_LOCAL)||'[]'); }catch(e){ team=[]; } }
+  layTeam(team||[]);
+}
+/* adopt or edit a unit (editors and admins): it goes into the Cubit library for the whole team */
+async function saveTeamUnit(item){
+  const clean=JSON.parse(JSON.stringify(item)); delete clean.base; delete clean.deleted; delete clean.purged; delete clean.deletedAt;
+  if(teamRemote){ const r=await fetch('api/units',{method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({op:'save', item:clean})});
+    const out=await r.json().catch(()=>({})); if(!r.ok) throw new Error(out.error || `Server said ${r.status}`); layTeam([(out.units||[]).find(u=>u.id===clean.id)||clean]); }
+  else { let L=[]; try{ L=JSON.parse(localStorage.getItem(TEAM_LOCAL)||'[]'); }catch(e){} const i=L.findIndex(u=>u.id===clean.id), v={ ...clean, saved:new Date().toISOString(), rev:(i>=0?(L[i].rev||0):0)+1 };
+    if(i>=0) L[i]=v; else L.unshift(v); try{ localStorage.setItem(TEAM_LOCAL, JSON.stringify(L)); }catch(e){} layTeam([v]); }
+  unitSubs.forEach(f=>{ try{ f(); }catch(e){} });
+  return unitById(clean.id);
 }
 const unitById = id => UNITLIB.find(u=>u.id===id);
 const catOf = o => CAT_OF[o.kind];
@@ -100,6 +127,7 @@ function unitFor(slot, o){
   if(pick===false) return null;
   if(!pick && pairOf(slot,o) && doorOwner(slot,o).id!==slot.id) return null;   // the door is in the neighbour's wall
   if(pick && unitById(pick.u)){ const u=unitById(pick.u); return { unit:u, hand:pick.hand||u.hand||'L', swing:pick.swing||u.swing||'in', how: state.units?.[state.model]?.[slot.id]?.[k]?'chosen':'home' }; }
+  if(!pick && o.unit && unitById(o.unit)){ const u=unitById(o.unit); return { unit:u, hand:o.hand||u.hand||'L', swing:o.swing||u.swing||'in', how:'wall' }; }   // picked in the panel builder
   const fitting = unitsFor(o, slot).filter(x=>x.fit);
   if(fitting.length===1){ const u=fitting[0].u; return { unit:u, hand:u.hand||'L', swing:u.swing||'in', how:'auto' }; }
   return null;
@@ -123,6 +151,18 @@ function symbol(type, hand, w, h){
   } else if(type==='single'){
     segs.push([0,h/2,w,h/2]);
     arrows.push([w/2,h*0.12,w/2,h*0.4]);
+  } else if(type==='double'){
+    segs.push([0,h/2,w,h/2]);
+    arrows.push([w*0.35,h*0.12,w*0.35,h*0.4], [w*0.65,h*0.88,w*0.65,h*0.6]);
+  } else if(type==='slider3'){
+    segs.push([w/4,0,w/4,h],[w*3/4,0,w*3/4,h]);
+    arrows.push([w*0.04,h/2,w*0.2,h/2],[w*0.96,h/2,w*0.8,h/2]);
+  } else if(type==='dslider'){
+    segs.push([w/2,0,w/2,h]);
+    arrows.push([w*0.12,h/2,w*0.38,h/2],[w*0.88,h/2,w*0.62,h/2]);
+  } else if(type==='bay' || type==='bow'){
+    const k = type==='bay' ? [w*0.25, w*0.75] : [w*0.2, w*0.4, w*0.6, w*0.8];
+    k.forEach(x=>segs.push([x,0,x,h]));
   } else if(type==='slider' || type==='patio'){
     segs.push([w/2,0,w/2,h]);
     const ym=h*0.5, a=w*0.12, b=w*0.38;
@@ -149,4 +189,4 @@ const handText = (u, hand, swing) => {
 };
 const unitLabel = (r) => r ? `${TYPES[r.unit.type]?.label||r.unit.type}${handText(r.unit,r.hand,r.swing)?' · '+handText(r.unit,r.hand,r.swing):''}` : '';
 
-export { pairOf, doorOwner, setDoorOwner, TYPES, UNITLIB, loadUnits, unitById, unitsFor, unitFor, setUnit, symbol, unitSVG, unitLabel, handText, catOf, okey, fits };
+export { onUnitsChanged, saveTeamUnit, pairOf, doorOwner, setDoorOwner, TYPES, UNITLIB, loadUnits, unitById, unitsFor, unitFor, setUnit, symbol, unitSVG, unitLabel, handText, catOf, okey, fits };

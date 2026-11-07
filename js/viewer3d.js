@@ -226,6 +226,7 @@ function openViewer(kind, id, opts={}){
     else if(kind==='casework'){ const d=itemDef(id); if(!d) return; const it=newItem(id); title=d.name; sub=`${id} · ${it.w} × ${it.h} × ${it.d}″`; showCase(it); }
     else if(kind==='units'){ const u=UNITLIB.find(x=>x.id===id); if(!u) return; title=u.name; sub=`${u.id} · ${TYPES[u.type]?.label||u.type}${u.place==='int'?' · interior':''} · ${u.w} × ${u.h}″`; showUnit(u); }
     else if(kind==='devices'){ const d=deviceById(id); if(!d) return; title=d.name; sub=`${d.id} · ${d.kind==='sw'?'switch':d.kind==='rc'?'plug (receptacle)':'data / TV'} · with its box behind`; showDevice(d); }
+    else if(kind==='unit'){ const u=opts.unit; if(!u) return; title=u.name; sub=`${u.id} · ${TYPES[u.type]?.label||u.type} · ${u.w} × ${u.h}″ · catalogue`; showUnit(u); }
     else if(kind==='kitchen'){ if(!opts.items?.length) return; title=opts.name||'Kitchen'; sub=opts.sub||`${opts.items.length} items`; showKitchen(opts.items); }
     else if(kind==='decks'){ const D=DECKLIB.find(x=>x.id===id); if(!D) return; title=D.name; sub=`${D.id} · ${D.w}′ × ${D.d}′ deck`; showDeck(D); }
   }catch(e){ console.error(e); }
