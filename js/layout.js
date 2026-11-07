@@ -146,7 +146,7 @@ function slotsFor(modelKey){
     const P=s.pod, isCorner = c => (Math.abs(c[0]-P.x)<EPS||Math.abs(c[0]-P.x1)<EPS) && (Math.abs(c[1]-P.z)<EPS||Math.abs(c[1]-P.z1)<EPS);
     s.corner=[isCorner(s.p0n), isCorner(s.p1n)];
     s.label = `${s.pod.label} · Wall ${s.letter}`;
-    s.detail = s.part ? 'middle wall (inside the pod)' : s.type==='int' ? `interior, faces ${s.other.label}` : (s.len < s.sideLen ? 'exterior part' : 'exterior');
+    s.detail = s.part ? 'interior wall (inside the pod)' : s.type==='int' ? `connecting wall, faces ${s.other.label}` : (s.len < s.sideLen ? 'exterior part' : 'exterior');
   });
   slots.sort((a,b)=> a.pod.i-b.pod.i || a.letter.localeCompare(b.letter, undefined, {numeric:true}));
   return slots;

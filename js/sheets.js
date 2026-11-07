@@ -330,7 +330,7 @@ function renderLabelsHome(el){
       <span style="font-size:12.5px;color:#333">Labels print on Avery 5163 / 8163 sheets (2 × 5, 4″ × 2″). The first pages are the cut &amp; stack list.</span></div>
     <div class="note" style="color:#333;font-size:13px;line-height:1.5">
       <b>Label code</b> = pod number + wall letter + panel number, e.g. <b>3B-4</b> is Pod 3, Wall B, panel 4.
-      Panel 1 is always the left end seen from the interior (side A on a wall between pods).
+      Panel 1 is always the left end seen from the interior (side A on a connecting wall).
       Walls are assembled <b>left → right</b> as the assemblers see them, so with the exterior facing up the order runs ${'6 → 1'}.
       Each wall's panels are stacked with the first one needed on top.
       A panel is <b class="flipflag">flipped</b> when its box cut-outs are on the face that must be down for assembly — the CNC cuts that face up, then the panel is turned over before stacking.</div>

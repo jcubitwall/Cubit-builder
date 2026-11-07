@@ -77,7 +77,7 @@ function homeTakeoff(){
         ...Object.values(eps).sort((a,b)=>b.len-a.len), ...(blocks?[{n:blocks, what:'2×4', len:16, note:'floor joint block · flat across each panel joint, at 32″ and 64″'}]:[])]; })()]);
   // Walls: SIP panels, studs, jacks, splines
   { const plans=homePlans(), g={};
-    plans.forEach(pl=>pl.panels.forEach(p=>{ const t=pl.slot.type==='int'?'4½″ interior':'6½″ exterior', k=t+'|'+(p.cut?p.width.toFixed(2):'full'); (g[k] ||= {n:0, what:`SIP panel ${t}`, len:p.cut?p.width:48, note:p.cut?'cut to width':'full 48″ × 96″'}).n++; }));
+    plans.forEach(pl=>pl.panels.forEach(p=>{ const t=pl.slot.type==='int'?'4½″ interior / connecting':'6½″ exterior', k=t+'|'+(p.cut?p.width.toFixed(2):'full'); (g[k] ||= {n:0, what:`SIP panel ${t}`, len:p.cut?p.width:48, note:p.cut?'cut to width':'full 48″ × 96″'}).n++; }));
     add('walls','Walls',[...Object.values(g).sort((a,b)=>a.what.localeCompare(b.what)||b.len-a.len), ...byKind(p=>!/plate/.test(p.kind))]); }
   // Roof: LVL rims and the top plates that go on the ceiling
   // SilverBack (butyl skin): two layers over every flat roof, wrapping down over the LVL rim on the sides where pods meet
@@ -112,7 +112,7 @@ function homeTakeoff(){
     const items=Object.values(g); if(open) items.push({n:open, what:'opening with no unit chosen', note:'choose in the wall panel'});
     add('units','Windows & doors',items); }
   // Compression seal between pods
-  { const S=sealRun(); if(S.n) add('seal','Seals between pods',[{n:+(S.tot/12*1.1).toFixed(0), what:`ft · ${SEAL.name}`, note:`${S.n} runs around openings (${S.hi} high, ${S.n-S.hi} low) · ${fft(S.tot)} net + 10%`}]); }
+  { const S=sealRun(); if(S.n) add('seal','Seals on connecting walls',[{n:+(S.tot/12*1.1).toFixed(0), what:`ft · ${SEAL.name}`, note:`${S.n} runs around openings (${S.hi} high, ${S.n-S.hi} low) · ${fft(S.tot)} net + 10%`}]); }
   // Fasteners
   add('fast','Fasteners',[{n:rims.length*4*18, what:'3½″ Dynobite screw', note:`Einspines: 18 each × ${rims.length*4}`}]);
   return stages;

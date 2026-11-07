@@ -402,7 +402,7 @@ function sCover(ctx, sh){
   y2+=20; g+=tx(x2, y2, 'PROJECT DATA', {size:17, weight:'bold', fill:BLUE})+line(x2, y2+4, x2+110, y2+4, 1, BLUE); y2+=24;
   const conc=foundationOf(ctx.k)==='concrete';
   [['Model', ctx.model], ['Pods', `${H_.pods.length} (${ctx.podsText})`], ['Gross floor area', ctx.areaText], ['Clear ceiling height', ftin(LAYER_KINDS['ceiling-int'].z - WALL_BASE)],
-   ['Walls', `${fin(T)} exterior SIP, ${fin(TI)} between pods`], ['Foundation', conc?'Concrete footing + ICF':'Ground screws'], ['North', `${Math.round(getBearing(ctx.k))} deg (${compass(getBearing(ctx.k))})`], ['Decks', H_.decks.length ? H_.decks.map(d=>`${d.L.w}' x ${d.L.d}'`).join(', ') : 'none']]
+   ['Walls', `${fin(T)} exterior SIP, ${fin(TI)} interior and connecting walls`], ['Foundation', conc?'Concrete footing + ICF':'Ground screws'], ['North', `${Math.round(getBearing(ctx.k))} deg (${compass(getBearing(ctx.k))})`], ['Decks', H_.decks.length ? H_.decks.map(d=>`${d.L.w}' x ${d.L.d}'`).join(', ') : 'none']]
     .forEach(([a,b])=>{ g+=tx(x2, y2, a.toUpperCase()+':', {size:9.5, weight:'bold', fill:BLUE})+tx(x2+130, y2, String(b).toUpperCase(), {size:9.5, fill:BLUE}); y2+=14; });
   y2+=24; g+=tx(x2, y2, 'LIABILITY', {size:17, weight:'bold', fill:BLUE})+line(x2, y2+4, x2+70, y2+4, 1, BLUE); y2+=24;
   wrap(ascii(bp.notes.liability), hw, 9).forEach(l=>{ if(y2<AREA.y1) { g+=tx(x2, y2, l, {size:9, weight:'bold', fill:BLUE}); y2+=12.5; } });
@@ -461,7 +461,7 @@ function sKey(ctx, sh){
   let y=AREA.y0+20; g+=tx(tx0, y, 'WALL SCHEDULE', {size:13, weight:'bold', fill:BLUE}); y+=10;
   const rowH=Math.min(16, (AREA.y1-y-30)/(H_.walls.length+1));
   let cx=tx0; g+=rect(tx0, y, tableW, rowH, {fill:'#eef2f8', stroke:BLUE, sw:0.6}); cols.forEach(([c,wd])=>{ g+=tx(cx+4, y+rowH-4.5, c, {size:Math.min(8, rowH*0.55), weight:'bold', fill:BLUE}); cx+=wd; }); y+=rowH;
-  H_.walls.forEach(W=>{ const vals=[W.code, W.name||'-', W.s.type==='int'?'BETWEEN PODS':'EXTERIOR', ftin(W.L*FT), String(panelSpans(W.w).length), W.w.mirrorOf||W.w.id];
+  H_.walls.forEach(W=>{ const vals=[W.code, W.name||'-', W.s.type==='int'?'CONNECTING':'EXTERIOR', ftin(W.L*FT), String(panelSpans(W.w).length), W.w.mirrorOf||W.w.id];
     let cx2=tx0; g+=rect(tx0, y, tableW, rowH, {stroke:BLUE, sw:0.3}); vals.forEach((v,i)=>{ g+=tx(cx2+4, y+rowH-4.5, String(v).toUpperCase().slice(0, Math.floor(cols[i][1]/4.3)), {size:Math.min(7.5, rowH*0.52), fill:BLUE}); cx2+=cols[i][1]; }); y+=rowH; });
   g+=tx(tx0, y+14, 'WALL CODE = POD NUMBER + WALL LETTER (A, B, C, D CLOCKWISE). PANEL LABELS USE THE SAME CODE.', {size:7, fill:GREY});
   return g;

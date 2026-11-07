@@ -42,7 +42,7 @@ function groups(){
     ['People', [['customers', 'Customer profiles', custs]]],
     ['Homes', [['originals', 'Cubit Homes', orig], ['purg', 'Purgatory', proj(false)], ['custhomes', 'Customers’ homes', proj(true)], ['drafts', 'My drafts', drafts]]],
     ['Model names', [['families', 'Model names', lib('families', FAMILIES, ()=> 'model name')]]],
-    ['Building', [['walls', 'Walls', lib('walls', LIB, x=>`${x.len||''}′ ${x.type==='int'?'interior':'exterior'}`)],
+    ['Building', [['walls', 'Walls', lib('walls', LIB, x=>`${x.len||''}′ ${x.type==='int'?'interior / connecting':'exterior'}`)],
       ['layers', 'Floors, ceilings & roofs', lib('layers', LAYERLIB, x=>`${x.kind||''} · ${x.len||''}′`)],
       ['decks', 'Decks', lib('decks', DECKLIB, x=>`${x.w||''}′ × ${x.d||''}′`)],
       ['pods', 'Pods', lib('pods', PODLIB, x=>x.size||'')]]],

@@ -33,7 +33,7 @@ function unitRules(u){
   add('Fit', 'Goes in a rough opening no smaller than it and at most 2″ bigger each way; the only one that fits is chosen by itself.');
   if(T.cat==='window'){ add('Electrical', 'No receptacle under it: the plug goes to the nearest chase beside it.', 'Electrical rules'); add('Walls', 'Its sill height and side snapping follow Walls → Wall rules (window).', 'Wall rules'); }
   if(T.cat==='door' || T.cat==='patio'){ add('Electrical', `Switch at ${ELEC_H.switch}″, 6″ from the rough opening on the latch side, on the side the door swings into; a room with two or more doors gets 3-way switches.`, 'Electrical rules'); add('Electrical', 'Doorways break the plug run along the floor, and so does the wall behind the door swung open.', 'Electrical rules'); }
-  if(u.place==='int') add('Walls', 'An interior door: only offered in interior walls (and there, before exterior doors).');
+  if(u.place==='int') add('Walls', 'An interior door: only offered in interior and connecting walls (and there, before exterior doors).');
   else if(T.cat==='door') add('Electrical', 'The main outside door gets the weatherproof outside plug beside it, and a double switch box inside (room + outside light).', 'Electrical rules');
   return out;
 }

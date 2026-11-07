@@ -495,7 +495,7 @@ function renderTray(){
   const dk=DECKLIB.filter(d=>!d.deleted);
   tray.innerHTML = tabs + `
     ${[['P8',8],['P16',16],['L24',24]].map(([t,len])=>`<button class="tray-it" data-t="${t}">${podMini(len)}<b>8′ × ${len}′</b><small>pod</small></button>`).join('')}
-    <button class="tray-it mid" data-mid="1" title="Drag into a pod: a wall across it (or along it, dropped near a long side)"><svg viewBox="0 0 22 12" aria-hidden="true"><rect x="1" y="1" width="20" height="10" fill="none" stroke="#8a8f94" stroke-width=".8"/><rect x="9.6" y="1" width="2" height="10" fill="#6b5530"/></svg><b>Middle wall</b><small>splits a pod</small></button>
+    <button class="tray-it mid" data-mid="1" title="Drag into a pod: a wall across it (or along it, dropped near a long side)"><svg viewBox="0 0 22 12" aria-hidden="true"><rect x="1" y="1" width="20" height="10" fill="none" stroke="#8a8f94" stroke-width=".8"/><rect x="9.6" y="1" width="2" height="10" fill="#6b5530"/></svg><b>Interior wall</b><small>splits a pod</small></button>
     ${dk.map(L=>`<button class="tray-it deck" data-deck="${L.id}"><svg viewBox="0 0 22 12" aria-hidden="true"><rect x="1" y="1" width="20" height="10" fill="#d9c49b" stroke="#6b5530" stroke-width=".6"/><line x1="1" y1="1" x2="21" y2="1" stroke="#3b2a12" stroke-width="1.4"/></svg><b>${deckName(L)}</b><small>deck</small></button>`).join('')}`;
 }
 tray.addEventListener('pointerdown', e=>{
@@ -548,7 +548,7 @@ function dragMid(e, b){
     const S=slotsFor(state.model).find(s=>s.id===sid), near=S && partSnaps(S).filter(x=>x.label!=='middle of the pod').sort((a,b)=>Math.abs(a.at-v)-Math.abs(b.at-v))[0];
     let id2=sid; if(near && Math.abs(near.at-v)<=3) id2=movePart(P.i, S.part.id, near.at)||sid;
     state.selected=id2; renderModels(); buildHome(); highlight(); renderSide(); if(!panelOpen()) setPanel(true);
-    toast(`Middle wall ${dir==='long'?'along':'across'} ${P.label}${near && Math.abs(near.at-v)<=3 ? ` · ${near.label}` : ''} · tap a door option`); };
+    toast(`Interior wall ${dir==='long'?'along':'across'} ${P.label}${near && Math.abs(near.at-v)<=3 ? ` · ${near.label}` : ''} · tap a door option`); };
   window.addEventListener('pointermove',mv); window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up);
 }
 tray.addEventListener('change', e=>{ if(e.target.id==='trayCat'){ trayCat=e.target.value; renderTray(); tray.scrollLeft=0; } });

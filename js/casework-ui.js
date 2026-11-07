@@ -385,7 +385,7 @@ function buildingGrid(cat){
   const all=B_LIST[cat]().filter(x=>!x.purged), gone=all.filter(x=>x.deleted), list=all.filter(x=>showGone ? x.deleted : !x.deleted)
     .sort((a,b)=>String(a.name).localeCompare(String(b.name), undefined, {numeric:true}));
   const thumb=x=>{ try{ return cat==='b:walls' ? thumbSVG(x) : cat==='b:layers' ? layerThumb(x) : `<svg viewBox="0 0 ${x.w+2} ${x.d+2}"><rect x="1" y="1" width="${x.w}" height="${x.d}" fill="#d9c6a2" stroke="#5b4a33" stroke-width=".2"/></svg>`; }catch(e){ return ''; } };
-  const sub=x=> cat==='b:walls' ? `${x.len}′ ${x.type==='int'?'interior':'exterior'} · ${(x.openings||[]).length} openings` : cat==='b:layers' ? `${LAYER_NAME[x.kind]||x.kind} · ${x.len}′ · ${(x.holes||[]).length} holes` : `${x.w}′ × ${x.d}′ frame`;
+  const sub=x=> cat==='b:walls' ? `${x.len}′ ${x.type==='int'?'interior / connecting':'exterior'} · ${(x.openings||[]).length} openings` : cat==='b:layers' ? `${LAYER_NAME[x.kind]||x.kind} · ${x.len}′ · ${(x.holes||[]).length} holes` : `${x.w}′ × ${x.d}′ frame`;
   return `<section class="cw-grid cw-bgrid">
     <div class="cw-bbar"><input type="search" id="cwQ" placeholder="Search names and IDs" aria-label="Search">${gone.length?`<button class="linkbtn editor-only" id="cwGone" title="⋯ → Deleted items">Deleted (${gone.length})</button>`:''}</div>
     ${list.map(x=>`<div class="cw-card cw-bcard" data-bid="${esc(x.id)}"><div class="cw-thumb">${thumb(x)}</div><b>${esc(x.name)}</b><small><code>${esc(x.id)}</code> · ${esc(sub(x))}</small>

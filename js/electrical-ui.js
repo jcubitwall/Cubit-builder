@@ -231,7 +231,7 @@ export const rulesHTML = () => `<details class="help"><summary>The rules</summar
   <li>No plug above a baseboard heater. A fireplace's plug or junction box (its Power) sits inside the surround and moves with it. Every library item's page lists the rules that come with it.</li>
   <li>Switches ${ELEC_H.switch}″, centre 6″ from the rough opening on the latch side, on the side the door swings into; outside doors a double box (room + outside light). Two or more entrances: 3-way, once confirmed.</li>
   <li>One weatherproof plug outside, beside the main door.</li>
-  <li>Every box sits on a chase (6″ in from each edge of the original 48″ panel, then every 12″) when one is within 18″ (plugs) or 6″ (switches); otherwise it's flagged "needs a chase". Walls between pods: boxes only on the face toward the wall's own pod.</li></ul></details>`;
+  <li>Every box sits on a chase (6″ in from each edge of the original 48″ panel, then every 12″) when one is within 18″ (plugs) or 6″ (switches); otherwise it's flagged "needs a chase". Connecting walls: boxes only on the face toward the wall's own pod.</li></ul></details>`;
 function openElectrical(){
   if(!dlg){ dlg=document.createElement('dialog'); dlg.className='lib-dlg el-dlg'; dlg.innerHTML=`<div class="dlg"><div class="dlg-h"><h2>Electrical</h2><button class="btn ghost" id="elX">Done</button></div><div id="elBody"></div></div>`; document.body.appendChild(dlg); dlg.querySelector('#elX').onclick=()=>dlg.close(); }
   render(); dlg.showModal();

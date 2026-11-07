@@ -403,7 +403,7 @@ function render(){
         ${P.length?`<ul class="wb-warn">${P.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>`:''}
       </div>
       <div class="cw-side wb-side">
-        <div class="wb-row"><span class="wb-k">Wall</span><div class="seg sm"><button data-type="ext" aria-pressed="${W.type==='ext'}">Ext 6½″</button><button data-type="int" aria-pressed="${W.type==='int'}">Int 4½″</button></div>
+        <div class="wb-row"><span class="wb-k">Wall</span><div class="seg sm"><button data-type="ext" aria-pressed="${W.type==='ext'}" title="Exterior wall">Ext 6½″</button><button data-type="int" aria-pressed="${W.type==='int'}" title="Interior or connecting wall">Int 4½″</button></div>
           <div class="seg sm">${[4,8,12,16,20,24].map(n=>`<button data-len="${n}" aria-pressed="${W.len===n}">${n}′</button>`).join('')}</div></div>
         <div class="wb-row"><span class="wb-k">Ends</span>${['L','R'].map((nm,e)=>`<span class="wb-endk">${nm}</span><div class="seg sm">${[[0,'Full'],[6.5,'6½'],[4.5,'4½']].map(([v,l])=>`<button data-fit="${e}" data-v="${v}" aria-pressed="${Math.abs((W.fit?.[e]||0)-v)<1e-6}" title="${v?`Butts between ${l}″ walls`:'Full length, corner to corner'}">${l}</button>`).join('')}${(W.fit?.[e]||0)<0?`<button aria-pressed="true" disabled>+${fin(-(W.fit[e]))}</button>`:''}</div>`).join('')}
           <span class="wb-mini">${fitL()||fitR() ? `cut ${fin(netL())}` : 'corner to corner'}</span></div>

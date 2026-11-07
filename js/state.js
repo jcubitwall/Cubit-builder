@@ -69,7 +69,7 @@ function podSeg(slot){
 /* A plain wall with no openings, used where the library has nothing of that size yet. Not saved anywhere. */
 function blankWall(slot){
   const ty=slot.type||'ext';
-  return { id:`BLANK-${ty==='int'?'I':'W'}${String(slot.len).padStart(2,'0')}`, name:`Blank ${slot.len}′ ${ty==='int'?'interior':'exterior'} wall (nothing scanned yet)`, len:slot.len, type:ty, t:ty==='int'?TI:T, openings:[], inside:[], outside:[], blank:true };
+  return { id:`BLANK-${ty==='int'?'I':'W'}${String(slot.len).padStart(2,'0')}`, name:`Blank ${slot.len}′ ${ty==='int'?'interior / connecting':'exterior'} wall (nothing scanned yet)`, len:slot.len, type:ty, t:ty==='int'?TI:T, openings:[], inside:[], outside:[], blank:true };
 }
 /* Floors / ceilings: same order — person's choice, the model's own, first library item, else a plain layer */
 function pickLayer(slot){

@@ -167,7 +167,7 @@ function midBlock(s, w){
   const snaps=partSnaps(s).filter(x=>Math.abs(x.at-q.at)>0.01).slice(0, 12);
   const doorOf=()=>{ const o=(w?.openings||[]).find(o=>o.kind==='door'); if(!o) return 'none'; const L=s.len*12, a=s.trim[0], b=L-s.trim[1], c=o.x+o.w/2; return Math.abs(c-(a+b)/2)<3 ? 'mid' : c<(a+b)/2 ? 'left' : 'right'; };
   const cur=doorOf();
-  return `<div class="mid-box"><div class="eyebrow">Middle wall ${esc(s.letter)} · ${q.dir==='long'?'along':'across'} ${esc(p.label)}</div>
+  return `<div class="mid-box"><div class="eyebrow">Interior wall ${esc(s.letter)} · ${q.dir==='long'?'along':'across'} ${esc(p.label)}</div>
     <div class="eyebrow sm">Door</div>
     <div class="seg wrap" role="group" aria-label="Door">${[['none','No door'],['left','Door left'],['mid','Door middle'],['right','Door right']].map(([v,l])=>`<button data-mdoor="${v}" aria-pressed="${cur===v}">${l}</button>`).join('')}</div>
     <div class="cw-opt"><span>Door size</span><div class="seg sm" role="group" aria-label="Door size">${DOORS.map(([d])=>`<button data-mdw="${d}" aria-pressed="${midDoorW===d}">${d}″</button>`).join('')}</div></div>
@@ -225,7 +225,7 @@ function bindMid(s){
   root.querySelectorAll('[data-mwall]').forEach(b=>b.onclick=()=>go(setPart(pi, q.id, b.dataset.mwall==='0' ? { e0:null } : { e1:null })));
   root.querySelectorAll('[data-mt]').forEach(b=>b.onclick=()=>go(setPart(pi, q.id, { t:+b.dataset.mt })));
   root.querySelector('#midT').onchange=e=>{ const v=parseFloat(e.target.value); if(isFinite(v) && v>=1 && v<=12) go(setPart(pi, q.id, { t:v })); else toast('Between 1″ and 12″'); };
-  root.querySelector('#midRm').onclick=e=>{ const b=e.target; if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to remove'; return; } removePart(pi, q.id); state.selected=null; renderModels(); buildHome(); highlight(); renderSide(); toast('Middle wall removed'); };
+  root.querySelector('#midRm').onclick=e=>{ const b=e.target; if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to remove'; return; } removePart(pi, q.id); state.selected=null; renderModels(); buildHome(); highlight(); renderSide(); toast('Interior wall removed'); };
   root.querySelectorAll('[data-mdw]').forEach(b=>b.onclick=()=>{ midDoorW=+b.dataset.mdw; renderSide(); });
   root.querySelectorAll('[data-mdoor]').forEach(b=>b.onclick=()=>midDoor(s, b.dataset.mdoor));
 }
@@ -238,7 +238,7 @@ async function midDoor(s, where){
   const same=LIB.find(w=>!w.deleted && w.type==='int' && w.len===s.len && (w.openings||[]).length===1 && w.openings[0].kind==='door' && Math.abs(w.openings[0].x-x)<0.25 && Math.abs(w.openings[0].w-RO)<0.25 && !(w.inside||[]).length && !(w.outside||[]).length);
   if(same){ choose(s, same.id); buildHome(); renderSide(); toast(`${same.name} · ${midDoorW}″ door`); return; }
   try{ const { saveWallFor }=await import('./wall-builder.js');
-    await saveWallFor({ name:`${s.len}′ interior · 1 door ${where==='mid'?'middle':where} (${midDoorW}″) · middle wall`, len:s.len, type:'int', openings:[{ kind:'door', x:+x.toFixed(4), y:0, w:RO, h:H }], inside:[], outside:[], shapes:[] }, s);
+    await saveWallFor({ name:`${s.len}′ interior · 1 door ${where==='mid'?'middle':where} (${midDoorW}″) · interior wall`, len:s.len, type:'int', openings:[{ kind:'door', x:+x.toFixed(4), y:0, w:RO, h:H }], inside:[], outside:[], shapes:[] }, s);
     buildHome(); renderSide(); toast(`${midDoorW}″ door ${where==='mid'?'in the middle':'on the '+where}`); }
   catch(e){ toast('Not made: '+(e.message||e)); }
 }
@@ -333,7 +333,7 @@ function renderSide(){
         if(upP.length) id=addStair(pi); if(!id) for(const q of dnP){ id=addStair(q.i); if(id) break; }
         if(!id){ toast('No room for a stair here: it needs about 12′ clear along a pod, under the pod above.'); return; }
         state.selected='stair:'+id; renderModels(); buildHome(); highlight(); renderSide(); toast('Stairs added · pick another option or slide them'); }); }
-    const addMid=dir=>{ const id=addPart(pi, dir); if(!id) return; state.selected=id; renderModels(); buildHome(); highlight(); renderSide(); toast('Middle wall added · slide it, snap it flush, or tap a door option'); };
+    const addMid=dir=>{ const id=addPart(pi, dir); if(!id) return; state.selected=id; renderModels(); buildHome(); highlight(); renderSide(); toast('Interior wall added · slide it, snap it flush, or tap a door option'); };
     sideB.querySelector('#midX').onclick=()=>addMid('cross'); sideB.querySelector('#midL').onclick=()=>addMid('long');
     sideB.querySelector('#podTurn').onclick=()=>go(rotatePod(pi),'Pod turned 90°');
     bindName(sideB, 'podName', 'p:'+pi, `Name Pod ${pi+1}`, 'e.g. Bedroom pod');
@@ -351,20 +351,20 @@ document.addEventListener('keydown', e=>{ if(e.key==='Escape' && state.view==='s
 function jointBlock(s){
   const J=jointInfo(s); if(!J) return '';
   const other=esc(J.other.label);
-  if(J.free) return `<div class="jt-box"><div class="eyebrow">Between pods · 4½″</div><p class="note">Joins ${other}. <b>Let go:</b> this wall keeps its own openings${differs(s)?', and they <b>don’t line up</b> with the other side':''}.</p>
+  if(J.free) return `<div class="jt-box"><div class="eyebrow">Connecting wall · 4½″</div><p class="note">Joins ${other}. <b>Let go:</b> this wall keeps its own openings${differs(s)?', and they <b>don’t line up</b> with the other side':''}.</p>
     <div class="row"><button class="btn ghost edit-only" id="jFree">Match the other side again</button></div></div>`;
   const lead = J.leads==='me' ? 'This wall leads: the other side takes its openings, mirrored.' : J.leads==='q' ? `The openings follow ${esc(J.other.label)}, mirrored.` : 'The openings of both walls are put together, so each one goes right through.';
-  return `<div class="jt-box"><div class="eyebrow">Between pods · 4½″</div><p class="note">Joins ${other}. Doors, windows, HRV holes and openings always match on both sides. ${lead} Plugs, switches and other boxes are each wall’s own.</p>
+  return `<div class="jt-box"><div class="eyebrow">Connecting wall · 4½″</div><p class="note">Joins ${other}. Doors, windows, HRV holes and openings always match on both sides. ${lead} Plugs, switches and other boxes are each wall’s own.</p>
     <div class="row">${J.leads==='me'?'':'<button class="btn ghost edit-only" id="jLead">Use this wall’s openings</button>'}<button class="btn ghost edit-only" id="jFree" title="Only when the two walls really must have different openings">Let the two differ</button></div></div>`;
 }
 /* a wall between pods: any thickness, or none (taken out). Taking out both sides leaves a full opening into the
    next pod: the two pods simply butt together there. */
 function jointWallBlock(s){
   const t=jointWallT(s), cur=t==null?4.5:t, q=partnerFor(s), qt=q?jointWallT(q):null, qGone=qt===0, ed=canSave();
-  if(t===0) return `<div class="jt-box jw-box"><div class="eyebrow">Between pods · no wall</div>
+  if(t===0) return `<div class="jt-box jw-box"><div class="eyebrow">Connecting wall · taken out</div>
     <p class="note">This wall is taken out: no SIP, nothing on its faces${q?(qGone?`, and ${esc(q.label)} is out too, so the two pods are <b>open to each other</b> here, wall to wall, floor to ceiling.`:`. ${esc(q.label)} still stands on the other side (${fin(qt??4.5)}).`):'.'}</p>
     <div class="row edit-only">${q&&!qGone?`<button class="btn ghost sm" id="jwBoth">Take out ${esc(q.label)} too (full opening)</button>`:''}<button class="btn ghost sm" id="jwBack">Put this wall back (4½″)</button>${q&&qGone?`<button class="btn ghost sm" id="jwBackBoth">Put both back</button>`:''}</div></div>`;
-  return `<div class="jt-box jw-box"><div class="eyebrow">Between pods · thickness</div>
+  return `<div class="jt-box jw-box"><div class="eyebrow">Connecting wall · thickness</div>
     <div class="mid-len"><div class="seg sm" role="group" aria-label="Thickness">${[2.5,3.5,4.5,6.5].map(v=>`<button data-jwt="${v}" aria-pressed="${Math.abs(cur-v)<1e-6}" ${ed?'':'disabled'}>${fin(v)}</button>`).join('')}</div>
       <label class="cw-f"><span>Custom</span><input id="jwT" inputmode="decimal" value="${cur}" ${ed?'':'disabled'}><i>″</i></label></div>
     <p class="note">It keeps its face on the joint and gets thicker or thinner into this pod.${q?` ${esc(q.label)} on the other side is ${fin(qt??4.5)}${qGone?' (taken out)':''}.`:''}</p>
@@ -415,7 +415,7 @@ function renderSideInner(){
   } else {
     const w=pickFor(s); const opts=optionsFor(s.len, s.type||'ext', state.model);
     const isInt=s.type==='int';
-    sideH.innerHTML=`<div class="eyebrow">${s.part ? `Middle wall · ${fin(s.body.t)} · ${fin(s.body.len)} long` : `${isInt?(jointWallT(s)===0?'Between pods · taken out':`Interior wall · ${fin(jointWallT(s)??4.5)}`):'Exterior wall · 6½″'} · ${s.len}′${jointWallT(s)===0?'':` · ${s.len/4} panels`}`}</div><h2>${esc(withName(s.label, 'w:'+s.id))}${nameBtn('nmWall')}</h2><p>${s.detail} · faces ${fmtBearing(facing(s))} · now <b>${w?esc(w.id):'—'}</b> ${w?esc(w.name):''}${w&&!w.blank?' <button class="linkbtn ren-link editor-only" id="renWall">Rename</button>':''}</p>`;
+    sideH.innerHTML=`<div class="eyebrow">${s.part ? `Interior wall · ${fin(s.body.t)} · ${fin(s.body.len)} long` : `${isInt?(jointWallT(s)===0?'Connecting wall · taken out':`Connecting wall · ${fin(jointWallT(s)??4.5)}`):'Exterior wall · 6½″'} · ${s.len}′${jointWallT(s)===0?'':` · ${s.len/4} panels`}`}</div><h2>${esc(withName(s.label, 'w:'+s.id))}${nameBtn('nmWall')}</h2><p>${s.detail} · faces ${fmtBearing(facing(s))} · now <b>${w?esc(w.id):'—'}</b> ${w?esc(w.name):''}${w&&!w.blank?' <button class="linkbtn ren-link editor-only" id="renWall">Rename</button>':''}</p>`;
     const rw=sideH.querySelector('#renWall'); if(rw) rw.onclick=()=>askRename('walls', w.mirrorOf||w.id);
     setTimeout(()=>{ if(s.part) bindMid(s); }, 0);
     bindName(sideH, 'nmWall', 'w:'+s.id, `Name ${s.label}`, 'e.g. Kitchen wall');
@@ -618,7 +618,7 @@ function sizeText(pods){ const c={}; pods.forEach(p=>c[POD[p.t].len]=(c[POD[p.t]
 
 function importBlock(){
   return `<details class="edit-only"><summary>Upload wall options</summary>
-  <p>Upload a .json file of walls. Each wall drops into every slot of the same length. All sizes are inches, y from the bottom of the wall. Openings and outside items: x from the left end seen from <b>outside</b>. Inside boxes: x from the left end seen from <b>inside</b>, the way the electrician reads it. Use <code>"type": "int"</code> for a 4½″ wall between pods.</p>
+  <p>Upload a .json file of walls. Each wall drops into every slot of the same length. All sizes are inches, y from the bottom of the wall. Openings and outside items: x from the left end seen from <b>outside</b>. Inside boxes: x from the left end seen from <b>inside</b>, the way the electrician reads it. Use <code>"type": "int"</code> for a 4½″ wall (an interior wall, or a connecting wall between pods).</p>
 <pre>[{ "id": "W24-16", "name": "Office wall", "len": 24, "type": "ext",
    "openings": [{"kind":"window","x":40,"y":36,"w":48,"h":36},
                 {"kind":"door","x":200,"y":0,"w":38,"h":82.5}],
