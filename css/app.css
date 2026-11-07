@@ -1345,3 +1345,10 @@ dialog.v3-dlg.v3-full .v3-cube{top:max(12px, env(safe-area-inset-top,0px));right
 .src-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:8px 10px;margin-bottom:4px;background:var(--surface-2);border-radius:10px}
 .src-sel{display:flex;align-items:center;gap:6px;font-size:13px}
 .src-sel select{font:inherit;padding:5px 8px;border-radius:8px;border:1px solid var(--line,#ccc);background:var(--surface,#fff)}
+/* Shape studio: sloped pockets and tapered holes */
+.ss-slope{stroke:#d9682b;stroke-width:2.5;fill:none}
+.ss-sa{fill:#fff;stroke:#d9682b;stroke-width:2.5}
+.ss-sb{fill:#d9682b;stroke:#fff;stroke-width:1.5}
+.ss-taper{fill:none;stroke:#d9682b;stroke-width:2;stroke-dasharray:6 4}
+.ss-slrow{display:flex;align-items:flex-end;gap:8px;margin:6px 0}
+.ss-slrow .btn.on{background:#d9682b;color:#fff;border-color:#d9682b}

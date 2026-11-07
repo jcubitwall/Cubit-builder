@@ -51,13 +51,14 @@ function boxOf(s){ if(s.regs?.length) return bbox(s.regs.flatMap(r=>r.outer)); r
 function placeItem(shape){
   const B=boxOf(shape), m=P=>P.map(([x,y])=>[+(x-B.x0).toFixed(4), +(y-B.y0).toFixed(4)]);
   const base={ kind:'shape', ref:shape.id, name:shape.name, w:+B.w.toFixed(4), h:+B.h.toFixed(4), mx:false, my:false };
-  if(shape.regs?.length) return { ...base, regs:shape.regs.map(r=>({ outer:m(r.outer), holes:(r.holes||[]).map(m), cut:r.cut, depth:r.depth, name:r.name||'' })) };
+  if(shape.regs?.length) return { ...base, regs:shape.regs.map(r=>({ outer:m(r.outer), holes:(r.holes||[]).map(m), cut:r.cut, depth:r.depth, name:r.name||'', ...(r.slope?{ slope:{ ...r.slope, a:m([r.slope.a])[0], b:m([r.slope.b])[0] } }:{}), ...(r.taper?{ taper:{ ...r.taper } }:{}) })) };
   return { ...base, geo:normalize(shape.contours) };
 }
 /* the item's regions as outlines (+ islands), lower-left of its box at 0,0, mirrored as asked (y up) */
 function regionsOf(it){
   if(it.regs){ const f=P=>P.map(([x,y])=>[it.mx?it.w-x:x, it.my?it.h-y:y]);
-    return it.regs.filter(r=>r.cut==='thru'||r.cut==='pocket').map(r=>({ pts:f(r.outer), holes:(r.holes||[]).map(f), cut:r.cut, depth:+r.depth||0, name:r.name||'' })); }
+    return it.regs.filter(r=>r.cut==='thru'||r.cut==='pocket').map(r=>({ pts:f(r.outer), holes:(r.holes||[]).map(f), cut:r.cut, depth:+r.depth||0, name:r.name||'',
+      ...(r.slope?{ slope:{ ...r.slope, a:f([r.slope.a])[0], b:f([r.slope.b])[0] } }:{}), ...(r.taper?{ taper:{ ...r.taper } }:{}) })); }
   const geo=normalize(mirrorAll(it.geo||[], !!it.mx, !!it.my));
   return geo.filter(c=>(c.kind==='circle' || c.closed) && c.cut!=='none').map(c=>({ pts:flatten(c, 0.005), holes:[], cut:c.cut||'pocket', depth:+c.depth||0, name:c.name||'' }));
 }
@@ -70,9 +71,15 @@ function expandWallShapes(w){
   (w.shapes||[]).forEach((it,si)=>{
     regionsOf(it).forEach((r,ri)=>{
       const mv=P=>P.map(([x,y])=>[r4(it.x+x), r4(it.y+y)]), pts=mv(r.pts), isl=r.holes.map(mv), B=bb(pts), key=`shape${si}.${ri}`, nm=r.name||it.name||'shape';
+      // a tapered round hole: cut from the face it's placed on, a cone (the ¾″ bullnose bit), right through or to its depth
+      if(r.taper){ const inside=it.face==='inside', fl=P=>inside ? P.map(([x,y])=>[r4(L-x),y]) : P, P=fl(pts), Q=bb(P), C=[(Q.x0+Q.x1)/2,(Q.y0+Q.y1)/2], d0=2*P.reduce((a,[x,y])=>a+Math.hypot(x-C[0],y-C[1]),0)/P.length, thru=r.cut==='thru' || r.depth>=t-0.0625;
+        (inside?out.inside:out.outside).push({ kind:'pocket', shape:'poly', name:nm, path:P, tool:toolRings([P],false), depth:thru?t:r.depth, taper:{ d0:r4(d0), d1:r4(Math.max(0.75, r.taper.d1)), thru, cx:r4((Q.x0+Q.x1)/2), cy:r4((Q.y0+Q.y1)/2) },
+          x:r4((Q.x0+Q.x1)/2), y:r4((Q.y0+Q.y1)/2), w:r4(d0), h:r4(Q.y1-Q.y0), key });
+        return; }
       if(isThru(r,t)){ out.openings.push({ kind:'shape', shape:'poly', name:nm, path:pts, ...(isl.length?{islands:isl}:{}), tool:toolRings([pts,...isl],true), x:r4(B.x0), y:r4(B.y0), w:r4(B.x1-B.x0), h:r4(B.y1-B.y0), key }); return; }
       const inside=it.face==='inside', fl=P=>inside ? P.map(([x,y])=>[r4(L-x),y]) : P, P=fl(pts), I=isl.map(fl), Q=bb(P);
-      (inside?out.inside:out.outside).push({ kind:'pocket', shape:'poly', name:nm, path:P, ...(I.length?{islands:I}:{}), tool:toolRings([P,...I],false), depth:r.depth, x:r4((Q.x0+Q.x1)/2), y:r4((Q.y0+Q.y1)/2), w:r4(Q.x1-Q.x0), h:r4(Q.y1-Q.y0), key });
+      const sl=r.slope ? { ...r.slope, a:fl(mv([r.slope.a]))[0], b:fl(mv([r.slope.b]))[0] } : null;
+      (inside?out.inside:out.outside).push({ kind:'pocket', shape:'poly', name:nm, path:P, ...(I.length?{islands:I}:{}), ...(sl?{ slope:sl }:{}), tool:toolRings([P,...I],false), depth:r.depth, x:r4((Q.x0+Q.x1)/2), y:r4((Q.y0+Q.y1)/2), w:r4(Q.x1-Q.x0), h:r4(Q.y1-Q.y0), key });
     });
   });
   return out;

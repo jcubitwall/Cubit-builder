@@ -29,15 +29,20 @@
                                                               offset inside the cut), closed, in passes
      { kind:'rings',  rings:[[[x,y],…],…], z }                any drawn pocket: clearing rings (tool centres), inner first;
                                                               lifts between rings that are far apart
+     { kind:'path3',  runs:[[[x,y,z],…],…], tool:14 }          the bullnose: tool-tip paths in 3D (sloped pockets, tapered holes)
+   An op with another `tool` is cut after the rest, after one tool change (same lines as the header).
 */
 import { fitArcs } from './geom2d.js';
-const TOOLS = { 13: { name:'End mill ¾″ (SIP panel cutter)', d:0.75, rpm:10000, feed:180, plunge:150, step:0.3 } };
+const TOOLS = { 13: { name:'End mill ¾″ (SIP panel cutter)', d:0.75, rpm:10000, feed:180, plunge:150, step:0.3 },
+  // the ¾″ bullnose (ball nose): sloped pockets and tapered holes from the Shape studio. Tool number, speeds and
+  // feeds to confirm with the shop
+  14: { name:'Bullnose (ball nose) ¾″', d:0.75, rpm:10000, feed:150, plunge:100, step:0.3, ball:true, finish:0.15, down:0.25 } };
 const THRU = -0.05, SKIN = 0.125;
 const f4 = v => (Math.abs(v)<5e-5 ? 0 : v).toFixed(4);
 
 /* the post: turns moves into lines, only writing what changed */
-function post(T, safe){
-  const out=[], st={X:null,Y:null,Z:null,F:null};
+function post(T0, safe){
+  let T=T0; const out=[], st={X:null,Y:null,Z:null,F:null};
   const w = (k,v,force) => { const s=f4(v); if(!force && st[k]===s) return ''; st[k]=s; return k+s; };
   const fF = v => { const s=v.toFixed(1); if(st.F===s) return ''; st.F=s; return 'F'+s; };
   const L = s => out.push(s);
@@ -53,13 +58,18 @@ function post(T, safe){
     arc(cw,x,y,i,j,f){ const a=w('X',x), b=w('Y',y), F=fF(f), g=cw?'G2':'G3';
       L(F ? `${g} ${a} ${b} I${f4(i)} J${f4(j)} ${F}` : `${g} ${a} ${b} I${f4(i)} J${f4(j)}`); },
     footer(){ [`G0 Z${f4(safe)}`,'G0 X0.0000 Y0.0000','M5','m51'].forEach(L); },
+    // another tool for the rest of the file: up, stop, change, start, as at the top of the file
+    toolchange(n, T2){ T=T2; [`G0 Z${f4(safe)}`,'G0 X0.0000 Y0.0000','M5',`T${n}`,`S${T.rpm}`,'M50','M3','g4 x 4',`G0 Z${f4(safe)}`,`F${T.feed} XY`,`F${T.plunge} Z`].forEach(L); st.X=st.Y='0.0000'; st.Z=null; st.F=null; },
   };
 }
 
 function gcode(job){
-  const tool=job.tool||13, T=TOOLS[tool], r=T.d/2, safe=job.thick+1, near=job.thick+0.2;
+  const tool=job.tool||13, safe=job.thick+1, near=job.thick+0.2;
+  let T=TOOLS[tool], r=T.d/2, curTool=tool;
   const P=post(T, safe);
   P.header(tool);
+  // ops for another tool (the bullnose) go last, after one tool change
+  const ops=[...job.ops.filter(o=>(o.tool||tool)===tool), ...job.ops.filter(o=>(o.tool||tool)!==tool)];
   let tp, first=true;
   const lineTo = (x,y) => P.feed(x,y,null,T.feed);
   const arcTo = (cw,x,y,i,j) => P.arc(cw,x,y,i,j,T.feed);
@@ -72,7 +82,8 @@ function gcode(job){
     else P.rapid(x,y,null);
     P.rapid(null,null,near); plunge(z);
   };
-  for(const op of job.ops){
+  for(const op of ops){
+    if((op.tool||tool)!==curTool){ curTool=op.tool||tool; T=TOOLS[curTool]; r=T.d/2; P.toolchange(curTool, T); tp=null; }
     const newSeg = !first && op.tp!==tp; if(newSeg) P.segment(); tp=op.tp;
     if(op.kind==='line'){
       down(op.pts[0][0], op.pts[0][1], op.z??THRU, newSeg);
@@ -131,6 +142,12 @@ function gcode(job){
         else if(Math.hypot(Q[0][0]-last[0], Q[0][1]-last[1]) > T.step*2){ P.rapid(null,null,near); P.rapid(Q[0][0],Q[0][1],null); plunge(op.z); }
         else lineTo(Q[0][0], Q[0][1]);
         if(op.arcs) follow(Q); else Q.slice(1).forEach(([x,y])=>lineTo(x,y)); last=Q[Q.length-1]; });
+    }
+    else if(op.kind==='path3'){
+      // a 3D path (the bullnose): x, y, z at every point (tip of the tool); runs of passes, lifting between them
+      op.runs.forEach((Q,i)=>{ if(i===0) down(Q[0][0], Q[0][1], Q[0][2], newSeg);
+        else { P.rapid(null,null,near); P.rapid(Q[0][0],Q[0][1],null); plunge(Q[0][2]); }
+        Q.slice(1).forEach(([x,y,z])=>P.feed(x,y,z,T.feed)); });
     }
     else if(op.kind==='part'){
       const {x0,y0,x1,y1}=op, zs=op.passes||[SKIN, THRU];

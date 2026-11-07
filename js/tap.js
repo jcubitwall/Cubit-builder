@@ -60,11 +60,46 @@ function extend(p, q, open, {L,Rr,B,T,W}){
 /* a round hole / slot exactly as drawn. `U` maps the wall's x (from the outside-left; for face items the item's
    own x convention) to the face that is up. Through holes cut right through (a bridge is left in holes 4″ and up so the
    plug stays put, as in the shop's D4 vent); recesses are cleared to their depth. */
+/* the ¾″ bullnose (tool 14), for shapes drawn in the Shape studio:
+   · a SLOPED pocket: passes along the slope (start → end), 0.15″ apart across it, the tip's Z following the depth
+     from the start depth to the end depth, the same straight across; zig-zag, inside the bit's reach of the outline
+   · a TAPERED round hole: a cone, ⌀ d0 at the face to ⌀ d1 at its depth (or the far face): levels 0.25″ apart from the
+     face down, each cleared from the middle out to where the ball touches the cone wall (its centre held one ball
+     radius off the wall) */
+function bullnoseOp(ops, o, U, t, warn){
+  const T=TOOLS[14], R=T.d/2, out=[];
+  if(o.slope){
+    const rings=(o.tool||[]).map(r=>r.map(([x,y])=>[U(x), y])); if(!rings.length){ warn.push(`sloped pocket ${o.name||''} is narrower than the ¾″ bit: not cut`); return; }
+    const Bd=rings.reduce((a,r)=>Math.abs(area(r))>Math.abs(area(a))?r:a), A=[U(o.slope.a[0]), o.slope.a[1]], B=[U(o.slope.b[0]), o.slope.b[1]];
+    const v=[B[0]-A[0], B[1]-A[1]], L=Math.hypot(v[0],v[1])||1e-6, u=[v[0]/L, v[1]/L], n=[-u[1], u[0]], d0=+o.slope.d0, d1=+o.slope.d1;
+    const zAt = s => Math.max(THRU, t-(d0+(d1-d0)*Math.max(0, Math.min(1, s/L))));
+    const dot=(p,w)=>(p[0]-A[0])*w[0]+(p[1]-A[1])*w[1], ns=Bd.map(p=>dot(p,n)), lo=Math.min(...ns), hi=Math.max(...ns);
+    let k=0;
+    for(let c=lo+0.002; c<=hi-0.002+1e-9; c+=T.finish, k++){
+      const xs=[]; for(let i=0;i<Bd.length;i++){ const p=Bd[i], q=Bd[(i+1)%Bd.length], a=dot(p,n)-c, b=dot(q,n)-c; if((a<0)!==(b<0)){ const f=a/(a-b); xs.push(dot([p[0]+f*(q[0]-p[0]), p[1]+f*(q[1]-p[1])], u)); } }
+      xs.sort((a,b)=>a-b);
+      for(let j=0;j+1<xs.length;j+=2){ const s0=xs[j], s1=xs[j+1]; if(s1-s0<0.01) continue;
+        const ss=[s0, ...[0,L].filter(x=>x>s0 && x<s1), s1], at=s=>[A[0]+u[0]*s+n[0]*c, A[1]+u[1]*s+n[1]*c];
+        let run=ss.map(s=>{ const P=at(s); return [+P[0].toFixed(4), +P[1].toFixed(4), +zAt(s).toFixed(4)]; }); if(k%2) run=run.reverse(); out.push(run); } }
+    if(!out.length){ warn.push(`sloped pocket ${o.name||''}: no room for the bullnose`); return; }
+    ops.push({ tp:'bullnose', kind:'path3', runs:out, tool:14, what:`${o.name||'sloped pocket'} (slope ${fin(d0)} → ${fin(d1)}, ¾″ bullnose)` });
+    return;
+  }
+  // tapered round hole
+  const tp=o.taper, cx=U(tp.cx), cy=tp.cy, r0=tp.d0/2, r1=Math.max(R, tp.d1/2), zb=tp.thru ? THRU : t-o.depth, H=(tp.thru ? t : o.depth);
+  const alpha=Math.atan2(r0-r1, H), wallR = h => r1+(r0-r1)*Math.max(0, Math.min(1, (h-(tp.thru?0:zb))/H));
+  const levels=[]; for(let z=t-T.down; z>zb+1e-6; z-=T.down) levels.push(z); levels.push(zb);
+  levels.forEach(z=>{ const rc=wallR(z+R)-R/Math.cos(alpha); const run=[[cx, cy, +z.toFixed(4)]];
+    for(let rr=Math.min(T.step, rc); rr<=rc+1e-6 && rc>0; rr=Math.min(rc, rr+T.step)){ for(let i=0;i<=32;i++){ const a=-Math.PI/2-i/32*Math.PI*2; run.push([+(cx+rr*Math.cos(a)).toFixed(4), +(cy+rr*Math.sin(a)).toFixed(4), +z.toFixed(4)]); } if(rr>=rc-1e-6) break; }
+    out.push(run); });
+  ops.push({ tp:'bullnose', kind:'path3', runs:out, tool:14, what:`${o.name||'tapered hole'} (⌀ ${fin(tp.d0)} → ⌀ ${fin(tp.d1)}, ${tp.thru?'through':fin(o.depth)+' deep'}, ¾″ bullnose)` });
+}
 function shapedOp(ops, o, U, t, z, W, warn, item=false){
   if(z<=0.0625+1e-6) z=THRU;   // a pocket as deep as the wall (or within 1/16″ of it) is a hole right through
   const tool=TOOLS[13].d, thru=z<=THRU+1e-6;
   const what = o.shape==='round' ? `${item&&!thru?'recess':'hole'} ⌀ ${fin(o.d||o.dia)}` : o.shape==='slot' ? `${item?'chase':'slot'} ${fin(o.sw)} wide`
              : o.shape==='poly' ? `${thru?'shaped cut':'shaped pocket'} ${fin(o.w||0)} × ${fin(o.h||0)}` : `${o.kind==='box'?'box':'pocket'} ${fin(o.w)} × ${fin(o.h)}`;
+  if(o.slope || o.taper){ bullnoseOp(ops, o, U, t, warn); return; }
   if(o.shape==='poly'){
     // any other outline: the ¾″ bit follows the paths worked out from the drawing (profile inside a through cut,
     // clearing rings for a pocket); a cut narrower than the bit can't be made with it
@@ -160,7 +195,7 @@ function tapPlan(){
       p.intCuts.filter(b=>b.shape).forEach(b=>shapedOp(I, b, xo=>u(L-xo), t, t-(b.depth||DEPTH), W, warn, true));
       // a pocket on the outside face that goes the whole way through is cut with the other holes, room face up
       p.extCuts.filter(b=>b.shape).forEach(b=>{ const z=t-(b.depth||DEPTH);
-        if(z<=0.0625+1e-6) shapedOp(I, b, xo=>u(xo), t, z, W, warn, true); else shapedOp(E, b, xo=>BLANK-u(xo), t, z, W, warn, true); });
+        if(z<=0.0625+1e-6 && !b.taper) shapedOp(I, b, xo=>u(xo), t, z, W, warn, true); else shapedOp(E, b, xo=>BLANK-u(xo), t, z, W, warn, true); });   // a tapered hole is always cut from its own face
       p.intCuts.filter(b=>!b.shape).forEach(b=>{ const s=boxSize(b.kind), c=u(L-b.x);
         I.push({tp:'boxes', kind:'pocket', x0:c-s.w/2, x1:c+s.w/2, y0:b.y-s.h/2, y1:b.y+s.h/2, z:t-(b.depth||DEPTH), what:b.kind+(b.box?` (${b.box})`:'')}); });
       // boxes, exterior face (mirror across the blank)

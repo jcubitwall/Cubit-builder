@@ -250,7 +250,13 @@ function buildWallMesh(w, mat, opts={}){
   [[w.inside, x=>L-x, -t, -1], [w.outside, x=>x, 0, 1]].forEach(([items, toX, z0, dir])=>items.forEach(b=>{
     const P=faceShape(b, toX), X=toX(b.x);
     if(P && b.carved){   // carved to its depth: mark the bottom of the pocket (white for an electrical box)
-      const m=flat(P, z0-dir*Math.min(b.depth,(w.t||T))/FT + dir*0.004, handOf(b)?MAT.hand:b.kind==='box'?BOX_FLOOR:MAT.recess); m.userData.k=panelAt(w,X); g.add(m);
+      const tw=(w.t||T), BP = b.taper ? outlinePts({ circle:[toX(b.taper.cx), b.taper.cy, Math.max(0.375, b.taper.d1/2)] }) : P;
+      const m=flat(BP, z0-dir*Math.min(b.depth,tw)/FT + dir*0.004, handOf(b)?MAT.hand:b.kind==='box'?BOX_FLOOR:MAT.recess); m.userData.k=panelAt(w,X); g.add(m);
+      if(b.slope){   // a sloped bottom: each point of the floor at its own depth, start to end
+        const A=[toX(b.slope.a[0]), b.slope.a[1]], B=[toX(b.slope.b[0]), b.slope.b[1]], v=[B[0]-A[0], B[1]-A[1]], L2=v[0]*v[0]+v[1]*v[1]||1e-6, pos=m.geometry.attributes.position;
+        for(let i=0;i<pos.count;i++){ const x=pos.getX(i)*FT, y=pos.getY(i)*FT, s=Math.max(0, Math.min(1, ((x-A[0])*v[0]+(y-A[1])*v[1])/L2)), d=Math.min(tw, b.slope.d0+(b.slope.d1-b.slope.d0)*s);
+          pos.setZ(i, (-dir*d/FT + dir*0.004 + z0) - m.position.z); }
+        pos.needsUpdate=true; m.geometry.computeBoundingSphere(); }
       if(handOf(b)) g.add(handLoop(P, z0+dir*0.008));
       return; }
     if(P && b.kind==='box' && !b.shape?.match(/round|slot|poly/)){
