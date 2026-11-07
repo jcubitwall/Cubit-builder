@@ -481,7 +481,7 @@ stage.appendChild(tray);
 const podMini = len => `<svg viewBox="0 0 ${len+2} 10" aria-hidden="true"><rect x="1" y="1" width="${len}" height="8" rx="1" fill="#efe9da" stroke="#1c211e" stroke-width=".6"/>${[...Array(len/8-1)].map((_,k)=>`<line x1="${1+(k+1)*8}" y1="1" x2="${1+(k+1)*8}" y2="9" stroke="#1c211e" stroke-width=".3" stroke-dasharray="1 1"/>`).join('')}</svg>`;
 let trayTab='pods', trayCat='base';
 function renderTray(){
-  const tabs=`<div class="tray-tabs" role="tablist"><button role="tab" data-tab="pods" aria-selected="${trayTab==='pods'}">Pods</button><button role="tab" data-tab="cab" aria-selected="${trayTab==='cab'}">Cabinets</button></div>`;
+  const tabs=`<div class="tray-tabs" role="tablist"><button role="tab" data-tab="pods" aria-selected="${trayTab==='pods'}">Cubits</button><button role="tab" data-tab="cab" aria-selected="${trayTab==='cab'}">Accessories</button></div>`;
   if(trayTab==='cab'){
     const items=ITEMS.filter(d=>d.cat===trayCat && !d.deleted && !d.legacy);
     const sel = `<label class="tray-cat"><span>Category</span><select id="trayCat" aria-label="Category"><option value="__kit" ${trayCat==='__kit'?'selected':''}>Kitchens &amp; groups</option>${CATS.map(c=>`<option value="${c.k}" ${c.k===trayCat?'selected':''}>${c.name}</option>`).join('')}</select></label>`;

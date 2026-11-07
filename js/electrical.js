@@ -23,7 +23,8 @@
    Furniture's own plugs (appliances, basin GFCI, counters, bedside, desk) go on every wall, even one that keeps the
    library's plugs and switches; the rest (wall plugs, switches, outside, data) only on walls by the rules.
      · Outside: at least one weatherproof plug, beside the main door.
-     · Switches 48″, centre 6″ from the door's rough opening on the latch side, on the side the door swings into
+     · Switches 48″, centre 6″ from the door's rough opening on the side you walk through at (a man door: the latch side;
+       a patio slider: the moving panel's side), on the side the door swings into
        (an outside door: inside). A room with two or more entrances gets 3-way switches (confirmed by the team).
        An outside door gets a double box (the room's lights + the outside light).
      · Walls between pods: boxes only on the face toward the wall's own pod.
@@ -282,7 +283,10 @@ function compute(k){
   const swingZones=[];   // walls behind a door swung open (not usable for plugs)
   walls.forEach(W=>W.ops.forEach(q=>{
     const op=q.o; if(!q.owner || (op.kind!=='door' && op.kind!=='patio')) return;
-    const hand=q.ur?.hand||'L', swing=q.ur?.swing||'in', hingeA=hand==='R'?op.x+op.w:op.x, latchA=hand==='R'?op.x:op.x+op.w;
+    // the side you walk through at: a man door's latch side (its hand is the hinge side); a patio slider's MOVING panel
+    // side (its hand is the panel that moves: when it slides open the way through is where that panel was)
+    const hand=q.ur?.hand||'L', swing=q.ur?.swing||'in', slider=op.kind==='patio', openSide = slider ? hand : (hand==='R'?'L':'R');
+    const latchA = openSide==='L' ? op.x : op.x+op.w, hingeA = openSide==='L' ? op.x+op.w : op.x;
     const hingeP=W.at(hingeA/FT, W.t/2), latchP=W.at(latchA/FT, W.t/2);
     let F=W, fo=op;
     if(W.s.type==='int' && swing==='out' && q.pr){ const Wp=walls.find(x=>x.s.id===q.pr.slot.id); if(Wp){ F=Wp; fo=q.pr.o; } }
@@ -460,7 +464,7 @@ function compute(k){
     let done=false;
     const doors=[]; walls.forEach(W=>{ if(W.s.type==='ext' && W.auto) W.ops.forEach(q=>{ if(q.owner && (q.o.kind==='door'||q.o.kind==='patio')) doors.push({ W, q }); }); });
     doors.sort((p,q)=>(p.q.o.kind==='door'?0:1)-(q.q.o.kind==='door'?0:1));
-    for(const {W,q} of doors){ const op=q.o, hand=q.ur?.hand||'L', latchA=hand==='R'?op.x:op.x+op.w, dir=hand==='R'?-1:1;
+    for(const {W,q} of doors){ const op=q.o, hand=q.ur?.hand||'L', openSide = op.kind==='patio' ? hand : (hand==='R'?'L':'R'), latchA=openSide==='L'?op.x:op.x+op.w, dir=openSide==='L'?-1:1;
       const s=spotOnWall(W,'out',latchA+dir*12,H.wp,'wp',{ scan:48 }); if(!s) continue;
       add(W,'out',s,H.wp,'wp','wp:main',{ note:'weatherproof, GFCI', why:'outside plug' }); done=true; break; }
     if(!done){   // no outside door: the middle of the longest outside wall, to be moved where it's wanted
