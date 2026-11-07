@@ -6,7 +6,7 @@
 import { FT, H, GAP, POD, SIDE_NAME, LAYER_KINDS, SCREW_MAX, PAD_MAX, ICF, DECK, UP, LEVEL_KINDS, MAX_LV } from './config.js';
 const DG = DECK.gap/12;   // decks sit ¾″ off the house (siding), and butt straight up to each other
 import { MODELS, podById, deckById } from './data.js';
-import { pickFor, state, foundationOf } from './state.js';
+import { pickFor, state, foundationOf, jointWallT } from './state.js';
 
 const EPS = 1e-6;
 const podList = modelKey => MODELS[modelKey].pods.map((p,i)=>{
@@ -191,8 +191,9 @@ function middleWalls(modelKey, slots, pods, shift, ends){
         if(!(Math.max(b0,b1) > L.c-T2+EPS && Math.min(b0,b1) < L.c+T2-EPS)) return;
         // a full-height opening there (no SIP at all, like an open joint between pods): no wall to meet
         const W=pickFor(w), x0=(L.c-T2-u0)*d*12, x1=(L.c+T2-u0)*d*12, lo=Math.min(x0,x1), hi=Math.max(x0,x1);
+        const jt=jointWallT(w); if(jt===0) return;   // a wall between pods taken out: nothing there either
         if((W?.openings||[]).some(o=>isGap(o) && o.x<=lo+0.01 && o.x+o.w>=hi-0.01)) return;
-        best=Math.max(best, w.type==='int' ? 4.5 : (W?.t || 6.5)); });
+        best=Math.max(best, w.type==='int' ? (jt ?? 4.5) : (W?.t || 6.5)); });
       return best; };   // 0: nothing there, it runs to the pod's edge
     const ta=tAt(sideA), tb=tAt(sideB);
     // its own ends (e0 / e1, inches along its run in the pod's own frame; none = to the wall): as trims at the plan's
@@ -230,7 +231,7 @@ const GAP_REACH = 2;
 const isGap = o => o.gap===true || (o.gap!==false && !o.shape && o.y<=0.5 && o.y+o.h>=H-0.5);
 function fitShortWalls(slots, pods){
   const same=(a,b)=>Math.abs(a[0]-b[0])<EPS && Math.abs(a[1]-b[1])<EPS;
-  const tOf = s => pickFor(s)?.t || (s.type==='int'?4.5:6.5);
+  const tOf = s => { const j=jointWallT(s); return j!=null ? j : pickFor(s)?.t || (s.type==='int'?4.5:6.5); };
   slots.forEach(s=>{ s.short=!isLongSide(s.pod, s.side); s.trim=[0,0]; s.through=s.short?[true,true]:[false,false]; s.snap=[false,false]; });
   slots.forEach(s=>{
     if(s.short) return;
@@ -246,7 +247,7 @@ function fitShortWalls(slots, pods){
       const ee = same(end.p0n,c) ? 0 : same(end.p1n,c) ? 1 : -1;
       if(ee<0){ s.trim[e]=tOf(end); return; }
       const w=pickFor(end), L=(w?.len||end.len)*FT, tl=tOf(s);
-      const open = (w?.openings||[]).some(o=>isGap(o) && (ee===0 ? o.x <= tl+GAP_REACH : L-(o.x+o.w) <= tl+GAP_REACH));
+      const open = jointWallT(end)===0 || (w?.openings||[]).some(o=>isGap(o) && (ee===0 ? o.x <= tl+GAP_REACH : L-(o.x+o.w) <= tl+GAP_REACH));   // (or the end wall taken out)
       if(open){ s.through[e]=true; end.through[ee]=false; end.trim[ee]=tl; end.snap[ee]=true; }   // the long wall runs through
       else s.trim[e]=tOf(end);
     });

@@ -96,6 +96,9 @@ function choose(slot, wallId, opts={}){ checkpoint(); ensureDraft(); (state.pick
   save(); }
 let chooseHook=null; const setChooseHook = fn => { chooseHook=fn; };
 /* a wall's lasting name in its home: pod number, the pod's own side, where along it, interior or exterior (survives moves and turns) */
+/* a wall between pods made thicker or thinner, or taken out: MODELS[k].joint.t[wkey] (inches; 0 = no wall there)
+   → its thickness, or null (the standard 4½″) */
+const jointWallT = slot => { if(slot?.type!=='int' || slot.part || !slot.pod) return null; const v=MODELS[state.model]?.joint?.t?.[wkey(slot)]; return v==null || !isFinite(+v) ? null : +v; };
 const wkey = slot => `${slot.pod.i}:${slot.local}:${slot.from}:${slot.type||'ext'}`;
 
 /* what the home (pods) stands on: 'screws' (ground screws) or 'concrete' (ICF perimeter foundation) */
@@ -104,4 +107,4 @@ function setFoundation(k, f){ if(k===state.model){ checkpoint(); k=ensureDraft()
 /* deck joist spacing for a home, inches on centre: 24 (standard) or 16 */
 const deckOCOf = k => +(state.deckOC?.[k] || MODELS[k]?.deckOC || 24);
 function setDeckOC(k, oc){ if(k===state.model){ checkpoint(); k=ensureDraft(); } (state.deckOC ||= {})[k]=oc; save(); }
-export { setChooseHook, wkey, onSave, deckOCOf, setDeckOC, foundationOf, setFoundation, state, initState, save, pickFor, podSeg, choose, setFace, pickLayer, chooseLayer, blankWall };
+export { jointWallT, setChooseHook, wkey, onSave, deckOCOf, setDeckOC, foundationOf, setFoundation, state, initState, save, pickFor, podSeg, choose, setFace, pickLayer, chooseLayer, blankWall };

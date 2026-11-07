@@ -1,6 +1,7 @@
 /* Cubit Builder — panels.js */
 import { FT, H, PW, NOTCH, TI } from './config.js';
 import { expandWallShapes, expandLayerShapes } from './shapes.js';
+import { jointWallT } from './state.js';
 
 /* ============================================================ panel geometry (shared by 3D + 2D) */
 /* Walls are measured in inches from the LEFT END SEEN FROM OUTSIDE (x = 0) to L.
@@ -71,8 +72,11 @@ function bodyWallRaw(slot, w){
 function bodyWall(slot, w){
   if(!w || w.fitted) return w;
   let out=bodyWallRaw(slot, w);
-  if(slot?.type==='int') out.t = slot.part ? (slot.body?.t || TI) : TI;   // 4½″ between pods; a middle wall can be made thicker or thinner
+  const jt=jointWallT(slot);
+  if(slot?.type==='int') out.t = slot.part ? (slot.body?.t || TI) : (jt || TI);   // 4½″ between pods unless set otherwise; a middle wall can be made thicker or thinner
   if(jointHook) out=jointHook(slot, out);
+  // a wall between pods taken out: no SIP at all, one full-height opening wall to wall, nothing on its faces
+  if(jt===0) return { ...out, removed:true, openings:[{ kind:'opening', gap:true, x:0, y:0, w:out.L, h:H, key:'removed', bare:true }], inside:[], outside:[] };
   return elecHook ? elecHook(slot, out) : out;
 }
 let jointHook=null;

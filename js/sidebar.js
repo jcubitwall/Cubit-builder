@@ -1,6 +1,7 @@
 /* Cubit Builder — sidebar.js : model chips, wall list, wall options, layout editor, wall upload */
 import { FT, POD, PW, T, TI } from './config.js';
-import { jointInfo, makeLead, setFree, differs } from './joints.js';
+import { jointInfo, makeLead, setFree, differs, setJointT, partnerFor } from './joints.js';
+import { jointWallT } from './state.js';
 import { planWindowOverSink, centreWindowOverSink } from './sink-window.js';
 import { LIB, MODELS, optionsFor, saveCustomModels, layerOptions, mirrorId, layerMirrorId } from './data.js';
 import { LAYER_KINDS } from './config.js';
@@ -341,6 +342,31 @@ function jointBlock(s){
   return `<div class="jt-box"><div class="eyebrow">Between pods · 4½″</div><p class="note">Joins ${other}. Doors, windows, HRV holes and openings always match on both sides. ${lead} Plugs, switches and other boxes are each wall’s own.</p>
     <div class="row">${J.leads==='me'?'':'<button class="btn ghost edit-only" id="jLead">Use this wall’s openings</button>'}<button class="btn ghost edit-only" id="jFree" title="Only when the two walls really must have different openings">Let the two differ</button></div></div>`;
 }
+/* a wall between pods: any thickness, or none (taken out). Taking out both sides leaves a full opening into the
+   next pod: the two pods simply butt together there. */
+function jointWallBlock(s){
+  const t=jointWallT(s), cur=t==null?4.5:t, q=partnerFor(s), qt=q?jointWallT(q):null, qGone=qt===0, ed=canSave();
+  if(t===0) return `<div class="jt-box jw-box"><div class="eyebrow">Between pods · no wall</div>
+    <p class="note">This wall is taken out: no SIP, nothing on its faces${q?(qGone?`, and ${esc(q.label)} is out too, so the two pods are <b>open to each other</b> here, wall to wall, floor to ceiling.`:`. ${esc(q.label)} still stands on the other side (${fin(qt??4.5)}).`):'.'}</p>
+    <div class="row edit-only">${q&&!qGone?`<button class="btn ghost sm" id="jwBoth">Take out ${esc(q.label)} too (full opening)</button>`:''}<button class="btn ghost sm" id="jwBack">Put this wall back (4½″)</button>${q&&qGone?`<button class="btn ghost sm" id="jwBackBoth">Put both back</button>`:''}</div></div>`;
+  return `<div class="jt-box jw-box"><div class="eyebrow">Between pods · thickness</div>
+    <div class="mid-len"><div class="seg sm" role="group" aria-label="Thickness">${[2.5,3.5,4.5,6.5].map(v=>`<button data-jwt="${v}" aria-pressed="${Math.abs(cur-v)<1e-6}" ${ed?'':'disabled'}>${fin(v)}</button>`).join('')}</div>
+      <label class="cw-f"><span>Custom</span><input id="jwT" inputmode="decimal" value="${cur}" ${ed?'':'disabled'}><i>″</i></label></div>
+    <p class="note">It keeps its face on the joint and gets thicker or thinner into this pod.${q?` ${esc(q.label)} on the other side is ${fin(qt??4.5)}${qGone?' (taken out)':''}.`:''}</p>
+    <div class="row edit-only"><button class="btn ghost sm danger" id="jwOut">Take this wall out</button>${q?`<button class="btn ghost sm danger" id="jwOutBoth">Take out both (full opening)</button>`:''}${q&&Math.abs(cur-(qt??4.5))>1e-6&&qt!==0?`<button class="btn ghost sm" id="jwMatch">Make ${esc(q.label)} ${fin(cur)} too</button>`:''}</div></div>`;
+}
+function bindJointWall(s){
+  const go=(t, both, msg)=>{ setJointT(s, t, both); renderModels(); buildHome(); highlight(); renderSide(); toast(msg); };
+  sideB.querySelectorAll('[data-jwt]').forEach(b=>b.onclick=()=>go(+b.dataset.jwt, false, `${s.label}: ${fin(+b.dataset.jwt)} thick`));
+  const i=sideB.querySelector('#jwT'); if(i) i.onchange=()=>{ const v=parseFloat(i.value); if(isFinite(v) && v>=1 && v<=12) go(v, false, `${s.label}: ${fin(v)} thick`); else toast('Between 1″ and 12″ (or take it out)'); };
+  const sure=(b, fn)=>{ if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to confirm'; return; } fn(); };
+  sideB.querySelector('#jwOut')?.addEventListener('click', e=>sure(e.target, ()=>go(0, false, `${s.label} taken out`)));
+  sideB.querySelector('#jwOutBoth')?.addEventListener('click', e=>sure(e.target, ()=>go(0, true, 'Both walls taken out: a full opening between the pods')));
+  sideB.querySelector('#jwBoth')?.addEventListener('click', ()=>{ const q=partnerFor(s); if(q){ setJointT(q, 0); renderModels(); buildHome(); highlight(); renderSide(); toast('Both walls out: a full opening between the pods'); } });
+  sideB.querySelector('#jwMatch')?.addEventListener('click', ()=>{ const q=partnerFor(s); if(q){ setJointT(q, jointWallT(s)); renderModels(); buildHome(); highlight(); renderSide(); toast(`${q.label} matches`); } });
+  sideB.querySelector('#jwBack')?.addEventListener('click', ()=>go(null, false, `${s.label} back, 4½″`));
+  sideB.querySelector('#jwBackBoth')?.addEventListener('click', ()=>go(null, true, 'Both walls back, 4½″'));
+}
 function renderSideInner(){
   if(state.selFurn && furnSide(sideH, sideB)) return;   // a cabinet or piece of furniture picked
   const slots=slotsFor(state.model); const m=MODELS[state.model];
@@ -374,14 +400,14 @@ function renderSideInner(){
   } else {
     const w=pickFor(s); const opts=optionsFor(s.len, s.type||'ext', state.model);
     const isInt=s.type==='int';
-    sideH.innerHTML=`<div class="eyebrow">${s.part ? `Middle wall · ${fin(s.body.t)} · ${fin(s.body.len)} long` : `${isInt?'Interior wall · 4½″':'Exterior wall · 6½″'} · ${s.len}′ · ${s.len/4} panels`}</div><h2>${esc(withName(s.label, 'w:'+s.id))}${nameBtn('nmWall')}</h2><p>${s.detail} · faces ${fmtBearing(facing(s))} · now <b>${w?esc(w.id):'—'}</b> ${w?esc(w.name):''}${w&&!w.blank?' <button class="linkbtn ren-link editor-only" id="renWall">Rename</button>':''}</p>`;
+    sideH.innerHTML=`<div class="eyebrow">${s.part ? `Middle wall · ${fin(s.body.t)} · ${fin(s.body.len)} long` : `${isInt?(jointWallT(s)===0?'Between pods · taken out':`Interior wall · ${fin(jointWallT(s)??4.5)}`):'Exterior wall · 6½″'} · ${s.len}′${jointWallT(s)===0?'':` · ${s.len/4} panels`}`}</div><h2>${esc(withName(s.label, 'w:'+s.id))}${nameBtn('nmWall')}</h2><p>${s.detail} · faces ${fmtBearing(facing(s))} · now <b>${w?esc(w.id):'—'}</b> ${w?esc(w.name):''}${w&&!w.blank?' <button class="linkbtn ren-link editor-only" id="renWall">Rename</button>':''}</p>`;
     const rw=sideH.querySelector('#renWall'); if(rw) rw.onclick=()=>askRename('walls', w.mirrorOf||w.id);
     setTimeout(()=>{ if(s.part) bindMid(s); }, 0);
     bindName(sideH, 'nmWall', 'w:'+s.id, `Name ${s.label}`, 'e.g. Kitchen wall');
     sideB.innerHTML=`
       <div class="row"><button class="btn" id="toSheet">Assembly sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===s.id}">${state.isolate===s.id?'Exit isolate':'Isolate'}</button>${s.short ? `<button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button>` : ''}${w&&!w.blank?`<button class="btn ghost edit-only" id="wMir" title="The same wall the other way round (left ↔ right)">Mirror wall</button>`:''}<button class="btn ghost edit-only" id="wBuild" title="Openings, boxes, holes and shapes for this wall">Panel builder</button></div>
       ${(state.wallA?.[state.model]?.[s.pod.i] || m.pods[s.pod.i]?.a) ? `<p class="note">Wall A for ${s.pod.label} was set by hand. <button class="linkbtn" id="autoA">Go back to automatic</button></p>`:''}
-      ${s.part?midBlock(s,w):isInt?jointBlock(s):''}
+      ${s.part?midBlock(s,w):isInt?jointWallBlock(s)+(jointWallT(s)===0?'':jointBlock(s)):''}
       ${unitsBlock(s, bodyWall(s,w))}
       ${elecWallBlock(s)}
       ${plumbWallBlock(s)}
@@ -402,6 +428,7 @@ function renderSideInner(){
     sideB.querySelector('#wMir')?.addEventListener('click',()=>{ const id=mirrorId(w.id); choose(s, id); const pt=partnerOf(s, slots); if(pt) choose(pt, mirrorId(id), {follow:true}); buildHome(); renderSide(); toast(`${s.label} mirrored`+(pt?` · ${pt.label} follows`:'')); });
     bindUnits(s, bodyWall(s,w));
     bindElecWall(sideB, s);
+    if(isInt && !s.part) bindJointWall(s);
     sideB.querySelector('#jLead')?.addEventListener('click',()=>{ makeLead(s); buildHome(); renderSide(); toast(`${s.other?.label||'The other'}'s wall now takes this wall's openings`); });
     sideB.querySelector('#jFree')?.addEventListener('click',()=>{ const f=!jointInfo(s)?.free; setFree(s, f); buildHome(); renderSide(); toast(f?'The two walls can now differ':'The two walls match again'); });
     sideB.querySelectorAll('[data-cab]').forEach(b=>b.onclick=()=>{ setCabinet(state.model, s.id, +b.dataset.cab, b.dataset.cabn); buildHome(); renderSide(); });

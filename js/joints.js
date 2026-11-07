@@ -96,6 +96,12 @@ function setFree(slot, on){
   const P=pairFor(slot); if(!P) return;
   edit(J=>{ J.free ||= {}; [P.me, P.q].forEach(s=>{ if(on) J.free[wkey(s)]=true; else delete J.free[wkey(s)]; }); });
 }
+/* a wall between pods: its own thickness (inches; null = the standard 4½″; 0 = take it out); both: the neighbour's too */
+function setJointT(slot, t, both=false){
+  const P=pairFor(slot), list=[slot, ...(both && P ? [P.q] : [])];
+  edit(J=>{ J.t ||= {}; list.forEach(s=>{ if(t==null || Math.abs(t-4.5)<1e-6) delete J.t[wkey(s)]; else J.t[wkey(s)]=+t; }); });
+}
+const partnerFor = slot => pairFor(slot)?.q || null;
 /* for the wall panel: { other, leads:'me'|'q'|null, free } or null */
 function jointInfo(slot){
   const P=pairFor(slot); if(!P) return null;
@@ -109,4 +115,4 @@ function differs(slot){
   return A.length!==B.length || A.some(o=>!B.some(x=>Math.abs(x.x-o.x)<0.5 && Math.abs(x.w-o.w)<0.5 && Math.abs(x.y-o.y)<0.5 && Math.abs(x.h-o.h)<0.5));
 }
 
-export { jointOf, jointInfo, makeLead, setFree, differs };
+export { setJointT, partnerFor, jointOf, jointInfo, makeLead, setFree, differs };
