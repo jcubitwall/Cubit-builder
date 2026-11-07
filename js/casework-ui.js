@@ -76,7 +76,34 @@ const NAV_BASE = [
 /* …and each store's list goes right under the category it's for ("Home Depot store" under Fireplaces) */
 const storeKey = c => String(c).replace(/^d:/,'');
 const withStores = cs => cs.flatMap(c=>{ const k=Array.isArray(c)?c[0]:c; return [c, ...storesFor(storeKey(k)).map(({store})=>[`s:${store.id}:${storeKey(k)}`, `${store.name} store`])]; });
-const NAV = () => NAV_BASE.map(([g,cs])=>g==='Maker catalogues' ? [g, BRANDS.map(b=>[`u:cat:${b.id}`, `${b.name} catalogue`])] : [g, withStores(cs)]).filter(([,cs])=>cs.length);
+const NAV = () => NAV_BASE.filter(([g])=>g!=='Maker catalogues');
+/* ---------------------------------------------------------------- catalogues inside each category
+   Every category has the Cubit catalogue (what homes use) and, where there are any, outside catalogues: a maker's
+   (North Air under Windows) or a store's (Home Depot under Fireplaces). A switch at the top of the category flips
+   between them; a drop-down picks which outside catalogue when there are several. Remembered per category. */
+const UNIT_CAT = { 'u:win':'window', 'u:ext':'door', 'u:int':'door' };
+function sourcesFor(cat){
+  const out=[];
+  const uc=UNIT_CAT[cat]; if(uc) BRANDS.forEach(b=>{ if((b.styles||[]).some(st=>TYPES[st.type]?.cat===uc || (uc==='door' && TYPES[st.type]?.cat==='patio'))) out.push({ id:`brand:${b.id}`, label:`${b.name} catalogue` }); });
+  storesFor(storeKey(cat)).forEach(({store})=>out.push({ id:`store:${store.id}`, label:`${store.name} store` }));
+  return out;
+}
+const srcPick={}; try{ Object.assign(srcPick, JSON.parse(localStorage.getItem('cubit-lib-src')||'{}')); }catch(e){}
+const saveSrc=()=>{ try{ localStorage.setItem('cubit-lib-src', JSON.stringify(srcPick)); }catch(e){} };
+/* { on:'cubit'|source id, list } for the category open */
+function srcState(cat){ const list=sourcesFor(cat), p=srcPick[cat], on=p && p!=='cubit' && list.some(x=>x.id===p) ? p : 'cubit'; return { on, list, last:srcPick['last:'+cat] && list.some(x=>x.id===srcPick['last:'+cat]) ? srcPick['last:'+cat] : list[0]?.id }; }
+function srcBar(cat){
+  const S=srcState(cat); if(!S.list.length) return '';
+  const ext=S.on!=='cubit' ? S.on : S.last, extL=S.list.find(x=>x.id===ext)?.label||'Maker catalogue';
+  return `<div class="src-bar cw-span"><div class="seg sm" role="group" aria-label="Catalogue"><button data-src="cubit" aria-pressed="${S.on==='cubit'}">Cubit catalogue</button><button data-src="${esc(ext)}" aria-pressed="${S.on!=='cubit'}">${esc(extL)}</button></div>
+    ${S.list.length>1?`<label class="src-sel"><span>Outside catalogues</span><select id="srcSel">${S.list.map(x=>`<option value="${esc(x.id)}" ${x.id===ext?'selected':''}>${esc(x.label)}</option>`).join('')}</select></label>`:''}
+    <span class="note">${S.on==='cubit'?'What Cubit homes use.':'Adopt what Cubit will use into the Cubit catalogue.'}</span></div>`;
+}
+function bindSrc(body){
+  const go=v=>{ srcPick[view.cat]=v; if(v!=='cubit') srcPick['last:'+view.cat]=v; saveSrc(); render(); };
+  body.querySelectorAll('[data-src]').forEach(b=>b.onclick=()=>go(b.dataset.src));
+  const sel=body.querySelector('#srcSel'); if(sel) sel.onchange=()=>go(sel.value);
+}
 /* an option's label: an adopted fireplace insert by its maker and model */
 const optLabel = (k, v) => k==='insert' && INSERTS[v]?.name ? `${INSERTS[v].name} (${INSERTS[v].w}″)` : (k==='insert' && /^\d+$/.test(v) ? `${v}″ generic` : v);
 const SHOP_CATS = new Set(['base','upper','tall','linen','wardrobe','vanity','bench','shelf','counter','sink','fire']);
@@ -125,6 +152,12 @@ async function openCaseLib(o={}){
   HIST.reset(); render(); if(!dlg.open) dlg.showModal();
 }
 function render(){
+  renderInner();
+  if(view.tab!=='lib' || view.item) return;
+  const body=dlg.querySelector('.cw-body'), sec=body.querySelector('section.cw-grid'), bar=srcBar(view.cat);
+  if(sec && bar){ sec.insertAdjacentHTML('afterbegin', bar); bindSrc(body); }
+}
+function renderInner(){
   const st=setTab(view.cat), stb=dlg.querySelector('#cwSetTab');
   if(stb){ stb.hidden=!st; stb.textContent=st?st[0]:'Settings'; }
   if(view.tab==='set' && !st) view.tab='lib';
@@ -134,6 +167,9 @@ function render(){
   const nav=`<nav class="cw-cats" aria-label="Categories">${NAV().map(([g,cs])=>`<div class="cw-ng">${esc(g)}</div>${cs.map(c=>{ const k=Array.isArray(c)?c[0]:c; return `<button data-cat="${k}" aria-current="${k===view.cat}"><span>${esc(navName(k))}</span><small>${countOf(k)}</small></button>`; }).join('')}`).join('')}</nav>`;
   if(view.tab==='set'){ if(st[1]==='shop'){ renderSettings(body); return; } body.innerHTML=nav+`<section class="cw-rules">${rulesFor(st[1])}</section>`; bindNav(body); bindRules(body); return; }
   if(view.item){ renderDetail(body); return; }
+  { const S=srcState(view.cat);   // an outside catalogue chosen for this category
+    if(S.on.startsWith('brand:')){ const bid=S.on.slice(6); body.innerHTML=nav+catalogueGrid(bid, view.cat); bindNav(body); bindCatalogue(body, bid); return; }
+    if(S.on.startsWith('store:')){ const sid=S.on.slice(6), key=storeKey(view.cat); body.innerHTML=nav+storeGrid(sid,key); bindNav(body); bindStore(body,sid,key); return; } }
   if(view.cat.startsWith('b:')){ body.innerHTML=nav+buildingGrid(view.cat); bindNav(body); bindBuilding(body); return; }
   if(view.cat==='d:bx'){ body.innerHTML=nav+boxGrid(); bindNav(body); return; }
   if(view.cat.startsWith('s:')){ const [,sid,key]=view.cat.split(':'); body.innerHTML=nav+storeGrid(sid,key); bindNav(body); bindStore(body,sid,key); return; }
@@ -210,7 +246,7 @@ function unitGrid(cat){
     <div class="cw-bact"><button class="btn ghost sm" data-c3d="${esc(u.id)}">3D</button>${ed?`<button class="btn ghost sm" data-uedit="${esc(u.id)}">Edit</button><button class="btn ghost sm" data-cren="${esc(u.id)}">Rename</button><button class="btn ghost sm danger" data-cdel="${esc(u.id)}">Delete</button>`:''}</div></div>`;
   const cats=BRANDS.map(b=>`<button class="linkbtn" data-cat="u:cat:${esc(b.id)}">${esc(b.name)} catalogue →</button>`).join(' ');
   return `<section class="cw-grid cw-bgrid"><div class="cw-bbar"><input type="search" id="cwQ" placeholder="Search names, IDs, brands" aria-label="Search">${gone?`<button class="linkbtn editor-only" id="cwGone">Deleted (${gone})</button>`:''}</div>
-    <p class="note cw-span">The Cubit library: only these go into homes and the panel builder. ${ed?`Add more from a maker's catalogue (${cats}), or ⋯ → Upload STEP → Window / door.`:'Editors and admins adopt new ones from the makers’ catalogues.'}</p>
+    <p class="note cw-span">The Cubit library: only these go into homes and the panel builder. ${ed?'Add more from a maker’s catalogue (the switch above), or ⋯ → Upload STEP → Window / door.':'Editors and admins adopt new ones from the makers’ catalogues.'}</p>
     ${order.map(k=>`<div class="cw-ng cw-span">${esc(brandName(k))} <small>${groups[k].length}</small></div>${groups[k].map(card).join('')}`).join('') || '<p class="note">None yet.</p>'}</section>`;
 }
 function bindUnitGrid(body){
@@ -226,8 +262,9 @@ function bindUnitGrid(body){
 }
 /* a maker's catalogue: every style and size as scanned, with what the maker offers; Adopt puts one in the Cubit library */
 let catStyle=null;
-function catalogueGrid(bid){
-  const b=brandById(bid); if(!b) return '<p class="note">No such catalogue.</p>';
+function catalogueGrid(bid, cat){
+  const b0=brandById(bid); if(!b0) return '<p class="note">No such catalogue.</p>';
+  const uc=UNIT_CAT[cat], b=uc ? { ...b0, styles:b0.styles.filter(st=>TYPES[st.type]?.cat===uc || (uc==='door' && TYPES[st.type]?.cat==='patio')) } : b0;
   const ed=canEdit(), all=catalogOf(bid), st=catStyle && b.styles.some(s=>s.key===catStyle) ? catStyle : b.styles[0]?.key, S=b.styles.find(s=>s.key===st);
   const have=new Set(UNITLIB.filter(u=>!u.deleted).map(u=>u.adoptedFrom||u.id));
   const items=all.filter(u=>u.style===st), O=b.options||{};
