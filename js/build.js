@@ -17,7 +17,7 @@ import { canSave } from './role.js';
 import { podList, slotsFor, layerSlotsFor } from './layout.js';
 import { setIsolate, setPod, openLayers } from './layers.js';
 import { camera, controls, renderer, homeGroup, pickables, buildHome, highlight } from './scene3d.js';
-import { addPod, movePod, rotatePod, addDeck, moveDeck, dockSpots, deckSpots, foot, deckFoot, addPart, movePart, partSnaps } from './pods.js';
+import { addPod, movePod, rotatePod, addDeck, moveDeck, dockSpots, deckSpots, foot, deckFoot, addPart, movePart, partSnaps, problem } from './pods.js';
 import { podOffsets, midAt } from './layout.js';
 import { UP, MAX_LV } from './config.js';
 const UPF = UP/12;
@@ -152,7 +152,7 @@ async function drawPlan(){
   hideLowLines();
   // the rooms: white paper over the floors (furniture stands on top of it)
   const white=new THREE.MeshBasicMaterial({ color:0xffffff });
-  (H_.pods||[]).forEach(p=>{ const f=new THREE.Mesh(new THREE.PlaneGeometry(p.w, p.d), white); f.rotation.x=-Math.PI/2; f.position.set(p.x+p.w/2, (p.y||0)+0.03, p.z+p.d/2); f.renderOrder=1; homeGroup.add(f); BP.objs.push(f); });
+  (H_.pods||[]).forEach(p=>{ const f=new THREE.Mesh(new THREE.PlaneGeometry(p.w, p.d), white); f.rotation.x=-Math.PI/2; f.position.set(p.x+p.w/2, (p.y||0)+0.03, p.z+p.d/2); f.renderOrder=1; f.userData.plan=true; homeGroup.add(f); BP.objs.push(f); });
 }
 function hideLowLines(){
   homeGroup.updateMatrixWorld(true); const v=new THREE.Vector3();
@@ -256,15 +256,32 @@ let D=null;           // the drag in progress: {mode:'move'|'new', deck, i, item
 const pointers=new Map();
 const editable = () => canSave();
 function footOf(d){ return d.deck ? deckFoot({lib:d.lib, x:0, z:0, rot:d.rot}) : foot({t:d.t, x:0, z:0, rot:d.rot}); }
-function spots(d){ if(!d.spots) d.spots = d.deck ? deckSpots(d.lib, d.rot, d.mode==='move'?d.i:-1) : dockSpots(d.item, d.rot, d.mode==='move'?d.i:-1); return d.spots; }
+/* where it can go. A deck that hasn't been turned by hand tries all four ways round, so it turns itself to put its
+   ledger against the pod it's dropped beside (a deck facing the wrong way has nowhere to dock on that side). */
+function spots(d){
+  if(!d.spots){ const skip=d.mode==='move'?d.i:-1;
+    d.spots = d.deck ? (d.turned ? [d.rot] : [d.rot, ...[0,90,180,270].filter(r=>r!==d.rot)]).flatMap(r=>deckSpots(d.lib, r, skip).map(s=>({ ...s, rot:r })))
+                     : dockSpots(d.item, d.rot, skip); }
+  return d.spots; }
 function track(d, x, y){
   const at=planAt(x,y); if(!at) return;
   const f=footOf(d);
   let gx, gz;
   if(d.mode==='move'){ gx=d.grab.x0+(at.x-d.grab.x); gz=d.grab.z0+(at.z-d.grab.z); } else { gx=at.x-f.w/2; gz=at.z-f.d/2; }
-  let best=null, bd=1e9; spots(d).forEach(s=>{ const q=Math.hypot(s.x-gx,s.z-gz); if(q<bd){ bd=q; best=s; } });
-  d.ok = !!best && bd<=12; d.at = d.ok ? {x:best.x, z:best.z} : {x:Math.round(gx/8)*8, z:Math.round(gz/8)*8};
-  showGhost({...f, x:d.at.x, z:d.at.z}, d.ok);
+  // nearest by centre (a deck turned the other way round has a different footprint)
+  const cx=gx+f.w/2, cz=gz+f.d/2;
+  let best=null, bd=1e9; spots(d).forEach(s=>{ const g=s.rot!=null && s.rot!==d.rot ? footOf({ ...d, rot:s.rot }) : f, q=Math.hypot(s.x+g.w/2-cx, s.z+g.d/2-cz) + (s.rot!=null && s.rot!==d.rot ? 2 : 0); if(q<bd){ bd=q; best=s; } });
+  d.ok = !!best && bd<=12;
+  if(d.ok && best.rot!=null && best.rot!==d.rot){ d.rot=best.rot; }
+  const F=footOf(d);
+  d.at = d.ok ? {x:best.x, z:best.z} : {x:Math.round((cx-F.w/2)/8)*8, z:Math.round((cz-F.d/2)/8)*8};
+  showGhost({...F, x:d.at.x, z:d.at.z}, d.ok);
+}
+/* why a deck won't go: the home's own problem when nothing fits anywhere, else where it does fit */
+function deckWhy(d){
+  const m=MODELS[state.model];
+  if(!spots(d).length){ const why=problem(m.pods, m.decks||[]); return why ? `No spot for a deck: ${why}` : 'No spot for this deck: every side of the home is taken.'; }
+  return 'Drop it beside a pod or another deck: it turns itself so its ledger sits flush, in 8′ steps.';
 }
 function after(why, msg){
   if(why){ toast(why); return; }
@@ -278,7 +295,7 @@ function turn(d, dir){
       M.forEach(o=>refreshItem(furnById(o.id))); startGroupDrag(d); renderSide(); return; }
     turnItem(d.id, dir); refreshItem(furnById(d.id)); renderSide(); return; }
   if(d.mode==='fnew'){ d.it.a=(((d.it.a||0)-90*dir)%360+360)%360; if(d.lastXY) trackFurn(d, ...d.lastXY); return; }
-  if(d.mode==='new'){ d.rot=((d.rot||0)+(dir>0?90:270))%360; d.spots=null; if(d.lastXY) track(d, ...d.lastXY); return; }
+  if(d.mode==='new'){ d.rot=((d.rot||0)+(dir>0?90:270))%360; d.turned=true; d.spots=null; if(d.lastXY) track(d, ...d.lastXY); return; }
   // a pod already placed: a quarter turn where it stands (or as near as it fits)
   let why='';
   if(d.deck){ const q=MODELS[state.model].decks[d.i]; why=moveDeck(d.i, q.x, q.z, ((q.rot||0)+(dir>0?90:270))%360); }
@@ -429,7 +446,7 @@ function release(e){
   if(pointers.size) return;                                             // wait for the last finger
   const d=D; D=null; hideGhost(); document.body.classList.remove('dragging'); controls.enabled=true;
   if(d.twist || !d.started) return;                                     // a twist, or a tap (the tap picks it, in scene3d)
-  if(!d.ok){ toast(d.deck ? 'A deck docks with its ledger against a pod or another deck, in 8′ steps.' : 'Pods dock flush end to end or side by side in 8′ steps, sharing at least 8′ of wall.'); return; }
+  if(!d.ok){ toast(d.deck ? deckWhy(d) : 'Pods dock flush end to end or side by side in 8′ steps, sharing at least 8′ of wall.'); return; }
   const m=MODELS[state.model], q=d.deck ? m.decks[d.i] : m.pods[d.i];
   if(q.x===d.at.x && q.z===d.at.z) return;
   after(d.deck ? moveDeck(d.i, d.at.x, d.at.z, d.rot) : movePod(d.i, d.at.x, d.at.z, d.rot), d.deck ? 'Deck moved' : 'Pod moved');
@@ -522,7 +539,7 @@ tray.addEventListener('pointerdown', e=>{
         const gid=addRecipe(d.kit.items, {...d.at, u:d.at.u-shift[0], v:d.at.v-shift[1]}, d.kit.name, d.kit.id);
         const L=groupMembers(gid); L.forEach(refreshItem); state.selFurn=L[0]?.id||null; state.selected=null; highlight(); renderSide(); if(!panelOpen()) setPanel(true); toast(`${d.kit.name} added · drag it to move it as one`); return; }
       const { overBase, ...at }=d.at, f=addItem(d.it.k, at); state.selFurn=f.id; state.selected=null; refreshItem(f); highlight(); renderSide(); if(!panelOpen()) setPanel(true); toast(`${itemDef(f.k).name} added${overBase?` · ${f.w}″ wide, to match the base under it`:''}`); return; }
-    if(!d.ok){ toast('Drop it next to the home, where it docks flush in 8′ steps.'); return; }
+    if(!d.ok){ toast(d.deck ? deckWhy(d) : 'Drop it next to the home, where it docks flush in 8′ steps.'); return; }
     after(d.deck ? addDeck(d.lib, d.at.x, d.at.z, d.rot) : addPod(d.item, d.at.x, d.at.z, d.rot), d.deck ? 'Deck added' : 'Pod added'); };
   window.addEventListener('pointermove',mv); window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up);
 });

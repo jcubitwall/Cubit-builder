@@ -36,6 +36,9 @@ function renderViews(){
     Object.assign(state.show, { roof:true, ceiling:true, walls:true, floors:true, decks:true, screws:false, framing:false, splines:false, units:true, seals:false });
     const ni=S3.homeGroup.children.indexOf(S3.northGroup);
     const grab=()=>{ const c=S3.homeGroup.clone(true); if(ni>=0 && c.children[ni]) c.children[ni].visible=false;
+      // the Build view's 2D plan (the drawing laid over the home, its white paper floors, the lines it hid) stays out
+      // of the pictures: made solid below it would come out as a black sheet over the roof
+      c.traverse(o=>{ if(o.userData?.plan) o.visible=false; else if(o.userData?.hid2d && (o.isLine||o.isLineSegments)) o.visible=true; });
       c.traverse(o=>{ if(o.isMesh && o.material && !Array.isArray(o.material) && o.material.transparent && o.material!==S3.MAT.glass){ const m=o.material.clone(); m.transparent=false; m.opacity=1; m.depthWrite=true; o.material=m; } }); return c; };
     S3.applyLayers(); const whole=grab();
     state.show.roof=false; state.show.ceiling=false; S3.applyLayers(); const open=grab();

@@ -763,3 +763,9 @@ Library → Heating → **Baseboard heaters** (its own category; Heat pumps stay
 Everything in a interior wall's panel now refers to the pod walls by their letters instead of the compass: its two ends are the walls it meets (*Wall D end: to the wall*, *Keep in place: Wall D end · middle · Wall B2 end*), its place is measured *from Wall C*, the clearances are *to Wall C* and *to Wall A*, and door left / right are *seen from the Wall A side*. Where a side is split (B1, B2) it names the piece that's actually there. The drag tip on the plan says the same.
 - **Picture window, patio-door size:** North Air's picture-window list also has **70¾ × 82½** (NA-PI-7183), the same unit, RSO (72 × 83¾) and brickmould (73¾ × 85½) as their 6′ × 82½″ patio door on quote 91,608, so a fixed window lines up with the slider. Like the rest of the list it's marked to confirm with North Air; adopt it to use it.
 
+
+## Decks turn themselves to dock (build.js)
+A deck dragged from the tray (or moved) tries all four ways round and turns so its ledger sits flush against the pod or deck it's dropped beside. Before, a deck only docked on the side its ledger already faced (south when it came out of the tray), so a drop on any other side was refused. Turning it by hand while dragging locks that way round. When it still won't go, the message says why (the home's own problem when there's no spot anywhere).
+
+## Blueprint 3D views leave out the 2D plan
+The cover and 3D-view pictures are taken from the live 3D home. In the Build view's 2D mode the plan drawing is laid over the home as a sheet; the pictures now leave it (and its white paper floors) out, instead of showing it as a black layer over the roof.
