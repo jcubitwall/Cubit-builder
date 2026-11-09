@@ -769,3 +769,6 @@ A deck dragged from the tray (or moved) tries all four ways round and turns so i
 
 ## Blueprint 3D views leave out the 2D plan
 The cover and 3D-view pictures are taken from the live 3D home. In the Build view's 2D mode the plan drawing is laid over the home as a sheet; the pictures now leave it (and its white paper floors) out, instead of showing it as a black layer over the roof.
+
+## Footprint always on screen (build.js)
+Under the view cube in Build, a chip shows the home's **footprint in sq ft**: the ground-floor pods, outside to outside on the 8′ grid (the same figure as the drawing set's floor area; m² on hover). It updates every time a pod is added, moved, turned or removed. When there's an upper floor it also shows all floors, and when there are decks, their area, on a small line under it.

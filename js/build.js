@@ -111,6 +111,21 @@ btnDn.onclick=()=>{ setLevel(state.level-1); lvToast(); };
 btnUp.onclick=()=>{ setLevel(state.level+1); lvToast(); };
 btnLv.onclick=()=>{ setLevel(state.level ? 0 : topFloor()); lvToast(); };
 setTimeout(()=>{ document.querySelector('.vcube-wrap .vc-hist')?.appendChild(lvWrap); setLevel(0); }, 0);
+/* the footprint, always on screen while building: the ground-floor pods (nominal, as the drawing set's floor area),
+   with the floors above and the decks under it when there are any. Updated every time the home is rebuilt. */
+const sqft=document.createElement('div'); sqft.className='sqft-chip'; sqft.setAttribute('aria-live','polite');
+const fmtN = n => Math.round(n).toLocaleString('en-CA');
+function showSqft(){
+  const m=MODELS[state.model]; if(!m){ sqft.hidden=true; return; } sqft.hidden=false;
+  const pods=m.pods||[], area=p=>{ const f=foot(p); return f.w*f.d; };
+  const ground=pods.filter(p=>!(+p.lv)).reduce((a,p)=>a+area(p),0), all=pods.reduce((a,p)=>a+area(p),0);
+  const deck=(m.decks||[]).reduce((a,d)=>{ try{ const f=deckFoot(d); return a+f.w*f.d; }catch(e){ return a; } },0);
+  const sub=[all>ground+1e-6?`all floors ${fmtN(all)}`:'', deck?`decks ${fmtN(deck)}`:''].filter(Boolean).join(' · ');
+  sqft.innerHTML=`<span class="sq-k">Footprint</span><b>${fmtN(ground)}</b><span class="sq-u">sq ft</span>${sub?`<small>${sub} sq ft</small>`:''}`;
+  sqft.title=`Footprint ${fmtN(ground)} sq ft (${(ground*0.092903).toFixed(1)} m²): the ground-floor pods, outside to outside on the 8′ grid`;
+}
+setTimeout(()=>{ document.querySelector('.vcube-wrap')?.appendChild(sqft); showSqft(); }, 0);
+import('./scene3d.js').then(m=>m.onBuilt(showSqft));
 const btn2D=document.createElement('button'); btn2D.className='vc-b vc-2d'; btn2D.id='vc2D'; btn2D.textContent='2D'; btn2D.setAttribute('aria-pressed','false'); btn2D.title='Flat top view (true 2D) for placing cabinets';
 btn2D.onclick=()=>set2D(!TWO_D);
 document.querySelector('.vcube-wrap .vc-hist')?.appendChild(btn2D);

@@ -1353,3 +1353,11 @@ dialog.v3-dlg.v3-full .v3-cube{top:max(12px, env(safe-area-inset-top,0px));right
 .ss-slrow{display:flex;align-items:flex-end;gap:8px;margin:6px 0}
 .ss-slrow .btn.on{background:#d9682b;color:#fff;border-color:#d9682b}
 .ss-sm{fill:#fff;stroke:#d9682b;stroke-width:2}
+
+/* the footprint, always on screen in Build (under the view cube) */
+.sqft-chip{display:flex;flex-direction:column;align-items:center;gap:0;min-width:84px;padding:6px 10px 7px;border:1px solid var(--line);border-radius:10px;background:color-mix(in srgb,var(--surface) 92%,transparent);color:var(--ink);line-height:1.1;pointer-events:auto;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.sqft-chip .sq-k{font:600 9.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+.sqft-chip b{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.sqft-chip .sq-u{font:600 10px var(--mono);color:var(--ink-2)}
+.sqft-chip small{margin-top:3px;font-size:10px;color:var(--ink-2);text-align:center;max-width:120px}
+.sqft-chip[hidden]{display:none}
