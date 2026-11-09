@@ -515,7 +515,14 @@
      ],
      "hardware": [],
      "ratings": [],
-     "note": "Fixed glass, no sash."
+     "note": "Fixed glass, no sash.",
+     "extra": [
+      {
+       "w": 70.75,
+       "h": 82.5,
+       "note": "Patio-door size: same unit and RSO as North Air's 6' x 82.5\" patio door (quote 91,608)"
+      }
+     ]
     },
     {
      "key": "bay",

@@ -38,6 +38,8 @@ function bmOf(u){
   const b=brandById(brandKeyOf(u)); if(!b?.bm) return null;
   return { w:r16(u.w+b.bm.dw), h:r16(u.h+b.bm.dh) };
 }
+/* 70.75 → 70¾ */
+const fr = v => { const n=Math.floor(v), f=Math.round((v-n)*16); if(!f) return String(n); const g=(a,b)=>b?g(b,a%b):a, d=g(f,16); return `${n} ${f/d}/${16/d}`.replace(' 1/2','½').replace(' 1/4','¼').replace(' 3/4','¾'); };
 const code2 = v => String(Math.round(v)).padStart(2,'0');
 /* a brand's catalogue as units: [{ id, name, type, w, h, d, brand, style, maker, confirm, url, … }] */
 const catCache=new Map();
@@ -45,11 +47,13 @@ function catalogOf(brandId){
   if(catCache.has(brandId)) return catCache.get(brandId);
   const b=brandById(brandId); if(!b) return [];
   const out=[];
-  (b.styles||[]).forEach(s=>s.w.forEach(w=>s.h.forEach(h=>{
-    const u={ id:`${b.id==='north-air'?'NA':b.id.slice(0,3).toUpperCase()}-${s.code}-${code2(w)}${code2(h)}`, name:`${b.name} ${s.name} ${w} × ${h}`,
+  const add=(s, w, h, note)=>{
+    const u={ id:`${b.id==='north-air'?'NA':b.id.slice(0,3).toUpperCase()}-${s.code}-${code2(w)}${code2(h)}`, name:`${b.name} ${s.name} ${fr(w)} × ${fr(h)}`,
       type:s.type, w, h, d:b.d||4.5, brand:b.id, maker:b.name, style:s.key, confirm:true, url:s.url, source:`${b.name} catalogue` };
+    if(note) u.note=note;
     u.rso=rsoOf({ ...u, rso:null }); const bm=bmOf({ ...u, bm:null }); if(bm) u.bm=bm;
-    out.push(u); })));
+    out.push(u); };
+  (b.styles||[]).forEach(s=>{ s.w.forEach(w=>s.h.forEach(h=>add(s, w, h))); (s.extra||[]).forEach(x=>add(s, x.w, x.h, x.note)); });   // extra: sizes off the grid
   catCache.set(brandId, out); return out;
 }
 const styleOf = (brandId, key) => brandById(brandId)?.styles?.find(s=>s.key===key) || null;

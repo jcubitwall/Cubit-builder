@@ -761,3 +761,5 @@ Library → Heating → **Baseboard heaters** (its own category; Heat pumps stay
 ### Interior walls named by wall letters
 
 Everything in a interior wall's panel now refers to the pod walls by their letters instead of the compass: its two ends are the walls it meets (*Wall D end: to the wall*, *Keep in place: Wall D end · middle · Wall B2 end*), its place is measured *from Wall C*, the clearances are *to Wall C* and *to Wall A*, and door left / right are *seen from the Wall A side*. Where a side is split (B1, B2) it names the piece that's actually there. The drag tip on the plan says the same.
+- **Picture window, patio-door size:** North Air's picture-window list also has **70¾ × 82½** (NA-PI-7183), the same unit, RSO (72 × 83¾) and brickmould (73¾ × 85½) as their 6′ × 82½″ patio door on quote 91,608, so a fixed window lines up with the slider. Like the rest of the list it's marked to confirm with North Air; adopt it to use it.
+

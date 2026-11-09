@@ -72,8 +72,13 @@ BRAND = {
     'styles': [{'key': k, 'type': t, 'name': n, 'code': c, 'url': URL + u, 'w': w, 'h': h, 'features': f, 'hardware': hw, 'ratings': rt, 'note': nt}
                for (k, t, n, c, u, w, h, f, hw, rt, nt) in STYLES],
 }
+# sizes off the grid: a picture window the size of the 6' patio door (North Air quote 91,608: patio 70 3/4 x 82 1/2,
+# RSO 72 x 83 3/4), so a fixed window can sit beside or instead of the slider and line up with it
+EXTRA = {'picture': [{'w': 70.75, 'h': 82.5, 'note': "Patio-door size: same unit and RSO as North Air's 6' x 82.5\" patio door (quote 91,608)"}]}
+for st in BRAND['styles']:
+    if st['key'] in EXTRA: st['extra'] = EXTRA[st['key']]
 if __name__ == '__main__':
     out = os.path.join(ROOT, 'data', 'brands.json')
     json.dump({'brands': [BRAND]}, open(out, 'w'), indent=1)
-    n = sum(len(s['w']) * len(s['h']) for s in BRAND['styles'])
+    n = sum(len(s['w']) * len(s['h']) + len(s.get('extra', [])) for s in BRAND['styles'])
     print(f'{out}: North Air, {len(STYLES)} styles, {n} sizes')

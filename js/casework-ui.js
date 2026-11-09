@@ -276,11 +276,11 @@ function catalogueGrid(bid, cat){
   return `<section class="cw-grid cw-bgrid"><div class="cw-span cat-head">
       <h3>${esc(b.name)} <a href="${esc(b.url)}" target="_blank" rel="noopener" class="linkbtn">${esc(b.url.replace(/^https?:\/\//,''))}</a></h3>
       <p class="note">Scanned ${esc(b.scanned)}. ${esc(b.note)} Rough opening: unit + ${fin2(b.rso.dw)} wide and high${b.bm?`; brickmould unit + ${fin2(b.bm.dw)}`:''}. ${ed?'<b>Adopt</b> puts a size into the Cubit library, where it can be edited to the exact size North Air will make.':'Editors and admins adopt sizes into the Cubit library.'}</p>
-      <div class="seg wrap sm cat-styles">${b.styles.map(s=>`<button data-cst="${esc(s.key)}" aria-pressed="${s.key===st}">${esc(s.name)} <small>${s.w.length*s.h.length}</small></button>`).join('')}</div>
+      <div class="seg wrap sm cat-styles">${b.styles.map(s=>`<button data-cst="${esc(s.key)}" aria-pressed="${s.key===st}">${esc(s.name)} <small>${s.w.length*s.h.length+(s.extra?.length||0)}</small></button>`).join('')}</div>
       ${S?`<details class="cat-info" open><summary><b>${esc(S.name)}</b> · ${esc(S.note)} <a href="${esc(S.url)}" target="_blank" rel="noopener" class="linkbtn">maker's page</a></summary>
         <div class="cat-cols"><div><div class="eyebrow sm">Features</div><ul>${S.features.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>${S.hardware.length?`<div class="eyebrow sm">Hardware</div><ul>${S.hardware.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}</div>
         <div><div class="eyebrow sm">Colours</div><p class="note">Outside: ${esc((O.exterior||[]).join(', '))}<br>Inside: ${esc((O.interior||[]).join(', '))}</p><div class="eyebrow sm">Glass & grilles</div><p class="note">${esc((O.glass||[]).join(' · '))}<br>${esc((O.grilles||[]).join(', '))} · ${esc((O.grilleBars||[]).join('; '))}</p>${rates}</div></div>
-        <p class="note">Sizes: ${S.w.map(fin2).join(', ')} wide × ${S.h.map(fin2).join(', ')} high (a grid of common sizes, to confirm with ${esc(b.name)}).</p></details>`:''}
+        <p class="note">Sizes: ${S.w.map(fin2).join(', ')} wide × ${S.h.map(fin2).join(', ')} high (a grid of common sizes, to confirm with ${esc(b.name)})${S.extra?.length?`, plus ${S.extra.map(x=>`${fin2(x.w)} × ${fin2(x.h)}`).join(', ')} (${esc(S.extra[0].note.split(':')[0])})`:''}.</p></details>`:''}
       ${ed?`<div class="row"><button class="btn ghost sm" id="catAll">Adopt all ${items.filter(u=>!have.has(u.id)).length} ${esc(S?.name||'')} sizes</button></div>`:''}</div>
     ${items.map(card).join('')}</section>`;
 }
