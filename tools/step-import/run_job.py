@@ -1,4 +1,5 @@
-"""Run one uploaded STEP import (used by .github/workflows/import-step.yml) and log it to data/imports.json.
+"""Run one uploaded STEP import (used by .github/workflows/import-step.yml) and log it to data/imports.json
+(the job's scratch copy: db_sync.py push sends the line to the database).
 
 Reads the job from the environment: JOB_ID, JOB_KIND (wall | pod | home | unit-<type>-<L|R>-<in|out> | sink-<top|bottom>), JOB_NAME, JOB_FILE, JOB_BY.
 Whatever happens, an entry is written to data/imports.json (newest first) so the app can show it."""
@@ -26,7 +27,7 @@ def main(step):
     entry['finished'] = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds')
     log = 'data/imports.json'
     try: items = json.load(open(log))
-    except FileNotFoundError: items = []
+    except (FileNotFoundError, ValueError): items = []
     items = [entry] + [i for i in items if i.get('id') != entry['id']]
     json.dump(items[:200], open(log, 'w'), indent=1, ensure_ascii=False)
     print(json.dumps(entry, indent=1))

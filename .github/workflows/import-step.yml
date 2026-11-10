@@ -1,5 +1,7 @@
 # Scans a STEP file uploaded by an admin in the app and adds what's new to the libraries.
-# Started by the site (functions/api/upload.js) with a one-hour download link to the file in R2.
+# Started by the site (functions/api/upload.js) with a one-hour signed link: through it the job fetches the file and a
+# copy of the library (the databases), scans the file against that copy, and sends back what changed (functions/api/file.js).
+# Nothing is committed: the library lives in the databases, not in the repo.
 name: Import STEP
 on:
   workflow_dispatch:
@@ -11,7 +13,7 @@ on:
       filename: { description: 'Original file name', required: false }
       by:       { description: 'Uploaded by', required: false }
 permissions:
-  contents: write
+  contents: read
 concurrency:
   group: import-step      # one at a time, so library numbers never clash
   cancel-in-progress: false
@@ -35,6 +37,10 @@ jobs:
           [[ "$JOB_URL" =~ ^https://([a-z0-9-]+\.)?cubit-builder\.pages\.dev/api/file\?id=[0-9]{14}-[a-z0-9]+\&exp=[0-9]+\&sig=[a-f0-9]{64}$ ]] || { echo "bad url"; exit 1; }
           mkdir -p incoming
           curl -fsS --max-time 300 -o "incoming/$JOB_ID.step" "$JOB_URL"
+      - name: Fetch the library to scan against
+        env:
+          JOB_URL: ${{ inputs.url }}
+        run: python3 -I tools/step-import/db_sync.py pull .
       - name: Scan and add to the libraries
         env:
           JOB_ID: ${{ inputs.id }}
@@ -43,15 +49,7 @@ jobs:
           JOB_FILE: ${{ inputs.filename }}
           JOB_BY: ${{ inputs.by }}
         run: python3 -I tools/step-import/run_job.py "incoming/$JOB_ID.step"
-      - name: Commit
+      - name: Send what's new to the databases
         env:
-          JOB_KIND: ${{ inputs.kind }}
-          JOB_NAME: ${{ inputs.name }}
-          JOB_BY: ${{ inputs.by }}
-        run: |
-          rm -rf incoming
-          git config user.name "Cubit Builder"
-          git config user.email "actions@users.noreply.github.com"
-          git add data
-          git diff --cached --quiet || git commit -m "Import STEP: $JOB_KIND · $JOB_NAME (by $JOB_BY)"
-          git pull --rebase && git push
+          JOB_URL: ${{ inputs.url }}
+        run: python3 -I tools/step-import/db_sync.py push .

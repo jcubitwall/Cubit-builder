@@ -1,0 +1,8 @@
+{
+  "name": "cubit-builder",
+  "private": true,
+  "description": "Cubit Builder. The server code (functions/) talks to MariaDB through this driver; Cloudflare Pages installs it on deploy.",
+  "dependencies": {
+    "mysql2": "3.24.6"
+  }
+}

@@ -1,14 +1,15 @@
-/* GET /api/imports → the latest STEP imports (data/imports.json straight from GitHub, so it is current
-   before the site has redeployed). Admins only. */
+/* GET /api/imports → the latest STEP imports, newest first (MariaDB step_imports). Admins only. */
 import { whoIs, json } from '../_auth.js';
+import { withSql, toISO } from '../_sql.js';
 export async function onRequestGet({ request, env }){
   const me = await whoIs(request, env);
   if(me.role !== 'admin') return json({ error:'Admins only.' }, 403);
-  if(!env.GITHUB_TOKEN || !env.GITHUB_REPO) return json([]);
-  const r = await fetch(`https://api.github.com/repos/${env.GITHUB_REPO}/contents/data/imports.json?ref=main`, {
-    headers:{ 'Authorization':`Bearer ${env.GITHUB_TOKEN}`, 'Accept':'application/vnd.github.raw+json', 'User-Agent':'cubit-builder' }
-  });
-  if(r.status===404) return json([]);
-  if(!r.ok) return json({ error:`GitHub ${r.status}` }, 502);
-  return new Response(await r.text(), { headers:{ 'content-type':'application/json', 'cache-control':'no-store' } });
+  const rows = await withSql(env, db => db.q('SELECT * FROM step_imports ORDER BY started DESC, id DESC LIMIT 200'));
+  return json(rows.map(r => {
+    const e = { id:r.id, kind:r.kind, name:r.name, file:r.file||'', by:r.by_email||'', started:toISO(r.started), status:r.status };
+    if(r.finished) e.finished = toISO(r.finished);
+    if(r.summary != null) e.summary = typeof r.summary === 'string' ? JSON.parse(r.summary) : r.summary;
+    if(r.error) e.error = r.error;
+    return e;
+  }));
 }

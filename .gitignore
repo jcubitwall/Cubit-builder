@@ -1,2 +1,5 @@
+.dev.vars
+.wrangler/
 __pycache__/
+node_modules/
 tools/cnc/out/

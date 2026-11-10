@@ -45,16 +45,20 @@ async function verify(token, env){
    On top of any role, an admin can tick "Prices" for someone (an inventory person): they may change the price book,
    whatever their role. Editors and admins always may.
    ADMIN_EMAILS (Cloudflare setting) are always admins. Everyone else gets the role an admin gave them in the app
-   (⋯ → Team, kept in R2 at catalog/team.json); anyone else who can log in is a user. */
+   (⋯ → Team, kept in the MariaDB table team_members); anyone else who can log in is a user. */
+import { withSql, toISO } from './_sql.js';
 export const RANK = { user:0, sales:1, editor:2, admin:3 };
 export const ROLES = Object.keys(RANK);
-export const TEAM_KEY = 'catalog/team.json';
 let teamCache = { at:0, v:null };
 export const forgetTeam = () => { teamCache = { at:0, v:null }; };
-export async function teamOf(env){
-  if(!env.STEPS) return {};
-  if(teamCache.v && Date.now()-teamCache.at < 15000) return teamCache.v;
-  let v = {}; try{ const o = await env.STEPS.get(TEAM_KEY); if(o) v = (await o.json()).members || {}; }catch(e){}
+/* { email: { role, prices?, by, at } } */
+export async function teamOf(env, fresh=false){
+  if(!env.MARIADB) return {};
+  if(!fresh && teamCache.v && Date.now()-teamCache.at < 15000) return teamCache.v;
+  let v = {};
+  try{ const rows = await withSql(env, db => db.q('SELECT email, role, prices, set_by, set_at FROM team_members'));
+    for(const r of rows) v[r.email] = { role:r.role, ...(r.prices ? { prices:true } : {}), by:r.set_by, at:toISO(r.set_at) }; }
+  catch(e){ console.warn('team', e.message); }
   teamCache = { at:Date.now(), v }; return v;
 }
 export async function whoIs(request, env){

@@ -11,14 +11,14 @@ Forgetting to run it is harmless: the service worker still fetches fresh files f
 import hashlib, json, os, re, sys
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 os.chdir(ROOT)
-SKIP_DIRS = {'tools', 'functions', 'docs', '.git', 'node_modules'}
+SKIP_DIRS = {'tools', 'functions', 'docs', '.git', 'node_modules', 'workers'}
 EXT = {'.html', '.js', '.css', '.json', '.png', '.svg', '.jpg', '.jpeg', '.webp', '.woff', '.woff2', '.webmanifest', '.ttf', '.otf'}
 files = []
 for d, dirs, fs in os.walk('.'):
     dirs[:] = [x for x in dirs if x not in SKIP_DIRS and not x.startswith('.')]
     for f in fs:
         p = os.path.join(d, f)[2:]
-        if os.path.splitext(f)[1].lower() in EXT and p not in ('sw.js', 'sw-files.json') and os.path.getsize(p) < 8_000_000:
+        if os.path.splitext(f)[1].lower() in EXT and p not in ('sw.js', 'sw-files.json', 'package.json', 'package-lock.json', 'migrate.html') and os.path.getsize(p) < 8_000_000:
             files.append(p.replace(os.sep, '/'))
 files.sort()
 h = hashlib.sha1()
@@ -27,6 +27,10 @@ for p in files:
 version = h.hexdigest()[:12]
 # the libraries index.html loads from other sites (three.js, OrbitControls, jsPDF, fonts)
 cdn = re.findall(r'<(?:script|link)[^>]+(?:src|href)="(https://(?:cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|fonts\.googleapis\.com)[^"]+)"', open('index.html').read())
+# the Cubit catalogue, now served from the database (functions/api/seed): kept on install like the app's own files
+SEED = ['walls', 'models', 'layers', 'pods', 'decks', 'units', 'families', 'brands', 'stores', 'projects', 'submodels', 'sinks',
+        'fixtures-lifepodgo-shower', 'fixtures-maax-biarritz', 'fixtures-maax-biarritz-85']
+files = [f for f in files if not f.startswith('data/')] + [f'api/seed/{s}' for s in SEED]
 with open('sw-files.json', 'w') as fh: json.dump({'version': version, 'files': ['./'] + files + cdn}, fh, indent=0)
 sw = open('sw.js').read()
 sw = re.sub(r"const VERSION='[^']*';", f"const VERSION='{version}';", sw, count=1)

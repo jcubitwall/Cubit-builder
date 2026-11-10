@@ -675,17 +675,17 @@ def({ k:'CTB', cat:'furniture', name:'Coffee table', w:44, h:17, d:24, build: it
 
 /* ---------------------------------------------------------------- plumbing fixtures
    Generic sizes of common stock fixtures (always check the model you buy), plus Cubit's own stock pieces drawn from
-   their STEP files (loaded at start: data/fixtures-*.json, one mesh per solid so they explode). */
+   their STEP files (loaded at start: the fixtures-* catalogue sets, one mesh per solid so they explode). */
 const FIX = {};
-const FIX_FILES = { lpgShower:'data/fixtures-lifepodgo-shower.json', maaxBiarritz:'data/fixtures-maax-biarritz.json', maaxBiarritz85:'data/fixtures-maax-biarritz-85.json' };
+const FIX_FILES = { lpgShower:'api/seed/fixtures-lifepodgo-shower', maaxBiarritz:'api/seed/fixtures-maax-biarritz', maaxBiarritz85:'api/seed/fixtures-maax-biarritz-85' };
 async function loadFixtures(){ await Promise.all(Object.entries(FIX_FILES).map(async([k,u])=>{ try{ const r=await fetch(u); if(r.ok) FIX[k]=await r.json(); }catch(e){} }));
   await loadStepSinks(); }
-/* sinks uploaded as STEP files (Upload STEP → Sink; tools/step-import/sink_import.py): data/sinks.json lists them, each
+/* sinks uploaded as STEP files (Upload STEP → Sink; tools/step-import/sink_import.py): the sinks catalogue set lists them, each
    with its mesh, its rim outline and its bowl opening(s), so the same rules hold as for the built-in sinks: it docks
    in a sink base, the base fits it, the stretchers clear it, and the countertop's hole follows its exact shape (¼″
    inside the rim for top mount; ¼″ over the bowls for bottom mount, recessed). */
 async function loadStepSinks(){
-  let list=[]; try{ const r=await fetch('data/sinks.json',{cache:'no-store'}); if(r.ok) list=await r.json(); }catch(e){}
+  let list=[]; try{ const r=await fetch('api/seed/sinks',{cache:'no-store'}); if(r.ok) list=await r.json(); }catch(e){}
   await Promise.all(list.map(async e=>{ try{ const r=await fetch(e.file); if(!r.ok) return; const F=await r.json(); FIX[e.k]=F;
     if(ITEMS.some(d=>d.k===e.k)) return;
     def({ k:e.k, cat:'sink', name:e.name, w:F.w, h:F.h, d:F.d, gap:e.gap ?? 2, y:sinkY(F.h), fixed:true, step:true, note:'Cubit sink, drawn from its STEP file',

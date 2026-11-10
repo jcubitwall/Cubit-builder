@@ -1,33 +1,32 @@
 /* GET  /api/team   admins: who has which role  { members:{ email:{role, prices?, by, at} }, admins:[from ADMIN_EMAILS] }
    POST /api/team   admins: {op:'set', email, role, prices?}  ·  {op:'remove', email}
    prices: may change the price book whatever the role (an inventory person); left out, it stays as it was.
-   Roles: admin · editor · sales · user (see _auth.js). Kept in R2 at catalog/team.json. ADMIN_EMAILS (Cloudflare
+   Roles: admin · editor · sales · user (see _auth.js). Kept in MariaDB (team_members). ADMIN_EMAILS (Cloudflare
    setting) are always admins and can't be changed here, so nobody can lock the admins out. */
-import { whoIs, json, atLeast, denied, ROLES, TEAM_KEY, forgetTeam } from '../_auth.js';
-import { atomic, getJSON } from '../_store.js';
+import { whoIs, json, atLeast, denied, ROLES, forgetTeam, teamOf } from '../_auth.js';
+import { withSql, toDT } from '../_sql.js';
 const okMail = e => typeof e === 'string' && /^[^\s@]{1,64}@[^\s@]{1,190}\.[a-z]{2,}$/i.test(e);
 const fixed = env => (env.ADMIN_EMAILS||'').toLowerCase().split(',').map(s=>s.trim()).filter(Boolean);
 export async function onRequestGet({ request, env }){
   const me = await whoIs(request, env); if(!atLeast(me,'admin')) return denied('admin');
-  const v = env.STEPS ? await getJSON(env, TEAM_KEY, ()=>({ members:{} })) : { members:{} };
-  return json({ members:v.members||{}, admins:fixed(env) });
+  return json({ members:await teamOf(env, true), admins:fixed(env) });
 }
 export async function onRequestPost({ request, env }){
   const me = await whoIs(request, env); if(!atLeast(me,'admin')) return denied('admin');
-  if(!env.STEPS) return json({ error:'Storage is not set up (R2 binding STEPS).' }, 500);
   const b = await request.json().catch(()=>null);
   const mail = String(b?.email||'').trim().toLowerCase();
   if(!b || !['set','remove'].includes(b.op) || !okMail(mail)) return json({ error:'Give an email address.' }, 400);
   if(fixed(env).includes(mail)) return json({ error:'That person is an admin in the Cloudflare settings (ADMIN_EMAILS) and stays one.' }, 400);
   if(b.op==='set' && !ROLES.includes(b.role)) return json({ error:'Unknown role.' }, 400);
-  const r = await atomic(env, TEAM_KEY, ()=>({ members:{} }), v=>{
-    const m = { ...(v.members||{}) };
-    if(b.op==='set'){ const pr = typeof b.prices==='boolean' ? b.prices : !!m[mail]?.prices;
-      m[mail] = { role:b.role, ...(pr ? { prices:true } : {}), by:me.email, at:new Date().toISOString() }; }
-    else delete m[mail];
-    return { value:{ members:m } };
+  await withSql(env, async db => {
+    if(b.op==='set'){
+      // prices left out: it stays as it was
+      const cur = await db.one('SELECT prices FROM team_members WHERE email=?', [mail]);
+      const pr = typeof b.prices==='boolean' ? b.prices : !!cur?.prices;
+      await db.q(`INSERT INTO team_members (email, role, prices, set_by, set_at) VALUES (?,?,?,?,?)
+        ON DUPLICATE KEY UPDATE role=VALUES(role), prices=VALUES(prices), set_by=VALUES(set_by), set_at=VALUES(set_at)`, [mail, b.role, pr?1:0, me.email, toDT(new Date().toISOString())]);
+    } else await db.q('DELETE FROM team_members WHERE email=?', [mail]);
   });
-  if(r.response) return r.response;
   forgetTeam();
-  return json({ ok:true, members:r.value.members, admins:fixed(env) });
+  return json({ ok:true, members:await teamOf(env, true), admins:fixed(env) });
 }

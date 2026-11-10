@@ -5,7 +5,7 @@
    the prices that changed, so two people can price at once.
 
    Products (keys never change, so prices stick):
-     unit:<id>     a window or door (data/units.json)                                     each
+     unit:<id>     a window or door (the units catalogue (api/seed/units))                                     each
      item:<k>      anything bought that's placed in a home: fixtures, sinks, appliances,
                    furniture, a fireplace insert                                          each
      cab:sheet     cabinet sheet stock (casework settings: one material)                 per sheet

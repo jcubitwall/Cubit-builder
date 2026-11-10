@@ -3,35 +3,34 @@
                        · {op:'newfam', name}  a new model name (it gets an id from its name)
                        · {op:'hand', kind, id, feat, on}  (a hole / chase / feature made by hand, not by the CNC)
    Renames and deletions of library items (model names, homes, pods, walls, floor/ceiling/roof layers, decks,
-   cabinets / appliances / fixtures and windows / doors) are kept as one
-   small JSON file in the R2 bucket (binding STEPS, key catalog/library-edits.json) and laid over the library
-   files when the app loads. A deleted item is hidden from every list; homes already using it keep working, and
+   cabinets / appliances / fixtures and windows / doors) are kept as one document in MongoDB (library_edits,
+   _id 'edits') and laid over the library when the app loads. A deleted item is hidden from every list; homes already using it keep working, and
    it can be brought back. */
 import { whoIs, json, atLeast, denied } from '../_auth.js';
-import { atomic } from '../_store.js';
-const KEY = 'catalog/library-edits.json';
+import { mongo } from '../_mongo.js';
 const KINDS = ['families','models','pods','walls','layers','decks','casework','units','devices'];   // casework = cabinets, appliances, fixtures …; units = windows and doors
 const FIXED = ['lifepod','nest','haven','cove','panorama','expanse'];   // the model names in data/families.json
-async function read(env){
-  const o = await env.STEPS.get(KEY); const empty = { names:{}, gone:{}, hand:{}, fams:[] };
-  if(!o) return empty;
-  try{ const v = await o.json(); return { names:v.names||{}, gone:v.gone||{}, hand:v.hand||{}, fams:v.fams||[] }; }catch(e){ return empty; }
+const blank = () => ({ names:{}, gone:{}, hand:{}, fams:[] });
+async function read(M){
+  const v = await M.coll('library_edits').get('edits'); if(!v) return blank();
+  return { names:v.names||{}, gone:v.gone||{}, hand:v.hand||{}, fams:v.fams||[], rev:v.rev||0 };
 }
 export async function onRequestGet({ request, env }){
   const me = await whoIs(request, env);
   if(me.role === 'none') return json({ error:'Not signed in.' }, 401);
-  if(!env.STEPS) return json({ names:{}, gone:{} });
-  return json(await read(env));
+  const { rev, ...v } = await read(mongo(env)); return json(v);
 }
 export async function onRequestPost({ request, env }){
   const me = await whoIs(request, env);
   if(!atLeast(me,'editor')) return denied('editor');
-  if(!env.STEPS) return json({ error:'Storage is not set up (R2 binding STEPS).' }, 500);
   const b = await request.json().catch(()=>null);
   if(b && b.op === 'newfam') b.kind = 'families', b.id = '-';
   if(!b || !['rename','delete','restore','hand','newfam'].includes(b.op) || !KINDS.includes(b.kind) || typeof b.id !== 'string' || !b.id || b.id.length > 80) return json({ error:'Bad request.' }, 400);
   const key = `${b.kind}:${b.id}`;
-  const r = await atomic(env, KEY, ()=>({ names:{}, gone:{}, hand:{}, fams:[] }), async v=>{
+  // one document: written only if nobody else saved it since it was read (rev), else read again and redo
+  const M = mongo(env);
+  for(let n=0; n<8; n++){
+    const v = await read(M);
     const ed = { names:v.names||{}, gone:v.gone||{}, hand:v.hand||{}, fams:v.fams||[] };
     if(b.op === 'newfam'){
       const name = typeof b.name === 'string' ? b.name.trim().slice(0, 40) : '';
@@ -54,8 +53,11 @@ export async function onRequestPost({ request, env }){
       if(set.size) ed.hand[key] = [...set]; else delete ed.hand[key];
     }
     else delete ed.gone[key];
-    return { value:ed };
-  });
-  if(r.response) return r.response;
-  return json({ ok:true, ...r.value });
+    const res = v.rev
+      ? await M.coll('library_edits').update({ _id:'edits', rev:v.rev }, { $set:{ ...ed, rev:v.rev+1 } })
+      : await M.coll('library_edits').update({ _id:'edits', rev:{ $exists:false } }, { $set:{ ...ed, rev:1 } }, { upsert:true }).catch(()=>({ matched:0, upserted:0 }));
+    if(res.matched || res.upserted) return json({ ok:true, ...ed });
+    await new Promise(s => setTimeout(s, 30 + Math.random()*100*(n+1)));
+  }
+  return json({ error:"The server was busy with someone else's save. Try again." }, 503);
 }

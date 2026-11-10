@@ -3,11 +3,12 @@
    · The app's own files (pages, scripts, styles, data, images): the network first (always the newest when there is
      a connection), the copy on the device when the network is slow (3 s) or gone. Every file fetched is kept.
    · The libraries from cdnjs / jsDelivr (three.js, jsPDF…): versioned, so the kept copy is used straight away.
-   · The team's data (GET /api/…): the network first, the last answer kept for when there's no connection.
+   · The team's data and the Cubit catalogue (GET /api/…, e.g. api/seed/walls): the network first, the last answer
+     kept for when there's no connection (the catalogue is also fetched on install, so it's there from the first open).
      Saving (POST) always goes to the network; drafts are also kept in the browser and go up when the signal is back.
    tools/sw/build.py lists the files (sw-files.json) to keep on install and stamps VERSION; a new VERSION replaces the
    old copy. */
-const VERSION='df93d1532cf2';
+const VERSION='5957fdff44e8';
 const CACHE='cubit-'+VERSION, API='cubit-api';
 self.addEventListener('install', e=>{
   e.waitUntil((async()=>{
@@ -15,7 +16,10 @@ self.addEventListener('install', e=>{
     try{ const r=await fetch('sw-files.json', { cache:'no-store' }); const L=(await r.json()).files||[];
       // a few at a time; a file that fails is fetched later when it's used
       // the libraries on other sites come back opaque (their script tags have no CORS), so they're put, not added
-      const get=u=> /^https?:/.test(u) ? fetch(u, { mode:'no-cors' }).then(r=>c.put(u, r)) : c.add(new Request(u, { cache:'reload' }));
+      const api=await caches.open(API);
+      const get=u=> /^https?:/.test(u) ? fetch(u, { mode:'no-cors' }).then(r=>c.put(u, r))
+        : u.startsWith('api/') ? fetch(u, { cache:'reload' }).then(r=>{ if(r.ok) return api.put(new URL(u, self.location).href, r); })
+        : c.add(new Request(u, { cache:'reload' }));
       for(let i=0;i<L.length;i+=12) await Promise.all(L.slice(i,i+12).map(u=>get(u).catch(()=>{}))); }catch(e){}
     self.skipWaiting();
   })());
@@ -27,7 +31,7 @@ const keepable = r => r && r.ok && (r.type==='basic' || r.type==='cors');
 async function networkFirst(req, cacheName, wait){
   const c=await caches.open(cacheName);
   const net=fetch(req).then(r=>{ if(keepable(r) && !r.redirected) c.put(req, r.clone()).catch(()=>{}); return r; });
-  if(!wait) return net.catch(async()=>(await c.match(req, { ignoreSearch:false })) || Response.error());
+  if(!wait) return net.catch(async()=>(await c.match(req, { ignoreSearch:false })) || (await caches.match(req)) || Response.error());
   const timer=new Promise(res=>setTimeout(()=>res(null), wait));
   try{ const first=await Promise.race([net, timer]); if(first) return first; }catch(e){}
   const kept=await c.match(req); if(kept) return kept;

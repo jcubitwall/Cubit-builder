@@ -16,7 +16,7 @@ import { syncSave, merge3, strip } from './sync.js';
 
 const KEY='cubit-projects';
 const PROJECTS={};          // id -> project (own, from this browser)
-const SHARED={};            // id -> project (from data/projects.json, read-only)
+const SHARED={};            // id -> project (from the projects catalogue (api/seed/projects), read-only)
 const TEAM={};              // id -> project (the team's, on the server)
 let remote=false;
 const UP_KEY='cubit-projects-uploaded';
@@ -24,7 +24,7 @@ const clone = o => JSON.parse(JSON.stringify(o));
 
 async function loadProjects(){
   try{ Object.assign(PROJECTS, JSON.parse(localStorage.getItem(KEY)||'{}')); }catch(e){}
-  try{ const r=await fetch('data/projects.json'); if(r.ok){ const list=await r.json(); (Array.isArray(list)?list:Object.values(list)).forEach(p=>{ SHARED[p.id]={...p, shared:true}; }); } }catch(e){}
+  try{ const r=await fetch('api/seed/projects'); if(r.ok){ const list=await r.json(); (Array.isArray(list)?list:Object.values(list)).forEach(p=>{ SHARED[p.id]={...p, shared:true}; }); } }catch(e){}
   try{ const r=await fetch('api/projects',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ (await r.json()).forEach(p=>{ TEAM[p.id]=p; }); remote=true; } }catch(e){}
   Object.values(SHARED).forEach(register); Object.values(PROJECTS).forEach(register); Object.values(TEAM).forEach(register);
   // the project on screen is brought up to its latest save once the app's state is up (main.js → refreshOpen)

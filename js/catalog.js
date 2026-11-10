@@ -1,6 +1,6 @@
 /* Cubit Builder — catalog.js : the model families and their sub-models.
 
-   Every home is filed under one of the model names in data/families.json (LifePod, Nest, Haven, Cove,
+   Every home is filed under one of the model names in the families catalogue (api/seed/families) (LifePod, Nest, Haven, Cove,
    Panorama, Expanse). Under each name: the standard layout (models.json), then sub-models: offshoots with a
    pod or two more, or variations customers asked for and we liked. Any arrangement on screen (a built-in
    home, your own layout, a project) can be added to any model name as a sub-model.
@@ -22,13 +22,13 @@ let remote = false;
 const clone = o => JSON.parse(JSON.stringify(o));
 
 async function loadCatalog(){
-  try{ const r=await fetch('data/families.json'); if(r.ok) (await r.json()).forEach(f=>FAMILIES.push(f)); }catch(e){}
+  try{ const r=await fetch('api/seed/families'); if(r.ok) (await r.json()).forEach(f=>FAMILIES.push(f)); }catch(e){}
   if(!FAMILIES.length) FAMILIES.push(...[['lifepod','LifePod','life'],['nest','Nest','nest'],['haven','Haven',null],['cove','Cove','cove'],['panorama','Panorama','panorama'],['expanse','Expanse','expanse']].map(([id,name,base])=>({id,name,base})));
   FAMILIES.forEach(f=>{ if(f.base && MODELS[f.base]) MODELS[f.base].family=f.id; });
   let list=null;
   try{ const r=await fetch('api/catalog',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ list=await r.json(); remote=true; } }catch(e){}
   if(!Array.isArray(list)){ try{ list=JSON.parse(localStorage.getItem(LOCAL_KEY)||'[]'); }catch(e){ list=[]; } }
-  try{ const r=await fetch('data/submodels.json'); if(r.ok) (await r.json()).forEach(it=>{ if(!list.find(x=>x.id===it.id)) list.push(it); }); }catch(e){}
+  try{ const r=await fetch('api/seed/submodels'); if(r.ok) (await r.json()).forEach(it=>{ if(!list.find(x=>x.id===it.id)) list.push(it); }); }catch(e){}
   list.forEach(register);
 }
 const keyOf = it => 'sub-'+it.id;

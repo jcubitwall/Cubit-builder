@@ -1,7 +1,7 @@
 /* Cubit Builder — stores.js : store catalogues (Home Depot …) shown under any Library category, and adopting
    their products into the Cubit library.
 
-   data/stores.json (tools/stores/*.py): each store's short lists by Library category key ('fire' fireplaces; the
+   the stores catalogue (api/seed/stores) (tools/stores/*.py): each store's short lists by Library category key ('fire' fireplaces; the
    same keys as the Library: 'appliance', 'rc' receptacles, 'sw' switches, 'dt' data …) of products that can be
    ordered online and shipped to Cubit. The Library shows each list as "<store> store" right under its category.
    Adopt (editors and admins) puts a product in the Cubit library for the whole team (api/adopted; this browser
@@ -14,7 +14,7 @@ import { saveDevice, deviceById } from './devices.js';
 const STORES=[], ADOPTED=[]; let remote=false; const LOCAL='cubit-adopted';
 const subs=[]; const onAdoptedChanged = fn => subs.push(fn);
 async function loadStores(){
-  try{ const r=await fetch('data/stores.json'); if(r.ok){ STORES.length=0; ((await r.json()).stores||[]).forEach(s=>STORES.push(s)); } }catch(e){}
+  try{ const r=await fetch('api/seed/stores'); if(r.ok){ STORES.length=0; ((await r.json()).stores||[]).forEach(s=>STORES.push(s)); } }catch(e){}
   let L=null;
   try{ const r=await fetch('api/adopted',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ L=await r.json(); remote=true; } }catch(e){}
   if(!L){ try{ L=JSON.parse(localStorage.getItem(LOCAL)||'[]'); }catch(e){ L=[]; } }

@@ -1,6 +1,6 @@
 /* Cubit Builder — units.js : the window & door library and which unit goes in each opening.
 
-   Library (data/units.json, filled by "Upload STEP → Window / door"):
+   Library (the units catalogue (api/seed/units), filled by "Upload STEP → Window / door"):
      { id, name, type, w, h, d, hand?, swing?, source, sample? }   sizes in inches (the unit itself)
      Cubit standards (North-Air) also carry rso {w,h} (rough stud opening), bm {w,h} (outside of the brickmould),
      maker, model, glass, rating, egress; a man door: slab {w,h} and panel (the steel left round its glass lite).
@@ -41,7 +41,7 @@ const TYPES = {
 };
 const CAT_OF = { window:'window', door:'door', patio:'patio' };   // opening kind → unit category
 const UNITLIB = [];
-/* the library: data/units.json (uploads), then the team's adopted and edited units (api/units on the private
+/* the library: the units catalogue (api/seed/units) (uploads), then the team's adopted and edited units (api/units on the private
    site; this browser when opened locally) laid over it, same id = replaces it */
 let teamRemote=false; const TEAM_LOCAL='cubit-units-team'; const unitSubs=[];
 const onUnitsChanged = fn => unitSubs.push(fn);
@@ -50,7 +50,7 @@ function layTeam(list){
     if(i>=0){ if(!UNITLIB[i].base) v.base=UNITLIB[i].base||{ ...UNITLIB[i] }; UNITLIB[i]=v; } else UNITLIB.push(v); });
 }
 async function loadUnits(){
-  try{ const r=await fetch('data/units.json'); if(r.ok) (await r.json()).forEach(u=>UNITLIB.push(u)); }catch(e){}
+  try{ const r=await fetch('api/seed/units'); if(r.ok) (await r.json()).forEach(u=>UNITLIB.push(u)); }catch(e){}
   let team=null;
   try{ const r=await fetch('api/units',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ team=await r.json(); teamRemote=true; } }catch(e){}
   if(!team){ try{ team=JSON.parse(localStorage.getItem(TEAM_LOCAL)||'[]'); }catch(e){ team=[]; } }

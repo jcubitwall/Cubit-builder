@@ -672,7 +672,7 @@ function bindLayout(){
   box.querySelector('#openPlan').onclick=()=>document.getElementById('bPlan').click();
   const cp=box.querySelector('#apCopy'); if(cp) cp.onclick=async()=>{
     const m=MODELS[state.model]; const code=JSON.stringify({[state.model.replace('custom-','home-')]:{name:m.name.replace(' (custom)',''), size:m.size, pods:m.pods, picks:{...(m.picks||{}), ...(state.picks[state.model]||{})}}},null,2);
-    try{ await navigator.clipboard.writeText(code); toast('Layout copied. Paste it into data/models.json.'); }
+    try{ await navigator.clipboard.writeText(code); toast('Layout copied. An admin can add it to the models catalogue (api/seed/models).'); }
     catch(e){ const ta=document.createElement('textarea'); ta.value=code; ta.rows=8; ta.style.width='100%'; cp.after(ta); ta.select(); toast('Select the text below and copy it.'); }
   };
   const del=box.querySelector('#apDel'); if(del) del.onclick=()=>{

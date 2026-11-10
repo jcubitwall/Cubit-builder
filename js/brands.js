@@ -1,6 +1,6 @@
 /* Cubit Builder — brands.js : window and door makers, their catalogues, and the rough opening each unit needs.
 
-   data/brands.json (tools/brands/*.py) holds each maker's catalogue as scanned from its site: the styles, each
+   the brands catalogue (api/seed/brands) (tools/brands/*.py) holds each maker's catalogue as scanned from its site: the styles, each
    with a grid of sizes, the options (colours, glass, grilles), and the maker's rough-opening rule. The catalogue
    is only for looking at: a unit is usable in a home once an editor or admin ADOPTS it into the Cubit library
    (units.js), where it can then be edited to any size.
@@ -9,7 +9,7 @@
    (North Air: + 1¼″ wide and high), else unit + 1¼″. Brickmould likewise (North Air: unit + 3″). */
 const BRANDS = [];
 async function loadBrands(){
-  try{ const r=await fetch('data/brands.json'); if(r.ok){ BRANDS.length=0; ((await r.json()).brands||[]).forEach(b=>BRANDS.push(b)); } }catch(e){}
+  try{ const r=await fetch('api/seed/brands'); if(r.ok){ BRANDS.length=0; ((await r.json()).brands||[]).forEach(b=>BRANDS.push(b)); } }catch(e){}
 }
 const brandById = id => BRANDS.find(b=>b.id===id) || null;
 /* the brand a unit is filed under: its own `brand`, else its maker matched by name; samples and Cubit's own */

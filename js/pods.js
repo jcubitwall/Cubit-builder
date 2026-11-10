@@ -2,7 +2,7 @@
 
    A pod in a home: { t, x, z, rot, src?, walls?, layers?, a? }
      rot     0 / 90 / 180 / 270, clockwise seen from above
-     src     the library pod it came from (data/pods.json or saved in this browser)
+     src     the library pod it came from (the pods catalogue (api/seed/pods) or saved in this browser)
      walls   its own walls, in the pod's own frame: { S:[{from,len,type,wall,face?}], E:[…], N:[…], W:[…] }
              `from` = feet from the left end of that side seen from outside, so turning the pod changes nothing
      layers  { 'floor-ext': id, 'floor-int': id, 'ceiling-int': id, 'roof': id }

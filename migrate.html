@@ -1,0 +1,49 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Move to the databases</title>
+<style>
+:root{--bg:#f4f3ee;--ink:#1c211e;--ink2:#5b6359;--line:#d9ddd5;--ok:#12b312;--bad:#c4520f}
+@media (prefers-color-scheme:dark){:root{--bg:#161a17;--ink:#eef1ec;--ink2:#a5ada2;--line:#2c332e}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Inter,system-ui,sans-serif}
+main{max-width:860px;margin:0 auto;padding:28px 16px}h1{font-size:24px;margin:0 0 6px}p{color:var(--ink2);margin:0 0 14px}
+button{font:inherit;font-weight:600;padding:10px 18px;border-radius:10px;border:1px solid var(--line);background:#fff;color:#1c211e;cursor:pointer}
+button.go{background:#1c211e;color:#fff;border-color:#1c211e}button:disabled{opacity:.5;cursor:default}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
+pre{background:#fff;color:#1c211e;border:1px solid var(--line);border-radius:10px;padding:14px;white-space:pre-wrap;font:12.5px/1.5 ui-monospace,monospace;max-height:55vh;overflow:auto}
+table{border-collapse:collapse;width:100%;margin:10px 0}td,th{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left}td.n{text-align:right;font-variant-numeric:tabular-nums}
+.ok{color:var(--ok);font-weight:700}.bad{color:var(--bad);font-weight:700}
+label{display:flex;gap:8px;align-items:center;color:var(--ink2)}
+</style></head><body><main>
+<h1>Move the data into the databases</h1>
+<p>Copies everything out of the JSON files (in R2 and in the app's repo) into MariaDB and MongoDB. Nothing in R2 is changed by this. Run it, read the check, then delete the old files with the second button. Admins only.</p>
+<div class="row"><button class="go" id="run">Move everything</button><label><input type="checkbox" id="force"> Empty both databases first</label></div>
+<div id="check"></div>
+<div class="row"><button id="clean" disabled>Delete the old JSON files in R2</button></div>
+<pre id="log">Ready.</pre>
+<script>
+const STEPS=['schema','team','customers','projects','versions','drafts','library','history','prices','shop','seed','imports'];
+const log=document.getElementById('log'), say=t=>{ log.textContent+=t+'\n'; log.scrollTop=1e9; };
+async function call(body){ const r=await fetch('api/migrate',{ method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(body) });
+  const j=await r.json().catch(()=>({ error:'HTTP '+r.status })); if(!r.ok || j.error) throw new Error(j.error||('HTTP '+r.status)); return j; }
+async function check(){
+  const c=await call({ step:'check' }); const ok=c.rows.every(r=>r.ok);
+  document.getElementById('check').innerHTML='<table><tr><th>What</th><th>In files</th><th>In the databases</th><th></th></tr>'+c.rows.map(r=>`<tr><td>${r.what}</td><td class="n">${r.files??'—'}</td><td class="n">${r.db}</td><td class="${r.ok?'ok':'bad'}">${r.ok?'✓':'missing'}</td></tr>`).join('')+'</table>';
+  document.getElementById('clean').disabled=!ok; say(ok?'Check: everything is in the databases.':'Check: something is missing; see the table.');
+}
+document.getElementById('run').onclick=async e=>{
+  e.target.disabled=true; log.textContent='';
+  try{
+    for(const step of STEPS){
+      let cursor=null, total=0;
+      do{ const r=await call({ step, cursor, force: step==='schema' && document.getElementById('force').checked });
+        cursor=r.cursor||null; if('moved' in r) total+=r.moved; else { const { step:_, ...rest }=r; say(`${step}: ${JSON.stringify(rest)}`); } }while(cursor);
+      if(['versions','drafts','history'].includes(step)) say(`${step}: ${total} moved`);
+    }
+    await check();
+  }catch(err){ say('Stopped: '+err.message); }
+  e.target.disabled=false;
+};
+document.getElementById('clean').onclick=async e=>{
+  if(!confirm('Delete the JSON files in R2 that were moved? The databases keep everything; photos and STEP files stay in R2.')) return;
+  e.target.disabled=true; try{ const r=await call({ step:'cleanup', confirm:true }); say(`Deleted ${r.deleted} old files from R2.`); }catch(err){ say('Stopped: '+err.message); e.target.disabled=false; }
+};
+</script></main></body></html>

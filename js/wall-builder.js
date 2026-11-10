@@ -425,7 +425,7 @@ function render(){
   bind();
 }
 /* ---------------------------------------------------------------- editing */
-/* new openings start at the Cubit standard rough stud openings (North-Air units, data/units.json) */
+/* new openings start at the Cubit standard rough stud openings (North-Air units, the units catalogue (api/seed/units)) */
 const STD_RO = { window:{w:25.25, h:48.5}, door:{w:38.75, h:83.3125}, patio:{w:72, h:83.75} };
 function add(kind){
   const c=L()/2;

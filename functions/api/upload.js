@@ -1,13 +1,15 @@
 /* PUT /api/upload?kind=wall|pod|home&name=...&filename=...   body = the STEP file (raw bytes)
-   Admins only. The file is streamed into the R2 bucket (binding STEPS) and the GitHub Action
-   "Import STEP" is started with its key; the Action scans it, adds what's new to the libraries
-   and commits — Cloudflare then redeploys the site with the new walls / pods / home.
+   Admins only. The file is streamed into the R2 bucket (binding STEPS), indexed in MariaDB (files, and a
+   'queued' line in step_imports), and the GitHub Action "Import STEP" is started with a one-hour signed link;
+   the Action fetches the file and the library through it, scans the file, and sends back what's new (api/file.js),
+   which is written straight into the catalogue: no commit, no redeploy.
 
    Settings: GITHUB_TOKEN (fine-grained, this repo, Actions: read & write, Contents: read),
              GITHUB_REPO (e.g. jcubitwall/Cubit-builder); R2 bucket bound as STEPS;
              IMPORT_SECRET (any long random string: signs the one-hour download link, see api/file.js). */
 import { whoIs, json } from '../_auth.js';
 import { signLink } from '../_sign.js';
+import { withSql, toDT } from '../_sql.js';
 const KINDS = ['wall','pod','home','sink-top','sink-bottom'], UNIT = /^unit-(picture|casement|awning|single|slider|entry|patio)-[LR]-(in|out)$/;
 export async function onRequestPut({ request, env }){
   const me = await whoIs(request, env);
@@ -23,6 +25,11 @@ export async function onRequestPut({ request, env }){
   const id = new Date().toISOString().replace(/[-:T]/g,'').slice(0,14) + '-' + Math.random().toString(36).slice(2,6);
   const key = `incoming/${id}.step`;
   await env.STEPS.put(key, request.body, { customMetadata:{ kind, name, filename, by: me.email } });
+  const t = toDT(new Date().toISOString());
+  await withSql(env, async db => {
+    await db.q(`INSERT INTO files (r2_key, kind, name, filename, content_type, size, created_by, created_at) VALUES (?,?,?,?,?,?,?,?)`, [key, 'step_upload', name, filename, 'application/step', size||null, me.email, t]);
+    await db.q(`INSERT INTO step_imports (id, kind, name, file, by_email, started, status) VALUES (?,?,?,?,?,?,?)`, [id, kind, name, filename, me.email, t, 'queued']);
+  });
   const r = await fetch(`https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/import-step.yml/dispatches`, {
     method:'POST',
     headers:{ 'Authorization':`Bearer ${env.GITHUB_TOKEN}`, 'Accept':'application/vnd.github+json', 'User-Agent':'cubit-builder', 'Content-Type':'application/json' },

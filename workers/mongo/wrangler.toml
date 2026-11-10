@@ -1,0 +1,18 @@
+# The MongoDB gateway Worker (see index.js). Deploy: npx wrangler deploy -c workers/mongo/wrangler.toml
+# Then set its secret: npx wrangler secret put MONGODB_URI -c workers/mongo/wrangler.toml
+name = "cubit-mongo"
+main = "index.js"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+
+[vars]
+MONGODB_DB = "cubit"
+
+[[durable_objects.bindings]]
+name = "HOLDER"
+class_name = "MongoHolder"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["MongoHolder"]

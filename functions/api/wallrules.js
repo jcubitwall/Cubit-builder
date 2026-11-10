@@ -1,20 +1,18 @@
 /* GET  /api/wallrules           the wall builder's default heights, depths and locks (everyone who can log in)
-   POST /api/wallrules {rules}   admins: save them (shared by the whole team, used by every wall built after)
-   Kept in the R2 bucket (binding STEPS) as wallrules/rules.json. */
+   POST /api/wallrules {rules}   editors and admins: save them (shared by the whole team, used by every wall built after)
+   Kept in MongoDB: settings, _id 'wallrules'. */
 import { whoIs, json, atLeast, denied } from '../_auth.js';
-const KEY = 'wallrules/rules.json';
+import { mongo, bare } from '../_mongo.js';
 export async function onRequestGet({ request, env }){
   const me = await whoIs(request, env); if(me.role === 'none') return json({ error:'Not signed in.' }, 401);
-  if(!env.STEPS) return json({});
-  const o = await env.STEPS.get(KEY); if(!o) return json({});
-  try{ return json(await o.json()); }catch(e){ return json({}); }
+  return json(bare(await mongo(env).coll('settings').get('wallrules')) || {});
 }
 export async function onRequestPost({ request, env }){
   const me = await whoIs(request, env); if(!atLeast(me,'editor')) return denied('editor');
-  if(!env.STEPS) return json({ error:'Storage is not set up (R2 binding STEPS).' }, 500);
   const b = await request.json().catch(()=>null);
   if(!b || typeof b.rules !== 'object' || JSON.stringify(b.rules).length > 20000) return json({ error:'Bad request.' }, 400);
-  const s = { ...b.rules, by:me.email, at:new Date().toISOString() };
-  await env.STEPS.put(KEY, JSON.stringify(s), { httpMetadata:{ contentType:'application/json' } });
+  const { _id, ...rest } = b.rules;
+  const s = { ...rest, by:me.email, at:new Date().toISOString() };
+  await mongo(env).coll('settings').put({ _id:'wallrules', ...s });
   return json(s);
 }

@@ -1,5 +1,5 @@
 /* Cubit Builder — data.js
-   Wall library + home models, loaded from data/walls.json and data/models.json so the team can edit
+   Wall library + home models, loaded from the walls catalogue (api/seed/walls) and the models catalogue (api/seed/models) so the team can edit
    them without touching code. Layouts made with "Add a pod" are kept in this browser until copied
    into models.json.
    Every wall: { id, name, len (ft), type 'ext'|'int', t (thickness in), openings:[{kind,x,y,w,h}], inside:[...], outside:[...] }
@@ -13,9 +13,9 @@ import { mapX } from './panels.js';
 const MODELS = {};
 const LIB = [];
 const LAYERLIB = [];
-const PODLIB = [];          // unique pods: data/pods.json + pods saved in this browser
+const PODLIB = [];          // unique pods: the pods catalogue (api/seed/pods) + pods saved in this browser
 const POD_KEY = 'cubit-pods';
-const DECKLIB = [];         // deck / porch frames: data/decks.json + decks saved in this browser
+const DECKLIB = [];         // deck / porch frames: the decks catalogue (api/seed/decks) + decks saved in this browser
 const DECK_KEY = 'cubit-decks';
 const CUSTOM_KEY = 'cubit-custom-models';
 /* Homes that are locked (signed, in production, built, archived) keep the walls and floors they were locked with.
@@ -28,11 +28,11 @@ const setScope = fn => { SCOPE = fn; };
 const frozenOf = kind => { const k=SCOPE(); return k ? FROZEN[k]?.[kind] : null; };
 async function loadData(){
   const [walls, models, layers] = await Promise.all([
-    fetch('data/walls.json').then(r=>r.json()),
-    fetch('data/models.json').then(r=>r.json()),
-    fetch('data/layers.json').then(r=>r.ok?r.json():[]).catch(()=>[]),
-    fetch('data/pods.json').then(r=>r.ok?r.json():[]).catch(()=>[]),
-    fetch('data/decks.json').then(r=>r.ok?r.json():[]).catch(()=>[])
+    fetch('api/seed/walls').then(r=>r.json()),
+    fetch('api/seed/models').then(r=>r.json()),
+    fetch('api/seed/layers').then(r=>r.ok?r.json():[]).catch(()=>[]),
+    fetch('api/seed/pods').then(r=>r.ok?r.json():[]).catch(()=>[]),
+    fetch('api/seed/decks').then(r=>r.ok?r.json():[]).catch(()=>[])
   ]).then(([w,m,l,p,dk])=>{ p.forEach(x=>PODLIB.push({...x, src:'library'})); dk.forEach(x=>DECKLIB.push({...x, src:'library'})); return [w,m,l]; });
   try{ JSON.parse(localStorage.getItem(DECK_KEY)||'[]').forEach(x=>{ if(!DECKLIB.find(y=>y.id===x.id)) DECKLIB.push({...x, src:'saved'}); }); }catch(e){}
   try{ JSON.parse(localStorage.getItem(POD_KEY)||'[]').forEach(x=>{ if(!PODLIB.find(y=>y.id===x.id)) PODLIB.push({...x, src:'saved'}); }); }catch(e){}
