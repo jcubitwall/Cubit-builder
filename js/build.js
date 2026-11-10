@@ -17,7 +17,9 @@ import { canSave } from './role.js';
 import { podList, slotsFor, layerSlotsFor } from './layout.js';
 import { setIsolate, setPod, openLayers } from './layers.js';
 import { camera, controls, renderer, homeGroup, pickables, buildHome, highlight } from './scene3d.js';
-import { addPod, movePod, rotatePod, addDeck, moveDeck, dockSpots, deckSpots, foot, deckFoot, addPart, movePart, partSnaps, problem } from './pods.js';
+import { addPod, movePod, rotatePod, addDeck, moveDeck, dockSpots, deckSpots, foot, deckFoot, addPart, movePart, partSnaps, problem, mirrorPod, deletePod, removeDeck, turnDeck } from './pods.js';
+import { duplicateItem, removeItem } from './furniture.js';
+import { homeCost, money, book } from './prices.js';
 import { podOffsets, midAt } from './layout.js';
 import { UP, MAX_LV } from './config.js';
 const UPF = UP/12;
@@ -129,15 +131,38 @@ setTimeout(()=>{ document.querySelector('.vcube-wrap .vc-hist')?.appendChild(lvW
    with the floors above and the decks under it when there are any. Updated every time the home is rebuilt. */
 const sqft=document.createElement('div'); sqft.className='sqft-chip'; sqft.setAttribute('aria-live','polite');
 const fmtN = n => Math.round(n).toLocaleString('en-CA');
+/* tap it to step through: footprint → all floors → with decks → m² */
+let sqView=0;
+sqft.setAttribute('role','button'); sqft.tabIndex=0;
+sqft.addEventListener('click', ()=>{ sqView=(sqView+1)%4; showSqft(); });
 function showSqft(){
   const m=MODELS[state.model]; if(!m){ sqft.hidden=true; return; } sqft.hidden=false;
   const pods=m.pods||[], area=p=>{ const f=foot(p); return f.w*f.d; };
   const ground=pods.filter(p=>!(+p.lv)).reduce((a,p)=>a+area(p),0), all=pods.reduce((a,p)=>a+area(p),0);
   const deck=(m.decks||[]).reduce((a,d)=>{ try{ const f=deckFoot(d); return a+f.w*f.d; }catch(e){ return a; } },0);
-  const sub=[all>ground+1e-6?`all floors ${fmtN(all)}`:'', deck?`decks ${fmtN(deck)}`:''].filter(Boolean).join(' · ');
-  sqft.innerHTML=`<span class="sq-k">Footprint</span><b>${fmtN(ground)}</b><span class="sq-u">sq ft</span>${sub?`<small>${sub} sq ft</small>`:''}`;
-  sqft.title=`Footprint ${fmtN(ground)} sq ft (${(ground*0.092903).toFixed(1)} m²): the ground-floor pods, outside to outside on the 8′ grid`;
+  const V=[['Footprint', fmtN(ground), 'sq ft'], ['All floors', fmtN(all), 'sq ft'], ['With decks', fmtN(ground+deck), 'sq ft'], ['Footprint', (ground*0.092903).toFixed(1), 'm²']][sqView];
+  sqft.innerHTML=`<span class="sq-k">${V[0]}</span><b>${V[1]}</b><span class="sq-u">${V[2]}</span>`;
+  sqft.title=`Footprint ${fmtN(ground)} sq ft · all floors ${fmtN(all)} · decks ${fmtN(deck)} · ${(ground*0.092903).toFixed(1)} m². Tap to step through them.`;
+  queuePrice();
 }
+/* the price as you build: Design shows the customer's price (cost + markup, the markup set under Tools), Shop shows
+   Cubit's cost. Tap it to hide it; tap again to show it. Only for those who can see prices. */
+const priceEl=document.createElement('div'); priceEl.className='sqft-chip price-chip'; priceEl.setAttribute('role','button'); priceEl.tabIndex=0; priceEl.hidden=true;
+let priceHidden=(()=>{ try{ return localStorage.getItem('cubit-price-hidden')==='1'; }catch(e){ return false; } })(), priceT=0;
+const markup = () => { try{ const v=parseFloat(localStorage.getItem('cubit-markup')); return isFinite(v) ? v : 0; }catch(e){ return 0; } };
+priceEl.addEventListener('click', ()=>{ priceHidden=!priceHidden; try{ localStorage.setItem('cubit-price-hidden', priceHidden?'1':'0'); }catch(e){} showPrice(); });
+function queuePrice(){ clearTimeout(priceT); priceT=setTimeout(showPrice, 700); }
+function showPrice(){
+  if(!priceEl.isConnected){ sqft.after(priceEl); }
+  let c=null; try{ if(!book().denied && canSave()) c=homeCost(state.model); }catch(e){ c=null; }
+  if(!c || !c.priced || !(c.total>0)){ priceEl.hidden=true; return; } priceEl.hidden=false;   // no prices in the book yet: nothing to show
+  if(priceHidden){ priceEl.innerHTML='<span class="sq-k">Price</span><b>· · ·</b>'; priceEl.title='Tap to show the price'; return; }
+  const design=isDesign(), v=design ? c.total*(1+markup()/100) : c.total;
+  priceEl.innerHTML=`<span class="sq-k">${design?'Price':'Cost'}</span><b>${money(Math.round(v)).replace(/\.00$/,'')}</b>${c.missing?`<span class="sq-u" title="${c.missing} lines have no price yet">+${c.missing}?</span>`:''}`;
+  priceEl.title = design ? `Customer price: Cubit's cost${markup()?` + ${markup()}% markup`:' (no markup set: Tools → Markup)'}${c.missing?`; ${c.missing} lines have no price yet`:''}. Tap to hide.` : `Cubit's cost to build, no markup${c.missing?`; ${c.missing} lines have no price yet`:''}. Tap to hide.`;
+}
+onMode(()=>showPrice());
+window.addEventListener('cubit:markup', showPrice);
 /* one toolbar along the top of the canvas: undo / redo, 2D, floors and the footprint move up beside Layers and Full
    screen (the view cube stays on its own, bottom right) */
 setTimeout(()=>{ const bar=document.querySelector('#stage .fs-bar'), h=document.querySelector('.vcube-wrap .vc-hist');
@@ -376,7 +401,7 @@ stage.addEventListener('pointerdown', e=>{
       press={x, y, timer:setTimeout(()=>{ if(!press || pointers.size!==1) return; press=null;
         if(!hitAt(x,y) && !furnAt(x,y)){ orbit=null; try{ navigator.vibrate?.(10); }catch(err){} openLayers(true, {x, y}); return; }
         const d=editable() ? grabAt(x,y) : null; if(!d) return;
-        orbit=null; controls.enabled=false; D=d; D.started=true; D.lastXY=[x,y]; document.body.classList.add('dragging');
+        orbit=null; controls.enabled=false; D=d; D.started=true; D.lastXY=[x,y]; D.long=true; D.sx0=x; D.sy0=y; document.body.classList.add('dragging');
         try{ navigator.vibrate?.(15); }catch(err){}
         if(D.mode==='fmove'){ setHolderVisible(D.id,false); trackFurn(D, x, y); } else track(D, x, y);
         toast(D.mode==='fmove' ? 'Moving the cabinet · lift to drop' : D.deck ? 'Moving the deck · lift to drop' : 'Moving the pod · lift to drop'); }, LONG_PRESS)}; }
@@ -491,6 +516,7 @@ function release(e){
     state.selFurn=d.id; applyFurniture(); renderSide(); return; }
   if(D && D.mode==='fmove'){ if(pointers.size) return;
     const d=D; D=null; hideFurnGhost(); setHolderVisible(d.id,true); document.body.classList.remove('dragging'); controls.enabled=true;
+    if(d.long && d.lastXY && Math.hypot(d.lastXY[0]-d.sx0, d.lastXY[1]-d.sy0)<10){ endGroupDrag(d, false); refreshItem(furnById(d.id)); pickAt(d.sx0, d.sy0); return; }   // held still: pick it
     if(d.twist || !d.started || !d.at){ endGroupDrag(d, false); return; }
     if(d.group){ setMany([[d.id, d.at], ...(d.moves||[])]); [d.id, ...d.group.map(g=>g.id)].forEach(id=>refreshItem(furnById(id))); }
     else { updateItem(d.id, d.at); refreshItem(furnById(d.id)); }
@@ -499,6 +525,7 @@ function release(e){
   if(pointers.size) return;                                             // wait for the last finger
   const d=D; D=null; hideGhost(); document.body.classList.remove('dragging'); controls.enabled=true;
   if(d.twist || !d.started) return;                                     // a twist, or a tap (the tap picks it, in scene3d)
+  if(d.long && d.lastXY && Math.hypot(d.lastXY[0]-d.sx0, d.lastXY[1]-d.sy0)<10){ pickAt(d.sx0, d.sy0); return; }   // a long press held still: pick it (quick bar)
   if(!d.ok){ toast(d.deck ? deckWhy(d) : 'Pods dock flush end to end or side by side in 8′ steps, sharing at least 8′ of wall.'); return; }
   const m=MODELS[state.model], q=d.deck ? m.decks[d.i] : m.pods[d.i];
   if(q.x===d.at.x && q.z===d.at.z) return;
@@ -748,4 +775,103 @@ onFurnChanged(()=>{ clearTimeout(elecT); elecT=setTimeout(function again(){
   const s=elecSigNow(); if(s===elecSig) return;
   elecSig=s; buildHome(); highlight(); }, 150); });
 window.addEventListener('cubit:home', ()=>{ elecSig=elecSigNow(); });
+
+/* ---------------------------------------------------------------- the quick bar
+   A small bar beside whatever is picked: a cabinet or piece of furniture (Turn, Mirror, Duplicate, Delete), a deck
+   (Turn, Duplicate, Delete) or a wall / floor (its pod: Turn, Mirror, Flip, Duplicate, ＋ Wall across, Delete). The side
+   panel is for the details. Delete asks twice. Keys do the same (R turn, D duplicate, Delete), and a right-click or a
+   long press held still picks a thing and brings the bar up. */
+const qb=document.createElement('div'); qb.className='quickbar'; qb.hidden=true; qb.setAttribute('role','toolbar'); qb.setAttribute('aria-label','Quick actions'); stage.appendChild(qb);
+const QI={ turn:'M12 4a8 8 0 1 1-7.4 5M4 4v5h5', mir:'M12 3v18M8 7 3 12l5 5M16 7l5 5-5 5', flip:'M3 12h18M7 8l5-5 5 5M7 16l5 5 5-5', dup:'M8 8h11v11H8zM5 16V5h11', del:'M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13', wall:'M12 3v18M4 3h16v18H4z', more:'M5 12h.01M12 12h.01M19 12h.01' };
+const qBtn=(k, label, icon, cls='')=>`<button class="qb-b ${cls}" data-q="${k}" title="${label}" aria-label="${label}"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="${QI[icon]}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>${label}</span></button>`;
+function selection(){
+  if(state.selFurn && furnById(state.selFurn)) return { kind:'furn', id:state.selFurn };
+  const s=String(state.selected||''); if(!s) return null;
+  if(/^deck:\d+$/.test(s)) return { kind:'deck', k:+s.slice(5), id:s };
+  if(s.startsWith('stair:')) return null;
+  const pi=parseInt(s,10); if(Number.isFinite(pi) && MODELS[state.model]?.pods?.[pi]) return { kind:'pod', pi, id:s };
+  return null;
+}
+let qbFor='', qbSure=null;
+function renderQB(sel){
+  qbFor=sel ? sel.kind+':'+sel.id : ''; qbSure=null;
+  if(!sel || !editable()){ qb.hidden=true; return; }
+  if(sel.kind==='furn') qb.innerHTML=qBtn('turn','Turn','turn')+qBtn('mir','Mirror','mir')+qBtn('dup','Duplicate','dup')+qBtn('del','Delete','del','danger');
+  else if(sel.kind==='deck') qb.innerHTML=qBtn('turn','Turn','turn')+qBtn('dup','Duplicate','dup')+qBtn('del','Delete','del','danger');
+  else qb.innerHTML=`<span class="qb-l">${(MODELS[state.model].pods[sel.pi] && `Pod ${sel.pi+1}`)}</span>`+qBtn('turn','Turn','turn')+qBtn('mir','Mirror','mir')+qBtn('flip','Flip','flip')+qBtn('dup','Duplicate','dup')+qBtn('wall','Wall across','wall')+qBtn('wallL','Wall along','wall')+qBtn('del','Delete','del','danger');
+  qb.hidden=false;
+}
+function selBox(sel){
+  const B=new THREE.Box3();
+  if(sel.kind==='furn') furnMeshes().forEach(m=>{ if(m.userData.furn===sel.id && shown(m)) B.expandByObject(m); });
+  else pickables.forEach(m=>{ if(m.userData.slotId===sel.id && shown(m)) B.expandByObject(m); });
+  return B.isEmpty() ? null : B;
+}
+const v3=new THREE.Vector3();
+function anchorPx(sel){ const B=selBox(sel); if(!B) return null; B.getCenter(v3); v3.y=B.max.y; v3.project(camera); const r=cv.getBoundingClientRect(); return { x:r.left+(v3.x+1)/2*r.width, y:r.top+(1-v3.y)/2*r.height, r }; }
+function placeQB(){
+  requestAnimationFrame(placeQB);
+  const sel=selection(), key=sel ? sel.kind+':'+sel.id : '';
+  if(key!==qbFor){ renderQB(sel); if(sel) keepInView(sel); }
+  if(qb.hidden) return;
+  const hide=document.body.classList.contains('dragging') || document.body.classList.contains('orbiting') || state.view!=='studio';
+  qb.classList.toggle('off', hide); if(hide) return;
+  const a=anchorPx(sel); if(!a){ qb.classList.add('off'); return; }
+  const sr=stage.getBoundingClientRect(), panelW=document.getElementById('studio').classList.contains('panel-open') && !document.documentElement.classList.contains('phone') ? 404 : 0;
+  const w=qb.offsetWidth, h=qb.offsetHeight;
+  let x=a.x-sr.left-w/2, y=a.y-sr.top-h-14;
+  x=Math.max(8, Math.min(sr.width-panelW-w-8, x)); y=Math.max(62, Math.min(sr.height-h-190, y));
+  qb.style.transform=`translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+}
+requestAnimationFrame(placeQB);
+/* the side panel opens over the right of the canvas: slide the view so what was picked sits in the free part */
+function keepInView(sel){
+  setTimeout(()=>{ if(!document.getElementById('studio').classList.contains('panel-open') || document.documentElement.classList.contains('phone')) return;
+    const a=anchorPx(sel); if(!a) return; const edge=a.r.right-404-40; if(a.x<=edge) return;
+    const dx=a.x-(a.r.left+(a.r.width-404)/2), dist=camera.position.distanceTo(controls.target), wpp=2*dist*Math.tan(camera.fov*Math.PI/360)/a.r.height;
+    const right=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).normalize().multiplyScalar(dx*wpp);
+    const p0=camera.position.clone(), t0=controls.target.clone(), T=performance.now(); cancelAnimationFrame(anim); controls.enableDamping=false;
+    const step=()=>{ const k=Math.min(1,(performance.now()-T)/260), e=k*k*(3-2*k); camera.position.copy(p0).addScaledVector(right, e); controls.target.copy(t0).addScaledVector(right, e); controls.update();
+      if(k<1) anim=requestAnimationFrame(step); else controls.enableDamping=true; }; step(); }, 260);
+}
+function qAct(q){
+  const sel=selection(); if(!sel || !editable()) return;
+  if(q==='del' && qbSure!==qbFor){ qbSure=qbFor; const b=qb.querySelector('[data-q="del"] span'); if(b) b.textContent='Tap again'; toast(sel.kind==='pod'?'Tap Delete again to remove the pod, with what is in it':'Tap Delete again to remove it'); return; }
+  if(sel.kind==='furn'){ const it=furnById(sel.id);
+    if(q==='turn'){ turnItem(sel.id, 1); refreshItem(furnById(sel.id)); renderSide(); toast('Turned 90°'); }
+    else if(q==='mir'){ updateItem(sel.id, { mirror:!it.mirror }); refreshItem(furnById(sel.id)); renderSide(); toast(it.mirror?'Back the usual way':'Mirrored'); }
+    else if(q==='dup'){ const c=duplicateItem(sel.id); if(c){ state.selFurn=c.id; refreshItem(c); applyFurniture(); renderSide(); toast('Duplicated · drag it where it goes'); } }
+    else if(q==='del'){ removeItem(sel.id); refreshItem({id:sel.id}); state.selFurn=null; renderSide(); highlight(); toast('Removed · undo brings it back'); }
+    return; }
+  if(sel.kind==='deck'){ const m=MODELS[state.model], q0=m.decks[sel.k];
+    if(q==='turn'){ const why=turnDeck(sel.k); if(why){ toast(why); return; } state.selected='deck:'+sel.k; renderModels(); buildHome(); renderSide(); }
+    else if(q==='dup'){ const sp=[0,90,180,270].flatMap(r=>deckSpots(q0.lib, r).map(x=>({...x, rot:r})))[0]; if(!sp){ toast('No place for another deck like it'); return; } after(addDeck(q0.lib, sp.x, sp.z, sp.rot), 'Deck added'); }
+    else if(q==='del'){ const why=removeDeck(sel.k); if(why){ toast(why); return; } state.selected=null; renderModels(); buildHome(); renderSide(); toast('Deck removed · undo brings it back'); }
+    return; }
+  const pi=sel.pi, go=(why,msg)=>{ if(why){ toast(why); return; } state.selected=null; renderModels(); buildHome(); renderSide(); toast(msg); };
+  if(q==='turn') go(rotatePod(pi), 'Pod turned 90°');
+  else if(q==='mir') go(mirrorPod(pi,'x'), 'Pod mirrored end for end');
+  else if(q==='flip') go(mirrorPod(pi,'z'), 'Pod flipped front to back');
+  else if(q==='dup'){ const raw=MODELS[state.model].pods[pi], item={t:raw.t, ...(raw.lv?{lv:raw.lv}:{})}, sp=dockSpots(item, raw.rot||0)[0]; if(!sp){ toast('No place for another pod like it'); return; } after(addPod(item, sp.x, sp.z, raw.rot||0), 'Pod duplicated · drag it where it goes'); }
+  else if(q==='wall' || q==='wallL'){ const id=addPart(pi, q==='wall'?'cross':'long'); if(!id) return; state.selected=id; renderModels(); buildHome(); highlight(); renderSide(); toast('Interior wall added · slide it, snap it flush, or tap a door option'); }
+  else if(q==='del') go(deletePod(pi), 'Pod removed · undo brings it back');
+}
+qb.addEventListener('click', e=>{ const b=e.target.closest('[data-q]'); if(b) qAct(b.dataset.q); });
+qb.addEventListener('pointerdown', e=>e.stopPropagation());
+document.addEventListener('keydown', e=>{
+  if(state.view!=='studio' || e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input,textarea,select,[contenteditable]') || document.querySelector('dialog[open]')) return;
+  const k=e.key.toLowerCase();
+  if(k==='r'){ if(selection()){ e.preventDefault(); qAct('turn'); } }
+  else if(k==='d'){ if(selection()){ e.preventDefault(); qAct('dup'); } }
+  else if(k==='delete' || k==='backspace'){ if(selection()){ e.preventDefault(); qAct('del'); } }
+});
+/* right-click (mouse) on a thing: pick it, the quick bar comes up */
+function pickAt(x, y){
+  const fh=furnAt(x,y), ph=hitAt(x,y), glass = ph && /:(ceiling-int|roof)$/.test(ph.object.userData.slotId||'');
+  if(fh && (!ph || glass || fh.distance<=ph.distance+0.05)){ state.selFurn=fh.object.userData.furn; state.selected=null; }
+  else if(ph?.object?.userData?.slotId){ state.selected=ph.object.userData.slotId; state.selFurn=null; }
+  else return false;
+  highlight(); renderSide(); return true;
+}
+cv.addEventListener('contextmenu', e=>{ e.preventDefault(); pickAt(e.clientX, e.clientY); });
 export { setLevel, startBuild, flatten, isFlat, renderTray, set2D, is2D };

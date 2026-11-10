@@ -338,7 +338,7 @@ function renderSide(){
   // the pod this wall / floor belongs to: turn it or take it out, right here
   const pi = state.selected && !String(state.selected).startsWith('deck:') ? parseInt(state.selected,10) : NaN;
   if(Number.isFinite(pi) && sideB && canSave() && MODELS[state.model].pods[pi]){
-    sideB.insertAdjacentHTML('afterbegin', `<div class="pod-acts"><b>${esc(withName(`Pod ${pi+1}`, 'p:'+pi))}</b><button class="btn ghost sm" id="podName">Name</button><button class="btn ghost sm" id="podTurn">Turn 90°</button><button class="btn ghost sm" id="podMir" title="End for end: left ↔ right">Mirror</button><button class="btn ghost sm" id="podFlip" title="Front ↔ back">Flip</button><button class="btn ghost sm" id="podRm">Remove pod</button></div>`);
+    sideB.insertAdjacentHTML('afterbegin', `<div class="pod-acts shop-only"><b>${esc(withName(`Pod ${pi+1}`, 'p:'+pi))}</b><button class="btn ghost sm" id="podName">Name</button><button class="btn ghost sm" id="podTurn">Turn 90°</button><button class="btn ghost sm" id="podMir" title="End for end: left ↔ right">Mirror</button><button class="btn ghost sm" id="podFlip" title="Front ↔ back">Flip</button><button class="btn ghost sm" id="podRm">Remove pod</button></div>`);
     const go=(why,msg)=>{ if(why){ toast(why); return; } state.selected=null; renderModels(); buildHome(); renderSide(); toast(msg); };
     sideB.querySelector('.pod-acts').insertAdjacentHTML('beforeend', `<span class="pod-mid"><button class="btn ghost sm" id="midX" title="A wall across the pod, to split off a bathroom, a bedroom …">＋ Wall across</button><button class="btn ghost sm" id="midL" title="A wall along the pod">＋ Wall along</button></span>`);
     { const P=podList(state.model), me=P[pi], OFF=podOffsets(state.model), ov=(a,b)=>{ const oa=OFF[a.i], ob=OFF[b.i]; return Math.min(a.x1+oa.ox,b.x1+ob.ox)-Math.max(a.x+oa.ox,b.x+ob.ox)>0.1 && Math.min(a.z1+oa.oz,b.z1+ob.oz)-Math.max(a.z+oa.oz,b.z+ob.oz)>0.1; };
@@ -599,6 +599,8 @@ function renderLayerSide(ls){
         ${c.auto?`<label class="lt-sp">Spacing about <input type="number" id="ltSp" min="24" max="72" step="1" value="${c.spacing}"> ″ <small>(whole home)</small></label>
         <p class="note">Rows run the long way, evenly spaced with half a spacing to the walls; pods joined by a large opening space as one room. Lights move 6″ in front of cabinets set on a wall, and never land on a panel joint.</p>`:''}</div>`; })() : ''}
     ${ls.kind==='ceiling-int' ? lightEditorHTML(ls) : ''}
+    ${/^floor/.test(ls.kind) && ls.pod ? (()=>{ const cur=nameOf('p:'+ls.pod.i)||''; const R=['Bedroom','Bathroom','Kitchen','Living','Dining','Laundry','Office','Entry','Kitchen & living'];
+      return `<div class="room-box"><div class="eyebrow">Room · shows on the plan and the drawings</div><div class="seg wrap" role="group" aria-label="Room name">${R.map(r=>`<button data-room="${esc(r)}" aria-pressed="${cur===r}" ${canSave()?'':'disabled'}>${esc(r)}</button>`).join('')}<button data-room="__other" ${canSave()?'':'disabled'}>${cur && !R.includes(cur) ? esc(cur)+' ✎' : 'Other…'}</button></div></div>`; })() : ''}
     <p class="note design-only">${ls.kind==='floor-int'||ls.kind==='floor-ext' ? 'Flooring and other finishes are picked under Finishes. The floor panel itself (holes, hatches, CNC) is set in Shop.' : 'The panel itself (holes, hatches, CNC) is set in Shop.'}</p>
     ${shopSec(`<div class="row"><button class="btn" id="toSheet">Layer sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===ls.id}">${state.isolate===ls.id?'Exit isolate':'Isolate'}</button>${L.blank?'':'<button class="btn ghost edit-only" id="lMir" title="End for end">Mirror</button><button class="btn ghost edit-only" id="lFlip" title="Front to back">Flip</button>'}<button class="btn ghost" id="lBuild" title="Holes, hatches, pockets and shapes for this layer">Panel builder</button></div>
     <div class="eyebrow">${opts.length} ${K.label.toLowerCase()} option${opts.length===1?'':'s'} for a ${ls.len}′ pod · seen from above</div>
@@ -606,6 +608,11 @@ function renderLayerSide(ls){
     <div class="opts">${opts.map(o=>`<button class="opt" data-o="${esc(o.id)}" aria-pressed="${o.id===L.id}">${layerThumb(o)}<b>${esc(o.name)}</b><code>${esc(o.id)}</code></button>`).join('')}</div>`, 'Shop · panel options, sheet, panel builder')}`;
   sideB.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{ chooseLayer(ls, b.dataset.o); buildHome(); renderSide(); toast(`${ls.label} → ${b.dataset.o}`); });
   if(ls.kind==='ceiling-int') bindLightEditor(sideB, ls);
+  // a room name for the pod, with one tap (a pod split by interior walls: the biggest room carries it)
+  sideB.querySelectorAll('[data-room]').forEach(b=>b.onclick=async()=>{ const key='p:'+ls.pod.i; let v=b.dataset.room;
+    if(v==='__other'){ v=await askName({ title:'Room name', current:nameOf(key)||'', placeholder:'e.g. Bunk room' }); if(v==null) return; }
+    else if(nameOf(key)===v) v='';
+    await setName(key, v); renderModels(); buildHome(); renderSide(); toast(v?`Room: ${v}`:'Room name cleared'); });
   sideB.querySelector('#lMir')?.addEventListener('click',()=>{ chooseLayer(ls, layerMirrorId(L.id,'x')); buildHome(); renderSide(); toast(`${ls.label} mirrored end for end`); });
   sideB.querySelector('#lFlip')?.addEventListener('click',()=>{ chooseLayer(ls, layerMirrorId(L.id,'z')); buildHome(); renderSide(); toast(`${ls.label} flipped front to back`); });
   sideB.querySelector('#lBuild')?.addEventListener('click',()=>openLayerBuilder({ from: L.blank ? null : L.id, slot:ls, len:ls.len, kind:ls.kind }));

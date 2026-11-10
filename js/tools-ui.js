@@ -22,10 +22,12 @@ function sheet(slot){ dlg?.close(); state.sheetSlot=slot;
   if(isPhone()){ document.querySelector('#tabs [data-tab="sheets"]')?.click(); return; }
   if(state.view==='sheets') openSheets(); else document.querySelector('#views [data-v="sheets"]')?.click(); }
 function has(id){ const b=document.getElementById(id); if(!b || b.hidden) return false; return getComputedStyle(b).display!=='none'; }
+const markup = () => { try{ const v=parseFloat(localStorage.getItem('cubit-markup')); return isFinite(v) ? v : 0; }catch(e){ return 0; } };
 function render(){
   const tile=(attr, t, n)=>`<button class="tool-t" ${attr}><b>${t}</b><small>${n}</small></button>`;
   dlg.innerHTML=`<div class="tools"><header class="tools-h"><h2>Tools</h2><button class="btn ghost" data-x="1" aria-label="Close">Done</button></header>
     <section><div class="eyebrow">Mode</div><div class="seg tools-mode" role="group" aria-label="Mode"><button data-mode="design" aria-pressed="${mode()==='design'}"><b>Design</b><small>for building with a customer</small></button><button data-mode="shop" aria-pressed="${mode()==='shop'}"><b>Shop</b><small>everything: panels, codes, CNC</small></button></div></section>
+    <section class="tools-markup"><label for="tMarkup">Customer price in Design = cost +</label><input id="tMarkup" type="number" inputmode="decimal" min="0" max="300" step="1" value="${markup()}"><span>% markup</span><small>Kept on this device. The price shows beside the footprint while building (tap it to hide it).</small></section>
     <section><div class="eyebrow">Sheets for this home</div><div class="tool-g">${SHEETS.map(([k,t,n])=>tile(`data-sheet="${k}"`, t, n)).join('')}</div></section>
     <section><div class="eyebrow">Production</div><div class="tool-g">${TOOLS.filter(([id])=>has(id)).map(([id,t,n])=>tile(`data-tool="${id}"`, t, n)).join('')}</div></section></div>`;
 }
@@ -35,8 +37,10 @@ function openTools(){
       if(e.target===dlg || e.target.closest('[data-x]')){ dlg.close(); return; }
       const m=e.target.closest('[data-mode]'); if(m){ setMode(m.dataset.mode); render(); return; }
       const s=e.target.closest('[data-sheet]'); if(s){ sheet(s.dataset.sheet); return; }
+      if(e.target.id==='tMarkup') return;
       const t=e.target.closest('[data-tool]'); if(t){ dlg.close(); document.getElementById(t.dataset.tool)?.click(); } }); }
   render(); dlg.showModal();
+  dlg.querySelector('#tMarkup')?.addEventListener('change', e=>{ const v=Math.max(0, Math.min(300, parseFloat(e.target.value)||0)); try{ localStorage.setItem('cubit-markup', String(v)); }catch(err){} window.dispatchEvent(new Event('cubit:markup')); });
 }
 /* the tab: beside Build / Sheets in the top bar (iPad, desktop), and in the phone's bottom bar */
 function mount(){

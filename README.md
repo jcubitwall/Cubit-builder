@@ -793,3 +793,12 @@ A switch in the top bar, beside Build / Sheets. **Design** is for building with 
 - **Homes** shows the last homes opened on this device as Recent chips above the tabs. The team tab for homes without a customer is now called **Unassigned** (it was Purgatory).
 - **Tools** (a tab beside Build and Sheets; on the phone, in the bottom bar with Build and Sheets): the Design / Shop switch, the whole-home sheets (take-off, shopping list, cost, blueprints, CNC, labels, framing, foundation) and every production tool (panel builder, shape studio, library, price book, cabinet G-code, projects, deleted items, team, STEP upload) as big tiles. The ⋯ menu is unchanged. The phone's Take-off and Shopping tabs moved into Tools.
 - **Saved note** in the top bar: a draft shows Saving… then "Saved 10:41" (or "Kept on this iPad" without a connection); an Unassigned or customer home shows "Not saved · Save" after a change (tap to save); a Cubit original shows "Cubit original"; a signed home "Signed · locked".
+
+## Quick bar, shortcuts, rooms, price (build.js)
+- **Quick bar** beside whatever is picked: a cabinet or piece of furniture (Turn, Mirror, Duplicate, Delete), a deck (Turn, Duplicate, Delete), a wall or floor (its pod: Turn, Mirror, Flip, Duplicate, Wall across, Wall along, Delete). Delete asks twice; undo brings anything back. In Design the pod buttons are only in the quick bar (the side panel keeps them in Shop).
+- **Keys** (iPad keyboard or desktop): R turn, D duplicate, Delete / Backspace delete, Esc deselect, ⌘Z / ⇧⌘Z undo / redo, L layers.
+- **Right-click** a thing (mouse) or **long-press and lift without moving** (finger) picks it and brings up the quick bar; a long press and drag still moves it.
+- When the side panel opens, the view slides so the picked wall or item sits in the free part of the screen.
+- **Rooms**: tap a floor and pick Bedroom, Bathroom, Kitchen, Living… (or Other…); the name goes on the plan and the drawings (the pod's name; a pod split by interior walls gives it to its biggest room).
+- **Footprint** chip: tap to step through footprint → all floors → with decks → m².
+- **Price** chip beside it (salespeople and up, once the price book has prices): Design shows the customer's price (cost + the markup set under Tools, kept on the device), Shop shows Cubit's cost; "+N?" counts lines with no price yet. Tap to hide it.
