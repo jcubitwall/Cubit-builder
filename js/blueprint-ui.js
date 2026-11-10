@@ -8,6 +8,7 @@
    The 3D views are rendered from the home as it stands in Build: three outside views and one with the roof off. */
 import { state } from './state.js';
 import { MODELS } from './data.js';
+import { podList } from './layout.js';
 import * as S3 from './scene3d.js';
 import { SHEETS, PW, PH, loadBP, saveBP, homeInfo, makeContext, buildSet, setLogo, NOTES0, COMPANY0 } from './blueprint.js';
 import { foundationData } from './foundation.js';
@@ -30,9 +31,13 @@ function loadScript(src){ return new Promise((ok,no)=>{ if([...document.scripts]
 function renderViews(){
   const out=[]; if(!S3.homeGroup || typeof THREE==='undefined') return out;
   const keep={...state.show}, ex=S3.explodeT||0;
+  // the whole home, whatever Build is looking at: every floor (not just the one picked, nor only it in 2D), no pod isolated
+  const keepLv=state.level, keepF=state.focusPod, two=document.body.classList.contains('two-d');
+  const back=()=>{ state.level=keepLv; state.focusPod=keepF; document.body.classList.toggle('two-d', two); };
   let R=null;
   try{
     if(ex) S3.explodeAt(0);
+    state.level=Math.max(0, ...podList(state.model).map(p=>p.lv||0)); state.focusPod=null; document.body.classList.remove('two-d');
     Object.assign(state.show, { roof:true, ceiling:true, walls:true, floors:true, decks:true, screws:false, framing:false, splines:false, units:true, seals:false });
     const ni=S3.homeGroup.children.indexOf(S3.northGroup);
     const grab=()=>{ const c=S3.homeGroup.clone(true); if(ni>=0 && c.children[ni]) c.children[ni].visible=false;
@@ -42,7 +47,7 @@ function renderViews(){
       c.traverse(o=>{ if(o.isMesh && o.material && !Array.isArray(o.material) && o.material.transparent && o.material!==S3.MAT.glass){ const m=o.material.clone(); m.transparent=false; m.opacity=1; m.depthWrite=true; o.material=m; } }); return c; };
     S3.applyLayers(); const whole=grab();
     state.show.roof=false; state.show.ceiling=false; S3.applyLayers(); const open=grab();
-    Object.assign(state.show, keep); S3.applyLayers(); if(ex) S3.explodeAt(ex);
+    Object.assign(state.show, keep); back(); S3.applyLayers(); if(ex) S3.explodeAt(ex);
     const W=1600, H=1000; R=new THREE.WebGLRenderer({ antialias:true, preserveDrawingBuffer:true }); R.setPixelRatio(1); R.setSize(W,H,false);
     R.shadowMap.enabled=true; R.shadowMap.type=THREE.PCFSoftShadowMap; if('outputEncoding' in R) R.outputEncoding=THREE.sRGBEncoding;
     const shot=(group, az, el, fill=1.25)=>{
@@ -65,7 +70,7 @@ function renderViews(){
       sc.remove(group); ground.geometry.dispose(); ground.material.dispose(); sc.background.dispose(); return url;
     };
     out.push(shot(whole, -35, 14), shot(whole.clone(true), 140, 16), shot(whole.clone(true), 215, 12), shot(open, -25, 58, 0.95));
-  }catch(e){ console.warn('3D views', e); Object.assign(state.show, keep); try{ S3.applyLayers(); }catch(_){} }
+  }catch(e){ console.warn('3D views', e); Object.assign(state.show, keep); back(); try{ S3.applyLayers(); }catch(_){} }
   finally{ if(R){ R.dispose(); R.forceContextLoss?.(); } }
   return out;
 }
@@ -139,7 +144,7 @@ async function openBlueprints(){
   ensure(); dlg.querySelector('#bpT').textContent=`Blueprints · ${MODELS[state.model]?.name||''}`;
   dlg.querySelector('#bpStage').innerHTML='<p class="bp-wait">Drawing the sheets and rendering the 3D views…</p>'; dlg.querySelector('#bpList').innerHTML='';
   if(!dlg.open) dlg.showModal();
-  if(CUR && CUR.key!==state.model) CUR=null;
+  CUR=null;   // fresh 3D views every time: the home may have changed since the last look
   await new Promise(r=>setTimeout(r,30));
   try{ await refresh(false); }catch(e){ console.error(e); dlg.querySelector('#bpStage').innerHTML=`<p class="bp-wait">Could not draw the set: ${esc(e.message||e)}</p>`; }
 }

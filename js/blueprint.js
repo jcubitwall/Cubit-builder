@@ -401,7 +401,7 @@ function sCover(ctx, sh){
   ctx.list.forEach(s=>{ g+=tx(x2, y2, s.no, {size:10, weight:'bold', fill:BLUE})+tx(x2+46, y2, s.title.toUpperCase(), {size:10, fill:BLUE})+tx(x2+hw, y2, s.scale||'', {size:8.5, anchor:'end', fill:GREY}); y2+=15; });
   y2+=20; g+=tx(x2, y2, 'PROJECT DATA', {size:17, weight:'bold', fill:BLUE})+line(x2, y2+4, x2+110, y2+4, 1, BLUE); y2+=24;
   const conc=foundationOf(ctx.k)==='concrete';
-  [['Model', ctx.model], ['Pods', `${H_.pods.length} (${ctx.podsText})`], ['Gross floor area', ctx.areaText], ['Clear ceiling height', ftin(LAYER_KINDS['ceiling-int'].z - WALL_BASE)],
+  [['Model', ctx.model], ['Pods', `${ctx.HL.reduce((n,h)=>n+h.pods.length,0)} (${ctx.podsText})`], ['Gross floor area', ctx.areaText], ['Clear ceiling height', ftin(LAYER_KINDS['ceiling-int'].z - WALL_BASE)],
    ['Walls', `${fin(T)} exterior SIP, ${fin(TI)} interior and connecting walls`], ['Foundation', conc?'Concrete footing + ICF':'Ground screws'], ['North', `${Math.round(getBearing(ctx.k))} deg (${compass(getBearing(ctx.k))})`], ['Decks', H_.decks.length ? H_.decks.map(d=>`${d.L.w}' x ${d.L.d}'`).join(', ') : 'none']]
     .forEach(([a,b])=>{ g+=tx(x2, y2, a.toUpperCase()+':', {size:9.5, weight:'bold', fill:BLUE})+tx(x2+130, y2, String(b).toUpperCase(), {size:9.5, fill:BLUE}); y2+=14; });
   y2+=24; g+=tx(x2, y2, 'LIABILITY', {size:17, weight:'bold', fill:BLUE})+line(x2, y2+4, x2+70, y2+4, 1, BLUE); y2+=24;
@@ -734,7 +734,7 @@ function schedTable(x, y, w, title, rows){
   return { g, h: yy+16-y };
 }
 function sSchedules(ctx, sh){
-  const S=schedules(ctx.H_); sh.scale='N.T.S.';
+  const S=schedules(ctx.HL.length>1 ? homeModel(ctx.k, null) : ctx.H_); sh.scale='N.T.S.';   // every floor's windows and doors
   const w=(AREA.x1-AREA.x0-30)/2; let g='';
   const A=schedTable(AREA.x0, AREA.y0+20, w, 'WINDOW SCHEDULE', S.windows);
   const B=schedTable(AREA.x0+w+30, AREA.y0+20, w, 'EXTERIOR DOOR SCHEDULE', S.extDoors);
