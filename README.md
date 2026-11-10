@@ -802,3 +802,10 @@ A switch in the top bar, beside Build / Sheets. **Design** is for building with 
 - **Rooms**: tap a floor and pick Bedroom, Bathroom, Kitchen, Living… (or Other…); the name goes on the plan and the drawings (the pod's name; a pod split by interior walls gives it to its biggest room).
 - **Footprint** chip: tap to step through footprint → all floors → with decks → m².
 - **Price** chip beside it (salespeople and up, once the price book has prices): Design shows the customer's price (cost + the markup set under Tools, kept on the device), Shop shows Cubit's cost; "+N?" counts lines with no price yet. Tap to hide it.
+
+## Showing the home and getting it approved
+- **Present** (toolbar, ▶): full screen, the roof and ceiling on and solid, no editing controls, the home turning slowly. Outside / Inside (roof off, from above) / Plan / 📷 Picture / Exit; a touch stops the turning so you can turn it yourself; Exit (or Esc) puts the view, layers, panel and selection back as they were.
+- **Picture** (📷 in the toolbar or in Present): what's on screen, with the home's name in the corner. **Save to the customer's file** (a home linked to a customer, on the team's server: `api/customers` `{op:'photo'}`, kept in R2 under `customers/<id>/photos/`; the customer's profile lists them under Pictures), or **Save / share the image** (the iPad share sheet, or a download).
+- **Options**: in the home panel, "＋ Make an option" copies the home into a draft "… · Option B" (C, D…); the options are listed together with their footprint and price, one tap apart.
+- **Approval sheet**: the signed summary PDF now carries the plan as drawn (room names, sizes, dimensions), two 3D pictures (outside; inside from above) and the price (cost + markup), and the sign window shows them while signing. "Approval sheet" on the customer's profile makes the same PDF before signing ("for approval", blank signature lines).
+- **The 3D in Design** has a sky, a grass ground and soft sun shadows; Shop and the drawings are unchanged.

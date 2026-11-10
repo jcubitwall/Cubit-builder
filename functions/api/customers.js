@@ -4,6 +4,9 @@
         {op:'save', item}                     add or update a customer (profile, linked homes, selections)
         {op:'sign', id, home, rec}            both signatures + the summary of the home as signed
         {op:'delete', id}                     editors and up: hidden at once, kept two weeks, then gone
+        {op:'photo', id, home, data}          a picture of the home (a JPEG data URL, from Build's snapshot), kept for good
+   GET  /api/customers?photos=<id>           the customer's pictures: [{ key, at, size }]
+   GET  /api/customers?photo=<key>           one picture (salespeople and up)
    R2: customers/index.json (the list) and customers/<id>/signed-<home>-<time>.json (each signing, kept for good). */
 import { whoIs, json, atLeast, denied } from '../_auth.js';
 import { atomic, getJSON, putJSON } from '../_store.js';
@@ -23,6 +26,14 @@ export async function onRequestGet({ request, env }){
   const me = await whoIs(request, env); if(me.role === 'none') return json({ error:'Not signed in.' }, 401);
   if(!env.STEPS) return json([]);
   const u = new URL(request.url), sid = u.searchParams.get('signed'), home = u.searchParams.get('home');
+  const pList = u.searchParams.get('photos'), pOne = u.searchParams.get('photo');
+  if(pList || pOne){ if(!atLeast(me,'sales')) return denied('sales');
+    if(pList){ if(!okId(pList)) return json({ error:'Bad id.' }, 400);
+      const r = await env.STEPS.list({ prefix:`customers/${pList}/photos/` });
+      return json(r.objects.map(o=>({ key:o.key, size:o.size, at:o.uploaded })).sort((a,b)=>a.key<b.key?1:-1)); }
+    if(!/^customers\/[a-z0-9-]{1,40}\/photos\/[a-z0-9-]{1,80}\.jpg$/.test(pOne)) return json({ error:'Bad key.' }, 400);
+    const obj = await env.STEPS.get(pOne); if(!obj) return new Response('Not found', { status:404 });
+    return new Response(obj.body, { headers:{ 'content-type':'image/jpeg', 'cache-control':'private, max-age=86400' } }); }
   if(sid){ if(!atLeast(me,'sales')) return denied('sales'); if(!okId(sid) || !okId(home)) return json({ error:'Bad id.' }, 400);
     const r = await env.STEPS.list({ prefix:`customers/${sid}/signed-${home}-` }); const last = r.objects.sort((a,b)=>a.key<b.key?1:-1)[0];
     return json(last ? await getJSON(env, last.key, ()=>null) : null); }
@@ -34,10 +45,18 @@ export async function onRequestPost({ request, env }){
   const me = await whoIs(request, env); if(!atLeast(me,'sales')) return denied('sales');
   if(!env.STEPS) return json({ error:'Storage is not set up (R2 binding STEPS).' }, 500);
   const b = await request.json().catch(()=>null);
-  if(!b || !['save','sign','delete','restore'].includes(b.op)) return json({ error:'Bad request.' }, 400);
+  if(!b || !['save','sign','delete','restore','photo'].includes(b.op)) return json({ error:'Bad request.' }, 400);
   if(JSON.stringify(b).length > 3_000_000) return json({ error:'Too big.' }, 413);
   if(['delete','restore'].includes(b.op) && !atLeast(me,'editor')) return denied('editor');
   const now = new Date().toISOString();
+  if(b.op === 'photo'){
+    if(!okId(b.id) || (b.home && !okId(b.home))) return json({ error:'Bad id.' }, 400);
+    const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(String(b.data||'')); if(!m) return json({ error:'A JPEG picture is needed.' }, 400);
+    const bin = Uint8Array.from(atob(m[1]), c=>c.charCodeAt(0));
+    const key = `customers/${b.id}/photos/${(b.home||'home')}-${now.replace(/[:.TZ]/g,'').toLowerCase()}.jpg`;
+    await env.STEPS.put(key, bin, { httpMetadata:{ contentType:'image/jpeg' }, customMetadata:{ by:String(me.email||''), at:now } });
+    return json({ ok:true, key });
+  }
   if(b.op === 'sign'){
     if(!okId(b.id) || !okId(b.home) || !b.rec?.sigRep || !b.rec?.sigClient) return json({ error:'Both signatures are needed.' }, 400);
     await putJSON(env, `customers/${b.id}/signed-${b.home}-${now.replace(/[:.]/g,'-')}.json`, { ...b.rec, at:now, by:me.email });

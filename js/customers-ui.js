@@ -8,6 +8,7 @@
 import { MODELS } from './data.js';
 import { state, save } from './state.js';
 import { canSave, canEdit, email } from './role.js';
+import { listPhotos, photoURL } from './customers.js';
 import { CUSTOMERS, FINISHES, CAT_NAME, liveCustomers, customerById, newCustomerId, saveCustomer, linkHome, signHome, signedRecord, deleteCustomer, restoreCustomer, homeSummary } from './customers.js';
 import { saveProject, lockProject, unlockProject, projectOf } from './projects.js';
 import { renderModels, renderSide, toast } from './sidebar.js';
@@ -42,11 +43,12 @@ function openCustomer(id){
     ${homes.length ? homes.map(k=>{ const m=MODELS[k], pid=m.project, sg=c.signed?.[pid], F=c.selections?.[pid]||{}, locked=!!m.locked;
       return `<section class="cust-home" data-home="${esc(k)}"><div class="cust-hh"><b>${esc(m.name)}</b><span class="badge ${locked?'lock':''}">${locked?`Signed ${esc(day(m.locked.at))} · locked`:'Not signed yet'}</span>
           <span class="spacer"></span><button type="button" class="btn ghost sm" data-open="${esc(k)}">Open</button>
-          ${!locked && canSave()?`<button type="button" class="btn sm" data-sign="${esc(k)}">Sign & lock</button>`:''}${locked && canEdit()?`<button type="button" class="btn ghost sm" data-unlock="${esc(k)}">Unlock…</button>`:''}${sg?`<button type="button" class="btn ghost sm" data-pdf="${esc(pid)}">Signed summary (PDF)</button>`:''}</div>
+          ${!locked && canSave()?`<button type="button" class="btn ghost sm" data-prev="${esc(k)}" title="The one-page approval sheet, before signing">Approval sheet</button><button type="button" class="btn sm" data-sign="${esc(k)}">Sign & lock</button>`:''}${locked && canEdit()?`<button type="button" class="btn ghost sm" data-unlock="${esc(k)}">Unlock…</button>`:''}${sg?`<button type="button" class="btn ghost sm" data-pdf="${esc(pid)}">Signed summary (PDF)</button>`:''}</div>
         <details ${homes.length===1?'open':''}><summary>Selections</summary>${summaryHTML(homeSummary(k))}
           <div class="cust-fin">${FINISHES.map(([f,l])=>`<label class="fld">${l}<input data-fin="${esc(pid)}:${f}" value="${esc(F[f]||'')}" ${ro||locked?'disabled':''} placeholder="${locked?'':'to choose'}"></label>`).join('')}</div>
           ${(m.unlocks||[]).length?`<p class="note">Unlocked: ${m.unlocks.map(u=>`${esc(day(u.at))} (${esc(u.reason)}${u.fee?` · fee ${esc(u.fee)}`:''})`).join('; ')}</p>`:''}</details></section>`; }).join('')
       : '<p class="note">No home linked yet. Open a draft or an Unassigned home and tap <b>Save to Customer</b>.</p>'}
+    <details class="cust-pics"><summary>Pictures</summary><div class="pics-g" id="cuPics"><p class="note">Loading…</p></div><p class="note">Taken in Build with the camera button (or in Present).</p></details>
     <details class="cust-log"><summary>Log</summary><ul>${(c.log||[]).slice().reverse().map(l=>`<li>${esc(when(l.at))} · ${esc(l.what)}${l.by?` · ${esc(String(l.by).split('@')[0])}`:''}</li>`).join('')}</ul></details>`}
     <div class="row cust-acts">${ro?'':`<button class="btn" value="save" id="cuSave">${isNew?'Add customer':'Save'}</button>`}${!isNew && canEdit()?`<button type="button" class="btn ghost danger" id="cuDel">Delete customer</button>`:''}</div></form>`;
   const f=d.querySelector('form');
@@ -58,6 +60,14 @@ function openCustomer(id){
   d.querySelectorAll('[data-sign]').forEach(b=>b.onclick=async()=>{ try{ await saveCustomer(collect()); }catch(e){} d.close(); openSign(c.id, b.dataset.sign); });
   d.querySelectorAll('[data-unlock]').forEach(b=>b.onclick=()=>{ d.close(); openUnlock(b.dataset.unlock); });
   d.querySelectorAll('[data-pdf]').forEach(b=>b.onclick=()=>signedPDF(c.id, b.dataset.pdf));
+  d.querySelectorAll('[data-prev]').forEach(b=>b.onclick=async()=>{ const k=b.dataset.prev, m=MODELS[k]; b.disabled=true; b.textContent='Making it…';
+    try{ const keep=state.model; state.model=k; const A=await import('./approval.js'); const pics=await A.approvalPics(), price=A.customerPrice(k); state.model=keep;
+      await signedPDF(c.id, m.project, { at:new Date().toISOString(), summary:homeSummary(k), finishes:c.selections?.[m.project]||{}, pics, price:price?.price??null, customer:{ name:c.name, company:c.company||'', phone:c.phone||'', email:c.email||'', address:c.address||'', site:c.site||'' }, home:{ id:m.project, name:m.name } }); }
+    catch(e){ toast('Not made: '+(e.message||e)); }
+    b.disabled=false; b.textContent='Approval sheet'; });
+  d.querySelector('.cust-pics')?.addEventListener('toggle', async e=>{ if(!e.target.open || e.target.dataset.done) return; e.target.dataset.done='1';
+    const L=await listPhotos(c.id), g=d.querySelector('#cuPics'); if(!g) return;
+    g.innerHTML = L.length ? L.map(p=>`<a href="${photoURL(p.key)}" target="_blank" rel="noopener"><img src="${photoURL(p.key)}" alt="Picture of the home" loading="lazy"></a>`).join('') : '<p class="note">No pictures yet.</p>'; });
   d.querySelector('#cuDel')?.addEventListener('click', async e=>{ const b=e.target; if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again: kept 2 weeks, then gone'; return; }
     try{ await deleteCustomer(c.id); d.close(); renderModels(); toast(`${c.name} deleted · editors can bring it back for 2 weeks`); }catch(err){ toast('Not deleted: '+err.message); } });
   d.returnValue=''; if(!d.open) d.showModal(); if(isNew) d.querySelector('[data-k="name"]')?.focus();
@@ -107,6 +117,9 @@ async function openSign(cid, k){
       <div><label class="fld">Cubit rep<input id="sgRn" value="${esc((email()||'').split('@')[0])}"></label><canvas class="sig" id="sgR" aria-label="Rep signature"></canvas><button class="linkbtn" id="sgRc">Clear</button></div></div>
     <div class="row"><button class="btn" id="sgGo">Sign and lock</button></div></div>`;
   d.showModal();
+  // the approval sheet's pictures (plan, outside, inside) and price, made while they read and sign
+  const A=await import('./approval.js'), picsP=A.approvalPics(), price=A.customerPrice(k);
+  picsP.then(P=>{ const box=d.querySelector('details'); if(!box || !d.open) return; box.insertAdjacentHTML('beforeend', `<div class="appr-pics">${[P.plan,P.outside,P.inside].filter(Boolean).map(u=>`<img src="${u}" alt="">`).join('')}</div>${price?`<p><b>Price: $${price.price.toLocaleString('en-CA')}</b>${price.missing?` (${price.missing} lines not priced yet)`:''}</p>`:''}`); });
   const pc=pad(d.querySelector('#sgC')), pr=pad(d.querySelector('#sgR'));
   d.querySelector('#sgCc').onclick=()=>pc.clear(); d.querySelector('#sgRc').onclick=()=>pr.clear(); d.querySelector('#sgX').onclick=()=>d.close();
   d.querySelector('#sgGo').onclick=async e=>{
@@ -116,7 +129,7 @@ async function openSign(cid, k){
       // the home as it is now is what's signed: save it first
       const r=await saveProject(m.name, false, { customer:cid }); const pid=(r.project||projectOf(state.model))?.id || m.project;
       const rec={ client:d.querySelector('#sgCn').value.trim()||c.name, rep:d.querySelector('#sgRn').value.trim(), sigClient:pc.png(), sigRep:pr.png(),
-        summary:homeSummary(state.model), finishes:c.selections?.[pid]||{}, customer:{ name:c.name, company:c.company||'', phone:c.phone||'', email:c.email||'', address:c.address||'', site:c.site||'' }, home:{ id:pid, name:m.name } };
+        summary:homeSummary(state.model), finishes:c.selections?.[pid]||{}, pics:await picsP, price:price?.price??null, customer:{ name:c.name, company:c.company||'', phone:c.phone||'', email:c.email||'', address:c.address||'', site:c.site||'' }, home:{ id:pid, name:m.name } };
       await signHome(cid, pid, rec);
       await lockProject(pid, { customer:cid, rep:rec.rep, client:rec.client });
       d.close(); refresh(); toast(`Signed. ${m.name} is locked for ${c.name}.`);
@@ -145,12 +158,20 @@ async function signedPDF(cid, pid, rec=null){
   const clean=t=>String(t??'').replace(/[′‘’]/g,"'").replace(/[″“”]/g,'"').replace(/×/g,'x').replace(/·/g,'-').replace(/[^\x20-\x7E]/g,'');
   const text=(t,x,size=10,bold=false)=>{ doc.setFont('helvetica', bold?'bold':'normal'); doc.setFontSize(size); const L=doc.splitTextToSize(clean(t), W-x-48); L.forEach(l=>{ if(y>740){ doc.addPage(); y=48; } doc.text(l, x, y); y+=size*1.35; }); };
   try{ const logo=await (await fetch('brand/cubit-logo.png')).blob(); const url=await new Promise(r=>{ const f=new FileReader(); f.onload=()=>r(f.result); f.readAsDataURL(logo); }); doc.addImage(url,'PNG',48,30,150,56); }catch(e){}
-  y=110; text('Home selections · signed', 48, 18, true); text(`${rec.home?.name||''} · signed ${when(rec.at||new Date().toISOString())}`, 48, 10);
+  const signed=!!(rec.sigClient && rec.sigRep);
+  y=110; text(signed ? 'Home selections · signed' : 'Home selections · for approval', 48, 18, true); text(`${rec.home?.name||''} · signed ${when(rec.at||new Date().toISOString())}`, 48, 10);
   y+=6; const C=rec.customer||{}; text('Customer', 48, 12, true); [C.name, C.company, C.phone, C.email, C.address, C.site?`Site: ${C.site}`:''].filter(Boolean).forEach(l=>text(l, 60));
   const S=rec.summary; if(S){ y+=6; text('Home', 48, 12, true); text(`${S.home} · ${S.pods} pods · ${S.area} sq ft · ${S.foundation}${S.decks?.length?` · decks ${S.decks.join(', ')}`:''}`, 60);
     [['Windows',S.windows],['Outside doors',S.doors],['Inside doors and openings',S.inside]].forEach(([h,a])=>{ if(a?.length){ y+=4; text(h, 48, 11, true); a.forEach(l=>text('- '+l, 60)); } });
     const cab=Object.entries(S.cabinets||{}); if(cab.length){ y+=4; text('Cabinets, appliances and fixtures', 48, 11, true); cab.forEach(([c,o])=>{ text(CAT_NAME[c]||c, 60, 10, true); Object.entries(o).forEach(([n,q])=>text(`- ${q} x ${n}`, 72)); }); }
     text(`Pot lights: ${S.lights}`, 48, 10); }
+  if(rec.price){ y+=6; text(`Price: $${(+rec.price).toLocaleString('en-CA')} (taxes extra)`, 48, 12, true); }
+  // the plan and the 3D pictures, on a page of their own
+  const P=rec.pics||{}; if(P.plan || P.outside || P.inside){ doc.addPage(); y=48; text('The home', 48, 14, true);
+    const fit=(url, x, yy, w, hMax)=>{ try{ const p=doc.getImageProperties(url), h=Math.min(hMax, w*p.height/p.width), ww=h*p.width/p.height; doc.addImage(url,'JPEG',x+(w-ww)/2,yy,ww,h); return h; }catch(e){ return 0; } };
+    if(P.plan){ y+=fit(P.plan, 48, y, W-96, 380)+12; }
+    const half=(W-96-12)/2; let h1=0, h2=0; if(P.outside) h1=fit(P.outside, 48, y, half, 200); if(P.inside) h2=fit(P.inside, 48+half+12, y, half, 200); y+=Math.max(h1,h2)+16;
+    doc.addPage(); y=48; }
   const F=Object.entries(rec.finishes||{}).filter(([,v])=>v); if(F.length){ y+=6; text('Finishes', 48, 12, true); F.forEach(([f,v])=>text(`${FINISHES.find(x=>x[0]===f)?.[1]||f}: ${v}`, 60)); }
   if(y>600){ doc.addPage(); y=48; }
   y+=16; text('By signing, the customer and Cubit agree that the home and selections above are final. Changes after signing require an unlock and may carry a fee.', 48, 9);
@@ -158,7 +179,7 @@ async function signedPDF(cid, pid, rec=null){
   if(rec.sigClient) doc.addImage(rec.sigClient,'PNG',48,sy,220,70); if(rec.sigRep) doc.addImage(rec.sigRep,'PNG',330,sy,220,70);
   y=sy+80; doc.setDrawColor(120); doc.line(48,y,268,y); doc.line(330,y,550,y); y+=14;
   doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.text(clean(`Customer: ${rec.client||''}`), 48, y); doc.text(clean(`Cubit rep: ${rec.rep||''}`), 330, y);
-  const blob=doc.output('blob'), a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=clean(`${C.name||'Customer'} - ${rec.home?.name||'home'} - signed ${day(rec.at||new Date().toISOString())}.pdf`).replace(/[\\/:*?"<>|]/g,'-'); document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  const blob=doc.output('blob'), a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=clean(`${C.name||'Customer'} - ${rec.home?.name||'home'} - ${signed?'signed':'for approval'} ${day(rec.at||new Date().toISOString())}.pdf`).replace(/[\\/:*?"<>|]/g,'-'); document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 2000);
 }
 
 export { openCustomer, pickCustomer, openSign, openUnlock, signedPDF };

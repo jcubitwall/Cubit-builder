@@ -183,4 +183,4 @@ function renderBlueprintCard(el){
 { const pop=document.getElementById('morePop');
   if(pop && !document.getElementById('bBlueprints')){ const b=document.createElement('button'); b.setAttribute('role','menuitem'); b.id='bBlueprints'; b.textContent='Blueprints'; pop.insertBefore(b, pop.children[1]||null); b.onclick=()=>{ pop.hidden=true; openBlueprints(); }; } }
 
-export { openBlueprints, downloadPDF, renderBlueprintCard, makeSet, pdfBlob };
+export { openBlueprints, downloadPDF, renderBlueprintCard, makeSet, pdfBlob, renderViews };

@@ -37,7 +37,8 @@ const fmtIn = v => fmtCw(v)+(cwSettings().units==='mm'?' mm':'″');
 import { CATS, ITEMS, newItem, itemDef, partsOf } from './casework.js';
 import { frontSVG } from './casework-svg.js';
 import { openCaseLib } from './casework-ui.js';
-import { setPanel, panelOpen } from './fullscreen.js';
+import { setPanel, panelOpen, enterFullscreen, exitFullscreen } from './fullscreen.js';
+import { sun as SUN } from './scene3d.js';
 import { initViewCube, zoomToFace, doUndo, doRedo } from './viewcube.js';
 import { onHistory } from './history.js';
 import { wallGroups, scene, grid, onBuilt } from './scene3d.js';
@@ -874,4 +875,111 @@ function pickAt(x, y){
   highlight(); renderSide(); return true;
 }
 cv.addEventListener('contextmenu', e=>{ e.preventDefault(); pickAt(e.clientX, e.clientY); });
+
+/* ---------------------------------------------------------------- a warmer 3D for showing (Design, 3D only)
+   Sky, a grass ground under the home and soft shadows from the sun. The drawings and the Shop view don't change. */
+const LOOK={ on:false, bg:null, grid:true, ground:null, sky:null };
+function skyTex(){ if(LOOK.sky) return LOOK.sky; const c=document.createElement('canvas'); c.width=2; c.height=256; const g=c.getContext('2d'), gr=g.createLinearGradient(0,0,0,256);
+  gr.addColorStop(0,'#a9c8e6'); gr.addColorStop(0.6,'#e8f0f4'); gr.addColorStop(1,'#f3efe6'); g.fillStyle=gr; g.fillRect(0,0,2,256); LOOK.sky=new THREE.CanvasTexture(c); return LOOK.sky; }
+function applyLook(){
+  const want = isDesign() && !TWO_D && state.view==='studio';
+  if(want){
+    if(!LOOK.on){ LOOK.bg=scene.background; LOOK.grid=grid.visible; }
+    scene.background=skyTex(); grid.visible=false;
+    if(!LOOK.ground){ LOOK.ground=new THREE.Mesh(new THREE.CircleGeometry(400, 48), new THREE.MeshLambertMaterial({ color:0x7d8c68 })); LOOK.ground.rotation.x=-Math.PI/2; LOOK.ground.receiveShadow=true; LOOK.ground.userData.look=true; }
+    const B=homeBox(); LOOK.ground.position.set(B?(B.min.x+B.max.x)/2:0, (B?B.min.y:0)-0.05, B?(B.min.z+B.max.z)/2:0);
+    if(LOOK.ground.parent!==scene) scene.add(LOOK.ground);
+    renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+    if(SUN){ SUN.castShadow=true; SUN.shadow.mapSize.set(2048,2048); const r=B?Math.max(20, B.getSize(new THREE.Vector3()).length()):40, c=SUN.shadow.camera; c.left=c.bottom=-r; c.right=c.top=r; c.near=0.5; c.far=r*6; SUN.shadow.bias=-0.0008; c.updateProjectionMatrix(); }
+    homeGroup.traverse(o=>{ if(o.isMesh && !o.userData.plan){ o.castShadow=true; o.receiveShadow=true; } });
+    LOOK.on=true;
+  } else if(LOOK.on){
+    if(scene.background===LOOK.sky) scene.background=LOOK.bg; grid.visible=LOOK.grid; LOOK.ground?.parent?.remove(LOOK.ground);
+    renderer.shadowMap.enabled=false; if(SUN) SUN.castShadow=false; LOOK.on=false;
+  }
+}
+onBuilt(()=>setTimeout(applyLook, 0)); onMode(()=>setTimeout(applyLook, 0));
+setInterval(()=>{ const want=isDesign() && !TWO_D && state.view==='studio'; if(want!==LOOK.on) applyLook(); }, 400);
+
+/* ---------------------------------------------------------------- Present
+   One tap: full screen, roof on, nothing to edit on screen, the home slowly turning. Outside / Inside / Plan / a
+   picture, and Exit puts everything back as it was. A touch stops the turning so you can turn it yourself. */
+const pres={ on:false, keep:null };
+const pbar=document.createElement('div'); pbar.className='present-bar'; pbar.hidden=true;
+pbar.innerHTML=`<button data-p="out">Outside</button><button data-p="in">Inside</button><button data-p="plan">Plan</button><button data-p="snap" aria-label="Take a picture">📷 Picture</button><button data-p="x" class="px">Exit</button>`;
+stage.appendChild(pbar);
+function flyView(az, el, fill=1.25){
+  const B=homeBox(); if(!B) return; const c=B.getCenter(new THREE.Vector3()), r=B.getSize(new THREE.Vector3()).length()/2;
+  const a=az*Math.PI/180, e=el*Math.PI/180, d=r*fill/Math.sin(camera.fov*Math.PI/360)*0.75;
+  const end=new THREE.Vector3(c.x+d*Math.cos(e)*Math.sin(a), c.y+d*Math.sin(e), c.z+d*Math.cos(e)*Math.cos(a));
+  const p0=camera.position.clone(), t0=controls.target.clone(), T=performance.now(); cancelAnimationFrame(anim); controls.enableDamping=false;
+  const step=()=>{ const k=Math.min(1,(performance.now()-T)/600), q=k*k*(3-2*k); camera.position.lerpVectors(p0,end,q); controls.target.lerpVectors(t0,c,q); controls.update(); if(k<1) anim=requestAnimationFrame(step); else controls.enableDamping=true; }; step();
+}
+/* the roof and ceiling are see-through while building; shown to a customer they're solid */
+const solidKeep=new Map();
+function solidRoof(on){
+  if(on) homeGroup.traverse(o=>{ if(o.isMesh && /:(roof|ceiling-int)$/.test(o.userData.slotId||'') && o.material && !Array.isArray(o.material) && o.material.transparent && !solidKeep.has(o)){ solidKeep.set(o, o.material); const m=o.material.clone(); m.transparent=false; m.opacity=1; m.depthWrite=true; o.material=m; } });
+  else { solidKeep.forEach((m,o)=>{ o.material?.dispose?.(); o.material=m; }); solidKeep.clear(); }
+}
+function presentShow(roof){ state.show.roof=roof; state.show.ceiling=roof; solidRoof(false); import('./scene3d.js').then(m=>{ m.applyLayers(); if(roof) solidRoof(true); }); }
+function presentView(v){
+  pbar.querySelectorAll('[data-p]').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.p===v)));
+  if(v==='plan'){ controls.autoRotate=false; presentShow(false); set2D(true); flatten(true); return; }
+  if(TWO_D) set2D(false);
+  if(v==='out'){ presentShow(true); flyView(-35, 16); controls.autoRotateSpeed=0.6; }
+  else { presentShow(false); flyView(-25, 55, 0.95); controls.autoRotateSpeed=0.4; }
+  setTimeout(()=>{ if(pres.on) controls.autoRotate=true; }, 650);
+}
+function present(on){
+  if(on===pres.on) return; pres.on=on;
+  const studio=document.getElementById('studio');
+  if(on){
+    pres.keep={ show:{...state.show}, two:TWO_D, fs:studio.classList.contains('fs'), panel:panelOpen(), sel:state.selected, furn:state.selFurn, hidden:trayHidden };
+    state.selected=null; state.selFurn=null; highlight(); renderSide(); setPanel(false);
+    if(!pres.keep.fs) enterFullscreen();
+    document.body.classList.add('presenting'); pbar.hidden=false;
+    presentView('out');
+  } else {
+    controls.autoRotate=false; document.body.classList.remove('presenting'); pbar.hidden=true; solidRoof(false);
+    const k=pres.keep||{}; Object.assign(state.show, k.show||{}); import('./scene3d.js').then(m=>m.applyLayers());
+    if(!k.fs) exitFullscreen();
+    if(k.two) set2D(true); else flatten(true);
+    state.selected=k.sel||null; state.selFurn=k.furn||null; highlight(); renderSide(); if(k.panel) setPanel(true);
+  }
+}
+pbar.addEventListener('click', e=>{ const b=e.target.closest('[data-p]'); if(!b) return; const v=b.dataset.p;
+  if(v==='x') present(false); else if(v==='snap') snapshot(); else presentView(v); });
+stage.addEventListener('pointerdown', e=>{ if(pres.on && e.target===cv) controls.autoRotate=false; }, true);
+document.addEventListener('keydown', e=>{ if(pres.on && e.key==='Escape'){ e.preventDefault(); present(false); } }, true);
+/* the Present and Picture buttons, in the toolbar beside Layers */
+setTimeout(()=>{ const bar=document.querySelector('#stage .fs-bar'), full=document.getElementById('bFull'); if(!bar) return;
+  const pb=document.createElement('button'); pb.className='fsbtn present-b'; pb.innerHTML='<span aria-hidden="true">▶</span> Present'; pb.title='Show the home to the customer: full screen, roof on, turning slowly'; pb.onclick=()=>present(true);
+  const sb=document.createElement('button'); sb.className='fsbtn snap-b'; sb.innerHTML='<span aria-hidden="true">📷</span>'; sb.title='Take a picture of what is on screen'; sb.setAttribute('aria-label','Take a picture'); sb.onclick=()=>snapshot();
+  (full||bar.firstChild)?.after(pb, sb); }, 0);
+
+/* ---------------------------------------------------------------- a picture of what's on screen
+   Saved to the customer's file (when the home is theirs, on the team's server), or downloaded / shared. */
+async function snapshot(){
+  const qbOff=qb.hidden; qb.hidden=true; renderer.render(scene, camera);
+  let url=''; try{ url=cv.toDataURL('image/jpeg', 0.9); }catch(e){} qb.hidden=qbOff;
+  if(!url || url.length<1000){ toast('No picture: the 3D view could not be read'); return; }
+  // straight to a smaller copy (about 1600 px across), with the home's name in the corner
+  const im=new Image(); await new Promise(r=>{ im.onload=r; im.src=url; });
+  const k=Math.min(1, 1600/im.width), c=document.createElement('canvas'); c.width=Math.round(im.width*k); c.height=Math.round(im.height*k);
+  const g=c.getContext('2d'); g.drawImage(im,0,0,c.width,c.height); g.font='600 22px system-ui, sans-serif'; g.fillStyle='rgba(255,255,255,.85)'; const label=(MODELS[state.model]?.name||'')+' · Cubit'; const tw=g.measureText(label).width; g.fillRect(14, c.height-48, tw+20, 34); g.fillStyle='#1d211c'; g.fillText(label, 24, c.height-24);
+  const pic=c.toDataURL('image/jpeg', 0.86);
+  const m=MODELS[state.model], cid=m?.customer;
+  const { customersOnline, savePhoto, customerById } = await import('./customers.js');
+  const name=`${(m?.name||'home').replace(/[\\/:*?"<>|]/g,'-')} ${new Date().toISOString().slice(0,16).replace(/[:T]/g,'-')}.jpg`;
+  let d=document.getElementById('snapDlg'); if(!d){ d=document.createElement('dialog'); d.id='snapDlg'; d.className='lib-dlg snap-dlg'; document.body.appendChild(d); }
+  d.innerHTML=`<div class="dlg"><div class="dlg-h"><h2>Picture</h2><button class="btn ghost" data-sx="1">Close</button></div><img class="snap-img" src="${pic}" alt="Picture of the home">
+    <div class="row">${cid && customersOnline() ? `<button class="btn" data-ss="1">Save to ${customerById(cid)?.name?.replace(/</g,'&lt;')||'the customer'}'s file</button>` : ''}<button class="btn ghost" data-sd="1">Save / share the image</button></div>
+    ${cid ? '' : '<p class="note">Link this home to a customer (Save to Customer) to keep pictures in their file.</p>'}</div>`;
+  d.querySelector('[data-sx]').onclick=()=>d.close();
+  d.querySelector('[data-ss]')?.addEventListener('click', async e=>{ e.target.disabled=true; try{ await savePhoto(cid, m.project, pic); toast('Saved to the customer’s file'); d.close(); }catch(err){ toast('Not saved: '+(err.message||err)); e.target.disabled=false; } });
+  d.querySelector('[data-sd]').onclick=async()=>{ const blob=await (await fetch(pic)).blob(), file=new File([blob], name, { type:'image/jpeg' });
+    if(navigator.canShare?.({ files:[file] })){ try{ await navigator.share({ files:[file], title:m?.name||'Cubit home' }); return; }catch(err){ if(err?.name==='AbortError') return; } }
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1500); };
+  d.showModal();
+}
 export { setLevel, startBuild, flatten, isFlat, renderTray, set2D, is2D };

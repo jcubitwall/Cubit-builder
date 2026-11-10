@@ -89,6 +89,14 @@ function homeSummary(k=state.model){
 }
 const CAT_NAME = { base:'Base cabinets', upper:'Upper cabinets', tall:'Pantries', linen:'Linen towers', wardrobe:'Wardrobes', vanity:'Vanities', bench:'Window benches', shelf:'Shelves', fire:'Fireplaces', counter:'Countertops', appliance:'Appliances', bath:'Bathroom fixtures', sink:'Sinks', furniture:'Furniture' };
 
+/* pictures of a customer's home (Build's snapshot), on the server only */
+async function savePhoto(cid, home, data){
+  const r=await fetch('api/customers', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ op:'photo', id:cid, home, data }) });
+  const o=await r.json().catch(()=>({})); if(!r.ok) throw new Error(o.error||('HTTP '+r.status)); return o.key; }
+async function listPhotos(cid){ try{ const r=await fetch('api/customers?photos='+encodeURIComponent(cid), {cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')) return await r.json(); }catch(e){} return []; }
+const photoURL = key => 'api/customers?photo='+encodeURIComponent(key);
+const customersOnline = () => remote;
+export { savePhoto, listPhotos, photoURL, customersOnline };
 export { CUSTOMERS, FINISHES, CAT_NAME, live as liveCustomers, customerById, newCustomerId, loadCustomers, saveCustomer, linkHome, unlinkHome, signHome, signedRecord, deleteCustomer, restoreCustomer, homeSummary };
 const customersRemote = () => remote;
 export { customersRemote };

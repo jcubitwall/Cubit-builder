@@ -27,6 +27,8 @@ import { applyEdits, deleteItem, addFamily } from './libedit.js';
 import { withLights, cfgOf, setLights, cabinetsOf, setCabinet, cabDepth, CAB_PRESETS } from './lights.js';
 import { askRename, askDelete } from './library-ui.js';
 import { nameOf, withName, setName, askName } from './names.js';
+import { homeCost } from './prices.js';
+import { isShop } from './mode.js';
 import { furnSide, homeBlock, bindHomeBlock } from './casework-ui.js';
 import { draftBlock, bindDraftBlock, draftsRow } from './publish-ui.js';
 import { lightEditorHTML, bindLightEditor } from './light-edit-ui.js';
@@ -417,6 +419,7 @@ function renderSideInner(){
     sideH.querySelector('#renHome').onclick=()=>askRename('models', state.model);
     sideB.innerHTML=`
       ${draftBlock()}
+      ${optionsBlock()}
       ${foundationBlock()}
       ${wallListHTML(slots,null)}
       ${homeBlock()}
@@ -427,7 +430,7 @@ function renderSideInner(){
       ${importBlock()}
       <details class="help"><summary>How walls are lettered</summary><p>Each pod's walls run A, B, C, D clockwise seen from above. A and C are the through walls (they run straight through, corner to corner) and B and D butt between them. Every pod's A points the same way: the way most pods' largest opening faces on the outside of the home. Click a through wall to make it A by hand. Panel numbers sit over the room side of each wall.</p></details>
       </div>`;
-    bindLayout(); bindFoundation(); bindCatalog(); bindHomeBlock(sideB); bindDraftBlock(sideB); bindElecHome(sideB);
+    bindOptions(); bindLayout(); bindFoundation(); bindCatalog(); bindHomeBlock(sideB); bindDraftBlock(sideB); bindElecHome(sideB);
   } else {
     const w=pickFor(s); const opts=optionsFor(s.len, s.type||'ext', state.model);
     const isInt=s.type==='int';
@@ -475,6 +478,37 @@ function renderSideInner(){
   const imp=sideB.querySelector('#bImport'); if(imp) imp.onclick=()=>document.getElementById('fileIn').click();
 }
 
+/* ---------------------------------------------------------------- options: the same home two or three ways
+   "Make an option" copies the home on screen into a draft named "… · Option B" (C, D…). The options of a home are
+   listed together with their footprint and price, one tap apart. */
+const optBase = n => String(n||'').replace(/ · Option [A-Z]$/,'');
+function optionsOf(k){
+  const m=MODELS[k]; if(!m) return [];
+  const g=m.optGroup||k, base=optBase(m.name);
+  return Object.keys(MODELS).filter(x=>{ const q=MODELS[x]; return q && !q.deleted && (x===g || q.optGroup===g || (x!==k && (q.custom||q.project) && / · Option [A-Z]$/.test(q.name) && optBase(q.name)===base) || x===k); });
+}
+function optFacts(k){
+  const m=MODELS[k], area=(m.pods||[]).filter(p=>!(+p.lv)).reduce((a,p)=>a+POD[p.t].len*8,0);
+  let price=''; try{ const c=homeCost(k); if(c?.priced && c.total>0){ let mu=0; try{ mu=parseFloat(localStorage.getItem('cubit-markup'))||0; }catch(e){} price=' · $'+Math.round(isShop()?c.total:c.total*(1+mu/100)).toLocaleString('en-CA'); } }catch(e){}
+  return `${area} sq ft${price}`;
+}
+function optionsBlock(){
+  if(!canSave()) return '';
+  const L=optionsOf(state.model);
+  return `<div class="opt-box"><div class="eyebrow">Options${L.length>1?` · ${L.length}`:''}</div>
+    ${L.length>1?`<div class="opt-list">${L.map(k=>`<button class="opt-row" data-optgo="${esc(k)}" aria-pressed="${k===state.model}"><b>${esc(MODELS[k].name)}</b><small>${esc(optFacts(k))}</small></button>`).join('')}</div>`:'<p class="note">Show the customer another way: a copy of this home to change, kept beside it.</p>'}
+    <div class="row"><button class="btn ghost sm" id="optMake">＋ Make an option</button></div></div>`;
+}
+function bindOptions(){
+  sideB.querySelectorAll('[data-optgo]').forEach(b=>b.onclick=()=>{ const k=b.dataset.optgo; if(k===state.model) return; state.model=k; state.selected=null; save(); renderModels(); buildHome(); renderSide(); toast(MODELS[k].name); });
+  sideB.querySelector('#optMake')?.addEventListener('click', async()=>{
+    const src=state.model, g=MODELS[src].optGroup||src, L=optionsOf(src);
+    const used=new Set(L.map(k=>(/ · Option ([A-Z])$/.exec(MODELS[k].name)||[])[1]).filter(Boolean)); let ch='B'; while(used.has(ch)) ch=String.fromCharCode(ch.charCodeAt(0)+1);
+    const { makeDraftCopy } = await import('./pods.js'), { renameDraft } = await import('./drafts.js');
+    if(MODELS[src].custom && !MODELS[src].optGroup){ MODELS[src].optGroup=g; if(!/ · Option [A-Z]$/.test(MODELS[src].name)) renameDraft(src, MODELS[src].name+' · Option A'); }
+    const nk=makeDraftCopy(src); MODELS[nk].optGroup=g; renameDraft(nk, `${optBase(MODELS[src].name)} · Option ${ch}`);
+    renderModels(); buildHome(); renderSide(); toast(`Option ${ch} made · change it, then flip between them here`); });
+}
 /* filing this layout under a model name (admins) */
 function catalogBlock(){
   if(!canSave()) return '';
