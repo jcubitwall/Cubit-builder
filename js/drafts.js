@@ -43,6 +43,8 @@ async function push(k){
     try{ window.dispatchEvent(new CustomEvent('cubit:saved', {detail:{k, ok:r.ok}})); }catch(e){} }
   catch(e){ try{ window.dispatchEvent(new CustomEvent('cubit:saved', {detail:{k, ok:false}})); }catch(err){} }
 }
+/* back online: the draft on screen (and any not yet on the server) goes up now */
+window.addEventListener('online', ()=>{ Object.keys(MODELS).filter(k=>MODELS[k].custom && isDraft(k)).forEach(k=>push(k)); });
 /* every save while a draft is on screen sends it up (a moment later, once the edits settle) */
 onSave(()=>{ const k=state.model; if(!remote || !isDraft(k)) return; clearTimeout(timers[k]); timers[k]=setTimeout(()=>push(k), 1200); });
 

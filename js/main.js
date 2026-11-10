@@ -3,6 +3,8 @@ import './dialog-back.js';
 import './mode.js';
 import './tools-ui.js';
 import './savestate.js';
+/* the offline copy (sw.js): the app opens and works with weak or no signal */
+if('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('sw.js').catch(()=>{});
 import { loadRules } from './wall-rules.js';
 import { loadShapes } from './shapes.js';
 import { state, initState } from './state.js';
