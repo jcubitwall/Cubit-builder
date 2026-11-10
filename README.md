@@ -779,3 +779,11 @@ A switch in the top bar, beside Build / Sheets. **Design** is for building with 
 - One toolbar along the top of the canvas: Layers and Full screen on the left; undo / redo, 2D / 3D, floors and the footprint on the right. The view cube and compass sit small at the bottom right, above the tray. Exploded view moved into Layers.
 - The hint pill shows for a few seconds when the view changes, once a session, then fades.
 - Homes: Rename and Delete appear only after **Manage**. Library: Rename, Edit and Delete appear only after **Edit library**.
+
+## The tray (build.js)
+- **Accessories** has rooms along the top (Recent, Favourites, Kitchen, Bath, Bedroom, Living, Laundry, Heating, Utility), each gathering the library categories that belong there (Kitchen: base, upper, pantries, countertops, sinks, kitchen appliances and the saved kitchens first; Laundry: washer / dryer and linen…), and a **search box**: type "fridge" or "36 vanity" and drag from the results.
+- **Tap** an item to drop it into the room on screen, against its nearest free wall (or the first free wall in the home); **drag** it to place it exactly. ☆ on an item keeps it under Favourites; what you add lands under Recent (both kept on the device).
+- Items show their **3D picture** (the same renderer as the saved kitchens), drawn a few at a time.
+- **Stairs** in the Cubits tab: drag onto a pod with a floor above (or below), or tap for the first pod that takes one.
+- ▾ tucks the tray down to a small button (▴ Tray brings it back); it also fades away while the home is being turned.
+- Windows and doors in a wall's side panel are **picture tiles** of the units that fit; the ones that don't fit sit under More. The drop-down list stays in Shop.

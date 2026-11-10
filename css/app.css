@@ -582,7 +582,7 @@ body.dragging .build-tray{opacity:.55}
 html.phone .build-tray{bottom:8px;left:8px;right:8px}
 html.phone .flat-badge{top:8px;font-size:10px}
 .studio.build .hint{display:none}
-.flat-badge{top:auto;bottom:118px}
+.flat-badge{top:auto;bottom:176px}
 html.phone .flat-badge{display:none}
 html.phone .build-tray{bottom:54px}
 html.phone .tray-it{min-width:84px;padding:6px 8px}
@@ -1395,9 +1395,9 @@ html.mode-shop .design-only{display:none!important}
 .fs-bar .sqft-chip{flex-direction:row;align-items:baseline;gap:5px;min-width:0;padding:0 10px;height:44px;align-items:center;box-shadow:none}
 .fs-bar .sqft-chip b{font-size:16px}
 .fs-bar .sqft-chip small{margin:0 0 0 4px;max-width:none;white-space:nowrap}
-.studio.build .vcube-wrap{top:auto;bottom:132px;right:12px}
+.studio.build .vcube-wrap{top:auto;bottom:174px;right:12px}
 .studio.build.panel-open .vcube-wrap{right:404px}
-.compass.bc-compass{top:auto;bottom:146px;right:104px}
+.compass.bc-compass{top:auto;bottom:188px;right:104px}
 .studio.build.panel-open .compass.bc-compass{right:496px}
 html.phone .studio.build .vcube-wrap{top:auto;bottom:150px;right:6px;transform:scale(.8);transform-origin:bottom right}
 html.phone .compass.bc-compass{bottom:156px;right:80px;left:auto;top:auto}
@@ -1412,3 +1412,37 @@ html.phone .fs-bar .sqft-chip small{display:none}
 :is(#models,.cw-lib):not(.managing) .manage-only{display:none!important}
 .cw-lib:not(.managing) :is([data-bdel],[data-bedit],[data-bren],[data-cdel],[data-cren],[data-dedit],[data-kdel],[data-kren],[data-uedit]){display:none!important}
 .hc-manage{display:flex;justify-content:flex-end;margin-top:12px}
+/* windows and doors as pictures to pick from (side panel) */
+.u-tiles{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.u-tile{display:flex;flex-direction:column;align-items:center;gap:2px;width:92px;padding:6px 4px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;cursor:pointer;text-align:center}
+.u-tile svg{height:40px;width:auto}
+.u-tile b{font-size:11px;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.u-tile small{font-size:10px;color:var(--ink-2)}
+.u-tile[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.u-auto{font-size:12px;color:var(--ink-2);width:100%}
+.u-more summary{cursor:pointer;font-size:12px;color:var(--ink-2);padding:4px 0}
+/* ---------------------------------------------------------------- the tray: rooms, search, pictures (build.js) */
+.build-tray{transition:transform .2s ease, opacity .2s}
+body.orbiting .build-tray{opacity:.15;pointer-events:none}
+.build-tray.acc{overflow:hidden;align-items:stretch}
+.tray-acc{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:6px}
+.tray-top{display:flex;gap:8px;align-items:center;min-width:0}
+.tray-q{flex:0 0 220px;display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;background:var(--surface);padding:0 10px;height:36px;color:var(--ink-2)}
+.tray-q input{flex:1;min-width:0;border:0;background:none;font:inherit;font-size:13px;color:var(--ink);outline:none}
+.tray-rooms{flex:1;min-width:0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+.tray-rooms::-webkit-scrollbar{display:none}
+.tray-rooms button{flex:none;display:flex;align-items:center;gap:5px;border:1px solid transparent;background:none;border-radius:999px;padding:0 10px;height:36px;font:600 12.5px var(--body,inherit);color:var(--ink-2);cursor:pointer;white-space:nowrap}
+.tray-rooms button[aria-selected="true"]{background:var(--ink);color:var(--bg)}
+.tray-rooms button:hover{border-color:var(--line)}
+.tray-items{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;touch-action:pan-x}
+.tray-items::-webkit-scrollbar{display:none}
+.tray-it{position:relative}
+.tray-cab img{height:44px;width:auto;display:block}
+.tray-fav{position:absolute;top:3px;right:5px;font-size:14px;line-height:1;color:var(--ink-2);cursor:pointer;padding:2px}
+.tray-fav[aria-pressed="true"]{color:var(--accent)}
+.tray-none{align-self:center;font-size:12.5px;color:var(--ink-2);padding:0 8px;white-space:nowrap}
+.tray-tuck{flex:none;align-self:center;border:1px solid var(--line);background:var(--surface);border-radius:8px;width:28px;min-height:44px;font:600 12px var(--mono);color:var(--ink-2);cursor:pointer;padding:0}
+.build-tray.tucked{left:50%;right:auto;transform:translateX(-50%);padding:0;border:0;background:none;box-shadow:none}
+.build-tray.tucked .tray-tuck{width:auto;padding:0 16px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.12)}
+html.phone .tray-q{flex-basis:140px}
+html.phone .tray-rooms button span{display:none}

@@ -23,6 +23,8 @@ import { UP, MAX_LV } from './config.js';
 const UPF = UP/12;
 import { renderModels, renderSide, toast } from './sidebar.js';
 import { deckName } from './deckframe.js';
+import { freeSpot, clash } from './furniture.js';
+import { addStair } from './stairs.js';
 import { furnMeshes, furnById, snap, addItem, updateItem, refreshItem, applyFurniture, showFurnGhost, hideFurnGhost, turnItem, setHolderVisible, handleMeshes, roomBeyond, stretchTo, rotXZ, turnStart, turnTo, groupMembers, setMany, moveHolder, addRecipe, furnitureOf, onFurnChanged } from './furniture.js';
 import { planFor } from './electrical.js';
 import { midHandleMeshes, startMid, trackMid, endMid, handleY } from './midhandles.js';
@@ -436,6 +438,7 @@ window.addEventListener('pointermove', e=>{
     else if(uy<-14 && Math.abs(uy)>Math.abs(ux)){ set2D(false, true); orbit.from2D=false; orbit.x=e.clientX; orbit.y=e.clientY; return; }
     else return; }
   const dx=e.clientX-orbit.x, dy=e.clientY-orbit.y; orbit.x=e.clientX; orbit.y=e.clientY;
+  document.body.classList.add('orbiting');   // the tray tucks away while the home turns
   const h=Math.max(200, cv.clientHeight);
   off.copy(camera.position).sub(controls.target); sph.setFromVector3(off);
   sph.theta -= dx*2*Math.PI/h*0.6; sph.phi = Math.min(Math.PI*0.999, Math.max(0.0001, sph.phi - dy*Math.PI/h));   // Shapr3D: drag up tips the home toward you, down goes back toward the plan
@@ -467,7 +470,7 @@ window.addEventListener('pointermove', e=>{
 function release(e){
   pointers.delete(e.pointerId);
   if(press){ clearTimeout(press.timer); press=null; }
-  if(!pointers.size){ orbit=null; viewTwist=null; if(three){ three=null; controls.enabled=true; }
+  if(!pointers.size){ orbit=null; viewTwist=null; document.body.classList.remove('orbiting'); if(three){ three=null; controls.enabled=true; }
     setTimeout(()=>{ if(isDesign() && !TWO_D && !D && !pointers.size && state.view==='studio' && isFlat()) set2D(true); }, 60); }
   if(pointers.size<2) viewTwist=null;
   if(D && D.mode==='mid'){ if(pointers.size) return;
@@ -547,28 +550,108 @@ const tray=document.createElement('div'); tray.className='build-tray edit-only';
 stage.appendChild(tray);
 const podMini = len => `<svg viewBox="0 0 ${len+2} 10" aria-hidden="true"><rect x="1" y="1" width="${len}" height="8" rx="1" fill="#efe9da" stroke="#1c211e" stroke-width=".6"/>${[...Array(len/8-1)].map((_,k)=>`<line x1="${1+(k+1)*8}" y1="1" x2="${1+(k+1)*8}" y2="9" stroke="#1c211e" stroke-width=".3" stroke-dasharray="1 1"/>`).join('')}</svg>`;
 let trayTab='pods', trayCat='base';
+/* Accessories: rooms along the top (with Recent and Favourites), a search box, and the items of the room (or the
+   search) in a row with their 3D pictures. Tap an item to drop it into the room on screen; drag it to put it exactly. */
+const ROOMS=[
+  ['recent','Recent','M8 4v4l3 2M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14Z'],
+  ['fav','Favourites','M8 1.5l2 4.3 4.6.5-3.5 3.1 1 4.6L8 11.6 3.9 14l1-4.6L1.4 6.3 6 5.8Z'],
+  ['kitchen','Kitchen','M2 6h12v8H2zM2 6V3h12v3M5 9h2M9 9h2'],
+  ['bath','Bath','M1.5 8h13v2a4 4 0 0 1-4 4h-5a4 4 0 0 1-4-4ZM3 8V3.5a1.5 1.5 0 0 1 3 0'],
+  ['bed','Bedroom','M1.5 13V5M1.5 10h13v3M14.5 10V8a2 2 0 0 0-2-2H7v4M3 8h3'],
+  ['living','Living','M2 8V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2M1.5 8h13v4h-13zM3 12v2M13 12v2'],
+  ['laundry','Laundry','M3 1.5h10v13H3zM3 4.5h10M8 11.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z'],
+  ['heat','Heating','M8 14.5c-3 0-4.5-2-4.5-4.5C3.5 7 6.5 5.5 6.5 2c2 1.5 6 4 6 8 0 2.5-1.5 4.5-4.5 4.5Z'],
+  ['util','Utility','M9 1.5 3.5 9H8l-1 5.5L12.5 7H8Z'],
+];
+const isLaundry = d => d.cat==='appliance' && /wash|dry/i.test(d.name);
+const isBed = d => d.cat==='furniture' && /bed|night|dresser/i.test(d.name);
+const ROOM_OF = {
+  kitchen: d => ['base','upper','tall','counter','sink'].includes(d.cat) || (d.cat==='appliance' && !isLaundry(d)),
+  bath:    d => ['vanity','bath','linen'].includes(d.cat) || (d.cat==='sink' && /bath|vanity|lav/i.test(d.name)),
+  bed:     d => ['wardrobe','bench'].includes(d.cat) || isBed(d),
+  living:  d => ['tv','shelf','fire','bench'].includes(d.cat) || (d.cat==='furniture' && !isBed(d)),
+  laundry: d => isLaundry(d) || d.cat==='linen',
+  heat:    d => ['fire','baseboard','heat'].includes(d.cat),
+  util:    d => ['plumb','elec'].includes(d.cat),
+};
+let trayRoom=(()=>{ try{ return localStorage.getItem('cubit-tray-room')||'kitchen'; }catch(e){ return 'kitchen'; } })(), trayQ='', trayHidden=false;
+const LS = (k, v) => { try{ if(v===undefined) return JSON.parse(localStorage.getItem(k)||'[]'); localStorage.setItem(k, JSON.stringify(v)); }catch(e){ return []; } };
+const recentKs = () => LS('cubit-recent'), favKs = () => LS('cubit-fav');
+function noteRecent(k){ const r=recentKs().filter(x=>x!==k); r.unshift(k); LS('cubit-recent', r.slice(0,12)); }
+function toggleFav(k){ const f=favKs(); const i=f.indexOf(k); if(i>=0) f.splice(i,1); else f.unshift(k); LS('cubit-fav', f); return i<0; }
+const liveItems = () => ITEMS.filter(d=>!d.deleted && !d.legacy);
+function trayItems(){
+  const all=liveItems(), q=trayQ.trim().toLowerCase();
+  if(q){ const words=q.split(/\s+/); return all.filter(d=>{ const t=`${d.name} ${d.k} ${CATS.find(c=>c.k===d.cat)?.name||''}`.toLowerCase(); return words.every(w=>t.includes(w)); }); }
+  if(trayRoom==='recent'){ const byK=new Map(all.map(d=>[d.k,d])); return recentKs().map(k=>byK.get(k)).filter(Boolean); }
+  if(trayRoom==='fav'){ const byK=new Map(all.map(d=>[d.k,d])); return favKs().map(k=>byK.get(k)).filter(Boolean); }
+  const f=ROOM_OF[trayRoom]; if(!f) return [];
+  const order=CATS.map(c=>c.k); return all.filter(f).sort((a,b)=>order.indexOf(a.cat)-order.indexOf(b.cat));
+}
+const escA = t => String(t).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+function itemTile(d){
+  const it=newItem(d.k), fav=favKs().includes(d.k), sub=d.name.includes(' · ')?d.name.split(' · ')[1]:`${Math.round(it.w*8)/8}″ wide`;
+  return `<button class="tray-it cab" data-k="${d.k}" title="${escA(d.name)} · tap to add, drag to place"><span class="tray-cab" data-pic="${d.k}">${frontSVG(it,{pad:1})}</span><b>${escA(d.name.replace(/ · .*/,''))}</b><small>${escA(sub)}</small><span class="tray-fav" role="button" tabindex="0" data-fav="${d.k}" aria-label="${fav?'Remove from':'Add to'} favourites" aria-pressed="${fav}">${fav?'★':'☆'}</span></button>`;
+}
+function kitTiles(){
+  return KITCHENS.map(K=>{ const u=kitchenPicture('kit:'+K.id+':'+(K.rev||0), K.items); return `<button class="tray-it cab kit" data-kit="${K.id}" title="${escA(K.name)} · drag it into a pod">${u?`<span class="tray-cab tray-kit"><img src="${u}" alt=""></span>`:''}<b>${escA(K.name)}</b><small>${K.items.length} items</small></button>`; }).join('');
+}
+function renderTrayItems(){
+  const row=tray.querySelector('.tray-items'); if(!row) return;
+  const L=trayItems(), kit = !trayQ && trayRoom==='kitchen' ? kitTiles() : '';
+  const empty = trayQ ? `<span class="tray-none">Nothing called “${escA(trayQ)}”. Try another word, or open the Library.</span>` : trayRoom==='recent' ? '<span class="tray-none">What you add shows here.</span>' : trayRoom==='fav' ? '<span class="tray-none">Tap ☆ on any item to keep it here.</span>' : '';
+  row.innerHTML = kit + (L.length ? L.map(itemTile).join('') : (kit?'':empty)) + `<button class="tray-it more" data-open="lib"><b>Library…</b><small>sizes, 3D, parts</small></button>`;
+  row.scrollLeft=0; queuePics();
+}
+/* the 3D pictures, drawn a few at a time so the tray never stalls */
+let picQ=[], picT=0;
+function queuePics(){ picQ=[...tray.querySelectorAll('[data-pic]')]; cancelAnimationFrame(picT); const step=()=>{ const t0=performance.now();
+  while(picQ.length && performance.now()-t0<12){ const el=picQ.shift(); if(!el.isConnected) continue; const k=el.dataset.pic;
+    try{ const it={...newItem(k), rx:0, rz:0, ra:0}, u=kitchenPicture('it:'+k+':'+it.w+'x'+it.h+'x'+it.d, [it]); if(u) el.innerHTML=`<img src="${u}" alt="">`; }catch(e){} }
+  if(picQ.length) picT=requestAnimationFrame(step); }; picT=requestAnimationFrame(step); }
 function renderTray(){
+  tray.classList.toggle('acc', trayTab==='cab'); tray.classList.toggle('tucked', trayHidden);
   const tabs=`<div class="tray-tabs" role="tablist"><button role="tab" data-tab="pods" aria-selected="${trayTab==='pods'}">Cubits</button><button role="tab" data-tab="cab" aria-selected="${trayTab==='cab'}">Accessories</button></div>`;
+  const tuck=`<button class="tray-tuck" data-tuck="1" aria-label="${trayHidden?'Show the tray':'Hide the tray'}" title="${trayHidden?'Show the tray':'Hide the tray'}">${trayHidden?'▴ Tray':'▾'}</button>`;
+  if(trayHidden){ tray.innerHTML=tuck; return; }
   if(trayTab==='cab'){
-    const items=ITEMS.filter(d=>d.cat===trayCat && !d.deleted && !d.legacy);
-    const sel = `<label class="tray-cat"><span>Category</span><select id="trayCat" aria-label="Category"><option value="__kit" ${trayCat==='__kit'?'selected':''}>Kitchens &amp; groups</option>${CATS.map(c=>`<option value="${c.k}" ${c.k===trayCat?'selected':''}>${c.name}</option>`).join('')}</select></label>`;
-    if(trayCat==='__kit'){ tray.innerHTML = tabs + sel + (KITCHENS.map(K=>{ const u=kitchenPicture('kit:'+K.id+':'+(K.rev||0), K.items); return `<button class="tray-it cab kit" data-kit="${K.id}" title="${K.name.replace(/"/g,'&quot;')}">${u?`<span class="tray-cab tray-kit"><img src="${u}" alt=""></span>`:''}<b>${K.name.replace(/</g,'&lt;')}</b><small>${K.items.length} items</small></button>`; }).join('') || '<span class="tray-none">No saved kitchens yet. Group cabinets in a home, then save the group.</span>') + `<button class="tray-it more" data-open="lib"><b>Library…</b><small>kitchens in 3D</small></button>`; return; }
-    tray.innerHTML = tabs + sel
-      + items.map(d=>{ const it=newItem(d.k); return `<button class="tray-it cab" data-k="${d.k}" title="${d.name.replace(/"/g,'&quot;')}"><span class="tray-cab">${frontSVG(it,{pad:1})}</span><b>${d.name.replace(/ · .*/,'')}</b><small>${d.name.includes(' · ')?d.name.split(' · ')[1]:`${Math.round(it.w*8)/8}″ wide`}</small></button>`; }).join('')
-      + `<button class="tray-it more" data-open="lib"><b>Library…</b><small>sizes, 3D, parts</small></button>`;
-    return;
+    tray.innerHTML = tuck + tabs + `<div class="tray-acc">
+      <div class="tray-top"><label class="tray-q"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m11 11 3.5 3.5" stroke="currentColor" stroke-width="1.6"/></svg><input type="search" id="trayQ" placeholder="Search: fridge, 36 vanity…" aria-label="Search accessories" value="${escA(trayQ)}" autocomplete="off"></label>
+        <div class="tray-rooms" role="tablist" aria-label="Rooms">${ROOMS.map(([k,l,d])=>`<button role="tab" data-room="${k}" aria-selected="${!trayQ && trayRoom===k}"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path d="${d}" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/></svg><span>${l}</span></button>`).join('')}</div></div>
+      <div class="tray-items"></div></div>`;
+    renderTrayItems(); return;
   }
   // just the three pod sizes: every wall, floor, ceiling and roof can be changed once it's placed
   const dk=DECKLIB.filter(d=>!d.deleted);
-  tray.innerHTML = tabs + `
+  tray.innerHTML = tuck + tabs + `
     ${[['P8',8],['P16',16],['L24',24]].map(([t,len])=>`<button class="tray-it" data-t="${t}">${podMini(len)}<b>8′ × ${len}′</b><small>pod</small></button>`).join('')}
     <button class="tray-it mid" data-mid="1" title="Drag into a pod: a wall across it (or along it, dropped near a long side)"><svg viewBox="0 0 22 12" aria-hidden="true"><rect x="1" y="1" width="20" height="10" fill="none" stroke="#8a8f94" stroke-width=".8"/><rect x="9.6" y="1" width="2" height="10" fill="#6b5530"/></svg><b>Interior wall</b><small>splits a pod</small></button>
-    ${dk.map(L=>`<button class="tray-it deck" data-deck="${L.id}"><svg viewBox="0 0 22 12" aria-hidden="true"><rect x="1" y="1" width="20" height="10" fill="#d9c49b" stroke="#6b5530" stroke-width=".6"/><line x1="1" y1="1" x2="21" y2="1" stroke="#3b2a12" stroke-width="1.4"/></svg><b>${deckName(L)}</b><small>deck</small></button>`).join('')}`;
+    ${dk.map(L=>`<button class="tray-it deck" data-deck="${L.id}"><svg viewBox="0 0 22 12" aria-hidden="true"><rect x="1" y="1" width="20" height="10" fill="#d9c49b" stroke="#6b5530" stroke-width=".6"/><line x1="1" y1="1" x2="21" y2="1" stroke="#3b2a12" stroke-width="1.4"/></svg><b>${deckName(L)}</b><small>deck</small></button>`).join('')}
+    <button class="tray-it stair" data-stair="1" title="Drag onto a pod that has a floor above (or below): a legal stair, with the opening cut"><svg viewBox="0 0 22 12" aria-hidden="true"><path d="M1 11h4V8.5h4V6h4V3.5h4V1h4" fill="none" stroke="#3b2a12" stroke-width="1.2"/></svg><b>Stairs</b><small>to the floor above</small></button>`;
+}
+tray.addEventListener('input', e=>{ if(e.target.id==='trayQ'){ trayQ=e.target.value; tray.querySelectorAll('[data-room]').forEach(b=>b.setAttribute('aria-selected', String(!trayQ && b.dataset.room===trayRoom))); renderTrayItems(); } });
+/* a cabinet or piece of furniture tapped in the tray: into the room on screen, against its nearest free wall */
+function dropItemHere(k){
+  const it={...newItem(k), a:0}, r=cv.getBoundingClientRect(), mid=planAt(r.left+r.width*0.45, r.top+r.height*0.5);
+  let at = mid ? snap(it, mid, wallGroups, homeGroup) : null;
+  if(at && (at.free || furnitureOf(state.model).some(o=>clash({...it, ...at, id:'_new'}, o)))) at=null;
+  if(!at) at=freeSpot(it, homeGroup);
+  if(!at){ toast('No free wall for it here. Drag it to where it goes.'); return; }
+  const { overBase, ...pos }=at, f=addItem(k, pos); noteRecent(k); state.selFurn=f.id; state.selected=null; refreshItem(f); highlight(); renderSide(); if(!panelOpen()) setPanel(true);
+  toast(`${itemDef(f.k).name} added · drag it to move it`);
+}
+/* stairs dropped on a pod (tap: the first pod that can take one) */
+function stairAt(i){
+  if(!podList(state.model).some(p=>p.lv)){ toast('Stairs go up to a second floor. Put pods on Floor 2 first (▲ beside Floor).'); return; }
+  const id=addStair(i); if(!id){ toast(i==null?'No room for a stair yet: it needs about 12′ clear along a pod, under the pod above.':'No room for a stair in that pod. Try one with a pod right above or below it.'); return; }
+  state.selected='stair:'+id; renderModels(); buildHome(); highlight(); renderSide(); if(!panelOpen()) setPanel(true); toast('Stairs added · pick another option or slide them');
 }
 tray.addEventListener('pointerdown', e=>{
+  if(e.target.closest('[data-fav],[data-tuck],input')) return;
   const b=e.target.closest('.tray-it'); if(!b || !editable() || b.dataset.open) return;
   const sx=e.clientX, sy=e.clientY, id=e.pointerId;
   if(b.dataset.mid){ dragMid(e, b); return; }
+  if(b.dataset.stair){ dragStair(e); return; }
   const cab=b.dataset.k, kit=b.dataset.kit && kitchenById(b.dataset.kit);
   const item = cab||b.dataset.deck ? null : b.dataset.lib ? {lib:b.dataset.lib, ...(state.level?{lv:state.level}:{})} : {t:b.dataset.t, ...(state.level?{lv:state.level}:{})};
   const t = item ? (item.lib ? podById(item.lib).t : item.t) : null;
@@ -588,7 +671,7 @@ tray.addEventListener('pointerdown', e=>{
       if(d.kit){ const anchor=d.kit.items.find(r=>r.rx===0&&r.rz===0)||d.kit.items[0], shift=rotXZ(anchor.rx, anchor.rz, d.at.a||0);
         const gid=addRecipe(d.kit.items, {...d.at, u:d.at.u-shift[0], v:d.at.v-shift[1]}, d.kit.name, d.kit.id);
         const L=groupMembers(gid); L.forEach(refreshItem); state.selFurn=L[0]?.id||null; state.selected=null; highlight(); renderSide(); if(!panelOpen()) setPanel(true); toast(`${d.kit.name} added · drag it to move it as one`); return; }
-      const { overBase, ...at }=d.at, f=addItem(d.it.k, at); state.selFurn=f.id; state.selected=null; refreshItem(f); highlight(); renderSide(); if(!panelOpen()) setPanel(true); toast(`${itemDef(f.k).name} added${overBase?` · ${f.w}″ wide, to match the base under it`:''}`); return; }
+      const { overBase, ...at }=d.at, f=addItem(d.it.k, at); noteRecent(d.it.k); state.selFurn=f.id; state.selected=null; refreshItem(f); highlight(); renderSide(); if(!panelOpen()) setPanel(true); toast(`${itemDef(f.k).name} added${overBase?` · ${f.w}″ wide, to match the base under it`:''}`); return; }
     if(!d.ok){ toast(d.deck ? deckWhy(d) : 'Drop it next to the home, where it docks flush in 8′ steps.'); return; }
     after(d.deck ? addDeck(d.lib, d.at.x, d.at.z, d.rot) : addPod(d.item, d.at.x, d.at.z, d.rot), d.deck ? 'Deck added' : 'Pod added'); };
   window.addEventListener('pointermove',mv); window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up);
@@ -618,6 +701,17 @@ function dragMid(e, b){
     toast(`Interior wall ${dir==='long'?'along':'across'} ${P.label}${near && Math.abs(near.at-v)<=3 ? ` · ${near.label}` : ''} · tap a door option`); };
   window.addEventListener('pointermove',mv); window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up);
 }
+/* Stairs from the tray: dropped on a pod, a stair in it (or up into it from the pod below) */
+function dragStair(e){
+  const sx=e.clientX, sy=e.clientY, id=e.pointerId; let moved=false;
+  const mv=ev=>{ if(ev.pointerId!==id) return; if(!moved && Math.hypot(ev.clientX-sx, ev.clientY-sy)>14){ moved=true; document.body.classList.add('dragging'); controls.enabled=false; } };
+  const up=ev=>{ if(ev.pointerId!==id) return; window.removeEventListener('pointermove',mv); window.removeEventListener('pointerup',up); window.removeEventListener('pointercancel',up);
+    document.body.classList.remove('dragging'); controls.enabled=true; if(!moved) return;
+    trayDragAt=performance.now();
+    const o=ownerOf(hitAt(ev.clientX, ev.clientY)); if(!o || o.deck){ toast('Drop the stairs on a pod'); return; }
+    stairAt(o.i); };
+  window.addEventListener('pointermove',mv); window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up);
+}
 tray.addEventListener('change', e=>{ if(e.target.id==='trayCat'){ trayCat=e.target.value; renderTray(); tray.scrollLeft=0; } });
 /* a tap on a tray item: add it at the first spot it fits (cabinets: against the wall nearest the middle of the first pod) */
 let trayDragAt=0;
@@ -625,10 +719,14 @@ onKitchensChanged(()=>{ if(trayTab==='cab' && trayCat==='__kit') renderTray(); }
 tray.addEventListener('click', e=>{
   if(performance.now()-trayDragAt < 800) return;
   const tb=e.target.closest('[data-tab]'); if(tb){ trayTab=tb.dataset.tab; renderTray(); return; }
+  if(e.target.closest('[data-tuck]')){ trayHidden=!trayHidden; renderTray(); return; }
+  const rm=e.target.closest('[data-room]'); if(rm){ trayRoom=rm.dataset.room; trayQ=''; try{ localStorage.setItem('cubit-tray-room', trayRoom); }catch(err){} renderTray(); return; }
+  const fv=e.target.closest('[data-fav]'); if(fv){ const on=toggleFav(fv.dataset.fav); fv.textContent=on?'★':'☆'; fv.setAttribute('aria-pressed', on); if(trayRoom==='fav' && !trayQ) renderTrayItems(); return; }
     const b=e.target.closest('.tray-it'); if(!b) return;
-  if(b.dataset.open){ openCaseLib({cat: trayCat==='__kit' ? 'k:kit' : trayCat}); return; }
+  if(b.dataset.open){ const first=trayItems()[0]; openCaseLib({cat: !trayQ && trayRoom==='kitchen' && KITCHENS.length ? 'k:kit' : (first?.cat || trayCat)}); return; }
   if(!editable()) return;
-  if(b.dataset.k){ openCaseLib({k:b.dataset.k}); return; }
+  if(b.dataset.stair){ stairAt(null); return; }
+  if(b.dataset.k){ dropItemHere(b.dataset.k); return; }
   if(b.dataset.kit){ const K=kitchenById(b.dataset.kit); if(K) import('./viewer3d.js').then(m=>m.openViewer('kitchen', null, { name:K.name, items:K.items, sub:`saved kitchen · ${K.items.length} items · drag it from the tray into a pod to add it` })); return; }
   if(b.dataset.deck){ const s=deckSpots(b.dataset.deck,0)[0]; if(!s){ toast('No place for this deck yet.'); return; } after(addDeck(b.dataset.deck, s.x, s.z, 0), 'Deck added'); return; }
   const item = b.dataset.lib ? {lib:b.dataset.lib} : {t:b.dataset.t};
