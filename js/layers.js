@@ -9,6 +9,7 @@ import { podList, slotsFor, layerSlotsFor } from './layout.js';
 
 import { CATS as CW_CATS } from './casework.js';
 import { applyFurniture, resetCabExplode, cabExploded } from './furniture.js';
+import { isDesign } from './mode.js';
 const CW_COL={tv:'#2a2e33',base:'#dcc39a',upper:'#e4cfa4',tall:'#cdb287',linen:'#d8bd8c',wardrobe:'#c9a978',vanity:'#e6d3ae',bench:'#b98f60',shelf:'#ead9b6',fire:'#8a8f94',counter:'#8f9493',appliance:'#c9cdd1',furniture:'#8e978a',bath:'#e9ece9',sink:'#b7bcc1',heat:'#e9ecef',plumb:'#d5dde2',elec:'#9aa3ab'};
 const CW_ROWS = CW_CATS.map(c=>['cw-'+c.k, c.name, CW_COL[c.k]]);
 /* top down, the way the home is built: roof first, the ground screws and foundation last */
@@ -37,14 +38,29 @@ const FOCUS = [
   ['wire',    'Wiring',          null],
 ];
 const btn=document.getElementById('bLayers'), pop=document.getElementById('layersPop');
-const val=k=> k in state.show ? !!state.show[k] : (k==='frames'||k==='seals'||k.startsWith('cw-')) ? true : state[k];
+const val=k=> (k==='rooms'||k==='dims') ? state.show?.[k]!==false : k in state.show ? !!state.show[k] : (k==='frames'||k==='seals'||k.startsWith('cw-')) ? true : state[k];
 const stage=document.getElementById('stage');
 const badge=document.createElement('button'); badge.className='pod-badge'; badge.hidden=true; stage.appendChild(badge);
 
 function activeFocus(){
   return FOCUS.find(([,,o])=>o && Object.entries({...BASE,...o}).every(([k,v])=>k==='glassOn' ? !!state.glass===v : !!state.show[k]===v))?.[0];
 }
+/* Design: a short list (what a customer looks at), with the full list a tap away. Exploded view lives here too. */
+let fullList=false;
+const EXP_ROW = () => { const on=document.getElementById('tExplode')?.getAttribute('aria-pressed')==='true';
+  return `<button class="lay-row lay-exp" role="switch" aria-checked="${on}" data-exp="1"><span>Exploded view</span><span class="sw" aria-hidden="true"></span></button>`; };
+function renderDesign(){
+  const cw=CW_ROWS.map(r=>r[0]), cwOn=cw.filter(k=>val(k)).length;
+  const row=(k,lab,on)=>`<button class="lay-row" role="switch" aria-checked="${!!on}" data-k="${k}"><span>${lab}</span><span class="sw" aria-hidden="true"></span></button>`;
+  pop.innerHTML=`<div class="lay-gh"><span class="lay-t">Show</span></div>
+    ${row('roof','Roof',val('roof'))}${row('ceiling','Ceiling',val('ceiling'))}
+    <button class="lay-row" role="switch" aria-checked="${cwOn===cw.length}" data-grp="cab"><span>Furniture &amp; cabinets</span><span class="sw${cwOn&&cwOn<cw.length?' some':''}" aria-hidden="true"></span></button>
+    ${row('rooms','Room names (plan)',val('rooms'))}${row('dims','Dimensions (plan)',val('dims'))}${row('glass','See-through glass & doors',val('glass'))}
+    <div class="lay-sep"></div>${EXP_ROW()}
+    <button class="lay-more" data-full="1">Every layer…</button>`;
+}
 function render(){
+  if(isDesign() && !fullList){ renderDesign(); return; }
   const pods=podList(state.model), af=activeFocus();
   const head=(id,label,extra='',sw='')=>`<div class="lay-gh"><button class="lay-fold" data-fold="${id}" aria-expanded="${!folded.has(id)}"><span class="chev" aria-hidden="true">▸</span>${label}${extra?`<small>${extra}</small>`:''}</button>${sw}</div>`;
   let h=head('focus','Focus', af && af!=='home' ? FOCUS.find(f=>f[0]===af)[1] : '');
@@ -56,9 +72,10 @@ function render(){
     h+='<div class="lay-sep"></div>'+head(id, label, `${on} of ${rows.length}`, `<button class="lay-all" role="switch" aria-checked="${all}" aria-label="All of ${label}" data-grp="${id}" title="${all?'Turn all off':'Turn all on'}"><span class="sw${on&&!all?' some':''}" aria-hidden="true"></span></button>`);
     if(!folded.has(id)) h+=rows.map(([k,lab,col])=>`<button class="lay-row" role="switch" aria-checked="${!!val(k)}" data-k="${k}"><span>${col?`<i style="background:${col}"></i>`:''}${lab}</span><span class="sw" aria-hidden="true"></span></button>`).join('');
   });
-  pop.innerHTML=h;
+  pop.innerHTML=EXP_ROW()+'<div class="lay-sep"></div>'+h+(isDesign()?'<button class="lay-more" data-full="0">Short list</button>':'');
 }
 function set(k, v){
+  if(k==='rooms'||k==='dims'){ (state.show ||= {})[k]=v; buildHome(); save(); render(); return; }
   if(k.startsWith('cw-')){ state.show[k]=v; applyFurniture(); save(); render(); return; }
   if(k in state.show){ state.show[k]=v; applyLayers(); if(k==='screws') renderSide(); }
   else { state[k]=v; if(k==='glass') applyLayers(); else buildHome(); }
@@ -117,6 +134,8 @@ stage.addEventListener('pointerup', e=>{
     setPod(s.pod.i); }, 0);
 });
 pop.addEventListener('click', e=>{
+  const fl=e.target.closest('[data-full]'); if(fl){ fullList=fl.dataset.full==='1'; return render(); }
+  if(e.target.closest('[data-exp]')){ document.getElementById('tExplode')?.click(); setTimeout(render, 30); return; }
   const fo=e.target.closest('[data-fold]'); if(fo){ const id=fo.dataset.fold; if(folded.has(id)) folded.delete(id); else folded.add(id); keepFolded(); return render(); }
   const ga=e.target.closest('[data-grp]'); if(ga){ const rows=GROUPS.find(g=>g[0]===ga.dataset.grp)[2], to=!rows.every(([k])=>val(k)); setMany(rows.map(r=>r[0]), to); return; }
   const r=e.target.closest('.lay-row'); if(r) return set(r.dataset.k, !val(r.dataset.k));

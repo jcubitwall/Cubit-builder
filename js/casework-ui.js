@@ -136,10 +136,13 @@ function ensure(){
   dlg.innerHTML=`<div class="cw">
     <header class="cw-h"><h2>Library</h2>
       <div class="seg" role="tablist"><button role="tab" data-tab="lib">Library</button><button role="tab" data-tab="set" id="cwSetTab">Settings</button></div>
-      <span class="spacer"></span><button class="btn ghost cw-x" aria-label="Close">✕</button></header>
+      <span class="spacer"></span><button class="btn ghost sm editor-only" id="cwManage" aria-pressed="false" title="Show Rename, Edit and Delete on the cards">Edit library</button><button class="btn ghost cw-x" aria-label="Close">✕</button></header>
     <div class="cw-body"></div></div>`;
   document.body.appendChild(dlg);
   dlg.querySelector('.cw-x').onclick=()=>dlg.close();
+  // browsing and adding by default; Rename, Edit and Delete show while editing the library
+  dlg.classList.add('cw-lib');
+  dlg.querySelector('#cwManage').onclick=e=>{ const on=!dlg.classList.contains('managing'); dlg.classList.toggle('managing', on); e.currentTarget.setAttribute('aria-pressed', on); e.currentTarget.textContent = on ? 'Done editing' : 'Edit library'; };
   dlg.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{ view.tab=b.dataset.tab; render(); });
   dlg.addEventListener('close', ()=>{ stopViewer(); });
   return dlg;

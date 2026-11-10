@@ -795,7 +795,9 @@ function planOverlay(sel=null, k=48, lv=null){
   const H_=homeModel(state.model, podList(state.model).some(p=>p.lv) ? (lv||0) : null), bb=H_.bb, m=6;   // m: feet of margin round the home (room for the dimensions)
   const B={ x0:bb.x0-m, z0:bb.z0-m, x1:bb.x1+m, z1:bb.z1+m }, w=Math.round((B.x1-B.x0)*k), h=Math.round((B.z1-B.z0)*k);
   const xf=planXf(bb, { x0:0, y0:0, x1:w, y1:h }, k);
-  let g=drawWalls(H_, xf, { openJoints:false })+stairSVG(xf, lv||0)+roomLabels(H_, xf, { dims:true })+planDims(H_, xf);
+  // Layers (Design): room names and the dimensions can each be turned off
+  const rooms=state.show?.rooms!==false, dims=state.show?.dims!==false;
+  let g=drawWalls(H_, xf, { openJoints:false })+stairSVG(xf, lv||0)+(rooms?roomLabels(H_, xf, { dims }):'')+(dims?planDims(H_, xf):'');
   const W=sel && H_.walls.find(W=>W.s.id===sel);
   if(W){ const c=[W.at(0,0), W.at(W.L,0), W.at(W.L,W.t), W.at(0,W.t)].map(xf.P); g+=`<polygon points="${c.map(p=>p.join(',')).join(' ')}" fill="#e0864a" fill-opacity="0.85" stroke="#9a4a14" stroke-width="2"/>`; }
   return { svg:`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${g}</svg>`, bb:B, w, h, k };

@@ -582,7 +582,7 @@ body.dragging .build-tray{opacity:.55}
 html.phone .build-tray{bottom:8px;left:8px;right:8px}
 html.phone .flat-badge{top:8px;font-size:10px}
 .studio.build .hint{display:none}
-.flat-badge{top:auto;bottom:96px}
+.flat-badge{top:auto;bottom:118px}
 html.phone .flat-badge{display:none}
 html.phone .build-tray{bottom:54px}
 html.phone .tray-it{min-width:84px;padding:6px 8px}
@@ -1361,3 +1361,54 @@ dialog.v3-dlg.v3-full .v3-cube{top:max(12px, env(safe-area-inset-top,0px));right
 .sqft-chip .sq-u{font:600 10px var(--mono);color:var(--ink-2)}
 .sqft-chip small{margin-top:3px;font-size:10px;color:var(--ink-2);text-align:center;max-width:120px}
 .sqft-chip[hidden]{display:none}
+
+/* ---------------------------------------------------------------- Design / Shop (mode.js) */
+.mode-sw{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+.mode-sw button{border:0;background:none;color:var(--ink-2);font:inherit;font-size:13px;font-weight:600;padding:8px 14px;min-height:38px;cursor:pointer}
+.mode-sw button + button{border-left:1px solid var(--line)}
+.mode-sw button[aria-pressed="true"]{background:var(--accent);color:#fff}
+html.phone header.bar > .mode-sw{display:none}
+html.mode-design .shop-only{display:none!important}
+html.mode-shop .design-only{display:none!important}
+.shop-sec{margin-top:14px;border:1px dashed var(--line);border-radius:10px;padding:2px 10px}
+.shop-sec > summary{cursor:pointer;font:600 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);padding:10px 0;list-style:none}
+.shop-sec > summary::-webkit-details-marker{display:none}
+.shop-sec > summary::before{content:"▸ ";display:inline-block;transition:transform .15s}
+.shop-sec[open] > summary::before{transform:rotate(90deg)}
+.shop-sec[open]{padding-bottom:10px}
+/* Exploded view lives in Layers now */
+#studioTools #tExplode{display:none}
+.lay-t{font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);padding:6px 8px}
+.lay-more{display:block;width:100%;margin-top:6px;border:0;background:none;color:var(--accent);font:600 13px var(--body, inherit);padding:10px 8px;text-align:left;cursor:pointer}
+/* the hint fades away after a few seconds */
+.flat-badge{transition:opacity .5s}
+.flat-badge.gone{opacity:0}
+@media (prefers-reduced-motion: reduce){ .flat-badge{transition:none} }
+
+/* ---------------------------------------------------------------- one toolbar along the top of the canvas (Build)
+   left: Layers, Full screen · right: undo / redo, 2D, floors, footprint. The view cube and compass sit small at the
+   bottom right, above the tray, so nothing floats over the plan or slides into it when the side panel opens. */
+.studio.build .fs-bar{right:12px;max-width:none;flex-wrap:wrap;row-gap:6px}
+.studio.build.panel-open .fs-bar{right:404px}
+.fs-bar .bar-sp{flex:1 1 0;min-width:4px}
+.fs-bar .vc-hist{display:flex;gap:6px;align-items:center}
+.fs-bar .sqft-chip{flex-direction:row;align-items:baseline;gap:5px;min-width:0;padding:0 10px;height:44px;align-items:center;box-shadow:none}
+.fs-bar .sqft-chip b{font-size:16px}
+.fs-bar .sqft-chip small{margin:0 0 0 4px;max-width:none;white-space:nowrap}
+.studio.build .vcube-wrap{top:auto;bottom:132px;right:12px}
+.studio.build.panel-open .vcube-wrap{right:404px}
+.compass.bc-compass{top:auto;bottom:146px;right:104px}
+.studio.build.panel-open .compass.bc-compass{right:496px}
+html.phone .studio.build .vcube-wrap{top:auto;bottom:150px;right:6px;transform:scale(.8);transform-origin:bottom right}
+html.phone .compass.bc-compass{bottom:156px;right:80px;left:auto;top:auto}
+html.phone .fs-bar .sqft-chip small{display:none}
+/* bigger targets for a finger */
+.vc-b{width:44px;height:44px}
+.vc-lvg .vc-lvs{min-width:36px}
+.fsbtn{min-height:44px}
+.tray-tabs button{min-height:40px}
+/* Manage: rename and delete only while managing (Homes, Library) */
+.manage-sw{margin-left:auto}
+:is(#models,.cw-lib):not(.managing) .manage-only{display:none!important}
+.cw-lib:not(.managing) :is([data-bdel],[data-bedit],[data-bren],[data-cdel],[data-cren],[data-dedit],[data-kdel],[data-kren],[data-uedit]){display:none!important}
+.hc-manage{display:flex;justify-content:flex-end;margin-top:12px}

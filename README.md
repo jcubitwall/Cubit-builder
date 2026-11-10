@@ -772,3 +772,10 @@ The cover and 3D-view pictures are taken from the live 3D home. In the Build vie
 
 ## Footprint always on screen (build.js)
 Under the view cube in Build, a chip shows the home's **footprint in sq ft**: the ground-floor pods, outside to outside on the 8′ grid (the same figure as the drawing set's floor area; m² on hover). It updates every time a pod is added, moved, turned or removed. When there's an upper floor it also shows all floors, and when there are decks, their area, on a small line under it.
+
+## Design and Shop (mode.js)
+A switch in the top bar, beside Build / Sheets. **Design** is for building with a customer: Build opens on the plan as a drawing (walls, door swings, room names and sizes, outside dimensions), panel numbers, wall letters and the compression seals are off, panel codes and CNC variants are hidden, and Layers is a short list (Roof, Ceiling, Furniture & cabinets, Room names, Dimensions, See-through glass, Exploded view, with "Every layer…" for the rest). One finger dragged up on empty space tips the drawing into 3D; turning back down flat (or tapping Top on the view cube) returns to the drawing; two fingers slide it. **Shop** is everything as before. Nothing is removed in Design; the choice is kept on the device (`html.mode-design` / `html.mode-shop`; `.shop-only` and `.design-only` follow it).
+- Side panels lead with what a customer decides (windows & doors, plugs, cabinets, wall layouts). The shop's buttons (assembly / layer / framing sheets, Isolate, Make Wall A, Mirror wall, Panel builder, the matching of openings on a connecting wall, a floor's panel variants) sit in a folding **Shop** section at the bottom, which Design hides.
+- One toolbar along the top of the canvas: Layers and Full screen on the left; undo / redo, 2D / 3D, floors and the footprint on the right. The view cube and compass sit small at the bottom right, above the tray. Exploded view moved into Layers.
+- The hint pill shows for a few seconds when the view changes, once a session, then fades.
+- Homes: Rename and Delete appear only after **Manage**. Library: Rename, Edit and Delete appear only after **Edit library**.

@@ -61,7 +61,7 @@ wrap.querySelector('#vcRedo').onclick=()=>doRedo();
 let afterHist=()=>{}, say=()=>{};
 function doUndo(){ if(undo()){ afterHist(); say('Undone'); } else say('Nothing to undo'); refreshHist(); }
 function doRedo(){ if(redo()){ afterHist(); say('Redone'); } else say('Nothing to redo'); refreshHist(); }
-function refreshHist(){ wrap.querySelector('#vcUndo').disabled=!canUndo(); wrap.querySelector('#vcRedo').disabled=!canRedo(); }
+function refreshHist(){ const u=document.getElementById('vcUndo'), r=document.getElementById('vcRedo'); if(u) u.disabled=!canUndo(); if(r) r.disabled=!canRedo(); }
 setInterval(refreshHist, 500);
 document.addEventListener('keydown', e=>{
   if(!(e.metaKey||e.ctrlKey) || e.key.toLowerCase()!=='z' || e.target.closest('input,textarea,select') || document.querySelector('dialog[open]')) return;

@@ -37,6 +37,7 @@ import { setPanel, panelOpen } from './fullscreen.js';
 import { initViewCube, zoomToFace, doUndo, doRedo } from './viewcube.js';
 import { onHistory } from './history.js';
 import { wallGroups, scene, grid, onBuilt } from './scene3d.js';
+import { isDesign, onMode } from './mode.js';
 
 const stage=document.getElementById('stage'), cv=renderer.domElement;
 const FLAT=0.12;                          // radians from straight down that still count as the flat plan
@@ -50,13 +51,13 @@ function flatten(fit=false){
   let az=Math.atan2(off.x, off.z); if(TWO_D) az=Math.round(az/(Math.PI/2))*(Math.PI/2);   // 2D: square to the nearest 90°
   let dist=off.length();
   if(fit){ const B=homeBox(); if(B){ const s=B.getSize(new THREE.Vector3()), asp=Math.max(0.5, cv.clientWidth/Math.max(1,cv.clientHeight));
-    const span=Math.max(s.z, s.x/asp)+8;   /* what has to fit top to bottom on screen (x across, z up the screen) */ dist=span/2/Math.tan(camera.fov*Math.PI/360)*1.05; const c=B.getCenter(new THREE.Vector3()); t.set(c.x,0,c.z); } }
+    const span=Math.max(s.z, s.x/asp)+(isDesign()?20:8);   /* Design: room round it for the drawing's dimensions, the toolbar and the tray */   /* what has to fit top to bottom on screen (x across, z up the screen) */ dist=span/2/Math.tan(camera.fov*Math.PI/360)*1.05; const c=B.getCenter(new THREE.Vector3()); t.set(c.x,0,c.z); } }
   const end=new THREE.Vector3(t.x+Math.sin(az)*dist*0.0005, t.y+dist, t.z+Math.cos(az)*dist*0.0005);
   const p0=camera.position.clone(), t0=controls.target.clone(), T=performance.now();
   cancelAnimationFrame(anim); controls.enableDamping=false;          // no drift left over from the last orbit
   const step=()=>{ const k=Math.min(1,(performance.now()-T)/320), e=k*k*(3-2*k);
     camera.position.lerpVectors(p0,end,e); controls.target.lerpVectors(t0,t,e); controls.update();
-    if(k<1) anim=requestAnimationFrame(step); else { controls.enableDamping=true; badge(); } };
+    if(k<1) anim=requestAnimationFrame(step); else { controls.enableDamping=true; badge(); if(isDesign() && !TWO_D && state.view==='studio') set2D(true); } };
   step();
 }
 /* ---------------------------------------------------------------- 2D: a true flat top view (the 2D / 3D button)
@@ -66,17 +67,28 @@ function flatten(fit=false){
 let TWO_D=false;
 const FOV3=40, FOV2=2, K2D=Math.tan(FOV3*Math.PI/360)/Math.tan(FOV2*Math.PI/360);
 const is2D = () => TWO_D;
-function set2D(on){
+/* one finger on empty space in the 2D plan: in Shop it slides the plan (as before); in Design it tips the drawing into
+   3D (build.js does that), and two fingers slide it */
+function oneFinger(){
+  const pan = TWO_D && !isDesign();
+  controls.touches.ONE = TWO_D ? (pan ? THREE.TOUCH.PAN : -1) : THREE.TOUCH.ROTATE;
+  controls.mouseButtons.LEFT = TWO_D ? (pan ? THREE.MOUSE.PAN : -1) : THREE.MOUSE.ROTATE;
+}
+function set2D(on, quick=false){
   if(on===TWO_D) return; TWO_D=on;
   cancelAnimationFrame(anim); controls.enableDamping=false;
   const t=controls.target, o=camera.position.clone().sub(t);
   if(on){ camera.fov=FOV2; camera.near=2; camera.far=60000; controls.minDistance=1.5*K2D; controls.maxDistance=400*K2D; o.multiplyScalar(K2D);
-    controls.maxPolarAngle=0.001; controls.touches.ONE=THREE.TOUCH.PAN; controls.mouseButtons.LEFT=THREE.MOUSE.PAN; }
+    controls.maxPolarAngle=0.001; }
   else { camera.fov=FOV3; camera.near=0.5; camera.far=500; controls.minDistance=1.5; controls.maxDistance=400; o.divideScalar(K2D);
-    controls.maxPolarAngle=Math.PI*0.999; controls.touches.ONE=THREE.TOUCH.ROTATE; controls.mouseButtons.LEFT=THREE.MOUSE.ROTATE; }
+    controls.maxPolarAngle=Math.PI*0.999; }
   camera.position.copy(t).add(o); camera.updateProjectionMatrix(); controls.update(); controls.enableDamping=true;
+  oneFinger();
   if(on) flatten();
-  else { // tip back into 3D, keeping the heading
+  else if(quick){ // Design: a drag up on the drawing tips it straight into 3D, and the same finger carries on turning it
+    const d=camera.position.distanceTo(t), off=camera.position.clone().sub(t); let az=Math.atan2(off.x, off.z); if(Math.abs(off.x)+Math.abs(off.z)<1e-6) az=0;
+    const phi=FLAT+0.04; camera.position.set(t.x+Math.sin(phi)*Math.sin(az)*d, t.y+Math.cos(phi)*d, t.z+Math.sin(phi)*Math.cos(az)*d); camera.lookAt(t); controls.update(); }
+  else if(!quick){ // tip back into 3D, keeping the heading
     const p0=camera.position.clone(), d=p0.distanceTo(t), off=p0.clone().sub(t); let az=Math.atan2(off.x, off.z); if(Math.abs(off.x)+Math.abs(off.z)<1e-6) az=0;
     const phi=0.95, end=new THREE.Vector3(t.x+Math.sin(phi)*Math.sin(az)*d, t.y+Math.cos(phi)*d, t.z+Math.sin(phi)*Math.cos(az)*d), T=performance.now();
     controls.enableDamping=false;
@@ -124,16 +136,32 @@ function showSqft(){
   sqft.innerHTML=`<span class="sq-k">Footprint</span><b>${fmtN(ground)}</b><span class="sq-u">sq ft</span>${sub?`<small>${sub} sq ft</small>`:''}`;
   sqft.title=`Footprint ${fmtN(ground)} sq ft (${(ground*0.092903).toFixed(1)} m²): the ground-floor pods, outside to outside on the 8′ grid`;
 }
-setTimeout(()=>{ document.querySelector('.vcube-wrap')?.appendChild(sqft); showSqft(); }, 0);
+/* one toolbar along the top of the canvas: undo / redo, 2D, floors and the footprint move up beside Layers and Full
+   screen (the view cube stays on its own, bottom right) */
+setTimeout(()=>{ const bar=document.querySelector('#stage .fs-bar'), h=document.querySelector('.vcube-wrap .vc-hist');
+  if(bar && h){ const sp=document.createElement('span'); sp.className='bar-sp'; bar.append(sp, h, sqft); } else document.querySelector('.vcube-wrap')?.appendChild(sqft);
+  showSqft(); }, 0);
 import('./scene3d.js').then(m=>m.onBuilt(showSqft));
 const btn2D=document.createElement('button'); btn2D.className='vc-b vc-2d'; btn2D.id='vc2D'; btn2D.textContent='2D'; btn2D.setAttribute('aria-pressed','false'); btn2D.title='Flat top view (true 2D) for placing cabinets';
 btn2D.onclick=()=>set2D(!TWO_D);
 document.querySelector('.vcube-wrap .vc-hist')?.appendChild(btn2D);
 // a face of the view cube other than Top (or Bottom) leaves 2D first, so the view can turn
-document.querySelector('.vcube-wrap .vcube')?.addEventListener('click', e=>{ const f=e.target.closest('[data-v]'); if(TWO_D && f && f.dataset.v!=='top') set2D(false); }, true);
+document.querySelector('.vcube-wrap .vcube')?.addEventListener('click', e=>{ const f=e.target.closest('[data-v]'); if(TWO_D && f && f.dataset.v!=='top') set2D(false);
+  if(!TWO_D && f && f.dataset.v==='top' && isDesign()) setTimeout(()=>{ if(isFlat()) set2D(true); }, 700); }, true);
 
 const flatBadge=document.createElement('div'); flatBadge.className='flat-badge'; stage.appendChild(flatBadge);
-function badge(){ const f=isFlat(); flatBadge.textContent = TWO_D ? '2D · drag a pod or cabinet to move it · drag empty space to slide the plan · tap 3D to tilt' : f ? 'PLAN · drag a pod or cabinet to move it · drag up on empty space to tilt into 3D' : '3D · double-tap a part to isolate it · drag down for the plan'; flatBadge.classList.toggle('three', !f); }
+/* the hint: shown for a few seconds when the view changes, each one once a session, then it fades away */
+let badgeT=0;
+const seenHints=(()=>{ try{ return new Set(JSON.parse(sessionStorage.getItem('cubit-hints')||'[]')); }catch(e){ return new Set(); } })();
+function badge(){ const f=isFlat();
+  const t = TWO_D ? (isDesign() ? 'PLAN · drag a pod or cabinet to move it · drag up on empty space for 3D · two fingers slide' : '2D · drag a pod or cabinet to move it · drag empty space to slide the plan · tap 3D to tilt')
+    : f ? 'PLAN · drag a pod or cabinet to move it · drag up on empty space to tilt into 3D' : `3D · double-tap a part to isolate it · drag down for the plan`;
+  if(t===flatBadge.dataset.t) return; flatBadge.dataset.t=t;
+  flatBadge.textContent=t; flatBadge.classList.toggle('three', !f);
+  clearTimeout(badgeT);
+  if(seenHints.has(t)){ flatBadge.classList.add('gone'); return; }
+  seenHints.add(t); try{ sessionStorage.setItem('cubit-hints', JSON.stringify([...seenHints])); }catch(e){}
+  flatBadge.classList.remove('gone'); badgeT=setTimeout(()=>flatBadge.classList.add('gone'), 4500); }
 setInterval(()=>{ if(state.view==='studio') badge(); if(TWO_D && (state.selected||null)!==BP.sel) drawPlan(); }, 300);
 // 2D stays square: anything that turns the view ends on the nearest 90°
 controls.addEventListener('end', ()=>{ if(!TWO_D) return; const off=camera.position.clone().sub(controls.target), az=Math.atan2(off.x, off.z), q=Math.PI/2;
@@ -339,6 +367,7 @@ stage.addEventListener('pointerdown', e=>{
     // in the flat plan a pod, deck or cabinet moves straight away; anywhere else the finger turns the view
     if(isFlat() && editable()){ const d=grabAt(e.clientX,e.clientY); if(d){ controls.enabled=false; D=d; return; } }
     if(!TWO_D) orbit={x:e.clientX, y:e.clientY};   // 2D: no tilting, OrbitControls pans with one finger
+    else if(isDesign()) orbit={x:e.clientX, y:e.clientY, from2D:true, x0:e.clientX, y0:e.clientY};   // Design: a drag up tips the drawing into 3D
     // a long touch (held still): on a pod, deck or cabinet it picks it up to move it (in 3D too);
     // on empty space it opens the Layers list
     { const x=e.clientX, y=e.clientY;
@@ -401,6 +430,11 @@ const sph=new THREE.Spherical(), off=new THREE.Vector3();
 window.addEventListener('pointermove', e=>{
   if(press && Math.hypot(e.clientX-press.x, e.clientY-press.y)>10){ clearTimeout(press.timer); press=null; }
   if(!orbit || pointers.size!==1 || !pointers.has(e.pointerId)) return;
+  if(orbit.from2D){
+    const ux=e.clientX-orbit.x0, uy=e.clientY-orbit.y0;
+    if(!TWO_D){ orbit.from2D=false; }
+    else if(uy<-14 && Math.abs(uy)>Math.abs(ux)){ set2D(false, true); orbit.from2D=false; orbit.x=e.clientX; orbit.y=e.clientY; return; }
+    else return; }
   const dx=e.clientX-orbit.x, dy=e.clientY-orbit.y; orbit.x=e.clientX; orbit.y=e.clientY;
   const h=Math.max(200, cv.clientHeight);
   off.copy(camera.position).sub(controls.target); sph.setFromVector3(off);
@@ -433,7 +467,8 @@ window.addEventListener('pointermove', e=>{
 function release(e){
   pointers.delete(e.pointerId);
   if(press){ clearTimeout(press.timer); press=null; }
-  if(!pointers.size){ orbit=null; viewTwist=null; if(three){ three=null; controls.enabled=true; } }
+  if(!pointers.size){ orbit=null; viewTwist=null; if(three){ three=null; controls.enabled=true; }
+    setTimeout(()=>{ if(isDesign() && !TWO_D && !D && !pointers.size && state.view==='studio' && isFlat()) set2D(true); }, 60); }
   if(pointers.size<2) viewTwist=null;
   if(D && D.mode==='mid'){ if(pointers.size) return;
     const d=D; D=null; tip.hidden=true; document.body.classList.remove('dragging'); controls.enabled=true;
@@ -604,6 +639,8 @@ tray.addEventListener('click', e=>{
 initViewCube({ reset:()=>{ if(state.focusPod!=null) document.querySelector('.pod-badge')?.click(); flatten(true); }, after:()=>{ renderModels(); buildHome(); renderSide(); }, toast });
 function startBuild(){ controls.enableRotate=false;   /* one-finger turning is ours (above); OrbitControls keeps pan and zoom */
   renderTray(); setTimeout(()=>{ flatten(true); badge(); elecSig=elecSigNow(); }, 60); }
+/* Design ⇄ Shop: Design shows the plan as the drawing; the labels and side panel follow the mode */
+onMode(m=>{ oneFinger(); buildHome(); highlight(); renderSide(); renderTray(); if(state.view==='studio'){ if(m==='design' && isFlat()) set2D(true); if(TWO_D) drawPlan(); } badge(); });
 /* a bed, desk, fridge … brings its plugs with it (electrical.js): when placing, moving, turning or removing one
    changes the plugs, the walls are redrawn so they show at once */
 let elecSig=null, elecT=0;

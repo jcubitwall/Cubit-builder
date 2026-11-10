@@ -52,6 +52,7 @@ const famPick = {};   // last home opened under each model name (this visit)
 let openFam, famInit=false, homeCat=null, custOpen=null;
 const catOfHome = k => { const m=MODELS[k]; if(!m) return 'cubit'; if(m.custom) return 'drafts'; if(m.project) return m.customer ? 'cust' : 'purg'; return 'cubit'; };
 const isOriginal = k => { const m=MODELS[k]; return !!m && !m.deleted && !m.custom && !m.project; };
+let managing=false;
 function renderModels(){
   applyEdits();
   const el=document.getElementById('models');
@@ -63,11 +64,12 @@ function renderModels(){
   const custs=liveCustomers(), gone=CUSTOMERS.filter(c=>c.deleted), homesOf=c=>Object.keys(MODELS).filter(k=>MODELS[k].project && MODELS[k].customer===c.id);
   const cubitN=Object.keys(MODELS).filter(isOriginal).length;
   const tabs=[['cubit','Cubit Homes',cubitN], ...(canSave()||drafts.length?[['drafts','My Drafts',drafts.length]]:[]), ['purg','Purgatory',purg.length], ['cust','Customers',custs.length]];
+  el.classList.toggle('managing', managing);
   let h=`<div class="hc-tabs" role="tablist" aria-label="Home categories">${tabs.map(([k,l,n])=>`<button role="tab" data-cat="${k}" aria-selected="${homeCat===k}">${l}<small>${n}</small></button>`).join('')}</div>`;
   // each home: open it (tap), and Rename / Delete beside it for those allowed (delete asks twice)
   const item=(k,sub)=>{ const m=MODELS[k], ac=homeActs(k);
     const btn=`<button class="fam-it ${catOfHome(k)}" role="option" data-m="${k}" aria-selected="${k===state.model}"><b>${esc(m.name)}${m.locked?' <span class="lock-b" title="Signed and locked">🔒</span>':''}</b><small>${esc(sub ?? (m.size||''))}</small></button>`;
-    return ac.ren||ac.del ? `<div class="fam-row">${btn}<span class="fam-acts">${ac.ren?`<button class="btn ghost sm" data-hren="${k}" aria-label="Rename ${esc(m.name)}">Rename</button>`:''}${ac.del?`<button class="btn ghost sm danger" data-hdel="${k}" aria-label="Delete ${esc(m.name)}">Delete</button>`:''}</span></div>` : btn; };
+    return ac.ren||ac.del ? `<div class="fam-row">${btn}<span class="fam-acts manage-only">${ac.ren?`<button class="btn ghost sm" data-hren="${k}" aria-label="Rename ${esc(m.name)}">Rename</button>`:''}${ac.del?`<button class="btn ghost sm danger" data-hdel="${k}" aria-label="Delete ${esc(m.name)}">Delete</button>`:''}</span></div>` : btn; };
   const when = iso => iso ? new Date(iso).toLocaleDateString(undefined,{month:'short', day:'numeric'}) : '';
   const who = e => e ? String(e).split('@')[0] : '';
   if(homeCat==='cubit'){
@@ -77,7 +79,7 @@ function renderModels(){
     h+=`<div class="hc-chips">${FAMILIES.filter(f=>!f.deleted).map(f=>chip(f.id, f.name, famList(f.id))).join('')}${unfiled.length?chip(null,'Not filed yet',unfiled):''}${canEdit()?'<button class="chip fam new" data-newfam="1" title="Introduce a new model name">＋ New model name</button>':''}</div>`;
     const list = openFam!=='none' && openFam!==undefined ? famList(openFam) : null;
     const fo = openFam ? familyById(openFam) : null;
-    if(list && fo && canEdit()) h+=`<div class="fam-bar"><span class="note">Model name <b>${esc(fo.name)}</b></span><button class="btn ghost sm" data-fren="${esc(fo.id)}">Rename</button><button class="btn ghost sm danger" data-fdel="${esc(fo.id)}">Delete</button></div>`;
+    if(list && fo && canEdit()) h+=`<div class="fam-bar manage-only"><span class="note">Model name <b>${esc(fo.name)}</b></span><button class="btn ghost sm" data-fren="${esc(fo.id)}">Rename</button><button class="btn ghost sm danger" data-fdel="${esc(fo.id)}">Delete</button></div>`;
     if(list) h+=`<div class="fam-list" role="listbox">${list.length ? list.map(k=>item(k, MODELS[k].sub ? `variation · ${MODELS[k].size||''}` : `standard · ${MODELS[k].size||''}`)).join('') : '<p class="note">No original under this model name yet. Editors adopt one into it from Purgatory (open the home there → Adopt into Cubit Homes, pick this model name).</p>'}</div>`;
   } else if(homeCat==='drafts'){
     h+=`<div class="fam-list" role="listbox">${canSave()?'<button class="fam-it new" data-new="1"><b>＋ New home</b><small>start from scratch</small></button>':''}${drafts.map(k=>item(k, MODELS[k].from&&MODELS[k].from!==k&&MODELS[MODELS[k].from] ? `from ${MODELS[MODELS[k].from].name}` : 'only you see it')).join('') || '<p class="note">No drafts. Change any home and your copy lands here.</p>'}</div>`;
@@ -89,7 +91,10 @@ function renderModels(){
           ${open?`<div class="cust-homes">${hs.map(k=>item(k, MODELS[k].locked?'signed · locked':'not signed yet')).join('')}${canSave()?`<button class="fam-it sub" data-cust="${esc(c.id)}"><b>Profile</b><small>details, selections, sign</small></button>`:''}</div>`:''}</div>`; }).join('') || '<p class="note">No customers yet.</p>'}
       ${canEdit() && gone.length ? `<p class="note">${gone.length} deleted customer${gone.length===1?'':'s'} · <button class="linkbtn" data-trash="customers">Deleted items</button></p>` : ''}</div>`;
   }
+  // Rename and Delete only while managing, so they aren't sitting beside every home in front of a customer
+  if(canSave()) h+=`<div class="hc-manage"><button class="btn ghost sm" id="hManage" aria-pressed="${managing}">${managing?'Done managing':'Manage: rename, delete'}</button></div>`;
   el.innerHTML = h;
+  el.querySelector('#hManage')?.addEventListener('click', ()=>{ managing=!managing; renderModels(); });
   const go = k => { state.model=k; state.selected=null; refreshOpen(k); save(); renderModels(); buildHome(); renderSide(); if(state.view==='sheets') openSheets(); };   // a team home: the latest save, not this device's older copy
   el.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>go(b.dataset.m));
   el.querySelectorAll('[data-hren]').forEach(b=>b.onclick=()=>renameHome(b.dataset.hren));
@@ -314,6 +319,12 @@ const fmtLen = inch => { const ft=Math.floor((inch+0.01)/12), r=Math.round((inch
 const sideWord = k => ({S:'top side', E:'right side', N:'bottom side', W:'left side'}[k]);
 
 /* a selected wall, floor, ceiling or deck closes with ✕ (or Esc) back to the whole home */
+/* the shop's own buttons (sheets, isolate, panel builder…) in one folding section at the bottom of the panel; hidden
+   in Design. Open or shut is remembered. */
+const SHOPSEC_KEY='cubit-shopsec';
+const shopSecOpen = () => { try{ return localStorage.getItem(SHOPSEC_KEY)==='1'; }catch(e){ return false; } };
+const shopSec = (inner, label='Shop · sheets, isolate, panel builder') => `<details class="shop-sec shop-only"${shopSecOpen()?' open':''}><summary>${label}</summary>${inner}</details>`;
+document.addEventListener('toggle', e=>{ if(e.target.classList?.contains('shop-sec')){ try{ localStorage.setItem(SHOPSEC_KEY, e.target.open?'1':'0'); }catch(err){} } }, true);
 function renderSide(){
   renderSideInner();
   if(state.selected && sideH){ sideH.insertAdjacentHTML('afterbegin','<button class="side-x" id="sideX" title="Back to the whole home (Esc)" aria-label="Back to the whole home">✕</button>');
@@ -415,14 +426,12 @@ function renderSideInner(){
   } else {
     const w=pickFor(s); const opts=optionsFor(s.len, s.type||'ext', state.model);
     const isInt=s.type==='int';
-    sideH.innerHTML=`<div class="eyebrow">${s.part ? `Interior wall · ${fin(s.body.t)} · ${fin(s.body.len)} long` : `${isInt?(jointWallT(s)===0?'Connecting wall · taken out':`Connecting wall · ${fin(jointWallT(s)??4.5)}`):'Exterior wall · 6½″'} · ${s.len}′${jointWallT(s)===0?'':` · ${s.len/4} panels`}`}</div><h2>${esc(withName(s.label, 'w:'+s.id))}${nameBtn('nmWall')}</h2><p>${s.detail} · faces ${fmtBearing(facing(s))} · now <b>${w?esc(w.id):'—'}</b> ${w?esc(w.name):''}${w&&!w.blank?' <button class="linkbtn ren-link editor-only" id="renWall">Rename</button>':''}</p>`;
+    sideH.innerHTML=`<div class="eyebrow">${s.part ? `Interior wall · ${fin(s.body.t)} · ${fin(s.body.len)} long` : `${isInt?(jointWallT(s)===0?'Connecting wall · taken out':`Connecting wall · ${fin(jointWallT(s)??4.5)}`):'Exterior wall · 6½″'} · ${s.len}′${jointWallT(s)===0?'':` · ${s.len/4} panels`}`}</div><h2>${esc(withName(s.label, 'w:'+s.id))}${nameBtn('nmWall')}</h2><p>${s.detail} · faces ${fmtBearing(facing(s))}<span class="shop-only"> · now <b>${w?esc(w.id):'—'}</b> ${w?esc(w.name):''}${w&&!w.blank?' <button class="linkbtn ren-link editor-only" id="renWall">Rename</button>':''}</span></p>`;
     const rw=sideH.querySelector('#renWall'); if(rw) rw.onclick=()=>askRename('walls', w.mirrorOf||w.id);
     setTimeout(()=>{ if(s.part) bindMid(s); }, 0);
     bindName(sideH, 'nmWall', 'w:'+s.id, `Name ${s.label}`, 'e.g. Kitchen wall');
     sideB.innerHTML=`
-      <div class="row"><button class="btn" id="toSheet">Assembly sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===s.id}">${state.isolate===s.id?'Exit isolate':'Isolate'}</button>${s.short ? `<button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button>` : ''}${w&&!w.blank?`<button class="btn ghost edit-only" id="wMir" title="The same wall the other way round (left ↔ right)">Mirror wall</button>`:''}<button class="btn ghost edit-only" id="wBuild" title="Openings, boxes, holes and shapes for this wall">Panel builder</button></div>
-      ${(state.wallA?.[state.model]?.[s.pod.i] || m.pods[s.pod.i]?.a) ? `<p class="note">Wall A for ${s.pod.label} was set by hand. <button class="linkbtn" id="autoA">Go back to automatic</button></p>`:''}
-      ${s.part?midBlock(s,w):isInt?jointWallBlock(s)+(jointWallT(s)===0?'':jointBlock(s)):''}
+      ${s.part?midBlock(s,w):isInt?jointWallBlock(s):''}
       ${unitsBlock(s, bodyWall(s,w))}
       ${elecWallBlock(s)}
       ${plumbWallBlock(s)}
@@ -431,9 +440,12 @@ function renderSideInner(){
           <div class="seg wrap" role="group" aria-label="Deepest cabinet on this wall">${CAB_PRESETS.map(([n,v])=>`<button data-cab="${v}" data-cabn="${n}" aria-pressed="${kind===n}">${n}${v?` ${v}″`:''}</button>`).join('')}</div>
           <label class="lt-sp">Deepest unit <input type="number" id="cabD" min="0" max="48" step="0.5" value="${d}"> ″ out from the wall</label>
           ${d?`<p class="note">The ceiling lights along this wall sit ${fin(d+6)} out from it (6″ in front of the ${kind.toLowerCase()==='custom'?'units':kind.toLowerCase()}).</p>`:''}</div>`; })()}
-      <div class="eyebrow">${opts.length} options for a ${s.len}′ ${isInt?'interior':'exterior'} wall · seen from ${isInt?(s.other?.label||'the other side'):'outside'}</div>
+      <div class="eyebrow">${opts.length} wall layout${opts.length===1?'':'s'} for a ${s.len}′ ${isInt?'interior':'exterior'} wall · seen from ${isInt?(s.other?.label||'the other side'):'outside'}</div>
       ${opts.length?'':`<p class="note">Nothing in the library for a ${s.len}′ ${isInt?'interior':'exterior'} wall yet. Upload a STEP file of a home that has one and it will be added.</p>`}
-      <div class="opts">${opts.map(o=>`<button class="opt" data-o="${esc(o.id)}" aria-pressed="${w&&o.id===w.id}">${thumbSVG(o)}<b>${esc(o.name)}</b><code>${esc(o.id)}${o.src==='imported'?' · uploaded':''}${o.src==='saved'?' · saved here':''}${o.model?' · this home':''}</code></button>`).join('')}</div>`;
+      <div class="opts">${opts.map(o=>`<button class="opt" data-o="${esc(o.id)}" aria-pressed="${w&&o.id===w.id}">${thumbSVG(o)}<b>${esc(o.name)}</b><code class="shop-only">${esc(o.id)}${o.src==='imported'?' · uploaded':''}${o.src==='saved'?' · saved here':''}${o.model?' · this home':''}</code></button>`).join('')}</div>
+      ${shopSec(`<div class="row"><button class="btn" id="toSheet">Assembly sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===s.id}">${state.isolate===s.id?'Exit isolate':'Isolate'}</button>${s.short ? `<button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button>` : ''}${w&&!w.blank?`<button class="btn ghost edit-only" id="wMir" title="The same wall the other way round (left ↔ right)">Mirror wall</button>`:''}<button class="btn ghost edit-only" id="wBuild" title="Openings, boxes, holes and shapes for this wall">Panel builder</button></div>
+      ${(state.wallA?.[state.model]?.[s.pod.i] || m.pods[s.pod.i]?.a) ? `<p class="note">Wall A for ${s.pod.label} was set by hand. <button class="linkbtn" id="autoA">Go back to automatic</button></p>`:''}
+      ${isInt && !s.part && jointWallT(s)!==0 ? jointBlock(s) : ''}`)}`;
     sideB.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
       choose(s, b.dataset.o);
       // where two pods join, the neighbour's wall becomes the same wall, mirrored
@@ -546,11 +558,12 @@ function bindName(root, id, key, title, placeholder, after){ const b=root.queryS
 function renderDeckSide3d(k){
   const d=deckList(state.model)[k]; if(!d){ state.selected=null; renderSide(); return; }
   const L=d.L;
-  sideH.innerHTML=`<div class="eyebrow">Deck ${k+1} · ${L.w}′ × ${L.d}′ frame</div><h2>${esc(withName(`${L.w}′ × ${L.d}′ deck`, 'd:'+k))}${nameBtn('nmDeck')}</h2><p><code>${esc(L.id)}</code> · double 2×8 rims · 2×8 joists ${deckOCOf(state.model)}″ o.c. from the house · 4 corner notches 1½″ · ¾″ off the house</p>`;
-  sideB.innerHTML=`<div class="row"><button class="btn" id="toSheet">Framing sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate==='deck:'+k}">${state.isolate==='deck:'+k?'Exit isolate':'Isolate'}</button><button class="btn ghost edit-only" id="dTurn" title="Turn it a quarter turn where it docks">Turn</button><button class="btn ghost danger edit-only" id="dDel">Remove deck</button></div>
+  sideH.innerHTML=`<div class="eyebrow">Deck ${k+1} · ${L.w}′ × ${L.d}′ frame</div><h2>${esc(withName(`${L.w}′ × ${L.d}′ deck`, 'd:'+k))}${nameBtn('nmDeck')}</h2><p class="shop-only"><code>${esc(L.id)}</code> · double 2×8 rims · 2×8 joists ${deckOCOf(state.model)}″ o.c. from the house · 4 corner notches 1½″ · ¾″ off the house</p>`;
+  sideB.innerHTML=`<div class="row"><button class="btn ghost edit-only" id="dTurn" title="Turn it a quarter turn where it docks">Turn</button><button class="btn ghost danger edit-only" id="dDel">Remove deck</button></div>
     <div class="fld">Stands on<div class="seg"><button class="fsbtn" id="fScrews" aria-pressed="${d.found!=='pads'}">Ground screws</button><button class="fsbtn" id="fPads" aria-pressed="${d.found==='pads'}">Concrete pads (floating)</button></div></div>
     <div class="edit-only">${ocSeg()}</div>
-    <p class="note">Decks dock with their ledger against a pod or another deck. Long-press a deck to pick it up and move it.</p>`;
+    <p class="note">Decks dock with their ledger against a pod or another deck. Long-press a deck to pick it up and move it.</p>
+    ${shopSec(`<div class="row"><button class="btn" id="toSheet">Framing sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate==='deck:'+k}">${state.isolate==='deck:'+k?'Exit isolate':'Isolate'}</button></div>`, 'Shop · framing sheet, isolate')}`;
   bindOC(sideB, ()=>{ buildHome(); renderSide(); });
   const setF=f=>{ setDeckFoundation(k,f); state.selected='deck:'+k; renderModels(); buildHome(); renderSide(); toast(f==='pads'?'Deck floats on concrete pads':'Deck on ground screws'); };
   sideB.querySelector('#fScrews').onclick=()=>setF('screws'); sideB.querySelector('#fPads').onclick=()=>setF('pads');
@@ -565,11 +578,10 @@ function renderDeckSide3d(k){
 /* ============================================================ layout editor: add / remove pods */
 function renderLayerSide(ls){
   const L=pickLayer(ls), K=LAYER_KINDS[ls.kind], opts=layerOptions(ls.kind, ls.len);
-  sideH.innerHTML=`<div class="eyebrow">${K.label} · ${ls.len}′ × 8′ · ${(L.t||K.t)}″ thick</div><h2>${esc(withName(ls.label, 'l:'+ls.id))}${nameBtn('nmLayer')}</h2><p>now <b>${esc(L.id)}</b> ${esc(L.name)}${L.blank?'':' <button class="linkbtn ren-link editor-only" id="renLayer">Rename</button>'}</p>`;
+  sideH.innerHTML=`<div class="eyebrow">${K.label} · ${ls.len}′ × 8′ · ${(L.t||K.t)}″ thick</div><h2>${esc(withName(ls.label, 'l:'+ls.id))}${nameBtn('nmLayer')}</h2><p class="shop-only">now <b>${esc(L.id)}</b> ${esc(L.name)}${L.blank?'':' <button class="linkbtn ren-link editor-only" id="renLayer">Rename</button>'}</p><p class="design-only">${esc(ls.pod?.label||'')}${ls.pod?' · ':''}${ls.len}′ × 8′</p>`;
   const rl=sideH.querySelector('#renLayer'); if(rl) rl.onclick=()=>askRename('layers', L.id);
   bindName(sideH, 'nmLayer', 'l:'+ls.id, `Name ${ls.label}`, 'e.g. Bedroom ceiling');
   sideB.innerHTML=`
-    <div class="row"><button class="btn" id="toSheet">Layer sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===ls.id}">${state.isolate===ls.id?'Exit isolate':'Isolate'}</button>${L.blank?'':'<button class="btn ghost edit-only" id="lMir" title="End for end">Mirror</button><button class="btn ghost edit-only" id="lFlip" title="Front to back">Flip</button>'}<button class="btn ghost" id="lBuild" title="Holes, hatches, pockets and shapes for this layer">Panel builder</button></div>
     ${(ls.kind==='ceiling-int'||ls.kind==='roof') && state.isolate!==ls.id ? '<p class="note">Turn on Ceiling or Roof under Layers (or use Exploded view) to see them in 3D, or press Isolate.</p>':''}
     ${ls.kind==='ceiling-int' ? (()=>{ const c=cfgOf(state.model), LL=withLights(L, ls);
       return `<div class="lights-box"><div class="eyebrow">Pot lights · 4″, ${LL.lights??0} in this pod</div>
@@ -577,9 +589,11 @@ function renderLayerSide(ls){
         ${c.auto?`<label class="lt-sp">Spacing about <input type="number" id="ltSp" min="24" max="72" step="1" value="${c.spacing}"> ″ <small>(whole home)</small></label>
         <p class="note">Rows run the long way, evenly spaced with half a spacing to the walls; pods joined by a large opening space as one room. Lights move 6″ in front of cabinets set on a wall, and never land on a panel joint.</p>`:''}</div>`; })() : ''}
     ${ls.kind==='ceiling-int' ? lightEditorHTML(ls) : ''}
+    <p class="note design-only">${ls.kind==='floor-int'||ls.kind==='floor-ext' ? 'Flooring and other finishes are picked under Finishes. The floor panel itself (holes, hatches, CNC) is set in Shop.' : 'The panel itself (holes, hatches, CNC) is set in Shop.'}</p>
+    ${shopSec(`<div class="row"><button class="btn" id="toSheet">Layer sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===ls.id}">${state.isolate===ls.id?'Exit isolate':'Isolate'}</button>${L.blank?'':'<button class="btn ghost edit-only" id="lMir" title="End for end">Mirror</button><button class="btn ghost edit-only" id="lFlip" title="Front to back">Flip</button>'}<button class="btn ghost" id="lBuild" title="Holes, hatches, pockets and shapes for this layer">Panel builder</button></div>
     <div class="eyebrow">${opts.length} ${K.label.toLowerCase()} option${opts.length===1?'':'s'} for a ${ls.len}′ pod · seen from above</div>
     ${opts.length?'':`<p class="note">Nothing in the library for this yet. It fills up as STEP files are imported.</p>`}
-    <div class="opts">${opts.map(o=>`<button class="opt" data-o="${esc(o.id)}" aria-pressed="${o.id===L.id}">${layerThumb(o)}<b>${esc(o.name)}</b><code>${esc(o.id)}</code></button>`).join('')}</div>`;
+    <div class="opts">${opts.map(o=>`<button class="opt" data-o="${esc(o.id)}" aria-pressed="${o.id===L.id}">${layerThumb(o)}<b>${esc(o.name)}</b><code>${esc(o.id)}</code></button>`).join('')}</div>`, 'Shop · panel options, sheet, panel builder')}`;
   sideB.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{ chooseLayer(ls, b.dataset.o); buildHome(); renderSide(); toast(`${ls.label} → ${b.dataset.o}`); });
   if(ls.kind==='ceiling-int') bindLightEditor(sideB, ls);
   sideB.querySelector('#lMir')?.addEventListener('click',()=>{ chooseLayer(ls, layerMirrorId(L.id,'x')); buildHome(); renderSide(); toast(`${ls.label} mirrored end for end`); });

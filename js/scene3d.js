@@ -1,6 +1,7 @@
 /* Cubit Builder — scene3d.js */
 import { CEIL, FLOOR, FT, H, POD, PW, T, WALL_BASE, LAYER_KINDS, NOTCH, UP, EPS_PAD } from './config.js';
 import { MODELS } from './data.js';
+import { isShop } from './mode.js';
 import { podOffsets, screwsFor, slotsFor, layerSlotsFor, podList, deckList, layoutOffsets, padsFor, upstairs, POST } from './layout.js';
 import { boolTree } from './geom2d.js';
 import { slopeDepth, mapSlope } from './slope.js';
@@ -514,7 +515,7 @@ function buildHome(){
   slots.forEach(s=>{
     const w=bodyWall(s, pickFor(s)); if(!w) return;
     const mat=new THREE.MeshStandardMaterial({color:s.type==='int'?0xece0c6:0xc9a46a,roughness:0.85});
-    const built=buildWallMesh(w,mat,{nums:state.nums,numSize:1.0,numZ:-(w.t||6.5)/FT-0.45,   // panel numbers over the room side, so a joined pod's numbers don't mix in
+    const built=buildWallMesh(w,mat,{nums:state.nums && isShop(),numSize:1.0,numZ:-(w.t||6.5)/FT-0.45,   // panel numbers over the room side, so a joined pod's numbers don't mix in
       unitOf:o=>unitFor(s,o),openOnly:o=>{ const pr=pairOf(s,o); return !!pr && doorOwner(s,o).id!==s.id; }});
     const g=built.group;
     const r=[s.n[1],-s.n[0]];
@@ -535,7 +536,7 @@ function buildHome(){
       const m=new THREE.Mesh(new THREE.TubeGeometry(curve, Math.max(40, sl.pts.length*3), SEAL.t/2/FT, 8, false), role==='high'?SEAL_HIGH:SEAL_LOW);
       m.userData.seal=role; g.add(m); });
     g.traverse(o=>{ if(o.isMesh) { o.userData.slotId=s.id; pickables.push(o);} });
-    if(state.letters){
+    if(state.letters && isShop()){   // wall letters are for the shop (Design names walls in the side panel)
       const t=(w.t||6.5)/12, mid=wallLen(w)/2/FT;
       const lab=letterSprite(s.letter, 1.3); lab.position.set(mid, 4.6, -t-0.6); lab.userData.letter=true; g.add(lab);   // on the inside face, mid-wall
     }
@@ -713,7 +714,7 @@ function applyLayers(){
   if(northGroup) northGroup.visible = F==null;
   floorMats.forEach(m=>{ m.transparent=S.screws; m.opacity=S.screws?0.35:1; m.depthWrite=!S.screws; m.needsUpdate=true; });
   unitMeshes.forEach(m=>m.visible=S.units);
-  wallGroups.forEach(g=>g.children.forEach(o=>{ if(o.userData.seal) o.visible = S.seals!==false; }));
+  wallGroups.forEach(g=>g.children.forEach(o=>{ if(o.userData.seal) o.visible = S.seals!==false && isShop(); }));   // the seals are a shop detail
   // framing: lumber & LVL and the OSB splines switch on their own; both show through see-through walls
   framingMeshes.forEach(m=>m.visible=(m.userData.spline ? S.splines : S.framing) && S.walls && inPod(m.userData.pod));
   applyRimVis();
