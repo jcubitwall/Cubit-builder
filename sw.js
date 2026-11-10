@@ -7,7 +7,7 @@
      Saving (POST) always goes to the network; drafts are also kept in the browser and go up when the signal is back.
    tools/sw/build.py lists the files (sw-files.json) to keep on install and stamps VERSION; a new VERSION replaces the
    old copy. */
-const VERSION='a8e13dc3e760';
+const VERSION='805088eabe1a';
 const CACHE='cubit-'+VERSION, API='cubit-api';
 self.addEventListener('install', e=>{
   e.waitUntil((async()=>{

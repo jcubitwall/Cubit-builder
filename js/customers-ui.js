@@ -62,7 +62,7 @@ function openCustomer(id){
   d.querySelectorAll('[data-pdf]').forEach(b=>b.onclick=()=>signedPDF(c.id, b.dataset.pdf));
   d.querySelectorAll('[data-prev]').forEach(b=>b.onclick=async()=>{ const k=b.dataset.prev, m=MODELS[k]; b.disabled=true; b.textContent='Making it…';
     try{ const keep=state.model; state.model=k; const A=await import('./approval.js'); const pics=await A.approvalPics(), price=A.customerPrice(k); state.model=keep;
-      await signedPDF(c.id, m.project, { at:new Date().toISOString(), summary:homeSummary(k), finishes:c.selections?.[m.project]||{}, pics, price:price?.price??null, customer:{ name:c.name, company:c.company||'', phone:c.phone||'', email:c.email||'', address:c.address||'', site:c.site||'' }, home:{ id:m.project, name:m.name } }); }
+      await signedPDF(c.id, m.project, { at:new Date().toISOString(), summary:homeSummary(k), finishes:{ ...(await import('./finishes.js')).finishText(k), ...Object.fromEntries(Object.entries(c.selections?.[m.project]||{}).filter(([,v])=>v)) }, pics, price:price?.price??null, customer:{ name:c.name, company:c.company||'', phone:c.phone||'', email:c.email||'', address:c.address||'', site:c.site||'' }, home:{ id:m.project, name:m.name } }); }
     catch(e){ toast('Not made: '+(e.message||e)); }
     b.disabled=false; b.textContent='Approval sheet'; });
   d.querySelector('.cust-pics')?.addEventListener('toggle', async e=>{ if(!e.target.open || e.target.dataset.done) return; e.target.dataset.done='1';
@@ -129,7 +129,7 @@ async function openSign(cid, k){
       // the home as it is now is what's signed: save it first
       const r=await saveProject(m.name, false, { customer:cid }); const pid=(r.project||projectOf(state.model))?.id || m.project;
       const rec={ client:d.querySelector('#sgCn').value.trim()||c.name, rep:d.querySelector('#sgRn').value.trim(), sigClient:pc.png(), sigRep:pr.png(),
-        summary:homeSummary(state.model), finishes:c.selections?.[pid]||{}, pics:await picsP, price:price?.price??null, customer:{ name:c.name, company:c.company||'', phone:c.phone||'', email:c.email||'', address:c.address||'', site:c.site||'' }, home:{ id:pid, name:m.name } };
+        summary:homeSummary(state.model), finishes:{ ...(await import('./finishes.js')).finishText(state.model), ...Object.fromEntries(Object.entries(c.selections?.[pid]||{}).filter(([,v])=>v)) }, pics:await picsP, price:price?.price??null, customer:{ name:c.name, company:c.company||'', phone:c.phone||'', email:c.email||'', address:c.address||'', site:c.site||'' }, home:{ id:pid, name:m.name } };
       await signHome(cid, pid, rec);
       await lockProject(pid, { customer:cid, rep:rec.rep, client:rec.client });
       d.close(); refresh(); toast(`Signed. ${m.name} is locked for ${c.name}.`);

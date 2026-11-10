@@ -2,6 +2,7 @@
 import { CEIL, FLOOR, FT, H, POD, PW, T, WALL_BASE, LAYER_KINDS, NOTCH, UP, EPS_PAD } from './config.js';
 import { MODELS } from './data.js';
 import { isShop } from './mode.js';
+import { designFinish } from './finishes.js';
 import { podOffsets, screwsFor, slotsFor, layerSlotsFor, podList, deckList, layoutOffsets, padsFor, upstairs, POST } from './layout.js';
 import { boolTree } from './geom2d.js';
 import { slopeDepth, mapSlope } from './slope.js';
@@ -178,6 +179,21 @@ function carvable(cands, a,b,y0,y1){
   return ok;
 }
 /* builds one wall as panel groups in local feet coords: x along (exterior-left = 0), y up, z outward (outer face at 0) */
+/* a thin skin over a wall face (finishes.js): the whole face less its openings, at z (feet) in the wall's frame.
+   Siding gets lap lines every 6″ (the texture repeats per foot; the shape's UVs are in feet). */
+let LAP=null;
+function lapTexture(){ if(LAP) return LAP; const c=document.createElement('canvas'); c.width=4; c.height=64; const g=c.getContext('2d');
+  g.fillStyle='#fff'; g.fillRect(0,0,4,64); g.fillStyle='rgba(0,0,0,.22)'; g.fillRect(0,30,4,2); g.fillRect(0,62,4,2); g.fillStyle='rgba(255,255,255,.18)'; g.fillRect(0,0,4,3); g.fillRect(0,32,4,3);
+  LAP=new THREE.CanvasTexture(c); LAP.wrapS=LAP.wrapT=THREE.RepeatWrapping; return LAP; }
+function wallSkin(L, holes, colour, z, siding){
+  const sh=new THREE.Shape(); sh.moveTo(0,0); sh.lineTo(L,0); sh.lineTo(L,H/FT); sh.lineTo(0,H/FT); sh.lineTo(0,0);
+  holes.forEach(o=>{ const p=new THREE.Path();
+    if(o.shape==='round'){ const r=(o.d||o.w)/2/FT, cx=(o.x+(o.d||o.w)/2)/FT, cy=(o.y+(o.d||o.h)/2)/FT; p.absarc(cx, cy, r, 0, Math.PI*2, true); }
+    else { const x0=o.x/FT, y0=Math.max(0.001,o.y/FT), x1=(o.x+o.w)/FT, y1=Math.min(H/FT-0.001,(o.y+o.h)/FT); p.moveTo(x0,y0); p.lineTo(x0,y1); p.lineTo(x1,y1); p.lineTo(x1,y0); p.lineTo(x0,y0); }
+    sh.holes.push(p); });
+  const m=new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshStandardMaterial({ color:colour, roughness:0.9, side:THREE.DoubleSide, ...(siding?{ map:lapTexture() }:{}) }));
+  m.position.z=z; m.userData.skin=true; return m;
+}
 function buildWallMesh(w, mat, opts={}){
   const g = new THREE.Group(); const n=panelCount(w); const panels=[]; const spans=panelSpans(w), L=wallLen(w);
   const t=(w.t||T)/FT;
@@ -512,6 +528,7 @@ function buildHome(){
     const ng=new THREE.Group(); ng.add(arrow);
     const lab=letterSprite('N',1.1); lab.userData.north=true; lab.position.set(0,0.8,-3.2); ng.add(lab);
     ng.scale.setScalar(1.6); ng.rotation.y=B; ng.position.set(minx-9, -FLOOR-0.01, maxz+12); homeGroup.add(ng); northGroup=ng; }
+  const FIN=designFinish(state.model);
   slots.forEach(s=>{
     const w=bodyWall(s, pickFor(s)); if(!w) return;
     const mat=new THREE.MeshStandardMaterial({color:s.type==='int'?0xece0c6:0xc9a46a,roughness:0.85});
@@ -535,6 +552,10 @@ function buildHome(){
       const curve=new THREE.CatmullRomCurve3(sl.pts.map(([x,y])=>new THREE.Vector3(x/FT, y/FT, SEAL.t/2/FT)), false, 'centripetal');
       const m=new THREE.Mesh(new THREE.TubeGeometry(curve, Math.max(40, sl.pts.length*3), SEAL.t/2/FT, 8, false), role==='high'?SEAL_HIGH:SEAL_LOW);
       m.userData.seal=role; g.add(m); });
+    // Design, with finishes picked: siding on the outside of exterior walls, paint on the room faces
+    if(FIN){ const t=(w.t||(s.type==='int'?4.5:6.5))/FT, L=wallLen(w)/FT, holes=(w.openings||[]).filter(o=>(o.w||o.d||0)>=3);
+      if(s.type==='ext' && FIN.siding) g.add(wallSkin(L, holes, FIN.siding, 0.03, true));
+      if(FIN.paint){ g.add(wallSkin(L, holes, FIN.paint, -t-0.03, false)); if(s.type==='int') g.add(wallSkin(L, holes, FIN.paint, 0.03, false)); } }
     g.traverse(o=>{ if(o.isMesh) { o.userData.slotId=s.id; pickables.push(o);} });
     if(state.letters && isShop()){   // wall letters are for the shop (Design names walls in the side panel)
       const t=(w.t||6.5)/12, mid=wallLen(w)/2/FT;
@@ -775,7 +796,8 @@ onFurnApplied(()=>applyGhost());
 function ghostOf(m){ let g=GHOST.get(m); if(!g){ g=m.clone(); g.transparent=true; g.opacity=(m.opacity??1)*0.14; g.depthWrite=false; GHOST.set(m,g); } return g; }
 function applyGhost(){
   if(!homeGroup) return;
-  const tgt = !state.isolate ? (state.selFurn ? furnHolder(state.selFurn) : state.selected ? isoTarget(state.selected) : null) : null;
+  // the 2D drawing marks the picked wall itself; see-through 3D under it only shows as stray lines
+  const tgt = !state.isolate && !document.body.classList.contains('two-d') ? (state.selFurn ? furnHolder(state.selFurn) : state.selected ? isoTarget(state.selected) : null) : null;
   const keep=new Set(); tgt?.traverse(o=>keep.add(o));
   homeGroup.traverse(o=>{
     if(!(o.isMesh||o.isLineSegments||o.isLine||o.isSprite) || Array.isArray(o.material) || o.userData.pickPane || o.userData.noGhost) return;

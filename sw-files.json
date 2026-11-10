@@ -1,5 +1,5 @@
 {
-"version": "a8e13dc3e760",
+"version": "805088eabe1a",
 "files": [
 "./",
 "brand/cubit-logo.png",
@@ -56,6 +56,8 @@
 "js/drafts.js",
 "js/electrical-ui.js",
 "js/electrical.js",
+"js/finishes-ui.js",
+"js/finishes.js",
 "js/format.js",
 "js/foundation.js",
 "js/framesheet.js",
@@ -118,6 +120,7 @@
 "js/team-ui.js",
 "js/tools-ui.js",
 "js/trash-ui.js",
+"js/unitdrop.js",
 "js/units.js",
 "js/upload.js",
 "js/vendor/clipper.js",

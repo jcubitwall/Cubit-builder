@@ -1523,3 +1523,24 @@ body.presenting :is(.build-tray,.quickbar,.fs-bar,.vcube-wrap,.bc-compass,.flat-
 .opt-row small{color:var(--ink-2);font-size:12px;white-space:nowrap}
 .opt-row[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
 html.phone .present-b .lbl, html.phone .present-b{padding:0 10px}
+/* Finishes (finishes-ui.js) */
+.fin-pop{position:absolute;left:12px;top:64px;z-index:8;width:min(360px,calc(100% - 24px));max-height:calc(100% - 250px);overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 36px rgba(0,0,0,.18);padding:12px 14px}
+.fin-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.fin-h b{font-size:15px}
+.fin-row{display:flex;flex-direction:column;gap:6px;padding:8px 0;border-top:1px solid var(--line)}
+.fin-l{display:flex;justify-content:space-between;font-weight:600;font-size:13px}
+.fin-l small{font-weight:500;color:var(--ink-2)}
+.fin-sw{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.sw-b{width:36px;height:36px;border-radius:50%;border:2px solid transparent;padding:2px;background:none;cursor:pointer}
+.sw-b span{display:block;width:100%;height:100%;border-radius:50%;background:var(--c);box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
+.sw-b[aria-pressed="true"]{border-color:var(--accent)}
+.sw-x{border:0;background:none;color:var(--ink-2);cursor:pointer;font-size:13px;padding:6px}
+body.presenting .fin-pop{display:none}
+/* walk inside (build.js) */
+.walk-ov{position:absolute;inset:0;z-index:8;touch-action:none;cursor:grab}
+.walk-tip{position:absolute;top:16px;left:50%;transform:translateX(-50%);font:600 12px var(--mono);color:#fff;background:rgba(20,22,20,.55);padding:6px 12px;border-radius:999px;pointer-events:none;animation:walkTip 5s forwards}
+@keyframes walkTip{0%,70%{opacity:1}100%{opacity:0}}
+.walk-pad{position:absolute;left:24px;bottom:96px;display:flex;flex-direction:column;gap:8px}
+.walk-pad button{width:64px;height:64px;border-radius:50%;border:1px solid rgba(255,255,255,.6);background:rgba(20,22,20,.45);color:#fff;font-size:22px;cursor:pointer;touch-action:none}
+.walk-x{position:absolute;right:16px;top:16px;min-height:44px;padding:0 18px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:600 14px var(--body,inherit);cursor:pointer}
+body.walking .present-bar{display:none}

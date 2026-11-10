@@ -635,13 +635,14 @@ function renderLayerSide(ls){
     ${ls.kind==='ceiling-int' ? lightEditorHTML(ls) : ''}
     ${/^floor/.test(ls.kind) && ls.pod ? (()=>{ const cur=nameOf('p:'+ls.pod.i)||''; const R=['Bedroom','Bathroom','Kitchen','Living','Dining','Laundry','Office','Entry','Kitchen & living'];
       return `<div class="room-box"><div class="eyebrow">Room · shows on the plan and the drawings</div><div class="seg wrap" role="group" aria-label="Room name">${R.map(r=>`<button data-room="${esc(r)}" aria-pressed="${cur===r}" ${canSave()?'':'disabled'}>${esc(r)}</button>`).join('')}<button data-room="__other" ${canSave()?'':'disabled'}>${cur && !R.includes(cur) ? esc(cur)+' ✎' : 'Other…'}</button></div></div>`; })() : ''}
-    <p class="note design-only">${ls.kind==='floor-int'||ls.kind==='floor-ext' ? 'Flooring and other finishes are picked under Finishes. The floor panel itself (holes, hatches, CNC) is set in Shop.' : 'The panel itself (holes, hatches, CNC) is set in Shop.'}</p>
+    <p class="note design-only">${ls.kind==='floor-int'||ls.kind==='floor-ext' ? 'Flooring, siding, roof and paint are picked by eye under <button class="linkbtn" id="toFin">Finishes</button>. The floor panel itself (holes, hatches, CNC) is set in Shop.' : 'The panel itself (holes, hatches, CNC) is set in Shop.'}</p>
     ${shopSec(`<div class="row"><button class="btn" id="toSheet">Layer sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===ls.id}">${state.isolate===ls.id?'Exit isolate':'Isolate'}</button>${L.blank?'':'<button class="btn ghost edit-only" id="lMir" title="End for end">Mirror</button><button class="btn ghost edit-only" id="lFlip" title="Front to back">Flip</button>'}<button class="btn ghost" id="lBuild" title="Holes, hatches, pockets and shapes for this layer">Panel builder</button></div>
     <div class="eyebrow">${opts.length} ${K.label.toLowerCase()} option${opts.length===1?'':'s'} for a ${ls.len}′ pod · seen from above</div>
     ${opts.length?'':`<p class="note">Nothing in the library for this yet. It fills up as STEP files are imported.</p>`}
     <div class="opts">${opts.map(o=>`<button class="opt" data-o="${esc(o.id)}" aria-pressed="${o.id===L.id}">${layerThumb(o)}<b>${esc(o.name)}</b><code>${esc(o.id)}</code></button>`).join('')}</div>`, 'Shop · panel options, sheet, panel builder')}`;
   sideB.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{ chooseLayer(ls, b.dataset.o); buildHome(); renderSide(); toast(`${ls.label} → ${b.dataset.o}`); });
   if(ls.kind==='ceiling-int') bindLightEditor(sideB, ls);
+  sideB.querySelector('#toFin')?.addEventListener('click', ()=>import('./finishes-ui.js').then(m=>m.openFinishes(true)));
   // a room name for the pod, with one tap (a pod split by interior walls: the biggest room carries it)
   sideB.querySelectorAll('[data-room]').forEach(b=>b.onclick=async()=>{ const key='p:'+ls.pod.i; let v=b.dataset.room;
     if(v==='__other'){ v=await askName({ title:'Room name', current:nameOf(key)||'', placeholder:'e.g. Bunk room' }); if(v==null) return; }

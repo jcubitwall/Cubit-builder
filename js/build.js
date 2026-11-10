@@ -27,6 +27,7 @@ import { renderModels, renderSide, toast } from './sidebar.js';
 import { deckName } from './deckframe.js';
 import { freeSpot, clash } from './furniture.js';
 import { addStair } from './stairs.js';
+import { UNITLIB, TYPES as UTYPES, unitSVG } from './units.js';
 import { furnMeshes, furnById, snap, addItem, updateItem, refreshItem, applyFurniture, showFurnGhost, hideFurnGhost, turnItem, setHolderVisible, handleMeshes, roomBeyond, stretchTo, rotXZ, turnStart, turnTo, groupMembers, setMany, moveHolder, addRecipe, furnitureOf, onFurnChanged } from './furniture.js';
 import { planFor } from './electrical.js';
 import { midHandleMeshes, startMid, trackMid, endMid, handleY } from './midhandles.js';
@@ -100,7 +101,7 @@ function set2D(on, quick=false){
     const step=()=>{ const k=Math.min(1,(performance.now()-T)/320), e=k*k*(3-2*k); camera.position.lerpVectors(p0,end,e); camera.lookAt(t); controls.update();
       if(k<1) anim=requestAnimationFrame(step); else { controls.enableDamping=true; badge(); } }; step(); }
   document.body.classList.toggle('two-d', on);
-  paper(on);
+  paper(on); highlight();
   btn2D.textContent = on ? '3D' : '2D'; btn2D.setAttribute('aria-pressed', on); btn2D.title = on ? 'Back to the 3D view' : 'Flat top view (true 2D) for placing cabinets';
   badge();
 }
@@ -235,7 +236,8 @@ function hideLowLines(){
 }
 function showLowLines(){ homeGroup.traverse(o=>{ if(o.userData.hid2d){ o.visible=true; delete o.userData.hid2d; } }); }
 function paper(on){
-  if(on){ if(!BP.bg) BP.bg=scene.background; scene.background=new THREE.Color(0xfbfbf8); BP.gridVis=grid.visible; grid.visible=false;
+  if(on){ if(LOOK.on){ scene.background=LOOK.bg; grid.visible=LOOK.grid; LOOK.ground?.parent?.remove(LOOK.ground); renderer.shadowMap.enabled=false; LOOK.on=false; }   // the 3D look steps aside for the drawing
+    if(!BP.bg) BP.bg=scene.background; scene.background=new THREE.Color(0xfbfbf8); BP.gridVis=grid.visible; grid.visible=false;
     BP.hemi=scene.children.find(o=>o.isHemisphereLight); if(BP.hemi){ BP.hemi.userData.i0 ??= BP.hemi.intensity; BP.hemi.intensity=1.35; }
     // a clean drawing: wall letters and panel numbers off while in 2D (Layers turns them back on)
     BP.lab={ letters:state.letters, nums:state.nums };
@@ -639,9 +641,17 @@ function queuePics(){ picQ=[...tray.querySelectorAll('[data-pic]')]; cancelAnima
   if(picQ.length) picT=requestAnimationFrame(step); }; picT=requestAnimationFrame(step); }
 function renderTray(){
   tray.classList.toggle('acc', trayTab==='cab'); tray.classList.toggle('tucked', trayHidden);
-  const tabs=`<div class="tray-tabs" role="tablist"><button role="tab" data-tab="pods" aria-selected="${trayTab==='pods'}">Cubits</button><button role="tab" data-tab="cab" aria-selected="${trayTab==='cab'}">Accessories</button></div>`;
+  const tabs=`<div class="tray-tabs" role="tablist"><button role="tab" data-tab="pods" aria-selected="${trayTab==='pods'}">Cubits</button><button role="tab" data-tab="cab" aria-selected="${trayTab==='cab'}">Accessories</button><button role="tab" data-tab="units" aria-selected="${trayTab==='units'}">Windows</button></div>`;
   const tuck=`<button class="tray-tuck" data-tuck="1" aria-label="${trayHidden?'Show the tray':'Hide the tray'}" title="${trayHidden?'Show the tray':'Hide the tray'}">${trayHidden?'▴ Tray':'▾'}</button>`;
   if(trayHidden){ tray.innerHTML=tuck; return; }
+  if(trayTab==='units'){
+    // windows and doors from the library: drag one onto a wall
+    const U=UNITLIB.filter(u=>!u.deleted && UTYPES[u.type]), order={ window:0, patio:1, door:2 };
+    U.sort((a,b)=>(order[UTYPES[a.type].cat]-order[UTYPES[b.type].cat]) || (a.sample?1:0)-(b.sample?1:0) || a.w-b.w);
+    tray.classList.remove('acc');
+    tray.innerHTML = tuck + tabs + (U.map(u=>`<button class="tray-it unit" data-unit="${escA(u.id)}" title="${escA(u.name)} · drag it onto a wall"><span class="tray-cab">${unitSVG(u.type,'L',u.w,u.h,40,false,!!UTYPES[u.type].round)}</span><b>${escA(String(u.name).replace(/\s*\(sample\)/i,''))}</b><small>${escA(UTYPES[u.type].label)} · ${Math.round(u.w*8)/8}″ × ${Math.round(u.h*8)/8}″${u.sample?' · sample':''}</small></button>`).join('') || '<span class="tray-none">No windows or doors in the library yet.</span>');
+    return;
+  }
   if(trayTab==='cab'){
     tray.innerHTML = tuck + tabs + `<div class="tray-acc">
       <div class="tray-top"><label class="tray-q"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m11 11 3.5 3.5" stroke="currentColor" stroke-width="1.6"/></svg><input type="search" id="trayQ" placeholder="Search: fridge, 36 vanity…" aria-label="Search accessories" value="${escA(trayQ)}" autocomplete="off"></label>
@@ -680,6 +690,7 @@ tray.addEventListener('pointerdown', e=>{
   const sx=e.clientX, sy=e.clientY, id=e.pointerId;
   if(b.dataset.mid){ dragMid(e, b); return; }
   if(b.dataset.stair){ dragStair(e); return; }
+  if(b.dataset.unit){ dragUnit(e, b.dataset.unit); return; }
   const cab=b.dataset.k, kit=b.dataset.kit && kitchenById(b.dataset.kit);
   const item = cab||b.dataset.deck ? null : b.dataset.lib ? {lib:b.dataset.lib, ...(state.level?{lv:state.level}:{})} : {t:b.dataset.t, ...(state.level?{lv:state.level}:{})};
   const t = item ? (item.lib ? podById(item.lib).t : item.t) : null;
@@ -729,6 +740,32 @@ function dragMid(e, b){
     toast(`Interior wall ${dir==='long'?'along':'across'} ${P.label}${near && Math.abs(near.at-v)<=3 ? ` · ${near.label}` : ''} · tap a door option`); };
   window.addEventListener('pointermove',mv); window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up);
 }
+/* a window or door from the tray onto a wall (unitdrop.js picks where it goes) */
+function wallUnder(x, y){
+  const h=hitAt(x, y), id=h?.object?.userData?.slotId; if(!id) return null;
+  const s=slotsFor(state.model).find(q=>q.id===id); if(!s) return null;
+  const g=wallGroups.find(g=>g.userData?.slot?.id===s.id); if(!g) return null;
+  const at=g.worldToLocal(h.point.clone()).x*12; return { s, at };
+}
+function dragUnit(e, uid){
+  const sx=e.clientX, sy=e.clientY, id=e.pointerId; let moved=false, last=null;
+  const mv=ev=>{ if(ev.pointerId!==id) return; if(!moved){ if(Math.hypot(ev.clientX-sx, ev.clientY-sy)<14) return; moved=true; document.body.classList.add('dragging'); controls.enabled=false; }
+    last=[ev.clientX, ev.clientY]; const W_=wallUnder(ev.clientX, ev.clientY), r=stage.getBoundingClientRect();
+    tip.hidden=false; tip.style.left=(ev.clientX-r.left)+'px'; tip.style.top=(ev.clientY-r.top-46)+'px';
+    tip.textContent = W_ ? `${W_.s.label} · ${Math.max(0, Math.round(W_.at/12*2)/2)}′ along` : 'Drop it on a wall';
+    if(W_ && state.selected!==W_.s.id){ state.selected=W_.s.id; highlight(); } };
+  const up=async ev=>{ if(ev.pointerId!==id) return; window.removeEventListener('pointermove',mv); window.removeEventListener('pointerup',up); window.removeEventListener('pointercancel',up);
+    document.body.classList.remove('dragging'); controls.enabled=true; tip.hidden=true;
+    if(!moved){ toast('Drag it onto a wall'); return; }
+    trayDragAt=performance.now();
+    const W_=wallUnder(ev.clientX, ev.clientY); if(!W_){ toast('Drop it on a wall'); return; }
+    const u=UNITLIB.find(x=>x.id===uid); if(!u) return;
+    try{ const { placeUnit } = await import('./unitdrop.js'); const r=await placeUnit(u, W_.s, W_.at);
+      if(r.ok){ state.selected=W_.s.id; renderModels(); buildHome(); highlight(); renderSide(); if(!panelOpen()) setPanel(true); }
+      toast(r.msg); }
+    catch(err){ toast('Not added: '+(err.message||err)); } };
+  window.addEventListener('pointermove',mv); window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up);
+}
 /* Stairs from the tray: dropped on a pod, a stair in it (or up into it from the pod below) */
 function dragStair(e){
   const sx=e.clientX, sy=e.clientY, id=e.pointerId; let moved=false;
@@ -754,6 +791,7 @@ tray.addEventListener('click', e=>{
   if(b.dataset.open){ const first=trayItems()[0]; openCaseLib({cat: !trayQ && trayRoom==='kitchen' && KITCHENS.length ? 'k:kit' : (first?.cat || trayCat)}); return; }
   if(!editable()) return;
   if(b.dataset.stair){ stairAt(null); return; }
+  if(b.dataset.unit){ toast('Drag it onto a wall'); return; }
   if(b.dataset.k){ dropItemHere(b.dataset.k); return; }
   if(b.dataset.kit){ const K=kitchenById(b.dataset.kit); if(K) import('./viewer3d.js').then(m=>m.openViewer('kitchen', null, { name:K.name, items:K.items, sub:`saved kitchen · ${K.items.length} items · drag it from the tray into a pod to add it` })); return; }
   if(b.dataset.deck){ const s=deckSpots(b.dataset.deck,0)[0]; if(!s){ toast('No place for this deck yet.'); return; } after(addDeck(b.dataset.deck, s.x, s.z, 0), 'Deck added'); return; }
@@ -894,7 +932,7 @@ function applyLook(){
     homeGroup.traverse(o=>{ if(o.isMesh && !o.userData.plan){ o.castShadow=true; o.receiveShadow=true; } });
     LOOK.on=true;
   } else if(LOOK.on){
-    if(scene.background===LOOK.sky) scene.background=LOOK.bg; grid.visible=LOOK.grid; LOOK.ground?.parent?.remove(LOOK.ground);
+    if(scene.background===LOOK.sky) scene.background=LOOK.bg; if(!TWO_D) grid.visible=LOOK.grid; LOOK.ground?.parent?.remove(LOOK.ground);
     renderer.shadowMap.enabled=false; if(SUN) SUN.castShadow=false; LOOK.on=false;
   }
 }
@@ -906,7 +944,7 @@ setInterval(()=>{ const want=isDesign() && !TWO_D && state.view==='studio'; if(w
    picture, and Exit puts everything back as it was. A touch stops the turning so you can turn it yourself. */
 const pres={ on:false, keep:null };
 const pbar=document.createElement('div'); pbar.className='present-bar'; pbar.hidden=true;
-pbar.innerHTML=`<button data-p="out">Outside</button><button data-p="in">Inside</button><button data-p="plan">Plan</button><button data-p="snap" aria-label="Take a picture">📷 Picture</button><button data-p="x" class="px">Exit</button>`;
+pbar.innerHTML=`<button data-p="out">Outside</button><button data-p="in">Inside</button><button data-p="walk">Walk inside</button><button data-p="plan">Plan</button><button data-p="snap" aria-label="Take a picture">📷 Picture</button><button data-p="x" class="px">Exit</button>`;
 stage.appendChild(pbar);
 function flyView(az, el, fill=1.25){
   const B=homeBox(); if(!B) return; const c=B.getCenter(new THREE.Vector3()), r=B.getSize(new THREE.Vector3()).length()/2;
@@ -923,12 +961,13 @@ function solidRoof(on){
 }
 function presentShow(roof){ state.show.roof=roof; state.show.ceiling=roof; solidRoof(false); import('./scene3d.js').then(m=>{ m.applyLayers(); if(roof) solidRoof(true); }); }
 function presentView(v){
+  if(W.on) walk(false);
   pbar.querySelectorAll('[data-p]').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.p===v)));
   if(v==='plan'){ controls.autoRotate=false; presentShow(false); set2D(true); flatten(true); return; }
   if(TWO_D) set2D(false);
   if(v==='out'){ presentShow(true); flyView(-35, 16); controls.autoRotateSpeed=0.6; }
   else { presentShow(false); flyView(-25, 55, 0.95); controls.autoRotateSpeed=0.4; }
-  setTimeout(()=>{ if(pres.on) controls.autoRotate=true; }, 650);
+  setTimeout(()=>{ if(pres.on && !W.on) controls.autoRotate=true; }, 650);
 }
 function present(on){
   if(on===pres.on) return; pres.on=on;
@@ -940,6 +979,7 @@ function present(on){
     document.body.classList.add('presenting'); pbar.hidden=false;
     presentView('out');
   } else {
+    if(W.on) walk(false);
     controls.autoRotate=false; document.body.classList.remove('presenting'); pbar.hidden=true; solidRoof(false);
     const k=pres.keep||{}; Object.assign(state.show, k.show||{}); import('./scene3d.js').then(m=>m.applyLayers());
     if(!k.fs) exitFullscreen();
@@ -948,7 +988,7 @@ function present(on){
   }
 }
 pbar.addEventListener('click', e=>{ const b=e.target.closest('[data-p]'); if(!b) return; const v=b.dataset.p;
-  if(v==='x') present(false); else if(v==='snap') snapshot(); else presentView(v); });
+  if(v==='x') present(false); else if(v==='snap') snapshot(); else if(v==='walk') walk(true); else presentView(v); });
 stage.addEventListener('pointerdown', e=>{ if(pres.on && e.target===cv) controls.autoRotate=false; }, true);
 document.addEventListener('keydown', e=>{ if(pres.on && e.key==='Escape'){ e.preventDefault(); present(false); } }, true);
 /* the Present and Picture buttons, in the toolbar beside Layers */
@@ -957,6 +997,69 @@ setTimeout(()=>{ const bar=document.querySelector('#stage .fs-bar'), full=docume
   const sb=document.createElement('button'); sb.className='fsbtn snap-b'; sb.innerHTML='<span aria-hidden="true">📷</span>'; sb.title='Take a picture of what is on screen'; sb.setAttribute('aria-label','Take a picture'); sb.onclick=()=>snapshot();
   (full||bar.firstChild)?.after(pb, sb); }, 0);
 
+/* ---------------------------------------------------------------- walk inside, at eye height
+   Drag to look around, tap the floor to walk there, hold ▲ / ▼ to walk on (or the arrow keys / W A S D). The roof and
+   ceiling are on, so it looks like being in the finished room. Done puts the view back. */
+const W={ on:false, keep:null, yaw:0, pitch:-0.05, eye:5.5, raf:0, move:0 };
+const wov=document.createElement('div'); wov.className='walk-ov'; wov.hidden=true;
+wov.innerHTML=`<div class="walk-tip">Drag to look · tap the floor to walk there</div><div class="walk-pad"><button data-w="fwd" aria-label="Walk forward">▲</button><button data-w="back" aria-label="Walk back">▼</button></div><button class="walk-x" data-w="x">Done</button>`;
+stage.appendChild(wov);
+const ray2=new THREE.Raycaster();
+function floorAt(x, z){ ray2.set(new THREE.Vector3(x, 60, z), new THREE.Vector3(0,-1,0)); const h=ray2.intersectObjects(pickables, false).find(h=>/:floor-int$/.test(h.object.userData.slotId||'') && shown(h.object)); return h ? h.point.y : null; }
+function walkAim(){ const d=new THREE.Vector3(Math.sin(W.yaw)*Math.cos(W.pitch), Math.sin(W.pitch), Math.cos(W.yaw)*Math.cos(W.pitch)); controls.target.copy(camera.position).addScaledVector(d, 2); camera.lookAt(controls.target); controls.update(); }
+function walkTo(x, z, ms=700){
+  const B=homeBox(); if(B){ x=Math.max(B.min.x+1, Math.min(B.max.x-1, x)); z=Math.max(B.min.z+1, Math.min(B.max.z-1, z)); }
+  const fy=floorAt(x, z); const y=(fy!=null ? fy : camera.position.y-W.eye)+W.eye;
+  const p0=camera.position.clone(), p1=new THREE.Vector3(x, y, z), T=performance.now(); cancelAnimationFrame(W.raf);
+  const step=()=>{ const k=Math.min(1,(performance.now()-T)/ms), e=k*k*(3-2*k); camera.position.lerpVectors(p0,p1,e); walkAim(); if(k<1) W.raf=requestAnimationFrame(step); }; step();
+}
+function walk(on){
+  if(on===W.on) return; W.on=on;
+  if(on){
+    if(!pres.on) present(true);
+    W.keep={ pos:camera.position.clone(), tgt:controls.target.clone(), fov:camera.fov };
+    controls.autoRotate=false; if(TWO_D) set2D(false); presentShow(true);
+    pbar.querySelectorAll('[data-p]').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.p==='walk')));
+    camera.fov=62; camera.near=0.1; camera.updateProjectionMatrix(); controls.enableDamping=false; controls.minDistance=0.5;
+    // light in the room, as if the lights were on
+    if(!W.lamp){ W.lamp=new THREE.PointLight(0xfff4e6, 0.28, 30, 2); } camera.add(W.lamp); if(!camera.parent) scene.add(camera);
+    const hemi=scene.children.find(o=>o.isHemisphereLight); if(hemi){ W.hemi=hemi; W.hemiI=hemi.intensity; hemi.intensity=Math.max(hemi.intensity, 0.95); }
+    // start in the middle of the biggest room, looking along it
+    setTimeout(()=>{ const P=podList(state.model).filter(p=>!p.lv).sort((a,b)=>b.len-a.len)[0], OFF=podOffsets(state.model);
+      let c=null; if(P){ const o=OFF[P.i]; c=homeGroup.localToWorld(new THREE.Vector3(P.x+o.ox+P.w/2, 0, P.z+o.oz+P.d/2)); W.yaw = P.alongX ? Math.PI/2 : 0; }
+      else { const B=homeBox(); c=B?B.getCenter(new THREE.Vector3()):new THREE.Vector3(); }
+      W.pitch=-0.05; const fy=floorAt(c.x, c.z); camera.position.set(c.x, (fy??0)+W.eye, c.z); walkAim(); }, 450);
+    wov.hidden=false; document.body.classList.add('walking');
+  } else {
+    cancelAnimationFrame(W.raf); W.move=0; wov.hidden=true; document.body.classList.remove('walking');
+    W.lamp?.parent?.remove(W.lamp); if(W.hemi){ W.hemi.intensity=W.hemiI; W.hemi=null; } controls.minDistance=TWO_D?1.5*K2D:1.5;
+    const k=W.keep; if(k){ camera.fov=k.fov; camera.near=TWO_D?2:0.5; camera.updateProjectionMatrix(); camera.position.copy(k.pos); controls.target.copy(k.tgt); controls.update(); }
+    controls.enableDamping=true;
+  }
+}
+{ let drag=null;
+  wov.addEventListener('pointerdown', e=>{ if(e.target.closest('button')) return; drag={ x:e.clientX, y:e.clientY, x0:e.clientX, y0:e.clientY, t:performance.now() }; wov.setPointerCapture?.(e.pointerId); });
+  wov.addEventListener('pointermove', e=>{ if(!drag) return; const dx=e.clientX-drag.x, dy=e.clientY-drag.y; drag.x=e.clientX; drag.y=e.clientY;
+    W.yaw-=dx*0.005; W.pitch=Math.max(-1.2, Math.min(1.2, W.pitch+dy*0.004)); walkAim(); });
+  wov.addEventListener('pointerup', e=>{ const d=drag; drag=null; if(!d) return;
+    if(Math.hypot(e.clientX-d.x0, e.clientY-d.y0)<8 && performance.now()-d.t<400){   // a tap: walk to that spot on the floor
+      const r=cv.getBoundingClientRect(); ndc.set(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1); ray.setFromCamera(ndc, camera);
+      const h=ray.intersectObjects(pickables, false).find(h=>shown(h.object)); if(h){ const back=new THREE.Vector3().subVectors(h.point, camera.position).setY(0); const L=back.length(); if(L>0.5) back.multiplyScalar(Math.max(0, L-1.2)/L); walkTo(camera.position.x+back.x, camera.position.z+back.z); } } });
+  const hold=(dir)=>{ W.move=dir; let last=performance.now(); const step=()=>{ if(!W.move) return; const now=performance.now(), dt=(now-last)/1000; last=now;
+      const dirv=new THREE.Vector3(Math.sin(W.yaw), 0, Math.cos(W.yaw)).multiplyScalar(W.move), v=dirv.clone().multiplyScalar(3.2*dt), B=homeBox();
+      // walls stop you (a door or an opening lets you through): nothing solid within 1½′ ahead at knee and chest height
+      const blocked=[1.5, 4.2].some(hh=>{ ray2.set(new THREE.Vector3(camera.position.x, camera.position.y-W.eye+hh, camera.position.z), dirv); ray2.far=1.6;
+        const h=ray2.intersectObjects(pickables, false).find(h=>shown(h.object) && !h.object.userData.pickPane && !(h.object.material?.transparent && h.object.material.opacity<0.5)); ray2.far=Infinity; return !!h; });
+      if(!blocked) camera.position.add(v);
+      if(B){ camera.position.x=Math.max(B.min.x+1, Math.min(B.max.x-1, camera.position.x)); camera.position.z=Math.max(B.min.z+1, Math.min(B.max.z-1, camera.position.z)); }
+      const fy=floorAt(camera.position.x, camera.position.z); if(fy!=null) camera.position.y=fy+W.eye; walkAim(); W.raf=requestAnimationFrame(step); }; step(); };
+  wov.querySelectorAll('[data-w="fwd"],[data-w="back"]').forEach(b=>{ b.addEventListener('pointerdown', e=>{ e.preventDefault(); hold(b.dataset.w==='fwd'?1:-1); }); ['pointerup','pointerleave','pointercancel'].forEach(t=>b.addEventListener(t, ()=>{ W.move=0; })); });
+  wov.querySelector('[data-w="x"]').onclick=()=>{ walk(false); presentView('out'); };
+  document.addEventListener('keydown', e=>{ if(!W.on) return; const k=e.key.toLowerCase();
+    if(k==='arrowup'||k==='w'){ if(!W.move){ e.preventDefault(); hold(1); } } else if(k==='arrowdown'||k==='s'){ if(!W.move){ e.preventDefault(); hold(-1); } }
+    else if(k==='arrowleft'||k==='a'){ W.yaw+=0.08; walkAim(); } else if(k==='arrowright'||k==='d'){ W.yaw-=0.08; walkAim(); } });
+  document.addEventListener('keyup', e=>{ if(W.on && /^(arrowup|arrowdown|w|s)$/.test(e.key.toLowerCase())) W.move=0; });
+}
 /* ---------------------------------------------------------------- a picture of what's on screen
    Saved to the customer's file (when the home is theirs, on the team's server), or downloaded / shared. */
 async function snapshot(){
