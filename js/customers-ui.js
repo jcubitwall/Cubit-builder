@@ -46,7 +46,7 @@ function openCustomer(id){
         <details ${homes.length===1?'open':''}><summary>Selections</summary>${summaryHTML(homeSummary(k))}
           <div class="cust-fin">${FINISHES.map(([f,l])=>`<label class="fld">${l}<input data-fin="${esc(pid)}:${f}" value="${esc(F[f]||'')}" ${ro||locked?'disabled':''} placeholder="${locked?'':'to choose'}"></label>`).join('')}</div>
           ${(m.unlocks||[]).length?`<p class="note">Unlocked: ${m.unlocks.map(u=>`${esc(day(u.at))} (${esc(u.reason)}${u.fee?` · fee ${esc(u.fee)}`:''})`).join('; ')}</p>`:''}</details></section>`; }).join('')
-      : '<p class="note">No home linked yet. Open a draft or a Purgatory home and tap <b>Save to Customer</b>.</p>'}
+      : '<p class="note">No home linked yet. Open a draft or an Unassigned home and tap <b>Save to Customer</b>.</p>'}
     <details class="cust-log"><summary>Log</summary><ul>${(c.log||[]).slice().reverse().map(l=>`<li>${esc(when(l.at))} · ${esc(l.what)}${l.by?` · ${esc(String(l.by).split('@')[0])}`:''}</li>`).join('')}</ul></details>`}
     <div class="row cust-acts">${ro?'':`<button class="btn" value="save" id="cuSave">${isNew?'Add customer':'Save'}</button>`}${!isNew && canEdit()?`<button type="button" class="btn ghost danger" id="cuDel">Delete customer</button>`:''}</div></form>`;
   const f=d.querySelector('form');

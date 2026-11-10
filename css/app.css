@@ -1446,3 +1446,44 @@ body.orbiting .build-tray{opacity:.15;pointer-events:none}
 .build-tray.tucked .tray-tuck{width:auto;padding:0 16px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.12)}
 html.phone .tray-q{flex-basis:140px}
 html.phone .tray-rooms button span{display:none}
+/* ---------------------------------------------------------------- Tools tab (tools-ui.js) and the Saved note (savestate.js) */
+.tools-dlg{border:0;padding:0;width:min(860px,calc(100vw - 32px));max-height:calc(100vh - 48px);border-radius:16px;background:var(--surface);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.tools-dlg::backdrop{background:rgba(20,22,20,.35)}
+.tools{padding:18px 20px 22px;display:flex;flex-direction:column;gap:16px}
+.tools-h{display:flex;align-items:center;justify-content:space-between}
+.tools-h h2{margin:0;font-size:20px}
+.tool-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-top:6px}
+.tool-t{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-height:68px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2,var(--surface));color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.tool-t b{font-size:14.5px}
+.tool-t small{font-size:12px;color:var(--ink-2)}
+.tool-t:hover{border-color:var(--accent)}
+.tools-mode{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+.tools-mode button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.tools-mode button small{font-size:12px;color:var(--ink-2)}
+.tools-mode button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+#tabs [data-tab="take"], #tabs [data-tab="shop"]{display:none}
+.save-st{border:0;background:none;font:600 12px var(--mono);color:var(--ink-2);padding:6px 8px;border-radius:8px;white-space:nowrap;cursor:default}
+.save-st.dirty{color:#b4520f;background:var(--accent-soft);cursor:pointer}
+.save-st.bad{color:#a8322a}
+html.phone header.bar > .save-st{display:none}
+/* New home gallery (publish-ui.js) */
+.nh-dlg{width:min(820px,calc(100vw - 32px))}
+.nh-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:10px 0 6px}
+.nh-card{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.nh-card:hover{border-color:var(--accent)}
+.nh-pic{display:flex;align-items:center;justify-content:center;width:100%;height:78px;background:var(--surface-2,#f4f4f0);border-radius:8px;padding:8px;box-sizing:border-box}
+.nh-pic svg{max-width:100%;max-height:100%}
+.nh-card b{font-size:14px}
+.nh-card small{font-size:11.5px;color:var(--ink-2)}
+.nh-card.blank .nh-pic{background:none;border:1px dashed var(--line)}
+.nh-more{margin-top:8px}
+.nh-more summary{cursor:pointer;font-size:13px;color:var(--ink-2);padding:6px 0}
+.nh-more label{display:block;margin-top:8px}
+.nh-cust{font-size:13px;color:var(--ink-2);align-self:center}
+/* recent homes (Homes) */
+.hc-recent{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.hc-recent .lbl{font:600 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);margin-right:2px}
+.tools-mode button[aria-pressed="true"], .tools-mode button[aria-pressed="true"] b{color:var(--ink)}
+html.phone .fs-bar .bar-sp{display:none}
+html.phone .fs-bar .vc-b{width:38px;height:38px}
+html.phone .fs-bar .sqft-chip{height:38px}

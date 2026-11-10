@@ -39,7 +39,9 @@ async function loadDrafts(){
 async function push(k){
   if(!remote || !isDraft(k) || !canSave()) return;
   try{ const r=await fetch('api/drafts',{method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({op:'put', item:pack(k)})});
-    if(r.ok){ const o=await r.json().catch(()=>({})); MODELS[k].savedAt=o.saved; } }catch(e){}
+    if(r.ok){ const o=await r.json().catch(()=>({})); MODELS[k].savedAt=o.saved; }
+    try{ window.dispatchEvent(new CustomEvent('cubit:saved', {detail:{k, ok:r.ok}})); }catch(e){} }
+  catch(e){ try{ window.dispatchEvent(new CustomEvent('cubit:saved', {detail:{k, ok:false}})); }catch(err){} }
 }
 /* every save while a draft is on screen sends it up (a moment later, once the edits settle) */
 onSave(()=>{ const k=state.model; if(!remote || !isDraft(k)) return; clearTimeout(timers[k]); timers[k]=setTimeout(()=>push(k), 1200); });
@@ -69,7 +71,7 @@ function restoreDraft(key){ const t=trash(), it=t.find(x=>x.item.key===key); if(
   unpack(it.item); MODELS[key].custom=true; saveCustomModels(); save(); push(key);
   try{ localStorage.setItem(TRASH_KEY, JSON.stringify(t.filter(x=>x!==it))); }catch(e){}
   return true; }
-async function deleteDraft(k, { moved=false }={}){   // moved: it went to Purgatory, a customer or Cubit Homes (nothing to keep)
+async function deleteDraft(k, { moved=false }={}){   // moved: it went to Unassigned, a customer or Cubit Homes (nothing to keep)
   if(!isDraft(k)) return;
   if(!moved) try{ const t=trash().filter(x=>x.item.key!==k); t.push({ at:new Date().toISOString(), item:pack(k) }); localStorage.setItem(TRASH_KEY, JSON.stringify(t)); }catch(e){}
   const from=MODELS[k].from; delete MODELS[k]; FIELDS.forEach(f=>{ if(state[f]) delete state[f][k]; });

@@ -46,7 +46,7 @@ const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&
      Cubit Homes  the originals, by model name (the standard layout and its variations). Protected: a change makes a
                   draft. Editors and admins adopt homes into it and replace or delete originals, deliberately.
      My Drafts    your own working copies (only you see them)
-     Purgatory    homes saved for the team to review (team projects without a customer)
+     Unassigned    homes saved for the team to review (team projects without a customer)
      Customers    each customer and the home(s) linked to them */
 const famPick = {};   // last home opened under each model name (this visit)
 let openFam, famInit=false, homeCat=null, custOpen=null;
@@ -63,9 +63,14 @@ function renderModels(){
   const drafts=myDrafts(), purg=Object.keys(MODELS).filter(k=>MODELS[k].project && !MODELS[k].customer && !MODELS[k].deleted).sort((a,b)=>String(MODELS[b].saved||'').localeCompare(String(MODELS[a].saved||'')));
   const custs=liveCustomers(), gone=CUSTOMERS.filter(c=>c.deleted), homesOf=c=>Object.keys(MODELS).filter(k=>MODELS[k].project && MODELS[k].customer===c.id);
   const cubitN=Object.keys(MODELS).filter(isOriginal).length;
-  const tabs=[['cubit','Cubit Homes',cubitN], ...(canSave()||drafts.length?[['drafts','My Drafts',drafts.length]]:[]), ['purg','Purgatory',purg.length], ['cust','Customers',custs.length]];
+  const tabs=[['cubit','Cubit Homes',cubitN], ...(canSave()||drafts.length?[['drafts','My Drafts',drafts.length]]:[]), ['purg','Unassigned',purg.length], ['cust','Customers',custs.length]];
   el.classList.toggle('managing', managing);
-  let h=`<div class="hc-tabs" role="tablist" aria-label="Home categories">${tabs.map(([k,l,n])=>`<button role="tab" data-cat="${k}" aria-selected="${homeCat===k}">${l}<small>${n}</small></button>`).join('')}</div>`;
+  // the last homes opened on this device, one tap each
+  let recent=[]; try{ recent=JSON.parse(localStorage.getItem('cubit-recent-homes')||'[]'); }catch(e){}
+  if(MODELS[state.model] && !MODELS[state.model].deleted && recent[0]!==state.model){ recent=[state.model, ...recent.filter(k=>k!==state.model)].slice(0,6); try{ localStorage.setItem('cubit-recent-homes', JSON.stringify(recent)); }catch(e){} }
+  const rec=recent.filter(k=>MODELS[k] && !MODELS[k].deleted && k!==state.model).slice(0,5);
+  let h=rec.length ? `<div class="hc-recent"><span class="lbl">Recent</span>${rec.map(k=>`<button class="chip" data-m="${esc(k)}">${esc(MODELS[k].name)}</button>`).join('')}</div>` : '';
+  h+=`<div class="hc-tabs" role="tablist" aria-label="Home categories">${tabs.map(([k,l,n])=>`<button role="tab" data-cat="${k}" aria-selected="${homeCat===k}">${l}<small>${n}</small></button>`).join('')}</div>`;
   // each home: open it (tap), and Rename / Delete beside it for those allowed (delete asks twice)
   const item=(k,sub)=>{ const m=MODELS[k], ac=homeActs(k);
     const btn=`<button class="fam-it ${catOfHome(k)}" role="option" data-m="${k}" aria-selected="${k===state.model}"><b>${esc(m.name)}${m.locked?' <span class="lock-b" title="Signed and locked">🔒</span>':''}</b><small>${esc(sub ?? (m.size||''))}</small></button>`;
@@ -80,11 +85,11 @@ function renderModels(){
     const list = openFam!=='none' && openFam!==undefined ? famList(openFam) : null;
     const fo = openFam ? familyById(openFam) : null;
     if(list && fo && canEdit()) h+=`<div class="fam-bar manage-only"><span class="note">Model name <b>${esc(fo.name)}</b></span><button class="btn ghost sm" data-fren="${esc(fo.id)}">Rename</button><button class="btn ghost sm danger" data-fdel="${esc(fo.id)}">Delete</button></div>`;
-    if(list) h+=`<div class="fam-list" role="listbox">${list.length ? list.map(k=>item(k, MODELS[k].sub ? `variation · ${MODELS[k].size||''}` : `standard · ${MODELS[k].size||''}`)).join('') : '<p class="note">No original under this model name yet. Editors adopt one into it from Purgatory (open the home there → Adopt into Cubit Homes, pick this model name).</p>'}</div>`;
+    if(list) h+=`<div class="fam-list" role="listbox">${list.length ? list.map(k=>item(k, MODELS[k].sub ? `variation · ${MODELS[k].size||''}` : `standard · ${MODELS[k].size||''}`)).join('') : '<p class="note">No original under this model name yet. Editors adopt one into it from Unassigned (open the home there → Adopt into Cubit Homes, pick this model name).</p>'}</div>`;
   } else if(homeCat==='drafts'){
     h+=`<div class="fam-list" role="listbox">${canSave()?'<button class="fam-it new" data-new="1"><b>＋ New home</b><small>start from scratch</small></button>':''}${drafts.map(k=>item(k, MODELS[k].from&&MODELS[k].from!==k&&MODELS[MODELS[k].from] ? `from ${MODELS[MODELS[k].from].name}` : 'only you see it')).join('') || '<p class="note">No drafts. Change any home and your copy lands here.</p>'}</div>`;
   } else if(homeCat==='purg'){
-    h+=`<div class="fam-list" role="listbox">${purg.map(k=>item(k, [MODELS[k].size, who(MODELS[k].by), when(MODELS[k].saved)].filter(Boolean).join(' · '))).join('') || '<p class="note">Nothing waiting. Save a draft to Purgatory for the team to review.</p>'}</div>`;
+    h+=`<div class="fam-list" role="listbox">${purg.map(k=>item(k, [MODELS[k].size, who(MODELS[k].by), when(MODELS[k].saved)].filter(Boolean).join(' · '))).join('') || '<p class="note">Nothing waiting. Save a draft to Unassigned for the team to review.</p>'}</div>`;
   } else {
     h+=`<div class="fam-list" role="listbox">${canSave()?'<button class="fam-it new" data-newcust="1"><b>＋ New customer</b><small>profile, then link a home</small></button>':''}${custs.map(c=>{ const hs=homesOf(c), open=custOpen===c.id || hs.includes(state.model);
         return `<div class="cust-g"><button class="fam-it cust-h" data-copen="${esc(c.id)}" aria-expanded="${open}"><b>${esc(c.name)}</b><small>${c.status==='Signed'||Object.keys(c.signed||{}).length?'signed · ':''}${hs.length} home${hs.length===1?'':'s'}</small></button>
@@ -112,8 +117,8 @@ function renderModels(){
 }
 /* a new model name: it shows as a chip at once, empty until a home is adopted into it */
 async function newFamily(){
-  const v=await askName({ title:'New model name', current:'', placeholder:'e.g. Summit', note:'Shown as a model name in Cubit Homes and the Save window for the whole team. Homes are filed under it when they are adopted into Cubit Homes from Purgatory.' }); if(v==null || !v.trim()) return;
-  try{ const id=await addFamily(v); openFam=id; renderModels(); toast(`“${v.trim()}” added. Adopt a home into it from Purgatory (Adopt into Cubit Homes).`); }
+  const v=await askName({ title:'New model name', current:'', placeholder:'e.g. Summit', note:'Shown as a model name in Cubit Homes and the Save window for the whole team. Homes are filed under it when they are adopted into Cubit Homes from Unassigned.' }); if(v==null || !v.trim()) return;
+  try{ const id=await addFamily(v); openFam=id; renderModels(); toast(`“${v.trim()}” added. Adopt a home into it from Unassigned (Adopt into Cubit Homes).`); }
   catch(e){ toast('Not added: '+(e.message||e)); }
 }
 /* ---------------------------------------------------------------- stairs (stairs.js) */
@@ -251,7 +256,7 @@ const showHomeCat = c => { homeCat=c; renderModels(); };
 
 /* ---------------------------------------------------------------- rename / delete a home from the Homes window
    Cubit Homes originals: editors (deleted ones come back from ⋯ → Deleted items for 2 weeks).
-   My Drafts: your own. Purgatory and customer homes: rename by salespeople and up, delete by editors (every save is
+   My Drafts: your own. Unassigned and customer homes: rename by salespeople and up, delete by editors (every save is
    kept on the server). Delete asks twice: the button first says "Tap again to delete", then a window asks to confirm. */
 function homeActs(k){ const m=MODELS[k]; if(!m || m.deleted) return {};
   if(m.custom) return { ren:canSave(), del:canSave() };
@@ -267,7 +272,7 @@ async function renameHome(k){ const m=MODELS[k]; if(!m) return;
 async function deleteHome(btn, k){ const m=MODELS[k]; if(!m) return;
   if(btn.dataset.sure!=='1'){ btn.dataset.sure='1'; btn.textContent='Tap again to delete';
     setTimeout(()=>{ if(btn.isConnected){ btn.dataset.sure=''; btn.textContent='Delete'; } }, 4000); return; }
-  const where = m.custom ? 'your draft' : m.project ? (m.customer ? 'this customer’s home' : 'this Purgatory home') : 'this Cubit Home original, for everyone';
+  const where = m.custom ? 'your draft' : m.project ? (m.customer ? 'this customer’s home' : 'this Unassigned home') : 'this Cubit Home original, for everyone';
   const back = m.custom ? 'It can be brought back for 2 weeks (⋯ → Deleted items).' : m.project ? 'Its saves are kept on the server, so it can be brought back (⋯ → Deleted items).' : 'It can be brought back for 2 weeks (⋯ → Deleted items).';
   if(!confirm(`Delete “${m.name}”, ${where}?\n\n${back}`)){ btn.dataset.sure=''; btn.textContent='Delete'; return; }
   const onScreen = state.model===k;

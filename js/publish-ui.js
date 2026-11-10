@@ -2,7 +2,7 @@
 
    · New home: start from scratch (one blank pod), optionally filed under a model name.
    · My drafts: only you see them. Changing a Cubit model or a published variation makes a draft copy first.
-   · Adopt into Cubit Homes, only from Purgatory (a draft is saved to Purgatory first, so the other teams see it):
+   · Adopt into Cubit Homes, only from Unassigned (a draft is saved to Unassigned first, so the other teams see it):
      as a variation (sub-model) under any model name — or, three warnings later, over the Cubit model it was
      copied from. Every replaced version is kept on the server. */
 import { MODELS } from './data.js';
@@ -17,38 +17,65 @@ import { pickCustomer, openCustomer, openSign, openUnlock } from './customers-ui
 import { deleteItem } from './libedit.js';
 import { renderModels, renderSide, toast, showHomeCat } from './sidebar.js';
 import { buildHome } from './scene3d.js';
+import { foot, makeDraftCopy } from './pods.js';
 
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const famOpts = (sel, none='Decide later') => `<option value="">${none}</option>`+FAMILIES.filter(f=>!f.deleted).map(f=>`<option value="${f.id}" ${f.id===sel?'selected':''}>${esc(f.name)}</option>`).join('');
 const refresh = () => { renderModels(); buildHome(); renderSide(); };
 function dialog(id){ let d=document.getElementById(id); if(!d){ d=document.createElement('dialog'); d.id=id; d.className='lib-dlg pub-dlg'; document.body.appendChild(d); } return d; }
 
-/* ---------------------------------------------------------------- New home */
+/* ---------------------------------------------------------------- New home
+   A gallery: each Cubit model (its footprint and size) and a blank 24′, 16′ or 8′ pod. One tap starts building. The
+   name, model name and customer are optional, under "Name, model, customer". A model starts as your draft copy of it;
+   with a customer picked, the home is saved to that customer straight away. */
+const POD_LEN={ L24:24, P16:16, P8:8 };
+function footSVG(pods){
+  const F=pods.map(foot); if(!F.length) return '';
+  const x0=Math.min(...F.map(f=>f.x)), z0=Math.min(...F.map(f=>f.z)), x1=Math.max(...F.map(f=>f.x+f.w)), z1=Math.max(...F.map(f=>f.z+f.d)), W=x1-x0, D=z1-z0;
+  return `<svg viewBox="${-1} ${-1} ${W+2} ${D+2}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">${F.map(f=>`<rect x="${f.x-x0}" y="${D-(f.z-z0)-f.d}" width="${f.w}" height="${f.d}" fill="#efe9da" stroke="#1c211e" stroke-width=".5"/>`).join('')}</svg>`;
+}
 function openNewHome(){
   if(!canSave()){ toast('Viewers can look but not build homes.'); return; }
-  const d=dialog('newDlg');
+  const d=dialog('newDlg'); d.classList.add('nh-dlg');
+  const originals=Object.keys(MODELS).filter(k=>{ const m=MODELS[k]; return m && !m.deleted && !m.custom && !m.project && m.pods?.length; })
+    .sort((a,b)=>FAMILIES.findIndex(f=>f.id===familyOf(a))-FAMILIES.findIndex(f=>f.id===familyOf(b)) || (MODELS[a].sub?1:0)-(MODELS[b].sub?1:0));
+  const area=k=>MODELS[k].pods.filter(p=>!(+p.lv)).reduce((a,p)=>{ const f=foot(p); return a+f.w*f.d; },0);
+  let cid=null;
   d.innerHTML=`<form method="dialog" class="dlg"><div class="dlg-h"><h2>New home</h2><button class="btn ghost" value="cancel" formnovalidate>Cancel</button></div>
-    <label for="nhName">Name</label><input type="text" id="nhName" maxlength="80" placeholder="e.g. Smith cottage" autocomplete="off">
-    <label for="nhFam">Model it belongs to</label><select id="nhFam" class="pub-sel">${famOpts(familyOf(state.model)||'')}</select>
-    <div><label>Start with</label><div class="seg nh-pod" role="group">${[['L24','24′ pod'],['P16','16′ pod'],['P8','8′ pod']].map(([t,l],i)=>`<button type="button" data-t="${t}" aria-pressed="${i===0}">${l}</button>`).join('')}</div></div>
-    <p class="note">It starts in <b>My drafts</b>: only you see it until you publish it. Drag more pods and decks in from the tray, then tap walls to pick them.</p>
-    <div class="row"><button class="btn" value="ok" id="nhGo">Start building</button></div></form>`;
-  let pod='L24';
-  d.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{ pod=b.dataset.t; d.querySelectorAll('[data-t]').forEach(x=>x.setAttribute('aria-pressed', x===b)); });
-  d.onclose=()=>{ if(d.returnValue!=='ok') return;
-    const name=d.querySelector('#nhName').value.trim()||'New home';
-    newHome({ name, family:d.querySelector('#nhFam').value||null, pod });
+    <p class="note">Tap where to start. It opens as your draft; only you see it until you save it for the team or a customer.</p>
+    <div class="nh-grid">${originals.map(k=>`<button type="button" class="nh-card" data-from="${esc(k)}"><span class="nh-pic">${footSVG(MODELS[k].pods)}</span><b>${esc(MODELS[k].name)}</b><small>${area(k)} sq ft · ${esc(MODELS[k].size||'')}</small></button>`).join('')}
+      ${Object.entries(POD_LEN).map(([t,l])=>`<button type="button" class="nh-card blank" data-t="${t}"><span class="nh-pic">${footSVG([{t, x:0, z:0, rot:0}])}</span><b>Blank ${l}′ pod</b><small>${l*8} sq ft · start from scratch</small></button>`).join('')}</div>
+    <details class="nh-more"><summary>Name, model, customer (optional)</summary>
+      <label for="nhName">Name</label><input type="text" id="nhName" maxlength="80" placeholder="e.g. Smith cottage" autocomplete="off">
+      <label for="nhFam">Model it belongs to</label><select id="nhFam" class="pub-sel">${famOpts(familyOf(state.model)||'')}</select>
+      <label>Customer</label><div class="row"><span class="nh-cust">None yet</span><button type="button" class="btn ghost sm" id="nhCust">Pick or add a customer…</button></div>
+    </details></form>`;
+  d.querySelector('#nhCust').onclick=async()=>{ const c=await pickCustomer(); if(!c) return; cid=c; d.querySelector('.nh-cust').textContent=customerById(c)?.name||'Customer'; };
+  const start=async({ from=null, pod='L24' })=>{
+    const typed=d.querySelector('#nhName').value.trim(), fam=d.querySelector('#nhFam').value||null;
+    const day=new Date().toLocaleDateString(undefined,{month:'short', day:'numeric'});
+    const name=typed || `${from?MODELS[from].name:'New home'} · ${day}`;
+    d.close('started');
+    if(from){ state.model=from; makeDraftCopy(from); renameDraft(state.model, name); if(fam) setDraftFamily(state.model, fam); }
+    else newHome({ name, family:fam, pod });
     document.getElementById('homeDlg')?.close();
-    refresh(); setTimeout(()=>import('./build.js').then(b=>b.flatten(true)), 80); toast(`“${name}” started in My drafts`); };
-  d.returnValue=''; d.showModal(); d.querySelector('#nhName').focus();
+    refresh(); setTimeout(()=>import('./build.js').then(b=>b.flatten(true)), 80);
+    if(cid){ try{ const k=state.model, r=await saveProject(name, true, { customer:cid }); const pid=r.project?.id; await deleteDraft(k, { moved:true }); if(pid) await linkHome(cid, pid);
+        showHomeCat('cust'); refresh(); toast(`“${name}” started for ${customerById(cid)?.name||'the customer'}`); }
+      catch(err){ toast(`Started in My drafts (not linked to the customer: ${err.message||err})`); } return; }
+    toast(`“${name}” started in My drafts · name it any time`);
+  };
+  d.querySelectorAll('[data-from]').forEach(b=>b.onclick=()=>start({ from:b.dataset.from }));
+  d.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>start({ pod:b.dataset.t }));
+  d.returnValue=''; d.showModal();
 }
 
 /* ---------------------------------------------------------------- the home panel: what this home is and what you can do with it
-   My Draft    → Save to Purgatory · Save to Customer   (adopting into Cubit Homes is only from Purgatory, so the
+   My Draft    → Save to Unassigned · Save to Customer   (adopting into Cubit Homes is only from Unassigned, so the
                  other teams see a home there first)
-   Purgatory   → Save changes · Save to Customer · (editors) Adopt into Cubit Homes · Delete
+   Unassigned   → Save changes · Save to Customer · (editors) Adopt into Cubit Homes · Delete
    Customer    → Profile · Save changes · Sign & lock  ·  locked: (editors) Unlock
-   Cubit Home  → protected: a change makes a draft · (editors) replace it from Purgatory (a changed copy saved there), or delete it (typed name) */
+   Cubit Home  → protected: a change makes a draft · (editors) replace it from Unassigned (a changed copy saved there), or delete it (typed name) */
 const who = e => e ? String(e).split('@')[0] : '';
 const day = iso => iso ? new Date(iso).toLocaleDateString(undefined,{dateStyle:'medium'}) : '';
 function draftBlock(){
@@ -58,8 +85,8 @@ function draftBlock(){
     return `<div class="pub-box draft"><div class="eyebrow">My Draft · only you can see it</div>
       <p>${from?`Copied from <b>${esc(from.name)}</b>. `:m.scratch?'Started from scratch. ':''}${m.savedAt?`Saved ${new Date(m.savedAt).toLocaleString()}.`:''}</p>
       <label class="fld">Model it belongs to<select id="dfFam" class="pub-sel" ${canSave()?'':'disabled'}>${famOpts(m.family||'')}</select></label>
-      <div class="row edit-only"><button class="btn" id="hsPurg">Save to Purgatory</button><button class="btn ghost" id="hsCust">Save to Customer</button></div>
-      <p class="note editor-only">To adopt it into Cubit Homes, save it to Purgatory first so the other teams see it. Adopt it from there.</p>
+      <div class="row edit-only"><button class="btn" id="hsPurg">Save to Unassigned</button><button class="btn ghost" id="hsCust">Save to Customer</button></div>
+      <p class="note editor-only">To adopt it into Cubit Homes, save it to Unassigned first so the other teams see it. Adopt it from there.</p>
       <div class="row"><button class="btn ghost sm edit-only" id="dfRen">Rename</button><button class="btn ghost sm edit-only" id="dfDel">Delete draft</button></div></div>`;
   }
   if(m.project){
@@ -69,7 +96,7 @@ function draftBlock(){
         <p>${m.locked?`🔒 <b>Signed ${esc(day(m.locked.at))}</b>${m.locked.client?` by ${esc(m.locked.client)}`:''} · locked. Changes go into a draft until it's unlocked.`:'Not signed yet.'}${m.saved?` Saved ${esc(day(m.saved))}${m.by?` by ${esc(who(m.by))}`:''}.`:''}</p>
         <div class="row">${c?'<button class="btn ghost edit-only" id="hsProf">Profile</button>':''}${m.locked?'<button class="btn ghost editor-only" id="hsUnlock">Unlock…</button>':`<button class="btn edit-only" id="hsSave">Save changes</button>${c?'<button class="btn ghost edit-only" id="hsSign">Sign & lock</button>':''}`}<button class="btn ghost sm" id="hsHist">History</button></div></div>`;
     }
-    return `<div class="pub-box purg"><div class="eyebrow">Purgatory · waiting for the team</div>
+    return `<div class="pub-box purg"><div class="eyebrow">Unassigned · waiting for the team</div>
       <p>${m.saved?`Saved ${esc(day(m.saved))}${m.by?` by ${esc(who(m.by))}`:''}. `:''}The team reviews it here: adopt it into Cubit Homes, or save it to a customer.</p>
       <div class="row edit-only"><button class="btn" id="hsSave">Save changes</button><button class="btn ghost" id="hsCust">Save to Customer</button></div>
       <div class="row"><button class="btn ghost sm editor-only" id="dfPub">Adopt into Cubit Homes…</button><button class="btn ghost sm editor-only" id="hsDel">Delete</button><button class="btn ghost sm" id="hsHist">History</button></div></div>`;
@@ -81,7 +108,7 @@ function draftBlock(){
         ${m.sub?`<label class="fld">Name<input id="subName" value="${esc(m.name)}" maxlength="80"></label>
         <label class="fld">Model<select id="subFam" class="pub-sel">${FAMILIES.map(f=>`<option value="${f.id}" ${f.id===m.family?'selected':''}>${esc(f.name)}</option>`).join('')}</select></label>
         <div class="row"><button class="btn ghost sm" id="subEdit">Rename / move</button></div>`:''}
-        <p class="note">To replace it: change it (that makes your draft), save the draft to Purgatory, then from Purgatory tap Adopt into Cubit Homes → Replace ${esc(m.name)}.</p>
+        <p class="note">To replace it: change it (that makes your draft), save the draft to Unassigned, then from Unassigned tap Adopt into Cubit Homes → Replace ${esc(m.name)}.</p>
         ${m.overAt?`<button class="btn ghost sm" id="ovBack">Go back to the shop files' version</button>`:''}
         <label class="fld">Delete from Cubit Homes: type “${esc(m.name)}”<input id="cdName" autocomplete="off"></label>
         <div class="row"><button class="btn ghost sm danger" id="cdDel" disabled>Delete ${esc(m.name)}</button></div>
@@ -94,7 +121,7 @@ function bindDraftBlock(root){
   $('dfFam')?.addEventListener('change', e=>{ setDraftFamily(k, e.target.value||null); renderModels(); renderSide(); });
   $('dfPub')?.addEventListener('click', ()=>openPublish());
   $('hsPurg')?.addEventListener('click', async e=>{ e.target.disabled=true;
-    try{ const r=await saveProject(base(), true, { customer:'' }); await deleteDraft(k, { moved:true }); showHomeCat('purg'); refresh(); toast(`“${base()}” is in Purgatory for the team. ${mergedText(r.merged)}`); }catch(err){ fail(err); e.target.disabled=false; } });
+    try{ const r=await saveProject(base(), true, { customer:'' }); await deleteDraft(k, { moved:true }); showHomeCat('purg'); refresh(); toast(`“${base()}” is in Unassigned for the team. ${mergedText(r.merged)}`); }catch(err){ fail(err); e.target.disabled=false; } });
   $('hsCust')?.addEventListener('click', async e=>{ const cid=await pickCustomer(); if(!cid) return; e.target.disabled=true;
     try{ const r=await saveProject(base(), !!m.custom, { customer:cid }); const pid=r.project?.id; if(m.custom) await deleteDraft(k, { moved:true }); if(pid) await linkHome(cid, pid);
       showHomeCat('cust'); refresh(); toast(`Saved to ${customerById(cid)?.name||'the customer'}`); }catch(err){ fail(err); e.target.disabled=false; } });
@@ -104,7 +131,7 @@ function bindDraftBlock(root){
   $('hsUnlock')?.addEventListener('click', ()=>openUnlock(k));
   $('hsHist')?.addEventListener('click', ()=>document.getElementById('bProjects')?.click());
   $('hsDel')?.addEventListener('click', async e=>{ const b=e.target; if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Tap again to delete'; return; }
-    try{ await deleteProject(m.project); refresh(); toast('Deleted from Purgatory · its saves are kept on the server'); }catch(err){ fail(err); } });
+    try{ await deleteProject(m.project); refresh(); toast('Deleted from Unassigned · its saves are kept on the server'); }catch(err){ fail(err); } });
   $('dfRen')?.addEventListener('click', ()=>{ const d=dialog('dfRenDlg');
     d.innerHTML=`<form method="dialog" class="dlg"><div class="dlg-h"><h2>Rename draft</h2></div><input type="text" id="dfName" maxlength="80" value="${esc(m.name)}"><div class="row"><button class="btn" value="ok">Save</button><button class="btn ghost" value="cancel" formnovalidate>Cancel</button></div></form>`;
     d.onclose=()=>{ if(d.returnValue==='ok'){ renameDraft(k, d.querySelector('#dfName').value); renderModels(); renderSide(); } }; d.returnValue=''; d.showModal(); d.querySelector('#dfName').select(); });
@@ -123,8 +150,8 @@ function bindDraftBlock(root){
 /* ---------------------------------------------------------------- Publish */
 function openPublish(){
   const k=state.model, m=MODELS[k];
-  // only from Purgatory: the other teams see a home there before it becomes a Cubit Home
-  if(!m?.project || m.customer){ toast('Save it to Purgatory first. Homes are adopted into Cubit Homes from Purgatory.'); return; }
+  // only from Unassigned: the other teams see a home there before it becomes a Cubit Home
+  if(!m?.project || m.customer){ toast('Save it to Unassigned first. Homes are adopted into Cubit Homes from Unassigned.'); return; }
   if(!canEdit()){ toast('Only editors and admins adopt homes into Cubit Homes.'); return; }
   const from=m.from && MODELS[m.from] && !MODELS[m.from].custom && !MODELS[m.from].project ? m.from : null;
   const fromM=from && MODELS[from];
@@ -140,7 +167,7 @@ function openPublish(){
       body.innerHTML=`<label for="pbFam">Model</label><select id="pbFam" class="pub-sel">${FAMILIES.filter(f=>!f.deleted).map(f=>`<option value="${f.id}" ${f.id===(m.family||familyOf(k))?'selected':''}>${esc(f.name)}</option>`).join('')}</select>
         <label for="pbName">Name in Cubit Homes</label><input type="text" id="pbName" maxlength="80" value="${esc(m.name.replace(/ \(draft\)$/,''))}">
         <label for="pbNote">Note (optional)</label><input type="text" id="pbNote" maxlength="200" placeholder="e.g. extra 8′ office pod, done for the Smiths">
-        <p class="note">It becomes an original under that model in Cubit Homes, for everyone, and leaves Purgatory.</p>
+        <p class="note">It becomes an original under that model in Cubit Homes, for everyone, and leaves Unassigned.</p>
         <div class="row"><button class="btn" id="pbGo">Adopt</button></div>`;
       body.querySelector('#pbGo').onclick=async()=>{ const name=body.querySelector('#pbName').value.trim(); if(!name){ toast('Give it a name.'); return; }
         const fam=body.querySelector('#pbFam').value, note=body.querySelector('#pbNote').value.trim(); body.querySelector('#pbGo').disabled=true;

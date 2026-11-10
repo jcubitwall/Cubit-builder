@@ -236,7 +236,7 @@ See that folder's README. The scan is exact, so **only upload accurate models**:
 - **New home** (top bar ＋ New, or Homes → ＋ New home): starts a draft from one blank 8′/16′/24′ pod, optionally filed under a model name. Walls stay plain until picked.
 - **My drafts** (`js/drafts.js`, `functions/api/drafts.js`): each person's drafts live in their own R2 folder `drafts/<email>/<key>.json` and only they see them. Every save sends the draft up a moment later.
 - **Protected models**: Cubit models (the standard design of each model name) and published variations can't be changed in place. The first change makes a draft copy (`ensureDraft` / `makeDraftCopy` in `js/pods.js`), and the change goes there.
-- **Adopt into Cubit Homes** (`js/publish-ui.js`, editors, only from a Purgatory home's panel, so the other teams see a home there first; a draft is saved to Purgatory before it can be adopted): add it as a variation (sub-model) under any model name, or save it over the Cubit model it was copied from, after three warnings and typing the model's name. Saving over a standard model stores an `over` item in `catalog/submodels.json`. The shop files' version stays underneath and can be brought back. Every replaced or removed catalog version is kept in `catalog/history/<id>/`.
+- **Adopt into Cubit Homes** (`js/publish-ui.js`, editors, only from a Unassigned home's panel, so the other teams see a home there first; a draft is saved to Unassigned before it can be adopted): add it as a variation (sub-model) under any model name, or save it over the Cubit model it was copied from, after three warnings and typing the model's name. Saving over a standard model stores an `over` item in `catalog/submodels.json`. The shop files' version stays underneath and can be brought back. Every replaced or removed catalog version is kept in `catalog/history/<id>/`.
 - **Mirror / flip**: cabinets and furniture mirror left ↔ right (`it.mirror`: hinges, drawers and names swap sides in the parts list). Pods mirror end for end or flip front to back (`mirrorPod`): walls change sides, run the other way and are mirrored, Wall A follows, and floors and ceilings use mirrored layers (`<id>~mx`, `~mz`, `~mxz`, see `layerById`). Any wall can be mirrored from its panel; floor, ceiling and roof layers have Mirror and Flip.
 - **Tap a part** (wall, floor / ceiling / roof, deck, cabinet): it stays solid and everything else goes see-through (`applyGhost` in scene3d.js), like the cabinet viewer. Tap empty space for the solid home. A **long touch** held still picks up a pod, deck or cabinet to move it, in 3D too; on empty space it opens the Layers list.
 - **Stretch**: a tapped item (not appliances) shows green double arrows on each free side (`updateHandles`, `roomBeyond`, `stretchTo` in furniture.js). Drag one to resize that way; the opposite side stays put, and it stops at and snaps (within 3″) against the next wall or item that overlaps it in height. Removing a pod removes the cabinets and furniture in it. A long touch on empty space opens Layers right where you touched.
@@ -387,11 +387,11 @@ From the shop, Oct 2026. Heights are measured from the bottom of the floor.
 ## Deleted items (⋯ → Deleted items)
 Everything deleted is in one window, sorted into groups, each row with **Restore** (`js/trash-ui.js`; on a phone, Homes → Deleted items):
 - **People:** customer profiles.
-- **Homes:** Cubit Homes originals and variations, Purgatory homes, customers' homes, my drafts.
+- **Homes:** Cubit Homes originals and variations, Unassigned homes, customers' homes, my drafts.
 - **Model names.**
 - **Building:** walls, floors / ceilings / roofs, decks, pods.
 
-Deleted things disappear from every list and picker straight away. Library items, model names, Cubit Homes originals, customers and drafts can come back for 14 days, then they're gone for good (`KEEP_MS` in libedit.js; drafts are kept in this browser, `cubit-draft-trash`). Purgatory and customers' homes keep every save on the server, so they can always come back: a deletion is noted in `projects/deleted.json` (`GET api/projects?deleted=1`, editors) and Restore brings back its last save. Restoring needs an editor or admin, except your own drafts. The Library's walls, floors and decks lists show a **Deleted (n)** link that opens this window.
+Deleted things disappear from every list and picker straight away. Library items, model names, Cubit Homes originals, customers and drafts can come back for 14 days, then they're gone for good (`KEEP_MS` in libedit.js; drafts are kept in this browser, `cubit-draft-trash`). Unassigned and customers' homes keep every save on the server, so they can always come back: a deletion is noted in `projects/deleted.json` (`GET api/projects?deleted=1`, editors) and Restore brings back its last save. Restoring needs an editor or admin, except your own drafts. The Library's walls, floors and decks lists show a **Deleted (n)** link that opens this window.
 
 ## Every Library card: 3D, Rename, Delete
 Every card in the Library (walls, floors / ceilings / roofs, decks, windows and doors, cabinets, appliances, bathroom fixtures, plumbing, electrical, heating, furniture) has **3D** (the full-screen quick view), and for editors **Rename** and **Delete**. A deleted item leaves every list, picker, the tray and the price book at once; homes that already use it keep it. It goes to ⋯ → Deleted items for 2 weeks. Renames and deletions of cabinets and fixtures (`casework:<k>`) and windows / doors (`units:<id>`) are kept with the other library edits.
@@ -445,7 +445,7 @@ Each cabinet, appliance, fixture, TV … page in the Library has **Rules for thi
 Three categories: **Windows**, **Exterior doors** (man doors, patio doors) and **Interior doors** (units with `"place": "int"` in data/units.json). An interior door is only offered in interior and connecting walls, and where one fits there only interior doors are offered (so an interior opening no longer picks the steel exterior man door by itself). Two interior door samples (34 × 80 and 36 × 82 prehung) stand in until the real units are uploaded.
 
 ## New model names
-Homes → Cubit Homes → **＋ New model name** (editors and admins). It shows as a chip for the whole team at once and in the Save window's model list, empty until a home is adopted into it from Purgatory (Adopt into Cubit Homes, pick the model name). Open a model name's chip to **Rename** or **Delete** it; homes under a deleted model name show under "Not filed yet" until it's restored. Added names are kept with the library edits (`fams` in `catalog/library-edits.json`, `{op:'newfam', name}` on `api/library`); the six first ones stay in `data/families.json`.
+Homes → Cubit Homes → **＋ New model name** (editors and admins). It shows as a chip for the whole team at once and in the Save window's model list, empty until a home is adopted into it from Unassigned (Adopt into Cubit Homes, pick the model name). Open a model name's chip to **Rename** or **Delete** it; homes under a deleted model name show under "Not filed yet" until it's restored. Added names are kept with the library edits (`fams` in `catalog/library-edits.json`, `{op:'newfam', name}` on `api/library`); the six first ones stay in `data/families.json`.
 
 ## Exploding in Build
 In Build, a three-finger spread pulls the home (or an isolated cabinet) apart as far as you spread your fingers, the same as the Library's 3D view; a pinch brings it back together. The Exploded view button still goes all the way apart or all the way back.
@@ -454,15 +454,15 @@ In Build, a three-finger spread pulls the home (or an isolated cabinet) apart as
 **The home picker** (top left) has four categories, one list at a time:
 - **Cubit Homes:** the originals, by model name: the standard layout and its variations. They're protected; a change makes your own copy in My Drafts.
 - **My Drafts:** your own working copies. Only you see them.
-- **Purgatory:** homes saved for the team to review. These are team projects without a customer, including every older project.
+- **Unassigned:** homes saved for the team to review. These are team projects without a customer, including every older project.
 - **Customers:** each customer, with the home(s) linked to them and their profile.
 
 **The home's panel** shows what you can do with it:
 
 | Home | What you can do |
 |---|---|
-| Draft | Save to Purgatory · Save to Customer (pick one or ＋ New customer). Not adopted straight into Cubit Homes: save it to Purgatory first so the other teams see it |
-| Purgatory | Save changes · Save to Customer · editors: Adopt into Cubit Homes, Delete |
+| Draft | Save to Unassigned · Save to Customer (pick one or ＋ New customer). Not adopted straight into Cubit Homes: save it to Unassigned first so the other teams see it |
+| Unassigned | Save changes · Save to Customer · editors: Adopt into Cubit Homes, Delete |
 | Customer | Profile · Save changes · Sign & lock · editors: Unlock |
 | Cubit Home | Protected. Editors can rename or move a variation, replace it (change it, then Adopt → Replace, after three warnings and the typed name), or delete it (typed name, kept 2 weeks). |
 
@@ -478,7 +478,7 @@ In Build, a three-finger spread pulls the home (or an isolated cabinet) apart as
 | Role | Can |
 |---|---|
 | User | Look at everything: explode, zoom, walls, labels, panel builder and sheets (look only). Saves nothing. |
-| Salesperson | Everything a User can do, plus customers, swapping walls and windows, pods, cabinets, basic choices with a client, Save to Purgatory or Customer, and Sign & lock. |
+| Salesperson | Everything a User can do, plus customers, swapping walls and windows, pods, cabinets, basic choices with a client, Save to Unassigned or Customer, and Sign & lock. |
 | Editor | Everything a Salesperson can do, plus the panel builder (moving windows, plugs, holes), pot lights, the libraries, deleting, Adopt and Replace in Cubit Homes, Unlock, and shop settings. |
 | Admin | Everything an Editor can do, plus the Team list and STEP uploads. |
 
@@ -619,7 +619,7 @@ moves, changes with Power, and can't be moved or removed by hand (the wall panel
 shows the junction box as J. No wall behind the fireplace → flagged.
 
 ### Team homes always open at their latest save
-A team home (Purgatory or a customer's) used to open from this device's own copy when it had been open here before:
+A team home (Unassigned or a customer's) used to open from this device's own copy when it had been open here before:
 after someone (or you on another device) saved, the app showed the older copy, and on a device that had lost track of
 the version it started from, saving that copy undid the newer save. Now, whenever a team home becomes the one on
 screen (the app opening on it, or picked in the Homes list) it's checked against the server (projects.js
@@ -679,7 +679,7 @@ copy goes into My Drafts as "(copy from this device)" and the latest save opens.
 - A library wall opens as itself, whether it's one of Cubit's own, the team's or this browser's. **Save W08-15** writes over it, so every home using it changes; the server keeps the old version. **Save as new wall** keeps the old one and adds another. After that, Save keeps writing over the one you're on.
 - A wall opened from its mirror (`~m`, likewise `~mx/~mz` for layers) is edited as you see it. It's saved back, unmirrored, over the wall it mirrors, and the mirrors are rebuilt.
 - A brand-new wall shows **Save to library** until its first save.
-- **Saving over asks first** whenever other homes use the wall (or floor/ceiling/roof). It lists the homes that will change (Cubit Homes, Purgatory, customers' homes, drafts) and the **locked** ones that won't. You can save over everywhere, save as new instead, or cancel. It asks once each time the builder is opened.
+- **Saving over asks first** whenever other homes use the wall (or floor/ceiling/roof). It lists the homes that will change (Cubit Homes, Unassigned, customers' homes, drafts) and the **locked** ones that won't. You can save over everywhere, save as new instead, or cancel. It asks once each time the builder is opened.
 - **Locked homes never change.** A home that's signed and locked keeps the walls and layers it was locked with (and later, homes in manufacturing, being made, built or archived, once `m.stage` is tracked). (`freeze.js`)
   - When you save over, the version being replaced is kept for each locked home.
   - At start-up, any team wall or layer saved after a home was locked is put back as it was then. It's taken from the copies the home was saved with, else from the server's history (`GET api/walls?asof=<time>&ids=…`, same for layers), else from Cubit's original.
@@ -787,3 +787,9 @@ A switch in the top bar, beside Build / Sheets. **Design** is for building with 
 - **Stairs** in the Cubits tab: drag onto a pod with a floor above (or below), or tap for the first pod that takes one.
 - ▾ tucks the tray down to a small button (▴ Tray brings it back); it also fades away while the home is being turned.
 - Windows and doors in a wall's side panel are **picture tiles** of the units that fit; the ones that don't fit sit under More. The drop-down list stays in Shop.
+
+## Starting a home, Tools, the Saved note
+- **New home** is a gallery: each Cubit model (its footprint, sq ft and size) and a blank 24′, 16′ or 8′ pod. One tap starts building, as your draft (a model starts as your draft copy of it), named "Cove · Nov 9" until you name it. Name, model name and **customer** are optional under "Name, model, customer"; with a customer picked the home is saved to that customer straight away.
+- **Homes** shows the last homes opened on this device as Recent chips above the tabs. The team tab for homes without a customer is now called **Unassigned** (it was Purgatory).
+- **Tools** (a tab beside Build and Sheets; on the phone, in the bottom bar with Build and Sheets): the Design / Shop switch, the whole-home sheets (take-off, shopping list, cost, blueprints, CNC, labels, framing, foundation) and every production tool (panel builder, shape studio, library, price book, cabinet G-code, projects, deleted items, team, STEP upload) as big tiles. The ⋯ menu is unchanged. The phone's Take-off and Shopping tabs moved into Tools.
+- **Saved note** in the top bar: a draft shows Saving… then "Saved 10:41" (or "Kept on this iPad" without a connection); an Unassigned or customer home shows "Not saved · Save" after a change (tap to save); a Cubit original shows "Cubit original"; a signed home "Signed · locked".

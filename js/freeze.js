@@ -51,7 +51,7 @@ function keepForLocked(kind, id){
 function homesUsing(kind, id){
   const pat=new RegExp(`"${id.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}(~m[xz]*)?"`);
   return Object.entries(MODELS).filter(([k,m])=>!m.deleted && (pat.test(JSON.stringify(m)) || pat.test(JSON.stringify([state.picks?.[k], state.layerPicks?.[k]]))))
-    .map(([k,m])=>({ k, name:m.name||k, locked:isLocked(m), group: m.draft ? 'Drafts' : m.project ? (m.customer ? 'Customers’ homes' : 'Purgatory') : 'Cubit Homes' }));
+    .map(([k,m])=>({ k, name:m.name||k, locked:isLocked(m), group: m.draft ? 'Drafts' : m.project ? (m.customer ? 'Customers’ homes' : 'Unassigned') : 'Cubit Homes' }));
 }
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 /* before saving over `id`: → 'over' | 'new' | null (cancel). Nothing to ask (no other home uses it) → 'over'. */

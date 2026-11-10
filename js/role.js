@@ -2,7 +2,7 @@
    The server says who you are (/api/me). Lowest to highest:
      user     look at everything: explode, zoom, walls, labels, production guidance. Nothing is saved.
      sales    + customers, swap walls and windows, add / move / turn pods, cabinets, basic choices with a client,
-                save to Purgatory or to a customer, sign and lock a customer's home
+                save to Unassigned or to a customer, sign and lock a customer's home
      editor   + panel builder (move windows, plugs, holes), the libraries, deleting, adopting into Cubit Homes,
                 replacing a Cubit Home, unlocking a signed home
      admin    + app settings, the team list (⋯ → Team), STEP uploads

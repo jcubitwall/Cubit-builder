@@ -85,13 +85,13 @@ function snapshot(name, id, k=state.model){
   if(model.base===undefined) delete model.base;
   if(m.base) model.base=m.base;
   const own = f => clone(state[f]?.[k]||{});
-  return { id, name, saved:new Date().toISOString(), from:m.project ? (MODELS[k].from||k) : (m.custom && m.from) || k, model,   // the Cubit Home it came from, for Replace from Purgatory
+  return { id, name, saved:new Date().toISOString(), from:m.project ? (MODELS[k].from||k) : (m.custom && m.from) || k, model,   // the Cubit Home it came from, for Replace from Unassigned
    
     picks: own('picks'), layerPicks: own('layerPicks'), wallA: own('wallA'), faces: own('faces'), inset: state.inset, bearing: getBearing(k), found: foundationOf(k), deckOC: deckOCOf(k), units: own('units'), cabinets: own('cabinets'), furniture: clone(state.furniture?.[k]||[]), lights: own('lights'), names: own('names') };
 }
 /* Save: updates the open project, or makes a new one. On the team's server when there is one. */
 const newId = () => Date.now().toString(36);
-/* opts.customer: the customer this home belongs to ('' = back to Purgatory); left out, it keeps the one it has */
+/* opts.customer: the customer this home belongs to ('' = back to Unassigned); left out, it keeps the one it has */
 async function saveProject(name, asNew=false, opts={}){
   const open = MODELS[state.model]?.project;
   const customer = 'customer' in opts ? (opts.customer||null) : (MODELS[state.model]?.customer||null);
@@ -118,6 +118,7 @@ async function saveProject(name, asNew=false, opts={}){
   state.picks[k]={}; state.layerPicks[k]={}; state.wallA[k]={}; state.faces[k]={}; save();
   if(merged) openProject(id);                        // show the combined home (yours + theirs)
   if(remote && TEAM[id]) setBase(id, TEAM[id].rev, snapshot(TEAM[id].name, id, k));
+  try{ window.dispatchEvent(new CustomEvent('cubit:saved', {detail:{k:state.model, ok:true, project:true}})); }catch(e){}
   return {project:TEAM[id]||PROJECTS[id], counts, merged};
 }
 function openProject(id, item=null){
@@ -184,7 +185,7 @@ async function deleteProject(id){
   if(SHARED[id]) register(SHARED[id]);
   if(!MODELS['proj-'+id] && state.model==='proj-'+id){ state.model=Object.keys(MODELS)[0]; save(); }
 }
-/* deleted team homes (Purgatory and customers'): from the server for editors; else this browser's own */
+/* deleted team homes (Unassigned and customers'): from the server for editors; else this browser's own */
 async function deletedProjects(){
   if(remote){ try{ const r=await fetch('api/projects?deleted=1',{cache:'no-store'}); if(r.ok) return (await r.json()).filter(x=>!TEAM[x.id]); }catch(e){} return []; }
   return localTrash().filter(x=>!PROJECTS[x.id]);

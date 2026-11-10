@@ -3,7 +3,7 @@
    A customer has a profile (name, contact, site, notes), their home(s) and, per home, the selections: everything
    picked in the home itself (pods, windows and doors, cabinets, appliances, fixtures, foundation, decks) plus the
    finishes typed in on the profile (cladding and colours, flooring, cabinet finish…). A customer's home is a team
-   project with project.customer = the customer's id (projects.js); a project without a customer is in Purgatory.
+   project with project.customer = the customer's id (projects.js); a project without a customer is in Unassigned.
 
    Signing: the customer and the Cubit rep both sign on the iPad. The signatures and the summary as signed are kept
    for good (server), the home locks (no more saves) and stays locked until an editor or admin unlocks it, giving a

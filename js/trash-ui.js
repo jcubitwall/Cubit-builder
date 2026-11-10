@@ -2,13 +2,13 @@
    each with Restore.
 
      People      customers (with their profile, selections and signatures)
-     Homes       Cubit Homes originals and variations · Purgatory homes · customers' homes · my drafts
+     Homes       Cubit Homes originals and variations · Unassigned homes · customers' homes · my drafts
      Model names the model names homes are filed under (LifePod, Nest …, and any the team added)
      Building    walls · floors, ceilings & roofs · decks · pods
      Windows & doors · Inside (cabinets, appliances, bathroom, plumbing, electrical, heating, furniture)
 
    How long things stay: library items, model names, Cubit Homes originals, customers and drafts for two weeks
-   (then gone for good); Purgatory and customers' homes for as long as their saves are kept on the server (always).
+   (then gone for good); Unassigned and customers' homes for as long as their saves are kept on the server (always).
    Bringing something back needs an editor or admin, except your own drafts. */
 import { MODELS, LIB, LAYERLIB, DECKLIB, PODLIB } from './data.js';
 import { FAMILIES } from './catalog.js';
@@ -40,7 +40,7 @@ function groups(){
   const custs = CUSTOMERS.filter(c=>c.deleted).map(c=>({ key:`cust:${c.id}`, name:c.name, sub:[(c.homes||[]).length ? `${c.homes.length} home${c.homes.length===1?'':'s'}` : '', who(c.deleted.by) && `by ${who(c.deleted.by)}`].filter(Boolean).join(' · '), at:c.deleted.at, keep:true, restore:()=>restoreCustomer(c.id) }));
   return [
     ['People', [['customers', 'Customer profiles', custs]]],
-    ['Homes', [['originals', 'Cubit Homes', orig], ['purg', 'Purgatory', proj(false)], ['custhomes', 'Customers’ homes', proj(true)], ['drafts', 'My drafts', drafts]]],
+    ['Homes', [['originals', 'Cubit Homes', orig], ['purg', 'Unassigned', proj(false)], ['custhomes', 'Customers’ homes', proj(true)], ['drafts', 'My drafts', drafts]]],
     ['Model names', [['families', 'Model names', lib('families', FAMILIES, ()=> 'model name')]]],
     ['Building', [['walls', 'Walls', lib('walls', LIB, x=>`${x.len||''}′ ${x.type==='int'?'interior / connecting':'exterior'}`)],
       ['layers', 'Floors, ceilings & roofs', lib('layers', LAYERLIB, x=>`${x.kind||''} · ${x.len||''}′`)],
@@ -75,7 +75,7 @@ function render(){
   G.forEach(([g,cs])=>cs.forEach(([id,name,rows])=>{ if(cur!=='all' && cur!==id) return; if(cur==='all' && !rows.length) return;
     list+=`<section class="tr-sec"><h3>${esc(name)}${g!==name?` <small>${esc(g)}</small>`:''}</h3>${rows.length ? rows.sort((a,b)=>String(b.at||'').localeCompare(String(a.at||''))).map(row).join('') : '<p class="note">Nothing deleted here.</p>'}</section>`; }));
   if(!list) list='<p class="note">Nothing has been deleted.</p>';
-  body.innerHTML=nav+`<div class="tr-list"><p class="note">Library items, model names, Cubit Homes, customers and drafts can be brought back for 2 weeks, then they’re gone for good. Purgatory and customers’ homes keep every save on the server, so they can always come back.</p>${list}</div>`;
+  body.innerHTML=nav+`<div class="tr-list"><p class="note">Library items, model names, Cubit Homes, customers and drafts can be brought back for 2 weeks, then they’re gone for good. Unassigned and customers’ homes keep every save on the server, so they can always come back.</p>${list}</div>`;
   body.querySelectorAll('[data-tc]').forEach(b=>b.onclick=()=>{ cur=b.dataset.tc; render(); });
   const byKey=new Map(G.flatMap(([,cs])=>cs.flatMap(c=>c[2])).map(r=>[r.key, r]));
   body.querySelectorAll('[data-tr]').forEach(b=>b.onclick=async()=>{ const r=byKey.get(b.dataset.tr); if(!r) return;

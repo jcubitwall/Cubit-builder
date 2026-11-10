@@ -34,8 +34,8 @@ function initState(){
     if(s.model&&MODELS[s.model]) state.model=s.model;
   }catch(e){}
 }
-let saveHook=null; const onSave = fn => { saveHook=fn; };
-function save(){ if(!canSave()) return; try{ saveHook?.(); }catch(e){} try{ localStorage.setItem(KEY, JSON.stringify({picks:state.picks, units:state.units, found:state.found, deckOC:state.deckOC, icf:state.icf, layerPicks:state.layerPicks, cabinets:state.cabinets, furniture:state.furniture, lights:state.lights, wallA:state.wallA, faces:state.faces, names:state.names, bearing:state.bearing, northUp:state.northUp, inset:state.inset, model:state.model, show:state.show, glass:state.glass, nums:state.nums, letters:state.letters})); }catch(e){} }
+const saveHooks=[]; const onSave = fn => { saveHooks.push(fn); };   // several listeners (draft sync, the Saved indicator)
+function save(){ if(!canSave()) return; saveHooks.forEach(f=>{ try{ f(); }catch(e){} }); try{ localStorage.setItem(KEY, JSON.stringify({picks:state.picks, units:state.units, found:state.found, deckOC:state.deckOC, icf:state.icf, layerPicks:state.layerPicks, cabinets:state.cabinets, furniture:state.furniture, lights:state.lights, wallA:state.wallA, faces:state.faces, names:state.names, bearing:state.bearing, northUp:state.northUp, inset:state.inset, model:state.model, show:state.show, glass:state.glass, nums:state.nums, letters:state.letters})); }catch(e){} }
 const fits = (w,slot) => w && w.len===slot.len && (w.type||'ext')===(slot.type||'ext');
 /* Which wall sits in a slot: the person's own choice, else the model's own wall (models.json "picks"),
    else a sensible sample wall of the right length and type. */

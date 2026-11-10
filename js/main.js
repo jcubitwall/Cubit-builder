@@ -1,6 +1,8 @@
 /* Cubit Builder — main.js : boot + toolbar toggles */
 import './dialog-back.js';
 import './mode.js';
+import './tools-ui.js';
+import './savestate.js';
 import { loadRules } from './wall-rules.js';
 import { loadShapes } from './shapes.js';
 import { state, initState } from './state.js';

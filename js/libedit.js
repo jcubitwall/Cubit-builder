@@ -39,7 +39,7 @@ function applyEdits(){
   (ED.fams||[]).forEach(f=>{ if(!FAMILIES.find(x=>x.id===f.id)) FAMILIES.push({ id:f.id, name:f.name, base:null, added:true }); });
   ['families','models','pods','walls','layers','decks','casework','units','devices'].forEach(kind=>itemsOf(kind).forEach(({id,ref})=>{
     const k=`${kind}:${id}`;
-    // drafts and team homes (Purgatory, customers) carry their own names, renamed on their own: never put back
+    // drafts and team homes (Unassigned, customers) carry their own names, renamed on their own: never put back
     if(kind==='models' && (ref.custom || ref.project)){ ORIG.set(k, ref.name); }
     else { if(!ORIG.has(k)) ORIG.set(k, ref.name); ref.name = ED.names[k] || ORIG.get(k); }
     const g=ED.gone[k], at=g && g.at ? Date.parse(g.at) : NaN;
