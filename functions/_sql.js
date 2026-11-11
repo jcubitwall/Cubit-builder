@@ -13,9 +13,8 @@
      step_imports      the log of STEP files scanned into the library
      files             one row per photo, signed PDF and STEP file; the bytes are in R2 (binding STEPS)
 
-   Setting (Cloudflare Pages → Settings → Bindings): a Hyperdrive binding named MARIADB pointing at the MariaDB
-   server. Hyperdrive keeps the connections warm and hands each request host/user/password/database/port. */
-import { createConnection } from 'mysql2/promise';
+   Reached through the cubit-db gateway Worker (workers/db, service binding DB), which holds the driver and talks to
+   MariaDB through Cloudflare Hyperdrive (Hyperdrive keeps the real connections warm). */
 
 export const SCHEMA = [
 `CREATE TABLE IF NOT EXISTS team_members (
@@ -100,18 +99,16 @@ export const SCHEMA = [
 export const toDT = iso => { if(!iso) return null; const d = new Date(iso); return isNaN(d) ? null : d.toISOString().slice(0,23).replace('T',' '); };
 export const toISO = v => { if(v == null) return null; if(v instanceof Date) return v.toISOString(); const s = String(v); return /Z$/.test(s) ? s : new Date(s.replace(' ','T')+'Z').toISOString(); };
 
-/* one connection for this request: sql(env) → { q(sql, args) → rows, tx(fn), end() } */
+/* one connection for this request: sql(env) → { q(sql, args) → rows, one, tx(fn), end() } */
 export async function sql(env){
-  const H = env.MARIADB;
-  if(!H) throw new Error('The database is not set up (Hyperdrive binding MARIADB).');
-  const c = await createConnection({ host:H.host, user:H.user, password:H.password, database:H.database, port:H.port,
-    disableEval:true, dateStrings:true, timezone:'Z', supportBigNumbers:true, charset:'utf8mb4' });
-  const q = async (s, a=[]) => (await c.query(s, a))[0];
+  if(!env.DB) throw new Error('The database is not set up (service binding DB → cubit-db).');
+  const c = await env.DB.sql();
+  const q = (s, a=[]) => c.q(s, a);
   return {
     q,
     one: async (s, a=[]) => (await q(s, a))[0] || null,
     /* a transaction: fn(q) runs between BEGIN and COMMIT; anything thrown rolls it back */
-    async tx(fn){ await c.beginTransaction(); try{ const r = await fn(q); await c.commit(); return r; }catch(e){ try{ await c.rollback(); }catch(_){} throw e; } },
+    async tx(fn){ await c.begin(); try{ const r = await fn(q); await c.commit(); return r; }catch(e){ try{ await c.rollback(); }catch(_){} throw e; } },
     end: () => c.end().catch(()=>{}),
   };
 }

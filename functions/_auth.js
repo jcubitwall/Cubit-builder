@@ -53,7 +53,7 @@ let teamCache = { at:0, v:null };
 export const forgetTeam = () => { teamCache = { at:0, v:null }; };
 /* { email: { role, prices?, by, at } } */
 export async function teamOf(env, fresh=false){
-  if(!env.MARIADB) return {};
+  if(!env.DB) return {};
   if(!fresh && teamCache.v && Date.now()-teamCache.at < 15000) return teamCache.v;
   let v = {};
   try{ const rows = await withSql(env, db => db.q('SELECT email, role, prices, set_by, set_at FROM team_members'));

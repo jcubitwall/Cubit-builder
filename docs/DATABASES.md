@@ -4,15 +4,15 @@ Cubit Builder keeps its data in two databases. Nothing is kept in files: not in 
 
 | | What's in it | Reached through |
 |---|---|---|
-| **MariaDB** (structured) | team and roles · customers, their history, their homes · each home's name, owner, revision, who saved it, lock and unlocks · signings · price book and price history · shop-list ticks · STEP import log · an index row for every photo, signed PDF and STEP file | Cloudflare **Hyperdrive** (binding `MARIADB`) |
-| **MongoDB** (unstructured) | each home's design and every earlier version · drafts · the team's library (walls, layers, shapes, sub-models, windows & doors, adopted products, kitchens, devices) and every earlier version · library edits · settings · customers' selections · signed records (signatures + summary) · the Cubit catalogue (models, pods, decks, walls, layers, units, families, brands, stores, projects, fixtures, sinks) | the **cubit-mongo** Worker (`workers/mongo`, service binding `MONGO`) |
+| **MariaDB** (structured) | team and roles · customers, their history, their homes · each home's name, owner, revision, who saved it, lock and unlocks · signings · price book and price history · shop-list ticks · STEP import log · an index row for every photo, signed PDF and STEP file | the **cubit-db** Worker, through Cloudflare **Hyperdrive** |
+| **MongoDB** (unstructured) | each home's design and every earlier version · drafts · the team's library (walls, layers, shapes, sub-models, windows & doors, adopted products, kitchens, devices) and every earlier version · library edits · settings · customers' selections · signed records (signatures + summary) · the Cubit catalogue (models, pods, decks, walls, layers, units, families, brands, stores, projects, fixtures, sinks) | the **cubit-db** Worker (its Durable Object keeps the connection warm) |
 | **R2** | only bytes: photos, signed PDFs, STEP files. Each one has its row in MariaDB `files`. | binding `STEPS` |
 
 The tables are created by `functions/_sql.js` (`SCHEMA`); the collections are described in `functions/_mongo.js` and `functions/_seed.js`.
 
 ## Why the gateway Worker
 
-The site's server code can't keep a connection open between requests. Hyperdrive solves that for MariaDB. Hyperdrive doesn't do MongoDB, so `workers/mongo` holds one MongoDB connection inside a Durable Object that stays warm (about 35 ms a query instead of about 300 ms for a fresh connection), and the site calls it through a service binding.
+The site's server code (Pages Functions) reaches both databases through one small Worker, `cubit-db` (`workers/db`), over a service binding named `DB`. The Worker holds the database drivers (Cloudflare Pages can't bundle them), talks to MariaDB through Hyperdrive (which keeps the connections warm), and keeps one MongoDB connection alive inside a Durable Object (about 35 ms a query instead of about 300 ms for a fresh connection; Hyperdrive doesn't do MongoDB). It has no public address.
 
 ## Setting it up
 
@@ -32,12 +32,11 @@ AWS RDS for MariaDB, region **ca-central-1**, smallest instance (`db.t4g.micro`)
 ### 3. Cloudflare
 
 1. **Hyperdrive → Create configuration**: name `cubit-mariadb`, type MySQL, host/port/database/user/password from RDS. Hyperdrive tests the connection when it's saved.
-2. **The gateway Worker**: from this repo, `cd workers/mongo && npm install && npx wrangler deploy`, then `npx wrangler secret put MONGODB_URI` and paste the Atlas string. (Or Workers → cubit-mongo → Settings → Variables and secrets.)
+2. **The gateway Worker**: from this repo, `cd workers/db && npm ci && npx wrangler deploy` (with the Hyperdrive id filled into `wrangler.toml`), then `npx wrangler secret put MONGODB_URI` and paste the Atlas string. (Or Workers → cubit-db → Settings → Variables and secrets.)
 3. **Pages → cubit-builder → Settings → Bindings → Add**:
-   - Hyperdrive: variable `MARIADB` → configuration `cubit-mariadb`
-   - Service binding: variable `MONGO` → Worker `cubit-mongo`, entrypoint `MongoGateway`
+   - Service binding: variable `DB` → Worker `cubit-db`, entrypoint `DbGateway`
    - (R2 `STEPS` stays as it is)
-4. **Pages → Settings → Runtime**: compatibility date 2026-09-01 or later (that turns on `nodejs_compat`, which the MariaDB driver needs).
+4. The site itself installs nothing: the drivers live in the Worker.
 5. The Workers Paid plan ($5 a month) is needed: the free plan allows 10 ms of CPU per request, too little for a database driver.
 
 ### 4. Moving the data in (once)
@@ -59,10 +58,10 @@ Every step can be run again; *Empty both databases first* starts clean.
 You need MariaDB (or MySQL), MongoDB (or FerretDB 2) and `wrangler`:
 
 ```sh
-npm install                                   # the MariaDB driver
-(cd workers/mongo && npm install)
-printf 'MONGODB_URI=mongodb://127.0.0.1:27017/\n' > workers/mongo/.dev.vars
-(cd workers/mongo && npx wrangler dev --port 8788) &
+(cd workers/db && npm ci)
+printf 'MONGODB_URI=mongodb://127.0.0.1:27017/\n' > workers/db/.dev.vars
+# in workers/db/wrangler.toml for dev: [[hyperdrive]] binding = "MARIADB", id = "…", localConnectionString = "mysql://user:pass@127.0.0.1:3306/cubit"
+(cd workers/db && npx wrangler dev --port 8788) &
 ```
 
-Then a `wrangler.toml` next to `index.html` (not committed) with `pages_build_output_dir = "."`, the R2 bucket `STEPS`, a Hyperdrive binding `MARIADB` with `localConnectionString = "mysql://user:pass@127.0.0.1:3306/cubit"`, and a service binding `MONGO` → `cubit-mongo` / `MongoGateway`; run `npx wrangler pages dev .`. Locally there's no Cloudflare Access, so nobody is signed in: for testing, set the sign-in yourself in `_auth.js` on your copy only.
+Then a `wrangler.toml` next to `index.html` (not committed) with `pages_build_output_dir = "."`, the R2 bucket `STEPS` and a service binding `DB` → `cubit-db` / `DbGateway`; run `npx wrangler pages dev .`. Locally there's no Cloudflare Access, so nobody is signed in: for testing, set the sign-in yourself in `_auth.js` on your copy only.

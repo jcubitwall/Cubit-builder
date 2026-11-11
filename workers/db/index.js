@@ -1,17 +1,23 @@
-/* Cubit Builder — the MongoDB gateway (a small Worker of its own, "cubit-mongo").
+/* Cubit Builder — the database gateway (a small Worker of its own, "cubit-db").
 
-   The site's server code (Pages Functions) can't keep a database connection open between requests, and MongoDB
-   can't go through Hyperdrive. So this Worker holds ONE MongoClient inside a Durable Object, which stays alive
-   between requests and keeps the connection warm (~35 ms a query instead of ~300 ms for a fresh one).
-   The site calls it through a service binding (MONGO → this Worker's MongoGateway entrypoint):
-       await env.MONGO.run([{ c:'walls', op:'find', filter:{}, opts:{ sort:{ ord:-1 } } }, …])
-   → one result per op, in order. Only plain JSON goes in and out: every _id is a string, every time an ISO string.
+   The site's server code (Pages Functions) reaches both databases through this Worker, over a service binding
+   (DB → this Worker's DbGateway entrypoint). It holds the database drivers, so the site itself has none to build.
 
-   Settings (this Worker → Settings → Variables and secrets):
+   MongoDB:  await env.DB.run([{ c:'walls', op:'find', filter:{}, opts:{ sort:{ ord:-1 } } }, …])  → one result per op.
+             The Worker keeps ONE MongoClient inside a Durable Object, which stays alive between requests and keeps
+             the connection warm (~35 ms a query instead of ~300 ms for a fresh one): MongoDB can't use Hyperdrive.
+   MariaDB:  const c = await env.DB.sql();  await c.q(sql, args) …  c.begin() / c.commit() / c.rollback() / c.end()
+             A connection for the request, through Cloudflare Hyperdrive (binding MARIADB), which keeps the real
+             connections warm. The same connection serves a whole transaction.
+   Only plain JSON goes in and out: every _id is a string, every time an ISO string.
+
+   Settings (this Worker → Settings → Variables and secrets / Bindings):
      MONGODB_URI   secret: the Atlas connection string (mongodb+srv://user:password@cluster…/)
-     MONGODB_DB    the database name (default "cubit") */
-import { DurableObject, WorkerEntrypoint } from 'cloudflare:workers';
+     MONGODB_DB    the database name (default "cubit")
+     MARIADB       Hyperdrive binding → the configuration for the MariaDB server */
+import { DurableObject, WorkerEntrypoint, RpcTarget } from 'cloudflare:workers';
 import { MongoClient } from 'mongodb';
+import { createConnection } from 'mysql2/promise';
 
 const OPS = new Set(['find','findOne','insertOne','insertMany','replaceOne','updateOne','updateMany','deleteOne','deleteMany','countDocuments','findOneAndUpdate','bulkWrite','createIndex','distinct']);
 const COLL = /^[a-z][a-z0-9_]{1,40}$/;
@@ -19,7 +25,7 @@ const COLL = /^[a-z][a-z0-9_]{1,40}$/;
 export class MongoHolder extends DurableObject {
   async db(){
     if(!this.client){
-      if(!this.env.MONGODB_URI) throw new Error('MONGODB_URI is not set on the cubit-mongo Worker.');
+      if(!this.env.MONGODB_URI) throw new Error('MONGODB_URI is not set on the cubit-db Worker.');
       this.client = new MongoClient(this.env.MONGODB_URI, { maxPoolSize:8, serverSelectionTimeoutMS:8000, connectTimeoutMS:8000, retryWrites:true });
       this.ready = this.client.connect().catch(e=>{ this.client = null; throw e; });
     }
@@ -56,12 +62,29 @@ export class MongoHolder extends DurableObject {
   }
 }
 
-/* what the site calls: env.MONGO.run(ops) */
-export class MongoGateway extends WorkerEntrypoint {
+/* one MariaDB connection, handed to the site for the length of its request */
+class SqlConn extends RpcTarget {
+  constructor(c){ super(); this.c = c; }
+  async q(sql, args=[]){ const [rows] = await this.c.query(sql, args); return JSON.parse(JSON.stringify(rows)); }
+  async begin(){ await this.c.beginTransaction(); }
+  async commit(){ await this.c.commit(); }
+  async rollback(){ await this.c.rollback(); }
+  async end(){ try{ await this.c.end(); }catch(e){} }
+}
+
+/* what the site calls */
+export class DbGateway extends WorkerEntrypoint {
   async run(ops){
     if(!Array.isArray(ops) || !ops.length || ops.length > 500) throw new Error('Bad database call.');
     const stub = this.env.HOLDER.get(this.env.HOLDER.idFromName('main'));
     return stub.run(ops);
+  }
+  async sql(){
+    const H = this.env.MARIADB;
+    if(!H) throw new Error('The MariaDB database is not set up (Hyperdrive binding MARIADB on cubit-db).');
+    const c = await createConnection({ host:H.host, user:H.user, password:H.password, database:H.database, port:H.port,
+      disableEval:true, dateStrings:true, timezone:'Z', supportBigNumbers:true, charset:'utf8mb4' });
+    return new SqlConn(c);
   }
 }
 export default { async fetch(){ return new Response('Cubit Builder database gateway. Nothing to see here.', { status:404 }); } };

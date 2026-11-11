@@ -1,4 +1,4 @@
-/* Cubit Builder — the unstructured database (MongoDB), through the cubit-mongo gateway Worker (workers/mongo).
+/* Cubit Builder — the unstructured database (MongoDB), through the cubit-db gateway Worker (workers/db).
 
    What lives here: documents whose shape varies, kept whole.
      projects           each home's design (pods, walls, picks, decks, kitchens …), _id = the project id.
@@ -17,12 +17,11 @@
                         item: { _id:"<set>:<key>", set, key, ord, doc }; seed_sets says how each set is put back
                         together ({ _id:<set>, shape:'list' | 'map' | 'wrap:<field>' | 'one' })
 
-   Setting (Cloudflare Pages → Settings → Bindings): a service binding named MONGO → Worker cubit-mongo,
-   entrypoint MongoGateway. */
+   Reached through the cubit-db gateway Worker (workers/db): service binding DB → Worker cubit-db, entrypoint DbGateway. */
 
 export function mongo(env){
-  if(!env.MONGO) throw new Error('The document database is not set up (service binding MONGO → cubit-mongo).');
-  const run = ops => env.MONGO.run(ops);
+  if(!env.DB) throw new Error('The database is not set up (service binding DB → cubit-db).');
+  const run = ops => env.DB.run(ops);
   const one = async op => (await run([op]))[0];
   const coll = c => ({
     find: (filter={}, opts={}) => one({ c, op:'find', filter, opts }),

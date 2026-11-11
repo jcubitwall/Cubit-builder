@@ -157,8 +157,8 @@ Anyone can also upload a wall file from the app sidebar to try it out. Uploaded 
 
 The app is a static site plus Cloudflare Pages Functions in `functions/` (the `/api/…` endpoints). Its data is in two databases, and nothing is kept in files:
 
-- **MariaDB** (structured, through Cloudflare Hyperdrive): the team and roles, customers and their history, each home's name / owner / revision / lock, signings, the price book, shop-list ticks, the STEP import log, and an index row for every photo and file.
-- **MongoDB** (unstructured, through the `cubit-mongo` gateway Worker in `workers/mongo`): each home's design and every earlier version, drafts, the team's library (walls, layers, shapes, sub-models, windows and doors, kitchens, devices…), library edits, settings, and the Cubit catalogue that used to be `data/*.json`.
+- **MariaDB** (structured, through Cloudflare Hyperdrive and the `cubit-db` gateway Worker in `workers/db`): the team and roles, customers and their history, each home's name / owner / revision / lock, signings, the price book, shop-list ticks, the STEP import log, and an index row for every photo and file.
+- **MongoDB** (unstructured, through the same `cubit-db` Worker): each home's design and every earlier version, drafts, the team's library (walls, layers, shapes, sub-models, windows and doors, kitchens, devices…), library edits, settings, and the Cubit catalogue that used to be `data/*.json`.
 - **R2** holds only bytes: photos, signed PDFs and STEP files, each indexed in MariaDB.
 
 Setup is in `docs/DATABASES.md` (the databases) and `docs/PRIVATE-SETUP.md` (Cloudflare Access and the rest).
@@ -197,7 +197,7 @@ js/labels.js        panel codes, assembly order, stacking, CNC flips, label PDF
 js/projects.js      saving / opening named projects (+ projects-ui.js for the dialog)
 tools/step-import/  scripts that turn a Shapr3D STEP file into walls, pods and homes (import_step.py --kind home|pod|wall)
 functions/          Cloudflare Pages Functions: the /api endpoints (_sql.js MariaDB, _mongo.js MongoDB, _seed.js the catalogue)
-workers/mongo/      the MongoDB gateway Worker (cubit-mongo)
+workers/db/         the database gateway Worker (cubit-db): the MariaDB and MongoDB drivers
 migrate.html        one-time move of the old JSON files into the databases (admins)
 .github/workflows/  import-step.yml: scans an uploaded STEP file and sends what's new to the databases
 js/role.js          viewer / admin; viewers can explore but nothing is saved
