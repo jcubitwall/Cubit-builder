@@ -6,10 +6,14 @@
    · Bottom plate: single, fastened to the FLOOR first; the wall is set down over it (recessed into the bottom of
      the panels). Stops at doors, patio doors and cased openings. Its two top corners are bevelled ¾″.
    · Top plate: single, fastened to the CEILING; it locks into the top of the walls as the ceiling is lowered.
-     Runs the full length of the wall (splice anywhere). Its two bottom corners are bevelled ¾″.
-   · End stud: one at each end of the wall, between the plates (93″), for the long SIP screws.
+     Runs the length of the wall (splice anywhere). Its two bottom corners are bevelled ¾″.
+   · Plates are never tight (Nov 2026): every plate end stops ⅛″ short of an Einspine stud and of every door /
+     opening it meets (PLATE_GAP). Too long is a problem on site; a little room isn't.
+   · Studs against an Einspine (at a pod corner: the stud just inboard of the notch and the one ripped to fit behind
+     it, or the corner post) run floor to ceiling, the full 96″; the plates butt up against them (⅛″ off).
+   · End stud anywhere else: one at each end of the wall, between the plates (93″), for the long SIP screws.
    · Jacks: one each side of every window and door, the height of the opening (sides only, no headers, no
-     sill or head pieces). A door's jacks sit on the bottom plate.
+     sill or head pieces). A door's jacks sit on the bottom plate. Round windows have none.
    · Splines: two ½″ OSB splines (one near each face) at every panel joint, between the plates. Where an
      opening's edge falls on the joint its jack takes the joint for the height of the opening; the splines
      still run below and above it. Each spline is stapled to the panel already standing (left, as the crew
@@ -24,6 +28,7 @@ import { panelPlan } from './labels.js';
 import { packStock } from './deckframe.js';
 
 const SNAP = 0.25;
+const PLATE_GAP = 0.125;   // every plate end stops ⅛″ short of an Einspine stud and of a door / opening
 const EPS_MAT = '1½″ EPS, 8″ strips', TUBE_MAT = 'Steel tube 2″ × 3″', ACM_MAT = 'ACM 2 mm, 4 × 8 sheets';
 const LVL_H = {9.25:'9¼″', 9.5:'9½″', 11.875:'11⅞″'};
 const fmtIn = v => { const n=Math.round(v*16); const w=Math.floor(n/16), f=n%16, g=(a,b)=>b?g(b,a%b):a, d=g(f,16); return (w?w:'')+(f?`${w?' ':''}${f/d}/${16/d}`:'')+'″'; };
@@ -54,11 +59,6 @@ function wallFraming(slot, w0){
   const [nl,nr]=w.notch||[0,0], wt=(slot.type==='int'?4.5:6.5), zc0=(wt-lum.d)/2;   // lumber sits zc0 in from the outer face
   const pn=(a,b)=>{ const n=[]; if(nl && a<0.01) n.push('left'); if(nr && b>L-0.01) n.push('right'); return n; };
   const notchTxt=ends=>ends.length?` · notch ${fmtIn(nl||nr)} × ${fmtIn((nl||nr)-zc0)} at the ${ends.join(' and ')} end${ends.length>1?'s':''} for the Einspine`:'';
-  // plates
-  add('Top plate', 0, L, H-P, H, 'on the ceiling · full length, splice anywhere · bevel 2 bottom corners ¾″'+notchTxt(pn(0,L)), {notch:pn(0,L)});
-  let segs=[[0,L]];
-  w.openings.filter(isFloorOpening).forEach(o=>{ segs=segs.flatMap(([a,b])=>{ const c=o.x, d=o.x+o.w; if(d<=a||c>=b) return [[a,b]]; const r=[]; if(c>a) r.push([a,c]); if(d<b) r.push([d,b]); return r; }); });
-  segs.forEach(([a,b])=>add('Bottom plate', a, b, 0, P, 'on the floor · stops at doors · bevel 2 top corners ¾″'+notchTxt(pn(a,b)), {notch:pn(a,b)}));
   // corner posts (this wall runs through a corner with openings against it on both sides), and the long wall
   // that meets such a corner, which then needs no end stud or jack there
   const wt0=(slot.type==='int'?4.5:6.5), posts=[cornerPost(slot,0), cornerPost(slot,1)];
@@ -69,10 +69,10 @@ function wallFraming(slot, w0){
     return q ? cornerPost(q, q.corner?.[0]&&same(q.p0n,c)?0:1) : false; });
   const postZone=[]; if(posts[0]) postZone.push([0,wt0]); if(posts[1]) postZone.push([L-wt0,L]);
   posts.forEach((p,e)=>{ if(!p) return; const [a,b]=e===0?[0,wt0]:[L-wt0,L];
-    add('Corner post', a, b, P, H-P, `${e===0?'left':'right'} end · openings against the corner on both walls · notch ${fmtIn(nl||nr||1.75)} × ${fmtIn(nl||nr||1.75)} for the Einspine`, {zf:[0,wt0], lumber:`${fmtIn(wt0)} × ${fmtIn(wt0)} post`, post:true}); });
+    add('Corner post', a, b, 0, H, `${e===0?'left':'right'} end · floor to ceiling, 96″ · openings against the corner on both walls · notch ${fmtIn(nl||nr||1.75)} × ${fmtIn(nl||nr||1.75)} for the Einspine`, {zf:[0,wt0], lumber:`${fmtIn(wt0)} × ${fmtIn(wt0)} post`, post:true}); });
   // jacks
   const jacks=[];
-  w.openings.filter(o=>o.kind!=='vent').forEach(o=>{
+  w.openings.filter(o=>o.kind!=='vent' && o.shape!=='round').forEach(o=>{   // round windows: no jacks
     const y0=Math.max(o.y, isFloorOpening(o) ? P : 0), y1=Math.min(o.y+o.h, H-P);
     const name = o.kind==='window' ? 'window' : o.kind==='patio' ? 'patio door' : o.kind==='opening' ? 'cased opening' : 'door';
     [[o.x-t, o.x, 'left'], [o.x+o.w, o.x+o.w+t, 'right']].forEach(([a,b,side])=>{
@@ -90,10 +90,30 @@ function wallFraming(slot, w0){
     if(w.openings.some(o=>isGapOpening(o) && (side==='left end' ? o.x<=(w.snap?.[0]?2.01:0.5) : o.x+o.w>=L-(w.snap?.[1]?2.01:0.5)))) return;   // the wall ends in a full-height opening: no SIP, no stud
     if(posts[side==='left end'?0:1] || meets[side==='left end'?0:1]) return;   // a corner post takes this end
     const n = side==='left end' ? nl : nr;
-    add('End stud', a, b, P, H-P, side+(n?' · just inboard of the Einspine notch':''));
+    // against the Einspine: floor to ceiling (96″), the plates butt up to it; anywhere else between the plates
+    if(n) add('End stud', a, b, 0, H, `${side} · just inboard of the Einspine notch · floor to ceiling, 96″`, {spine:true});
+    else add('End stud', a, b, P, H-P, side);
     if(n){ const z0=n, z1=wt-zc0, rip=z1-z0;
-      add('Corner stud', cx, cx+t, P, H-P, `${side} · behind the Einspine notch · rip a ${lum.name} to ${fmtIn(rip)}`, {zf:[z0,z1], rip}); }
+      add('Corner stud', cx, cx+t, 0, H, `${side} · behind the Einspine notch · floor to ceiling, 96″ · rip a ${lum.name} to ${fmtIn(rip)}`, {zf:[z0,z1], rip, spine:true}); }
   });
+  // plates, now the ends are known. At an Einspine end they stop ⅛″ short of its full-height studs (or the corner
+  // post); the bottom plate stops ⅛″ short of every door / opening at the floor, and the top plate of any opening
+  // that reaches it. Lengths to the 1/16″, rounded down (never long).
+  const g=PLATE_GAP;
+  const endAt=e=>{ const n=e===0?nl:nr;
+    if(posts[e]) return wt0+g;                 // the corner post, floor to ceiling
+    if(n) return n+t+g;                        // the stud inboard of the notch (the ripped one is behind it)
+    return 0; };
+  const lo=endAt(0), hi=L-endAt(1);
+  const cut=(segs, opens)=>{ opens.forEach(o=>{ segs=segs.flatMap(([a,b])=>{ const c=o.x-g, d=o.x+o.w+g; if(d<=a||c>=b) return [[a,b]]; const r=[]; if(c>a) r.push([a,c]); if(d<b) r.push([d,b]); return r; }); }); return segs; };
+  const plate=(kind, segs, y0, y1, note)=>segs.forEach(([a,b])=>{
+    const a2 = a<0.01 ? 0 : Math.ceil(a*16-1e-6)/16, b2 = b>L-0.01 ? L : a2+Math.floor((b-a2)*16+1e-6)/16;   // never long
+    if(b2-a2<1) return; add(kind, a2, b2, y0, y1, note+notchTxt(pn(a2,b2)), {notch:pn(a2,b2)}); });
+  const spineEnds = lo>0.01 || hi<L-0.01;
+  plate('Top plate', cut([[lo,hi]], w.openings.filter(o=>o.kind!=='vent' && o.y+o.h>H-P+0.01)), H-P, H,
+    `on the ceiling · splice anywhere · bevel 2 bottom corners ¾″${spineEnds?' · ⅛″ short of the Einspine studs':''}`);
+  plate('Bottom plate', cut([[lo,hi]], w.openings.filter(isFloorOpening)), 0, P,
+    `on the floor · stops ⅛″ short of doors${spineEnds?' and the Einspine studs':''} · bevel 2 top corners ¾″`);
   // splines at each panel joint, between the plates, minus openings at or over the joint
   const plan=panelPlan(slot, w0), spans=panelSpans(w), joints=spans.slice(0,-1).filter((s,i)=>Math.abs(s[1]-spans[i+1][0])<0.01).map(s=>s[1]);   // panels that meet (not across a gap)
   const byK=k=>plan.panels.find(p=>p.k===k);
