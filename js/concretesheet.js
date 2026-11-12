@@ -10,6 +10,7 @@ import { buildHome } from './scene3d.js';
 import { renderSide, toast } from './sidebar.js';
 import { state, save } from './state.js';
 import { dimH, dimV, downloadBlob } from './sheets.js';
+import { needPDF } from './pdflib.js';
 
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const yd3 = ft3 => ft3/27, m3 = ft3 => ft3*0.0283168;
@@ -169,6 +170,7 @@ function svgToPNG(svg, scale=2.2){
   });
 }
 async function concretePDF(D){
+  await needPDF();
   const {cp}=D, doc=new window.jspdf.jsPDF({orientation:'landscape',unit:'pt',format:'letter'}), PW_=792, PH_=612, M=36;
   const clean=t=>String(t).replace(/′/g,"'").replace(/″/g,'"').replace(/³/g,'3').replace(/[→]/g,'->').replace(/°/g,' deg').replace(/·/g,'-').replace(/–/g,'-').replace(/×/g,'x');
   const T=(t,x,y,o)=>doc.text(clean(t),x,y,o);

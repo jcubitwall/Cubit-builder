@@ -330,7 +330,7 @@ const sideWord = k => ({S:'top side', E:'right side', N:'bottom side', W:'left s
    in Design. Open or shut is remembered. */
 const SHOPSEC_KEY='cubit-shopsec';
 const shopSecOpen = () => { try{ return localStorage.getItem(SHOPSEC_KEY)==='1'; }catch(e){ return false; } };
-const shopSec = (inner, label='Shop · sheets, isolate, panel builder') => `<details class="shop-sec shop-only"${shopSecOpen()?' open':''}><summary>${label}</summary>${inner}</details>`;
+const shopSec = (inner, label='Shop · sheets, isolate') => `<details class="shop-sec shop-only"${shopSecOpen()?' open':''}><summary>${label}</summary>${inner}</details>`;
 document.addEventListener('toggle', e=>{ if(e.target.classList?.contains('shop-sec')){ try{ localStorage.setItem(SHOPSEC_KEY, e.target.open?'1':'0'); }catch(err){} } }, true);
 function renderSide(){
   renderSideInner();
@@ -451,7 +451,8 @@ function renderSideInner(){
       <div class="eyebrow">${opts.length} wall layout${opts.length===1?'':'s'} for a ${s.len}′ ${isInt?'interior':'exterior'} wall · seen from ${isInt?(s.other?.label||'the other side'):'outside'}</div>
       ${opts.length?'':`<p class="note">Nothing in the library for a ${s.len}′ ${isInt?'interior':'exterior'} wall yet. Upload a STEP file of a home that has one and it will be added.</p>`}
       <div class="opts">${opts.map(o=>`<button class="opt" data-o="${esc(o.id)}" aria-pressed="${w&&o.id===w.id}">${thumbSVG(o)}<b>${esc(o.name)}</b><code class="shop-only">${esc(o.id)}${o.src==='imported'?' · uploaded':''}${o.src==='saved'?' · saved here':''}${o.model?' · this home':''}</code></button>`).join('')}</div>
-      ${shopSec(`<div class="row"><button class="btn" id="toSheet">Assembly sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===s.id}">${state.isolate===s.id?'Exit isolate':'Isolate'}</button>${s.short ? `<button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button>` : ''}${w&&!w.blank?`<button class="btn ghost edit-only" id="wMir" title="The same wall the other way round (left ↔ right)">Mirror wall</button>`:''}<button class="btn ghost edit-only" id="wBuild" title="Openings, boxes, holes and shapes for this wall">Panel builder</button></div>
+      <div class="row edit-only"><button class="btn ghost" id="wBuild" title="Openings, boxes, holes and shapes for this wall">Panel builder</button></div>
+      ${shopSec(`<div class="row"><button class="btn" id="toSheet">Assembly sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===s.id}">${state.isolate===s.id?'Exit isolate':'Isolate'}</button>${s.short ? `<button class="btn ghost" id="makeA" ${s.letter.startsWith('A')?'disabled':''}>Make this Wall A</button>` : ''}${w&&!w.blank?`<button class="btn ghost edit-only" id="wMir" title="The same wall the other way round (left ↔ right)">Mirror wall</button>`:''}</div>
       ${(state.wallA?.[state.model]?.[s.pod.i] || m.pods[s.pod.i]?.a) ? `<p class="note">Wall A for ${s.pod.label} was set by hand. <button class="linkbtn" id="autoA">Go back to automatic</button></p>`:''}
       ${isInt && !s.part && jointWallT(s)!==0 ? jointBlock(s) : ''}`)}`;
     sideB.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
@@ -635,8 +636,9 @@ function renderLayerSide(ls){
     ${ls.kind==='ceiling-int' ? lightEditorHTML(ls) : ''}
     ${/^floor/.test(ls.kind) && ls.pod ? (()=>{ const cur=nameOf('p:'+ls.pod.i)||''; const R=['Bedroom','Bathroom','Kitchen','Living','Dining','Laundry','Office','Entry','Kitchen & living'];
       return `<div class="room-box"><div class="eyebrow">Room · shows on the plan and the drawings</div><div class="seg wrap" role="group" aria-label="Room name">${R.map(r=>`<button data-room="${esc(r)}" aria-pressed="${cur===r}" ${canSave()?'':'disabled'}>${esc(r)}</button>`).join('')}<button data-room="__other" ${canSave()?'':'disabled'}>${cur && !R.includes(cur) ? esc(cur)+' ✎' : 'Other…'}</button></div></div>`; })() : ''}
-    <p class="note design-only">${ls.kind==='floor-int'||ls.kind==='floor-ext' ? 'Flooring, siding, roof and paint are picked by eye under <button class="linkbtn" id="toFin">Finishes</button>. The floor panel itself (holes, hatches, CNC) is set in Shop.' : 'The panel itself (holes, hatches, CNC) is set in Shop.'}</p>
-    ${shopSec(`<div class="row"><button class="btn" id="toSheet">Layer sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===ls.id}">${state.isolate===ls.id?'Exit isolate':'Isolate'}</button>${L.blank?'':'<button class="btn ghost edit-only" id="lMir" title="End for end">Mirror</button><button class="btn ghost edit-only" id="lFlip" title="Front to back">Flip</button>'}<button class="btn ghost" id="lBuild" title="Holes, hatches, pockets and shapes for this layer">Panel builder</button></div>
+    <p class="note design-only">${ls.kind==='floor-int'||ls.kind==='floor-ext' ? 'Flooring, siding, roof and paint are picked by eye under <button class="linkbtn" id="toFin">Finishes</button>.' : ''}</p>
+    <div class="row edit-only"><button class="btn ghost" id="lBuild" title="Holes, hatches, pockets and shapes for this layer">Panel builder</button></div>
+    ${shopSec(`<div class="row"><button class="btn" id="toSheet">Layer sheet</button><button class="btn ghost" id="isoBtn" aria-pressed="${state.isolate===ls.id}">${state.isolate===ls.id?'Exit isolate':'Isolate'}</button>${L.blank?'':'<button class="btn ghost edit-only" id="lMir" title="End for end">Mirror</button><button class="btn ghost edit-only" id="lFlip" title="Front to back">Flip</button>'}</div>
     <div class="eyebrow">${opts.length} ${K.label.toLowerCase()} option${opts.length===1?'':'s'} for a ${ls.len}′ pod · seen from above</div>
     ${opts.length?'':`<p class="note">Nothing in the library for this yet. It fills up as STEP files are imported.</p>`}
     <div class="opts">${opts.map(o=>`<button class="opt" data-o="${esc(o.id)}" aria-pressed="${o.id===L.id}">${layerThumb(o)}<b>${esc(o.name)}</b><code>${esc(o.id)}</code></button>`).join('')}</div>`, 'Shop · panel options, sheet, panel builder')}`;

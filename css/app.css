@@ -1544,3 +1544,7 @@ body.presenting .fin-pop{display:none}
 .walk-pad button{width:64px;height:64px;border-radius:50%;border:1px solid rgba(255,255,255,.6);background:rgba(20,22,20,.45);color:#fff;font-size:22px;cursor:pointer;touch-action:none}
 .walk-x{position:absolute;right:16px;top:16px;min-height:44px;padding:0 18px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:600 14px var(--body,inherit);cursor:pointer}
 body.walking .present-bar{display:none}
+/* a new release is ready (main.js, sw.js) */
+.sw-new{position:fixed;left:50%;top:calc(10px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:10px;background:var(--ink);color:var(--bg);padding:8px 8px 8px 16px;border-radius:12px;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.25);max-width:calc(100vw - 24px)}
+.sw-new .btn{background:var(--bg);color:var(--ink);border-color:transparent;padding:6px 12px}
+.sw-new .btn.ghost{background:transparent;color:var(--bg);border-color:rgba(255,255,255,.35)}

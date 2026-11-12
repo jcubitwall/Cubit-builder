@@ -15,6 +15,7 @@ import { foundationData } from './foundation.js';
 import { concretePlan } from './concrete.js';
 import { attachZoom } from './zoompan.js';
 import { toast } from './sidebar.js';
+import { needPDF } from './pdflib.js';
 
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let ASSETS=null;
@@ -84,7 +85,7 @@ async function makeSet(withRenders=true){
   return { ctx, set:buildSet(ctx), renders, key:state.model };
 }
 async function pdfBlob(set){
-  const A=await assets(); await loadScript('js/vendor/svg2pdf.umd.min.js');
+  const A=await assets(); await needPDF(); await loadScript('js/vendor/svg2pdf.umd.min.js');
   const { jsPDF } = window.jspdf; const doc=new jsPDF({ orientation:'landscape', unit:'pt', format:[PW,PH], compress:true });
   doc.addFileToVFS('Oswald-Regular.ttf', A.reg); doc.addFont('Oswald-Regular.ttf','Oswald','normal');
   doc.addFileToVFS('Oswald-SemiBold.ttf', A.bold); doc.addFont('Oswald-SemiBold.ttf','Oswald','bold');

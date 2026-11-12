@@ -13,6 +13,7 @@ import { CUSTOMERS, FINISHES, CAT_NAME, liveCustomers, customerById, newCustomer
 import { saveProject, lockProject, unlockProject, projectOf } from './projects.js';
 import { renderModels, renderSide, toast } from './sidebar.js';
 import { buildHome } from './scene3d.js';
+import { needPDF } from './pdflib.js';
 
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const when = iso => iso ? new Date(iso).toLocaleString(undefined,{dateStyle:'medium', timeStyle:'short'}) : '';
@@ -153,6 +154,7 @@ function openUnlock(k){
 
 /* ---------------------------------------------------------------- the signed summary as a PDF */
 async function signedPDF(cid, pid, rec=null){
+  await needPDF();
   rec = rec || await signedRecord(cid, pid); if(!rec){ toast('No signed record found.'); return; }
   const doc=new window.jspdf.jsPDF({unit:'pt', format:'letter'}); const W=612; let y=48;
   const clean=t=>String(t??'').replace(/[′‘’]/g,"'").replace(/[″“”]/g,'"').replace(/×/g,'x').replace(/·/g,'-').replace(/[^\x20-\x7E]/g,'');
