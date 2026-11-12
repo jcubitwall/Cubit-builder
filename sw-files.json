@@ -1,5 +1,5 @@
 {
-"version": "29e176d670c5",
+"version": "bcda77ddf6da",
 "files": [
 "./",
 "brand/cubit-logo.png",
@@ -132,6 +132,7 @@
 "api/seed/projects",
 "api/seed/submodels",
 "api/seed/sinks",
+"api/seed/siding",
 "api/seed/fixtures-lifepodgo-shower",
 "api/seed/fixtures-maax-biarritz",
 "api/seed/fixtures-maax-biarritz-85",

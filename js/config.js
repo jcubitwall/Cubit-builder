@@ -57,12 +57,26 @@ const LAYER_KINDS = {
   'floor-int':   { label:'Interior floor',   short:'Int. floor',  code:'FI', z:6.08,   t:4.48 },
   'ceiling-int': { label:'Interior ceiling', short:'Ceiling',     code:'CI', z:106.6,  t:6.5 },   // ½″ OSB + 5½″ EPS + ½″ OSB
   'roof':        { label:'Roof',             short:'Roof',        code:'RF', z:114.975, t:4.5 },  // ½″ OSB + 3½″ core + ½″ OSB
-  'floor-up':    { label:'Upper floor',      short:'Up. floor',   code:'FU', z:4.06,   t:6.5, up:true },   // second floor: one 6½″ SIP, no steel frame
 };
-/* a second floor: its pods sit on the pods below — a 1″ EPS pad on the lower roof where they touch, then the 6½″ SIP
-   floor, then the walls. UP = how far up its own frame is moved (inches): its EPS bottom on the lower roof top */
+/* a second floor (Nov 2026): its pods are built like the ground floor's (the same two-layer floor cassette, LVL rims,
+   EPS strips and joint blocks, 10.56″) but with no steel frame or ACM under them. They sit on the pods below on a 1″
+   EPS pad on the lower roof where they touch. UP = how far up each floor's own frame is moved (inches): the bottom of
+   its floor (0 in its own frame) on the pad, the pad on the lower roof's top (119.475″) */
 const EPS_PAD = 1;
-const UP = (114.975 + 4.5) - (4.06 - EPS_PAD);   // = 116.415″ (9′ 8.4″)
-const LEVEL_KINDS = [['floor-ext','floor-int','ceiling-int','roof'], ['floor-up','ceiling-int','roof']];   // the ground floor; every floor above
+const ROOF_TOP = LAYER_KINDS.roof.z + LAYER_KINDS.roof.t;   // 119.475″: the roof surface, above the bottom of the floor
+const UP = ROOF_TOP + EPS_PAD;   // = 120.475″ (10′ 0.475″); was 116.415″ with the old single 6½″ upstairs floor
+const LEVEL_KINDS = [['floor-ext','floor-int','ceiling-int','roof'], ['floor-ext','floor-int','ceiling-int','roof']];   // the ground floor; every floor above
+/* siding (Nov 2026; top and bottom trims to come). Heights in inches above the bottom of the pod's floor cassette.
+     bottom: ground floor: ½″ over the steel frame, so ½″ below the frame's top. The frame's top is under the 2 mm ACM:
+               −0.079″ − ½″ = −0.579″
+             upper floors (no frame): ½″ below the bottom of the floor, over the EPS pad = −0.5″ (to confirm)
+     top:    1″ below the roof surface: 119.475″ − 1″ = 118.475″
+     length: ground 118.475 + 0.579 = 119.054″ (9′ 11 1/16″) · upper 118.475 + 0.5 = 118.975″ (9′ 10 31/32″)
+   The profile itself (Rando Rib …) is in the siding library (siding.json, from tools/siding/scan_profile.py). */
+const SIDING = { overFrame:0.5, belowRoof:1, upperBelowFloor:0.5 };
+function sidingSpan(lv=0){
+  const bottom = lv ? -SIDING.upperBelowFloor : -FLOOR_BUILD.acp.t - SIDING.overFrame, top = ROOF_TOP - SIDING.belowRoof;
+  return { bottom, top, len: top - bottom };
+}
 const MAX_LV = 98;   // floors 1–99
-export { MAX_LV, EPS_PAD, UP, LEVEL_KINDS, ROOF_BUILD, FLOOR_BUILD, SPINE_SCREWS, SPINE, FRAME, DECK, ICF, PAD_MAX, SCREW_MAX, NOTCH, H, T, TI, FLOOR, GAP, CEIL, PW, FT, POD, SIDE_NAME, WALL_BASE, LAYER_KINDS };
+export { SIDING, sidingSpan, ROOF_TOP, MAX_LV, EPS_PAD, UP, LEVEL_KINDS, ROOF_BUILD, FLOOR_BUILD, SPINE_SCREWS, SPINE, FRAME, DECK, ICF, PAD_MAX, SCREW_MAX, NOTCH, H, T, TI, FLOOR, GAP, CEIL, PW, FT, POD, SIDE_NAME, WALL_BASE, LAYER_KINDS };

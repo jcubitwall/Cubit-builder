@@ -28,7 +28,7 @@ version = h.hexdigest()[:12]
 # the libraries index.html loads from other sites (three.js, OrbitControls, jsPDF, fonts)
 cdn = re.findall(r'<(?:script|link)[^>]+(?:src|href)="(https://(?:cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|fonts\.googleapis\.com)[^"]+)"', open('index.html').read())
 # the Cubit catalogue, now served from the database (functions/api/seed): kept on install like the app's own files
-SEED = ['walls', 'models', 'layers', 'pods', 'decks', 'units', 'families', 'brands', 'stores', 'projects', 'submodels', 'sinks',
+SEED = ['walls', 'models', 'layers', 'pods', 'decks', 'units', 'families', 'brands', 'stores', 'projects', 'submodels', 'sinks', 'siding',
         'fixtures-lifepodgo-shower', 'fixtures-maax-biarritz', 'fixtures-maax-biarritz-85']
 files = [f for f in files if not f.startswith('data/')] + [f'api/seed/{s}' for s in SEED]
 with open('sw-files.json', 'w') as fh: json.dump({'version': version, 'files': ['./'] + files + cdn}, fh, indent=0)

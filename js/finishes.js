@@ -1,7 +1,7 @@
 /* Cubit Builder — finishes.js : the finishes a customer picks by eye (finishes-ui.js), kept on the home itself
    (MODELS[k].finish, so it travels with a draft, a team home and a customer's home).
 
-     siding    the outside of the exterior walls (lap siding, in a colour)
+     siding    the outside of the exterior walls (the library's siding profile, Rando Rib, in a colour)
      roof      the roof
      paint     the inside faces of the walls
      floor     the flooring
@@ -12,6 +12,7 @@
 import { MODELS } from './data.js';
 import { state } from './state.js';
 import { isDesign } from './mode.js';
+import { SIDINGLIB } from './data.js';
 
 const PALETTE = {
   siding:   [['Natural cedar','#b58a5a'], ['Barn red','#8e3b2e'], ['Charcoal','#3c4043'], ['Slate blue','#50677a'], ['Sage','#8a9a7b'], ['Cream','#e8dfc8'], ['White','#f2f1ec'], ['Black','#1f2224']],
@@ -32,7 +33,7 @@ function designFinish(k=state.model){
 /* the customer's finish selections, filled from what was picked here (typed ones on the profile win) */
 function finishText(k=state.model){
   const f=finishOf(k), o={};
-  if(f.siding){ o.cladding='Lap siding'; o.claddingColour=f.siding; }
+  if(f.siding){ const P=SIDINGLIB.find(x=>x.id==='rando-rib')||SIDINGLIB[0]; o.cladding=P ? `${P.name} ${String(P.material||'metal').toLowerCase()} panel` : 'Siding'; o.claddingColour=f.siding; }
   if(f.floor) o.flooring=f.floor; if(f.paint) o.walls=`Paint · ${f.paint}`; if(f.cabinets) o.cabinets=f.cabinets;
   if(f.roof) o.other=`Roof · ${f.roof}`;
   return o;

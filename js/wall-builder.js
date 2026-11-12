@@ -330,13 +330,17 @@ function unitPicker(it){
     <div class="wb-ug"><span class="wb-k">Size</span><div class="wb-usz">${sizes.map(u=>{ const q=rsoOf(u); return `<button data-unit="${esc(u.id)}" aria-pressed="${cur?.id===u.id}" title="${esc(u.name)}"><b>${fin(u.w)} × ${fin(u.h)}</b><small>RSO ${fin(q.w)} × ${fin(q.h)}</small></button>`; }).join('')}</div></div>
     ${cur && T.hand?`<div class="wb-ug"><span class="wb-k">${esc(T.hand)}</span><div class="seg sm">${['L','R'].map(h=>`<button data-uhand="${h}" aria-pressed="${(it.hand||cur.hand||'L')===h}">${h==='L'?'Left':'Right'}</button>`).join('')}</div></div>`:''}
     ${cur && T.swing?`<div class="wb-ug"><span class="wb-k">Swing</span><div class="seg sm">${['in','out'].map(v=>`<button data-uswing="${v}" aria-pressed="${(it.swing||cur.swing||'in')===v}">${v==='in'?'In':'Out'}</button>`).join('')}</div></div>`:''}
+    ${cur && it.kind==='window' && isFinite(cur.sill) ? `<p class="note wb-sill">Library default sill <b>${fin(cur.sill)}</b>${Math.abs((it.y||0)-cur.sill)>0.01 ? ` · this opening is at ${fin(it.y||0)} (overridden) <button class="linkbtn" data-usill>Use the default</button>` : ''}</p>` : ''}
     <p class="note">The opening is the unit's rough stud opening; the size can't be typed here. A size that isn't listed: an editor adopts or edits one in the Library.</p></div>`;
 }
-/* put unit u in the opening: its rough opening, centred where the opening was */
+/* put unit u in the opening: its rough opening, centred where the opening was. A window with a default sill in the
+   library (u.sill: the bottom of the rough opening, inches from the floor) goes in at that sill; the sill field below
+   can still change it for this one opening */
 function setOpUnit(it, u){
   const r=rsoOf(u); if(!r) return;
   const cx=it.x+it.w/2; it.unit=u.id; it.w=r.w; it.h=r.h; it.x=Math.round((cx-r.w/2)*16)/16;
   if(it.kind!=='window') it.y=0;
+  else if(isFinite(u.sill)){ it.y=+u.sill; if(locked('op',it,'y')) unlock('op',it,'y'); }
   delete it.hand; delete it.swing;
   snapToChase('op',it); snapToJoint('op',it);
 }
@@ -474,6 +478,7 @@ function bind(){
   dlg.querySelectorAll('[data-utype]').forEach(b=>b.onclick=()=>{ pickType=b.dataset.utype; pickBrand=null; render(); });
   dlg.querySelectorAll('[data-ubrand]').forEach(b=>b.onclick=()=>{ pickBrand=b.dataset.ubrand; render(); });
   dlg.querySelectorAll('[data-unit]').forEach(b=>b.onclick=()=>{ const it=listOf(sel.k)[sel.i], u=unitById(b.dataset.unit); if(!it||!u) return; setOpUnit(it, u); pickType=null; pickBrand=null; render(); const r=rsoOf(u); toast(`${u.name} · rough opening ${fin(r.w)} × ${fin(r.h)}`); });
+  dlg.querySelector('[data-usill]')?.addEventListener('click', ()=>{ const it=listOf(sel.k)[sel.i], u=it&&unitById(it.unit); if(u && isFinite(u.sill)){ setField('y', +u.sill); render(); } });
   dlg.querySelectorAll('[data-uhand]').forEach(b=>b.onclick=()=>{ const it=listOf(sel.k)[sel.i]; if(it){ it.hand=b.dataset.uhand; render(); } });
   dlg.querySelectorAll('[data-uswing]').forEach(b=>b.onclick=()=>{ const it=listOf(sel.k)[sel.i]; if(it){ it.swing=b.dataset.uswing; render(); } });
   dlg.querySelectorAll('[data-f]').forEach(inp=>inp.onchange=()=>{ const s=String(inp.value).trim(), m=s.match(/^(\d+(?:\.\d+)?)?[\s-]*(?:(\d+)\/(\d+))?$/); const v=m?(m[1]?+m[1]:0)+(m[2]?(+m[2])/(+m[3]):0):NaN; setField(inp.dataset.f, v); });

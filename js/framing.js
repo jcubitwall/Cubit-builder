@@ -110,11 +110,11 @@ function wallFraming(slot, w0){
   });
   return { slot, w, L, lumber:lum, pieces:out, plan, joints };
 }
-/* LVL rim boards for every pod: floor (9¼″) and roof (11⅞″), outside length minus the two 1⅞″ corner squares */
+/* LVL rim boards for every pod, upstairs ones too: floor (9½″) and roof (11⅞″), outside length minus the two 1⅞″ corner squares */
 function podRims(){
   const t=FRAME.lvl.t;
   return podList(state.model).map(p=>{ const long=p.len*FT-2*t, short=96-2*t;
-    return { pod:p, pieces:[...(p.lv?[]:[['Floor rim LVL', FRAME.lvl.floor, long, 2], ['Floor rim LVL', FRAME.lvl.floor, short, 2]]), ['Roof rim LVL', FRAME.lvl.roof, long, 2], ['Roof rim LVL', FRAME.lvl.roof, short, 2]] }; });
+    return { pod:p, pieces:[['Floor rim LVL', FRAME.lvl.floor, long, 2], ['Floor rim LVL', FRAME.lvl.floor, short, 2], ['Roof rim LVL', FRAME.lvl.roof, long, 2], ['Roof rim LVL', FRAME.lvl.roof, short, 2]] }; });
 }
 function homeFraming(){
   return slotsFor(state.model).map(s=>{ const w=pickFor(s); return w ? wallFraming(s,w) : null; }).filter(Boolean);
@@ -172,16 +172,17 @@ function floorBuild(p){
   while(left>1e-6){ const pc=Math.min(e.stock, left - Math.floor((left-1e-6)/e.stock)*e.stock || e.stock); lens.push(pc); left-=pc; }
   lens.forEach(len=>{ eps.push([u, u+len, t, t+e.w], [u, u+len, W-t-e.w, W-t]); u+=len; });
   const blocks=[]; for(let j=48; j<L-1; j+=48) F.block.at.forEach(c=>blocks.push([j-F.block.len/2, j+F.block.len/2, c-F.block.w/2, c+F.block.w/2]));
-  // steel frames: one 8′ × 8′ ring of 2″ × 3″ tube per 8′ of pod (two full-length sides, two ends between them)
-  const fr=F.frame, frames=[], tubes=[];
-  for(let u0=0; u0<L-1; u0+=fr.size){ const u1=u0+fr.size;
+  // steel frames: one 8′ × 8′ ring of 2″ × 3″ tube per 8′ of pod (two full-length sides, two ends between them).
+  // Upstairs pods have the same floor cassette but no steel frame and no ACM under it.
+  const fr=F.frame, frames=[], tubes=[], ground=!p.lv;
+  for(let u0=0; ground && u0<L-1; u0+=fr.size){ const u1=u0+fr.size;
     frames.push([u0,u1,0,W]);
     tubes.push([u0,u1,0,fr.w],[u0,u1,W-fr.w,W],[u0,u0+fr.w,fr.w,W-fr.w],[u1-fr.w,u1,fr.w,W-fr.w]); }
   // ACM: 4 × 8 sheets, 8′ across the pod, 4′ along it
-  const acp=[]; for(let u0=0; u0<L-1; u0+=F.acp.sheet[0]) acp.push([u0, u0+F.acp.sheet[0], 0, W]);
+  const acp=[]; for(let u0=0; ground && u0<L-1; u0+=F.acp.sheet[0]) acp.push([u0, u0+F.acp.sheet[0], 0, W]);
   return { eps, blocks, epsLens:[W-2*t, W-2*t, ...lens, ...lens], frames, tubes, tubeLens:frames.flatMap(()=>[fr.size, fr.size, W-2*fr.w, W-2*fr.w]), acp };
 }
-const floorBuilds = () => podList(state.model).filter(p=>!p.lv).map(p=>({ pod:p, ...floorBuild(p) }));
+const floorBuilds = () => podList(state.model).map(p=>({ pod:p, ...floorBuild(p) }));   // every pod; upstairs ones have no frame or ACM
 /* the same in the 1⅞″ gap between the interior ceiling and the roof: EPS strips against the rims, blocks across the joints */
 function roofBuild(p){
   const F=ROOF_BUILD, t=FRAME.lvl.t, L=p.len*FT, W=96, e=F.eps, o=t+e.off;

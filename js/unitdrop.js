@@ -6,7 +6,8 @@
         picked (the neighbour's wall follows, mirrored, between pods) and the unit goes in it
      3. editors: this home's own copy of the wall with a new rough opening at the drop, sized from the unit (RSO),
         its edges kept off the panel joints (an edge within 6″ of a joint goes onto the joint), clear of the wall's
-        ends and its other openings; windows at the standard head height, doors on the floor
+        ends and its other openings; windows at their default sill from the library (else the standard head
+        height), doors on the floor
    Anyone else is told which layouts take it, or to ask an editor (Panel builder). */
 import { state, pickFor, choose } from './state.js';
 import { optionsFor, mirrorId, LIB } from './data.js';
@@ -47,7 +48,7 @@ async function placeUnit(u, s, at){
   const snap=seams.flatMap(sm=>[x, x+ow].map(e=>sm-e)).filter(d=>Math.abs(d)>0.01 && Math.abs(d)<JOINT).sort((a,b)=>Math.abs(a)-Math.abs(b))[0];
   if(snap!=null) x+=snap;
   x=Math.max(END, Math.min(w.L-END-ow, x));
-  const y = kind==='window' ? Math.max(12, HEAD-oh) : 0;
+  const y = kind==='window' ? (isFinite(u.sill) ? +u.sill : Math.max(12, HEAD-oh)) : 0;
   const clash=(w.openings||[]).find(o=>x < o.x+o.w+GAP && x+ow > o.x-GAP && y < (o.y||0)+o.h && y+oh > (o.y||0));
   if(clash) return { ok:false, msg:`Too close to the ${clash.kind==='window'?'window':clash.kind==='door'?'door':'opening'} there. Drop it in a clear stretch of wall.` };
   if(x<END-0.01 || x+ow>w.L-END+0.01) return { ok:false, msg:'The wall is too short for it.' };

@@ -311,6 +311,8 @@ function editUnit(u){
       <label class="fld">Name<input id="ueN" value="${esc(x.name)}" maxlength="100"></label>
       <div class="eyebrow sm">Type</div><div class="seg wrap sm">${types.map(([k,t])=>`<button type="button" data-ut="${k}" aria-pressed="${x.type===k}">${esc(t.label)}</button>`).join('')}</div>
       <div class="eyebrow sm">The unit</div><div class="cw-fs">${fld('w','Width',x.w)}${fld('h','Height',x.h)}${fld('d','Frame depth',x.d||4.5)}</div>
+      ${cat==='window'?`<div class="eyebrow sm">Default sill height</div><div class="cw-fs"><label class="cw-f"><span>Bottom of the rough opening, from the floor</span><input data-usill inputmode="decimal" placeholder="${fin2(rules().window?.y??36)} (wall rule)" value="${isFinite(x.sill)?x.sill:''}"><i>″</i></label></div>
+      <p class="note">Where this window goes when it's picked for an opening or dropped on a wall. Empty: the wall rule (${fin2(rules().window?.y??36)}). The panel builder can still change it for one opening.</p>`:''}
       ${T.hand?`<div class="eyebrow sm">${esc(T.hand)} (seen from outside)</div><div class="seg sm">${['L','R'].map(h=>`<button type="button" data-uh="${h}" aria-pressed="${(x.hand||'L')===h}">${h==='L'?'Left':'Right'}</button>`).join('')}</div>`:''}
       ${T.swing?`<div class="eyebrow sm">Swing</div><div class="seg sm">${['in','out'].map(v=>`<button type="button" data-us="${v}" aria-pressed="${(x.swing||'in')===v}">${v==='in'?'In':'Out'}</button>`).join('')}</div>`:''}
       ${cat==='door'?`<div class="eyebrow sm">Where</div><div class="seg sm"><button type="button" data-up="ext" aria-pressed="${x.place!=='int'}">Exterior</button><button type="button" data-up="int" aria-pressed="${x.place==='int'}">Interior</button></div>`:''}
@@ -322,6 +324,8 @@ function editUnit(u){
       <p class="note">Walls already drawn with ${esc(u.id)} keep their rough opening until it's updated: opening one in the panel builder flags it, with a button to update it.</p></form>`;
     d.querySelectorAll('[data-uf]').forEach(i=>i.onchange=()=>{ const v=parseFloat(i.value); if(!isFinite(v)||v<=0) return; const k=i.dataset.uf;
       if(k==='rw'||k==='rh'){ x.rso={ ...(x.rso||r), [k==='rw'?'w':'h']:v }; x.rsoAuto=false; } else x[k]=v; setTimeout(draw); });
+    d.querySelector('[data-usill]')?.addEventListener('change', e=>{ const s=e.target.value.trim(), v=parseFloat(s);
+      if(!s) delete x.sill; else if(isFinite(v) && v>=0 && v<=96) x.sill=Math.round(v*16)/16; else { toast('A sill between 0″ and 96″'); } setTimeout(draw); });
     d.querySelectorAll('[data-ut]').forEach(b=>b.onclick=()=>{ x.type=b.dataset.ut; draw(); });
     d.querySelectorAll('[data-uh]').forEach(b=>b.onclick=()=>{ x.hand=b.dataset.uh; draw(); });
     d.querySelectorAll('[data-us]').forEach(b=>b.onclick=()=>{ x.swing=b.dataset.us; draw(); });
@@ -331,7 +335,7 @@ function editUnit(u){
     d.querySelector('#ueOk').onchange=e=>{ x.confirm=!e.target.checked; };
     d.querySelector('#ueSave').onclick=async e=>{ e.target.disabled=true; x.name=d.querySelector('#ueN').value.trim()||x.name;
       if(x.rsoAuto){ x.rso=rsoOf({ ...x, rso:null, rsoAuto:true }); const bm=bmOf({ ...x, bm:null, rsoAuto:true }); if(bm) x.bm=bm; }
-      try{ await saveTeamUnit(x); d.close(); toast(`${x.id} saved · ${fin2(x.w)} × ${fin2(x.h)}, RSO ${fin2(x.rso.w)} × ${fin2(x.rso.h)}`); if(dlg?.open) render(); }catch(err){ toast('Not saved: '+err.message); e.target.disabled=false; } };
+      try{ await saveTeamUnit(x); d.close(); toast(`${x.id} saved · ${fin2(x.w)} × ${fin2(x.h)}, RSO ${fin2(x.rso.w)} × ${fin2(x.rso.h)}${isFinite(x.sill)?`, sill ${fin2(x.sill)}`:''}`); if(dlg?.open) render(); }catch(err){ toast('Not saved: '+err.message); e.target.disabled=false; } };
   };
   draw(); d.showModal();
 }

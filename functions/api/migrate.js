@@ -24,7 +24,7 @@ import { withSql, ensureSchema, toDT } from '../_sql.js';
 import { mongo, stamp } from '../_mongo.js';
 import { writeSet } from '../_seed.js';
 
-const SEED = ['walls','layers','pods','decks','models','units','families','brands','stores','projects','submodels',
+const SEED = ['walls','layers','pods','decks','models','units','families','brands','stores','projects','submodels','siding',
   'fixtures-lifepodgo-shower','fixtures-maax-biarritz','fixtures-maax-biarritz-85'];
 const SOURCE_STEPS = ['fixtures-maax-biarritz.step','fixtures-maax-biarritz-85.step'];
 const LIB = [   // R2 list file → collection, the order key, and where its history is
