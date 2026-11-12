@@ -1,5 +1,5 @@
 {
-"version": "a7632b141847",
+"version": "948f0cd1080e",
 "files": [
 "./",
 "brand/cubit-logo.png",
@@ -15,6 +15,7 @@
 "data/models.json",
 "data/pods.json",
 "data/projects.json",
+"data/siding.json",
 "data/stores.json",
 "data/submodels.json",
 "data/units.json",

@@ -1,7 +1,7 @@
 /* Cubit Builder — takeoff.js : everything it takes to build the home on screen, grouped by build stage
    (Foundation → Floor → Walls → Roof → Decks → Windows & doors → Fasteners), and the shopping list made from it.
    Used by the Take-off and Shopping views (phone tabs, and sheets on bigger screens). */
-import { MODELS } from './data.js';
+import { MODELS, SIDINGLIB } from './data.js';
 import { ICF, DECK, FRAME } from './config.js';
 import { fin, fft } from './format.js';
 import { state, foundationOf } from './state.js';
@@ -16,21 +16,21 @@ import { bodyWall } from './panels.js';
 import { pickFor } from './state.js';
 import { unitFor, catOf, TYPES } from './units.js';
 import { sealRole, sealsFor, SEAL } from './seals.js';
-import { H } from './config.js';
+import { H, sidingSpan, SIDING } from './config.js';
 /* compression seal around every opening between pods (both pods): [{n, len} …] and total inches */
 function sealRun(){ const sl=slotsFor(state.model); let tot=0, n=0, hi=0; sl.forEach(s=>{ const r=sealRole(s, sl); sealsFor(bodyWall(s,pickFor(s)), r, H).forEach(x=>{ tot+=x.len; n++; if(r==='high') hi++; }); }); return {tot, n, hi}; }
 
 const yd3 = ft3 => ft3/27;
-/* the second floor: the upstairs pods' single SIP floor, the 1″ EPS pad where they sit on a pod below, and the 8×8 posts
+/* the second floor: the 1″ EPS pad where the upstairs pods sit on a pod below (their floors are built like the ground
+   floor's, counted with it, less the steel frame and ACM), and the 8×8 posts
    under an overhang of 8′ or more, each on a ground screw or a 10″ Sonotube (as the house's foundation) */
 const TUBE = { d:10, deep:50 };   // inches: 10″ Sonotube, 4′ 2″ into the ground (below frost)
 /* every second-floor shopping line there can be (both foundations), so the price book always lists them */
-function upstairsBuyLines(){ const L=(LAYER_KINDS['floor-up'].z+UP-WALL_BASE)+FLOOR*12, st=Math.ceil(L/24-1e-6)*2;
+function upstairsBuyLines(){ const L=(UP-WALL_BASE)+FLOOR*12, st=Math.ceil(L/24-1e-6)*2;
   return [`EPS ${EPS_PAD}″ sheet 4 × 8 (pad under upstairs pods)`, `8×8 pressure-treated post × ${st}′`, '8×8 post base', `${TUBE.d}″ Sonotube × 4′`, 'yd³ concrete (Sonotubes, incl. 10%)', 'ground screw, post head'].map(what=>({ group:'Upper floors', what })); }
 function upstairsTakeoff(k=state.model){
   const ups=podList(k).filter(p=>p.lv); if(!ups.length) return null;
   const U=upstairs(k), conc=foundationOf(k)==='concrete';
-  const panels=layerSlotsFor(k).filter(ls=>ls.kind==='floor-up').reduce((a,ls)=>a+Math.ceil(ls.len*12/PW-1e-6), 0);
   // less the stair openings that go through it
   const SH=stairsOf(k).filter(st=>st.above!=null).flatMap(st=>st.holes);
   const ov=(e,H)=>Math.max(0, Math.min(e.x1,H.x1)-Math.max(e.x,H.x)) * Math.max(0, Math.min(e.z1,H.z1)-Math.max(e.z,H.z));
@@ -38,12 +38,25 @@ function upstairsTakeoff(k=state.model){
   // each post: from the underside of the home (screw cap / tube top), or from the roof of a pod further down it lands
   // on, up to the underside of its pod's floor
   const roofTop = r => LAYER_KINDS.roof.z+LAYER_KINDS.roof.t-WALL_BASE + r*UP;
-  const lens=U.posts.map(q=>{ const top=LAYER_KINDS['floor-up'].z+q.lv*UP-WALL_BASE, bot = q.rest<0 ? -FLOOR*12 : roofTop(q.rest); return { len:top-bot, ground:q.rest<0 }; });
+  const lens=U.posts.map(q=>{ const top=q.lv*UP-WALL_BASE, bot = q.rest<0 ? -FLOOR*12 : roofTop(q.rest); return { len:top-bot, ground:q.rest<0 }; });
   const byStock={}; lens.forEach(l=>{ const st=Math.ceil(l.len/24-1e-6)*2; (byStock[st] ||= { stock:st, n:0, len:0 }).n++; byStock[st].len=Math.max(byStock[st].len, l.len); });   // 8×8s come in even feet
   const postLen=lens.length ? Math.max(...lens.map(l=>l.len)) : 0, stock=Math.ceil(postLen/24-1e-6)*2;
   const tubeYd3=yd3(Math.PI*(TUBE.d/24)**2*(TUBE.deep/12));
-  return { pods:ups.length, panels, epsSqft, epsSheets:Math.ceil(epsSqft*1.1/32-1e-6), posts:U.posts.length, grounded:lens.filter(l=>l.ground).length, stocks:Object.values(byStock).sort((a,b)=>a.stock-b.stock), postLen, stock, conc, tubeYd3,
+  return { pods:ups.length, epsSqft, epsSheets:Math.ceil(epsSqft*1.1/32-1e-6), posts:U.posts.length, grounded:lens.filter(l=>l.ground).length, stocks:Object.values(byStock).sort((a,b)=>a.stock-b.stock), postLen, stock, conc, tubeYd3,
     floors:Math.max(...ups.map(p=>p.lv))+1 };
+}
+/* siding (config.js SIDING): every exterior side of every pod, in full-height panels of the library's profile (Rando Rib),
+   each cut to the floor's siding length: ½″ over the steel frame (½″ under the floor upstairs) to 1″ under the roof.
+   Panels per side = the side's length / the profile's cover width, rounded up; openings aren't taken off (the
+   panels are cut around them on the wall). Corner and top / bottom trims aren't in yet. */
+function sidingTakeoff(k=state.model){
+  const P=SIDINGLIB.find(x=>x.id==='rando-rib') || SIDINGLIB[0]; if(!P) return null;
+  const runs={};
+  slotsFor(k).filter(s=>s.type==='ext').forEach(s=>{ const r=(runs[s.pod.i+'|'+s.side] ||= { lv:s.pod.lv||0, len:0 }); r.len+=s.len*12; });
+  const by={};
+  Object.values(runs).forEach(r=>{ const S=sidingSpan(r.lv), key=S.len.toFixed(3); const b=(by[key] ||= { n:0, len:S.len, lv:r.lv, run:0, sides:0, S });
+    b.n+=Math.ceil(r.len/P.cover-1e-6); b.run+=r.len; b.sides++; });
+  return { P, lines:Object.values(by).sort((a,b)=>a.lv-b.lv) };
 }
 /* item: { n, what, len?, note? } — n pieces of `what`, each `len` inches long when it's a cut piece */
 function homeTakeoff(){
@@ -97,13 +110,17 @@ function homeTakeoff(){
         `${ds.length} deck${ds.length>1?'s':''}`); } }
   // Second floor
   { const T=upstairsTakeoff(); if(T){ const items=[
-      {n:T.panels, what:`SIP floor panel ${LAYER_KINDS['floor-up'].t}″, 4 × 8`, note:`upstairs floor · one layer, no steel frame · ${T.pods} pod${T.pods>1?'s':''}`},
       {n:+T.epsSqft.toFixed(1), what:`sq ft EPS pad ${EPS_PAD}″`, note:`only where an upstairs pod sits on a pod below · ${T.epsSheets} sheets 4 × 8 with 10%`}];
     if(T.posts){ T.stocks.forEach(s=>items.push({n:s.n, what:'8×8 post', len:s.len, note:`under overhangs of 8′ or more · cut from ${s.stock}′ stock`}));
       items.push({n:T.posts, what:'8×8 post base', note:T.grounded<T.posts ? `${T.grounded} on the ground, ${T.posts-T.grounded} on the roof of a pod further down` : T.conc?'anchored in the Sonotube':'on the ground screw cap'});
       const g=T.grounded; if(g){ if(T.conc){ items.push({n:g, what:`${TUBE.d}″ Sonotube`, len:TUBE.deep, note:'below frost'}); items.push({n:+(T.tubeYd3*g).toFixed(2), what:'yd³ concrete, Sonotube fill', note:'net, order ~10% more'}); }
       else items.push({n:g, what:'ground screw, post head', note:'one under each post on the ground'}); } }
     add('up','Upper floors',items,`${T.pods} pod${T.pods>1?'s':''} above the ground floor, ${T.floors} floors`); } }
+  // Siding
+  { const T=sidingTakeoff(); if(T){ const P=T.P;
+    add('siding','Siding',T.lines.map(b=>({ n:b.n, what:`${P.name} panel, ${fin(P.cover)} cover`, len:b.len,
+      note:`${b.lv?'upper floor · ½″ below the floor':'ground floor · ½″ over the steel frame'} to 1″ under the roof · ${b.sides} side${b.sides>1?'s':''}, ${fft(b.run)} of wall · openings not taken off` })),
+      `${P.material||'Metal'} · ${fin(P.depth)} deep · trims to come`); } }
   // Windows & doors
   { const g={}; let open=0;
     slotsFor(state.model).forEach(s=>{ const w=bodyWall(s, pickFor(s)); (w?.openings||[]).filter(catOf).forEach(o=>{ const r=unitFor(s,o);
@@ -141,6 +158,7 @@ function shoppingList(){
     if(T.posts){ T.stocks.forEach(s=>add('Upper floors', s.n, `8×8 pressure-treated post × ${s.stock}′`)); add('Upper floors', T.posts, '8×8 post base');
       const g=T.grounded; if(g){ if(T.conc){ add('Upper floors', g, `${TUBE.d}″ Sonotube × 4′`); add('Upper floors', +(T.tubeYd3*g*1.1).toFixed(2), 'yd³ concrete (Sonotubes, incl. 10%)'); }
       else add('Upper floors', g, 'ground screw, post head'); } } } }
+  { const T=sidingTakeoff(); if(T) T.lines.forEach(b=>add('Siding', b.n, `${T.P.name} panel ${fin(T.P.cover)} cover × ${fin(b.len)}`)); }
   const u={}; slotsFor(state.model).forEach(s=>{ const w=bodyWall(s, pickFor(s)); (w?.openings||[]).filter(catOf).forEach(o=>{ const r=unitFor(s,o); if(r) u[r.unit.name+' ('+r.unit.id+')']=(u[r.unit.name+' ('+r.unit.id+')']||0)+1; }); });
   Object.entries(u).forEach(([k,n])=>add('Windows & doors', n, k));
   { const S=sealRun(); if(S.n) add('Seals', +(S.tot/12*1.1).toFixed(0), `ft · ${SEAL.name}`); }
@@ -159,4 +177,4 @@ function shoppingText(lines){
   lines.forEach(l=>{ if(l.group!==g){ g=l.group; t+=`\n${g}\n`; } t+=`  ${l.n} × ${l.what}\n`; });
   return t;
 }
-export { upstairsBuyLines, upstairsTakeoff, homeTakeoff, shoppingList, takeoffHTML, shoppingText };
+export { sidingTakeoff, upstairsBuyLines, upstairsTakeoff, homeTakeoff, shoppingList, takeoffHTML, shoppingText };

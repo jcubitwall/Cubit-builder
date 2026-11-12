@@ -13,7 +13,7 @@
      rise 125–200 mm (max 7⅞″) · run 255–355 mm (min 10⅛″ rounded up) · width 860 mm (34″) or more
      headroom 1950 mm (76¾″) over the stair · all risers the same
    The square spiral's 22½° wedges are winders / a spiral stair under 9.8.4: check them with the building official.
-   The total rise is fixed by the build: ground floor top to upstairs floor top = UP (116.4″).
+   The total rise is fixed by the build: ground floor top to upstairs floor top = UP (120.475″).
 
    MODELS[k].stairs = [{ id, pod (the ground-floor pod), opt, u0 (inches from the pod's own W end), dir, side, q }]
      straight / U: dir 1 = the (first) flight climbs toward the pod's own E end, -1 W; side 'S'|'N' the long wall the
@@ -137,9 +137,10 @@ const stairsOf = (k=state.model) => (MODELS[k]?.stairs||[]).map(S=>solve(k,S)).f
 function stairHoles(ls, k=state.model){
   const out=[];
   stairsOf(k).forEach(st=>{ if(st.above==null) return;
-    const mine = (ls.pod.i===st.S.pod && (ls.kind==='ceiling-int' || ls.kind==='roof')) || (ls.pod.i===st.above && ls.kind==='floor-up');
+    const upFloor = ls.pod.i===st.above && (ls.kind==='floor-ext' || ls.kind==='floor-int');   // both layers of the floor above
+    const mine = (ls.pod.i===st.S.pod && (ls.kind==='ceiling-int' || ls.kind==='roof')) || upFloor;
     if(!mine) return;
-    (ls.kind==='floor-up' ? st.holesUp : st.holes).forEach(H=>{ const P=[[H.x,H.z],[H.x1,H.z],[H.x1,H.z1],[H.x,H.z1]].map(q=>toLocal(ls,q));
+    (upFloor ? st.holesUp : st.holes).forEach(H=>{ const P=[[H.x,H.z],[H.x1,H.z],[H.x1,H.z1],[H.x,H.z1]].map(q=>toLocal(ls,q));
       const x=Math.min(...P.map(p=>p[0])), x1=Math.max(...P.map(p=>p[0])), z=Math.min(...P.map(p=>p[1])), z1=Math.max(...P.map(p=>p[1]));
       out.push({ x:+x.toFixed(3), z:+z.toFixed(3), w:+(x1-x).toFixed(3), d:+(z1-z).toFixed(3), stair:true, name:'Stair opening' }); }); });
   return out;

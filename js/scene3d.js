@@ -1,6 +1,6 @@
 /* Cubit Builder — scene3d.js */
-import { CEIL, FLOOR, FT, H, POD, PW, T, WALL_BASE, LAYER_KINDS, NOTCH, UP, EPS_PAD } from './config.js';
-import { MODELS } from './data.js';
+import { CEIL, FLOOR, FT, H, POD, PW, T, WALL_BASE, LAYER_KINDS, NOTCH, UP, EPS_PAD, sidingSpan } from './config.js';
+import { MODELS, SIDINGLIB } from './data.js';
 import { isShop } from './mode.js';
 import { designFinish } from './finishes.js';
 import { podOffsets, screwsFor, slotsFor, layerSlotsFor, podList, deckList, layoutOffsets, padsFor, upstairs, POST } from './layout.js';
@@ -180,18 +180,37 @@ function carvable(cands, a,b,y0,y1){
 }
 /* builds one wall as panel groups in local feet coords: x along (exterior-left = 0), y up, z outward (outer face at 0) */
 /* a thin skin over a wall face (finishes.js): the whole face less its openings, at z (feet) in the wall's frame.
-   Siding gets lap lines every 6″ (the texture repeats per foot; the shape's UVs are in feet). */
+   Paint covers the wall (0 to H). Siding covers the siding span of its floor (config.js sidingSpan: ½″ over the steel
+   frame, or ½″ below the floor upstairs, to 1″ under the roof), drawn with the library profile's ribs at their real
+   spacing (the texture repeats every cover width; the shape's UVs are in feet). */
+const RIBS = new Map();
+function ribTexture(P){
+  if(RIBS.has(P.id)) return RIBS.get(P.id);
+  const W=1024, c=document.createElement('canvas'); c.width=W; c.height=4; const g=c.getContext('2d'), px=x=>x/P.cover*W;
+  g.fillStyle='#fff'; g.fillRect(0,0,W,4);
+  (P.grooves||[]).forEach(([x0,x1])=>{ const a=Math.max(0,x0), b=Math.min(P.cover,x1); if(b<=a) return;
+    const wall=0.19;   // the slanted sides of a rib (4.1 mm across, from the scan)
+    g.fillStyle='rgba(0,0,0,.30)'; g.fillRect(px(a-wall), 0, px(wall), 4);    // the side in shadow
+    g.fillStyle='rgba(0,0,0,.16)'; g.fillRect(px(a), 0, px(b-a), 4);           // the rib bottom, ¾″ back
+    g.fillStyle='rgba(255,255,255,.22)'; g.fillRect(px(b), 0, px(wall), 4); });  // the side catching the light
+  const t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(FT/P.cover, 1); t.anisotropy=4;
+  RIBS.set(P.id, t); return t;
+}
 let LAP=null;
 function lapTexture(){ if(LAP) return LAP; const c=document.createElement('canvas'); c.width=4; c.height=64; const g=c.getContext('2d');
   g.fillStyle='#fff'; g.fillRect(0,0,4,64); g.fillStyle='rgba(0,0,0,.22)'; g.fillRect(0,30,4,2); g.fillRect(0,62,4,2); g.fillStyle='rgba(255,255,255,.18)'; g.fillRect(0,0,4,3); g.fillRect(0,32,4,3);
   LAP=new THREE.CanvasTexture(c); LAP.wrapS=LAP.wrapT=THREE.RepeatWrapping; return LAP; }
-function wallSkin(L, holes, colour, z, siding){
-  const sh=new THREE.Shape(); sh.moveTo(0,0); sh.lineTo(L,0); sh.lineTo(L,H/FT); sh.lineTo(0,H/FT); sh.lineTo(0,0);
+/* siding: lv = the pod's floor (the span differs upstairs) */
+function wallSkin(L, holes, colour, z, siding, lv=0){
+  let y0=0, y1=H/FT, map=null;
+  if(siding){ const S=sidingSpan(lv), P=SIDINGLIB.find(x=>x.id==='rando-rib') || SIDINGLIB[0];
+    y0=(S.bottom-WALL_BASE)/FT; y1=(S.top-WALL_BASE)/FT; map=P ? ribTexture(P) : lapTexture(); }
+  const sh=new THREE.Shape(); sh.moveTo(0,y0); sh.lineTo(L,y0); sh.lineTo(L,y1); sh.lineTo(0,y1); sh.lineTo(0,y0);
   holes.forEach(o=>{ const p=new THREE.Path();
     if(o.shape==='round'){ const r=(o.d||o.w)/2/FT, cx=(o.x+(o.d||o.w)/2)/FT, cy=(o.y+(o.d||o.h)/2)/FT; p.absarc(cx, cy, r, 0, Math.PI*2, true); }
-    else { const x0=o.x/FT, y0=Math.max(0.001,o.y/FT), x1=(o.x+o.w)/FT, y1=Math.min(H/FT-0.001,(o.y+o.h)/FT); p.moveTo(x0,y0); p.lineTo(x0,y1); p.lineTo(x1,y1); p.lineTo(x1,y0); p.lineTo(x0,y0); }
+    else { const x0=o.x/FT, oy0=Math.max(0.001,o.y/FT), x1=(o.x+o.w)/FT, oy1=Math.min(H/FT-0.001,(o.y+o.h)/FT); p.moveTo(x0,oy0); p.lineTo(x0,oy1); p.lineTo(x1,oy1); p.lineTo(x1,oy0); p.lineTo(x0,oy0); }
     sh.holes.push(p); });
-  const m=new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshStandardMaterial({ color:colour, roughness:0.9, side:THREE.DoubleSide, ...(siding?{ map:lapTexture() }:{}) }));
+  const m=new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshStandardMaterial({ color:colour, roughness:siding?0.55:0.9, metalness:siding&&map!==LAP?0.35:0, side:THREE.DoubleSide, ...(map?{ map }:{}) }));
   m.position.z=z; m.userData.skin=true; return m;
 }
 function buildWallMesh(w, mat, opts={}){
@@ -344,9 +363,9 @@ function buildDeckMesh(L, mat){
   deckMembers(L).forEach(([nm,x0,x1,z0,z1])=>{ const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT,h/FT,(z1-z0)/FT),mat); m.position.set((x0+x1)/2/FT,h/2/FT,(z0+z1)/2/FT); g.add(m); });
   return g;
 }
-/* the second floor: its pods' walls, layers and roof framing go up by UP; they have no floor cassette, rims or steel
-   frame (one 6½″ SIP floor instead), a 1″ EPS pad where they sit on a pod below, and 8×8 posts under an end that
-   hangs 8′ or more past the pods below, down to a screw pile or a 10″ Sonotube */
+/* the second floor: its pods' walls, layers, floor cassette and roof framing go up by UP; they're built like the
+   ground floor's but with no steel frame or ACM, a 1″ EPS pad where they sit on a pod below, and 8×8 posts under an
+   end that hangs 8′ or more past the pods below, down to a screw pile or a 10″ Sonotube */
 const EPS_MAT=new THREE.MeshStandardMaterial({ color:0xf3f4f2, roughness:0.95 }), POST_MAT=new THREE.MeshStandardMaterial({ color:0x9c8a62, roughness:0.85 }), TUBE_MAT=new THREE.MeshStandardMaterial({ color:0xa7a9a4, roughness:0.95 });
 let upGroup=null;
 function buildUpstairs(pods){
@@ -355,14 +374,14 @@ function buildUpstairs(pods){
   wallGroups.forEach(g=>{ const i=g.userData.slot.pod.i; if(ups.has(i)) lift(g, g.userData.base, i); });
   layerGroups.forEach(g=>{ const i=g.userData.pod; if(ups.has(i)){ g.userData.baseY+=lift(g, null, i); } });
   rimGroup.children.slice().forEach(m=>{ if(!ups.has(m.userData.pod)) return;
-    if(m.userData.lay==='floor-int' || m.userData.lay==='frame'){ rimGroup.remove(m); framingMeshes=framingMeshes.filter(x=>x!==m); plateMeshes=plateMeshes.filter(x=>x!==m); return; }
+    if(m.userData.lay==='frame'){ rimGroup.remove(m); framingMeshes=framingMeshes.filter(x=>x!==m); plateMeshes=plateMeshes.filter(x=>x!==m); return; }
     lift(m, m.userData.base, m.userData.pod); });
   upGroup=new THREE.Group(); upGroup.userData.up=true; homeGroup.add(upGroup);
   const U=upstairs(state.model), padY=(LAYER_KINDS.roof.z+LAYER_KINDS.roof.t-WALL_BASE)/FT, t=EPS_PAD/FT;
   U.eps.forEach(e=>{ const holes=stairOpenings(st=>st.above===e.pod || st.S.pod===e.on);
-    cutStairs([e.x,e.z,e.x1,e.z1], holes).forEach(([x0,z0,x1,z1])=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(x1-x0, t, z1-z0), EPS_MAT); m.position.set((x0+x1)/2, padY+(e.lv-1)*UP/FT+t/2, (z0+z1)/2); m.userData={ pod:e.pod, lay:'floor-up', base:m.position.clone(), build:'eps-pad' }; upGroup.add(m); }); });
+    cutStairs([e.x,e.z,e.x1,e.z1], holes).forEach(([x0,z0,x1,z1])=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(x1-x0, t, z1-z0), EPS_MAT); m.position.set((x0+x1)/2, padY+(e.lv-1)*UP/FT+t/2, (z0+z1)/2); m.userData={ pod:e.pod, lay:'floor-ext', base:m.position.clone(), build:'eps-pad' }; upGroup.add(m); }); });
   const conc=foundationOf(state.model)==='concrete';
-  U.posts.forEach(q=>{ const top=(LAYER_KINDS['floor-up'].z+q.lv*UP-WALL_BASE)/FT, onGround=q.rest<0, bot = onGround ? -FLOOR : padY+q.rest*UP/FT;   // down to the ground, or onto the roof of a pod further down
+  U.posts.forEach(q=>{ const top=(q.lv*UP-WALL_BASE)/FT, onGround=q.rest<0, bot = onGround ? -FLOOR : padY+q.rest*UP/FT;   // down to the ground, or onto the roof of a pod further down
     const h=top-bot, m=new THREE.Mesh(new THREE.BoxGeometry(POST, h, POST), POST_MAT); m.position.set(q.x, bot+h/2, q.z); m.userData={ pod:q.pod, lay:'post', base:m.position.clone(), build:'post' }; upGroup.add(m);
     if(!onGround) return;
     if(conc){ const c=new THREE.Mesh(new THREE.CylinderGeometry(5/FT, 5/FT, 4.2, 20), TUBE_MAT); c.position.set(q.x, bot-2.1+2/FT, q.z); c.userData={ pod:q.pod, lay:'post', build:'sonotube' }; upGroup.add(c); }
@@ -554,7 +573,7 @@ function buildHome(){
       m.userData.seal=role; g.add(m); });
     // Design, with finishes picked: siding on the outside of exterior walls, paint on the room faces
     if(FIN){ const t=(w.t||(s.type==='int'?4.5:6.5))/FT, L=wallLen(w)/FT, holes=(w.openings||[]).filter(o=>(o.w||o.d||0)>=3);
-      if(s.type==='ext' && FIN.siding) g.add(wallSkin(L, holes, FIN.siding, 0.03, true));
+      if(s.type==='ext' && FIN.siding) g.add(wallSkin(L, holes, FIN.siding, (SIDINGLIB.find(x=>x.id==='rando-rib')||SIDINGLIB[0])?.depth/FT || 0.03, true, s.pod?.lv||0));
       if(FIN.paint){ g.add(wallSkin(L, holes, FIN.paint, -t-0.03, false)); if(s.type==='int') g.add(wallSkin(L, holes, FIN.paint, 0.03, false)); } }
     g.traverse(o=>{ if(o.isMesh) { o.userData.slotId=s.id; pickables.push(o);} });
     if(state.letters && isShop()){   // wall letters are for the shop (Design names walls in the side panel)
@@ -687,7 +706,7 @@ const ease = (a,b,t) => { const u=Math.min(1,Math.max(0,(t-a)/(b-a))); return u*
 function applyExplode(){
   const e=explodeT, eP=ease(0,0.55,e), eW=ease(0.4,1,e);   // stage 1: pods apart · stage 2: each pod comes apart
   const lift = e*4.5;   // the house rises off its foundation, high enough that the frames clear the screw heads
-  const OFFS = {frame:-3.6, 'floor-ext':-2.2, 'floor-int':0, 'floor-up':-1, 'ceiling-int':5, 'roof':7.5};
+  const OFFS = {frame:-3.6, 'floor-ext':-2.2, 'floor-int':0, 'ceiling-int':5, 'roof':7.5};
   const sp = k => state.focusPod!=null ? [0,0] : (spread.pods[k]||[0,0]);   // one pod on its own comes apart where it stands
   layerGroups.forEach(g=>{ const u=g.userData, v=sp(u.pod);
     g.position.set(u.bx+v[0]*eP, u.baseY + lift + eW*OFFS[u.layerSlot.kind], u.bz+v[1]*eP); });
