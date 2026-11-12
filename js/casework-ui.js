@@ -194,6 +194,8 @@ function renderInner(){
   bindNav(body);
   const again=()=>render(), lib=()=>import('./library-ui.js');
   body.querySelector('#cwGone')?.addEventListener('click', ()=>import('./trash-ui.js').then(m=>m.openTrash(kind)));
+  body.querySelectorAll('[data-bflen]').forEach(b=>b.onclick=()=>{ BF[view.cat]={ ...(BF[view.cat]||{}), len:+b.dataset.bflen||null }; saveBF(); render(); });
+  body.querySelectorAll('[data-bftype]').forEach(b=>b.onclick=()=>{ BF[view.cat]={ ...(BF[view.cat]||{}), type:b.dataset.bftype||null }; saveBF(); render(); });
   const q=body.querySelector('#cwQ'); if(q) q.oninput=()=>{ const Q=q.value.toLowerCase(); body.querySelectorAll('.cw-bcard').forEach(c=>{ c.hidden=!!Q && !(c.textContent+' '+(c.dataset.k||c.dataset.uid||'')).toLowerCase().includes(Q); }); };
   body.querySelectorAll('[data-c3d]').forEach(b=>b.onclick=()=>import('./viewer3d.js').then(m=>m.openViewer(kind, b.dataset.c3d)));
   body.querySelectorAll('[data-cren]').forEach(b=>b.onclick=()=>lib().then(m=>m.askRename(kind, b.dataset.cren, again)));
@@ -219,6 +221,8 @@ function kitchenGrid(){
 }
 function bindKitchens(body){
   const again=()=>render(), view3d=(name, items, sub)=>import('./viewer3d.js').then(m=>m.openViewer('kitchen', null, { name, items, sub }));
+  body.querySelectorAll('[data-bflen]').forEach(b=>b.onclick=()=>{ BF[view.cat]={ ...(BF[view.cat]||{}), len:+b.dataset.bflen||null }; saveBF(); render(); });
+  body.querySelectorAll('[data-bftype]').forEach(b=>b.onclick=()=>{ BF[view.cat]={ ...(BF[view.cat]||{}), type:b.dataset.bftype||null }; saveBF(); render(); });
   const q=body.querySelector('#cwQ'); if(q) q.oninput=()=>{ const Q=q.value.toLowerCase(); body.querySelectorAll('.cw-kit').forEach(c=>{ c.hidden=!!Q && !c.textContent.toLowerCase().includes(Q); }); };
   const openK=id=>{ const K=kitchenById(id); if(K) view3d(K.name, K.items, `saved kitchen · ${K.items.length} items`); };
   const openH=gid=>{ const M=groupMembers(gid); if(M.length) view3d(M[0].grp.name, recipeOf(M), `group in this home · ${M.length} items`); };
@@ -255,6 +259,8 @@ function unitGrid(cat){
 function bindUnitGrid(body){
   const again=()=>render(), lib=()=>import('./library-ui.js');
   body.querySelector('#cwGone')?.addEventListener('click', ()=>import('./trash-ui.js').then(m=>m.openTrash('units')));
+  body.querySelectorAll('[data-bflen]').forEach(b=>b.onclick=()=>{ BF[view.cat]={ ...(BF[view.cat]||{}), len:+b.dataset.bflen||null }; saveBF(); render(); });
+  body.querySelectorAll('[data-bftype]').forEach(b=>b.onclick=()=>{ BF[view.cat]={ ...(BF[view.cat]||{}), type:b.dataset.bftype||null }; saveBF(); render(); });
   const q=body.querySelector('#cwQ'); if(q) q.oninput=()=>{ const Q=q.value.toLowerCase(); body.querySelectorAll('.cw-bcard').forEach(c=>{ c.hidden=!!Q && !(c.textContent+' '+(c.dataset.uid||'')).toLowerCase().includes(Q); }); };
   body.querySelectorAll('[data-c3d]').forEach(b=>b.onclick=()=>import('./viewer3d.js').then(m=>m.openViewer('units', b.dataset.c3d)));
   body.querySelectorAll('[data-cren]').forEach(b=>b.onclick=()=>lib().then(m=>m.askRename('units', b.dataset.cren, again)));
@@ -388,13 +394,27 @@ function bindFolds(body){
 
 function bindNav(body){ bindFolds(body); body.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{ view.cat=b.dataset.cat; view.item=null; showGone=false; if(view.tab==='set' && !setTab(view.cat)) view.tab='lib'; render(); }); }
 /* walls, floors / ceilings / roofs, decks: cards; tap for 3D; editors rename and delete (2 weeks to bring back) */
+/* walls and floors / ceilings / roofs filter by size (and walls by exterior / interior); kept on this device */
+const BF_KEY='cubit-lib-bfilter';
+let BF=(()=>{ try{ return JSON.parse(localStorage.getItem(BF_KEY)||'{}'); }catch(e){ return {}; } })();
+const saveBF=()=>{ try{ localStorage.setItem(BF_KEY, JSON.stringify(BF)); }catch(e){} };
 function buildingGrid(cat){
-  const all=B_LIST[cat]().filter(x=>!x.purged), gone=all.filter(x=>x.deleted), list=all.filter(x=>showGone ? x.deleted : !x.deleted)
-    .sort((a,b)=>String(a.name).localeCompare(String(b.name), undefined, {numeric:true}));
+  const all=B_LIST[cat]().filter(x=>!x.purged), gone=all.filter(x=>x.deleted), shown=all.filter(x=>showGone ? x.deleted : !x.deleted);
+  const sized=cat==='b:walls' || cat==='b:layers', F=BF[cat]||{};
+  const typeOk=x=> cat!=='b:walls' || !F.type || (F.type==='int' ? x.type==='int' : x.type!=='int');
+  const lens=sized ? [...new Set(shown.filter(typeOk).map(x=>+x.len).filter(Boolean))].sort((a,b)=>a-b) : [];
+  const lenOn = F.len && lens.includes(F.len) ? F.len : null;
+  const list=shown.filter(x=>typeOk(x) && (!lenOn || +x.len===lenOn))
+    .sort((a,b)=>(+a.len||0)-(+b.len||0) || String(a.name).localeCompare(String(b.name), undefined, {numeric:true}));
+  const cnt=L=>shown.filter(x=>typeOk(x) && (L==null || +x.len===L)).length;
+  const filters = sized ? `<div class="cw-bfilt"><span class="wb-k">Size</span><div class="seg wrap sm" role="group" aria-label="Size">
+      <button data-bflen="" aria-pressed="${!lenOn}">All <small>${cnt(null)}</small></button>${lens.map(L=>`<button data-bflen="${L}" aria-pressed="${lenOn===L}">${L}′ <small>${cnt(L)}</small></button>`).join('')}</div>
+      ${cat==='b:walls'?`<span class="wb-k">Type</span><div class="seg sm" role="group" aria-label="Type">${[['','All'],['ext','Exterior'],['int','Interior / connecting']].map(([k,l])=>`<button data-bftype="${k}" aria-pressed="${(F.type||'')===k}">${l}</button>`).join('')}</div>`:''}</div>` : '';
   const thumb=x=>{ try{ return cat==='b:walls' ? thumbSVG(x) : cat==='b:layers' ? layerThumb(x) : `<svg viewBox="0 0 ${x.w+2} ${x.d+2}"><rect x="1" y="1" width="${x.w}" height="${x.d}" fill="#d9c6a2" stroke="#5b4a33" stroke-width=".2"/></svg>`; }catch(e){ return ''; } };
   const sub=x=> cat==='b:walls' ? `${x.len}′ ${x.type==='int'?'interior / connecting':'exterior'} · ${(x.openings||[]).length} openings` : cat==='b:layers' ? `${LAYER_NAME[x.kind]||x.kind} · ${x.len}′ · ${(x.holes||[]).length} holes` : `${x.w}′ × ${x.d}′ frame`;
   return `<section class="cw-grid cw-bgrid">
     <div class="cw-bbar"><input type="search" id="cwQ" placeholder="Search names and IDs" aria-label="Search">${gone.length?`<button class="linkbtn editor-only" id="cwGone" title="⋯ → Deleted items">Deleted (${gone.length})</button>`:''}</div>
+    ${filters}${sized && !list.length ? `<p class="note cw-span">No ${cat==='b:walls'?'walls':'layers'} of that size${F.type?' and type':''}.</p>` : ''}
     ${list.map(x=>`<div class="cw-card cw-bcard" data-bid="${esc(x.id)}"><div class="cw-thumb">${thumb(x)}</div><b>${esc(x.name)}</b><small><code>${esc(x.id)}</code> · ${esc(sub(x))}</small>
       <div class="cw-bact">${showGone?`<button class="btn ghost sm editor-only" data-bres="${esc(x.id)}">Restore</button>`:`<button class="btn ghost sm" data-b3d="${esc(x.id)}">3D</button>${cat==='b:walls'||cat==='b:layers'?`<button class="btn ghost sm editor-only" data-bedit="${esc(x.id)}">Edit</button>`:''}<button class="btn ghost sm editor-only" data-bren="${esc(x.id)}">Rename</button><button class="btn ghost sm danger editor-only" data-bdel="${esc(x.id)}">Delete</button>`}</div></div>`).join('') || `<p class="note">${showGone?'Nothing deleted here.':'Empty.'}</p>`}
   </section>`;
@@ -402,6 +422,8 @@ function buildingGrid(cat){
 function bindBuilding(body){
   const kind=B_KIND[view.cat], lib=()=>import('./library-ui.js'), again=()=>render();
   body.querySelector('#cwGone')?.addEventListener('click', ()=>import('./trash-ui.js').then(m=>m.openTrash(kind)));
+  body.querySelectorAll('[data-bflen]').forEach(b=>b.onclick=()=>{ BF[view.cat]={ ...(BF[view.cat]||{}), len:+b.dataset.bflen||null }; saveBF(); render(); });
+  body.querySelectorAll('[data-bftype]').forEach(b=>b.onclick=()=>{ BF[view.cat]={ ...(BF[view.cat]||{}), type:b.dataset.bftype||null }; saveBF(); render(); });
   const q=body.querySelector('#cwQ'); if(q) q.oninput=()=>{ const Q=q.value.toLowerCase(); body.querySelectorAll('.cw-bcard').forEach(c=>{ c.hidden=!!Q && !c.textContent.toLowerCase().includes(Q); }); };
   body.querySelectorAll('[data-b3d]').forEach(b=>b.onclick=()=>import('./viewer3d.js').then(m=>m.openViewer(kind, b.dataset.b3d)));
   body.querySelectorAll('.cw-bcard').forEach(c=>c.onclick=e=>{ if(e.target.closest('button')) return; import('./viewer3d.js').then(m=>m.openViewer(kind, c.dataset.bid)); });
@@ -430,6 +452,8 @@ function deviceGrid(cat){
 }
 function bindDevices(body){
   const kind=view.cat.slice(2), again=()=>render(), lib=()=>import('./library-ui.js');
+  body.querySelectorAll('[data-bflen]').forEach(b=>b.onclick=()=>{ BF[view.cat]={ ...(BF[view.cat]||{}), len:+b.dataset.bflen||null }; saveBF(); render(); });
+  body.querySelectorAll('[data-bftype]').forEach(b=>b.onclick=()=>{ BF[view.cat]={ ...(BF[view.cat]||{}), type:b.dataset.bftype||null }; saveBF(); render(); });
   const q=body.querySelector('#cwQ'); if(q) q.oninput=()=>{ const Q=q.value.toLowerCase(); body.querySelectorAll('.cw-bcard').forEach(c=>{ c.hidden=!!Q && !c.textContent.toLowerCase().includes(Q); }); };
   body.querySelector('#cwGone')?.addEventListener('click', ()=>import('./trash-ui.js').then(m=>m.openTrash('devices')));
   body.querySelector('#cwNewDev')?.addEventListener('click', ()=>editDevice(null, kind));
