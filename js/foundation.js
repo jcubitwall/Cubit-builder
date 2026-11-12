@@ -8,6 +8,7 @@ import { buildHome } from './scene3d.js';
 import { dimH, dimV, renderSheetList } from './sheets.js';
 import { renderSide, toast } from './sidebar.js';
 import { state } from './state.js';
+import { needPDF } from './pdflib.js';
 
 /* ---------- foundation: one data model drives the on-screen sheet and the PDF ---------- */
 function foundationData(){
@@ -134,18 +135,18 @@ function renderFoundation(el){
       <div class="tblwrap" style="max-height:340px;overflow:auto"><div class="eyebrow" style="color:#555;margin-bottom:4px">Screw schedule</div>${t}</div></div>`;
   el.querySelector('#insetIn').addEventListener('change',e=>{ const v=parseFloat(e.target.value); if(v>=2&&v<=18){ state.inset=v; buildHome(); renderSheetList(); renderFoundation(el); renderSide(); } });
   const btn=el.querySelector('#pdfBtn');
-  if(window.jspdf){
+  {
     const name=`Cubit ${F.m.name} - ground screw layout.pdf`;
     if(window.claude && window.claude.use){
       // running inside claude.ai: files go through the viewer's save prompt
       window.claude.use('downloads').then(dl=>{ if(!dl) return; btn.hidden=false;
-        btn.onclick=async()=>{ try{ await dl.save({filename:name, data:foundationPDF()}); toast('PDF saved'); }
+        btn.onclick=async()=>{ try{ await needPDF(); await dl.save({filename:name, data:foundationPDF()}); toast('PDF saved'); }
           catch(err){ if(err&&err.code==='declined') return; toast('The PDF could not be saved here.'); } };
       });
     } else {
       // normal website (GitHub Pages): ordinary browser download
       btn.hidden=false;
-      btn.onclick=()=>{ const url=URL.createObjectURL(foundationPDF()); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),4000); toast('PDF downloaded'); };
+      btn.onclick=async()=>{ try{ await needPDF(); }catch(e){ toast(e.message); return; } const url=URL.createObjectURL(foundationPDF()); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),4000); toast('PDF downloaded'); };
     }
   }
 }

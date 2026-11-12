@@ -1,14 +1,15 @@
-/* Cubit Builder — sw.js : the offline copy, so the app opens and works at a lot with weak or no signal.
+/* Cubit Builder — sw.js : the offline copy, so the app opens fast and works at a lot with weak or no signal.
 
-   · The app's own files (pages, scripts, styles, data, images): the network first (always the newest when there is
-     a connection), the copy on the device when the network is slow (3 s) or gone. Every file fetched is kept.
+   · The app's own files (pages, scripts, styles, images): each release is kept whole on the device when it's
+     installed, and opened straight from there: no network wait, however slow the signal. A new release (a new
+     VERSION, stamped by tools/sw/build.py) is fetched in the background; the app then offers "Reload" (main.js),
+     and the new copy takes over on that reload, so old and new files never mix.
    · The libraries from cdnjs / jsDelivr (three.js, jsPDF…): versioned, so the kept copy is used straight away.
-   · The team's data and the Cubit catalogue (GET /api/…, e.g. api/seed/walls): the network first, the last answer
-     kept for when there's no connection (the catalogue is also fetched on install, so it's there from the first open).
-     Saving (POST) always goes to the network; drafts are also kept in the browser and go up when the signal is back.
-   tools/sw/build.py lists the files (sw-files.json) to keep on install and stamps VERSION; a new VERSION replaces the
-   old copy. */
-const VERSION='5957fdff44e8';
+   · The team's data and the Cubit catalogue (GET /api/…, e.g. api/seed/walls): the network first, the last answer kept for when
+     there's no connection. Saving (POST) always goes to the network; drafts are also kept in the browser and go up
+     when the signal is back.
+   tools/sw/build.py lists the files (sw-files.json) to keep on install and stamps VERSION. */
+const VERSION='29e176d670c5';
 const CACHE='cubit-'+VERSION, API='cubit-api';
 self.addEventListener('install', e=>{
   e.waitUntil((async()=>{
@@ -16,14 +17,17 @@ self.addEventListener('install', e=>{
     try{ const r=await fetch('sw-files.json', { cache:'no-store' }); const L=(await r.json()).files||[];
       // a few at a time; a file that fails is fetched later when it's used
       // the libraries on other sites come back opaque (their script tags have no CORS), so they're put, not added
+      // the Cubit catalogue (api/seed/…) goes in the data copy, where the fetch handler looks for /api/ answers
       const api=await caches.open(API);
       const get=u=> /^https?:/.test(u) ? fetch(u, { mode:'no-cors' }).then(r=>c.put(u, r))
         : u.startsWith('api/') ? fetch(u, { cache:'reload' }).then(r=>{ if(r.ok) return api.put(new URL(u, self.location).href, r); })
         : c.add(new Request(u, { cache:'reload' }));
       for(let i=0;i<L.length;i+=12) await Promise.all(L.slice(i,i+12).map(u=>get(u).catch(()=>{}))); }catch(e){}
-    self.skipWaiting();
+    // the very first install takes over at once; a new release waits for the app's "Reload" (or the app being closed)
+    if(!self.registration.active) self.skipWaiting();
   })());
 });
+self.addEventListener('message', e=>{ if(e.data==='cubit:reload') self.skipWaiting(); });
 self.addEventListener('activate', e=>{
   e.waitUntil((async()=>{ for(const k of await caches.keys()) if(k.startsWith('cubit-') && k!==CACHE && k!==API) await caches.delete(k); await self.clients.claim(); })());
 });
@@ -37,9 +41,11 @@ async function networkFirst(req, cacheName, wait){
   const kept=await c.match(req); if(kept) return kept;
   return net.catch(()=>Response.error());
 }
+/* this release's copy first; anything not kept yet comes from the network (and is kept) */
 async function cacheFirst(req){
-  const c=await caches.open(CACHE), kept=await c.match(req); if(kept) return kept;
-  const r=await fetch(req); if(keepable(r) || r.type==='opaque') c.put(req, r.clone()).catch(()=>{}); return r;
+  const c=await caches.open(CACHE), kept=await c.match(req, { ignoreSearch:true }); if(kept) return kept;
+  try{ const r=await fetch(req); if(keepable(r) || r.type==='opaque') c.put(req, r.clone()).catch(()=>{}); return r; }
+  catch(e){ return (await caches.match(req, { ignoreSearch:true })) || Response.error(); }
 }
 self.addEventListener('fetch', e=>{
   const req=e.request; if(req.method!=='GET') return;
@@ -48,5 +54,8 @@ self.addEventListener('fetch', e=>{
   if(u.origin!==self.location.origin) return;
   if(u.pathname.includes('/cdn-cgi/')) return;   // Cloudflare's own sign-in pages
   if(u.pathname.includes('/api/')){ if(/[?&](photo|id|sig)=/.test(u.search)) return; e.respondWith(networkFirst(req, API, 0)); return; }
-  e.respondWith(networkFirst(req, CACHE, 3000));
+  if(u.pathname.includes('/data/') || u.pathname.endsWith('/sw-files.json') || u.pathname.endsWith('/migrate.html')){ e.respondWith(networkFirst(req, CACHE, 3000)); return; }
+  // the page itself: this release's copy of index.html
+  if(req.mode==='navigate'){ e.respondWith((async()=>{ const c=await caches.open(CACHE); return (await c.match('./')) || (await c.match('index.html')) || networkFirst(req, CACHE, 4000); })()); return; }
+  e.respondWith(cacheFirst(req));
 });

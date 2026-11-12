@@ -1,5 +1,5 @@
 {
-"version": "5957fdff44e8",
+"version": "29e176d670c5",
 "files": [
 "./",
 "brand/cubit-logo.png",
@@ -73,6 +73,7 @@
 "js/orient.js",
 "js/panel-builder.js",
 "js/panels.js",
+"js/pdflib.js",
 "js/phone.js",
 "js/planner.js",
 "js/plumbing.js",
@@ -136,7 +137,6 @@
 "api/seed/fixtures-maax-biarritz-85",
 "https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap",
 "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js",
-"https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js",
-"https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
+"https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"
 ]
 }

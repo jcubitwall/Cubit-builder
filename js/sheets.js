@@ -28,6 +28,7 @@ import { partnerOf } from './layout.js';
 import { panelPlan, homePlans, stackTableHTML, labelsPDF, faceFor, faceShort } from './labels.js';
 import { toast } from './sidebar.js';
 import { renderBlueprintCard } from './blueprint-ui.js';
+import { needPDF } from './pdflib.js';
 
 /* ============================================================ assembly sheets */
 const sheetsEl=document.getElementById('sheets'), studioEl=document.getElementById('studio');
@@ -113,7 +114,7 @@ function renderSheet(){
     <div class="tblwrap">${boxTable(w,face,s)}</div>
     <div class="tblwrap"><div class="eyebrow" style="color:#555;margin:10px 0 4px">Framing · this wall</div>${wallFramingHTML(wallFraming(s, pickFor(s)))}</div>`;
   el.querySelectorAll('[data-face]').forEach(b=>b.onclick=()=>{ setFace(s,b.dataset.face); renderSheet(); });
-  el.querySelector('#wallLabels').onclick=()=>downloadBlob(labelsPDF([plan], MODELS[state.model].name), `${MODELS[state.model].name} - ${plan.slot.pod.label} Wall ${plan.slot.letter} labels.pdf`);
+  el.querySelector('#wallLabels').onclick=async()=>{ try{ await needPDF(); }catch(e){ toast(e.message); return; } downloadBlob(labelsPDF([plan], MODELS[state.model].name), `${MODELS[state.model].name} - ${plan.slot.pod.label} Wall ${plan.slot.letter} labels.pdf`); };
   buildWall3D(w);
   addNav(el);
 }
@@ -336,7 +337,7 @@ function renderLabelsHome(el){
       A panel is <b class="flipflag">flipped</b> when its box cut-outs are on the face that must be down for assembly — the CNC cuts that face up, then the panel is turned over before stacking.</div>
     <div class="tblwrap"><table class="boxes"><thead><tr><th>Wall</th><th>Facing the assemblers</th><th>Assembly order</th><th>Stack, top → bottom</th><th>Flip before stacking</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   el.querySelectorAll('[data-sid]').forEach(b=>b.onclick=()=>{ const s=slotsFor(state.model).find(x=>x.id===b.dataset.sid); setFace(s,b.dataset.f); renderLabelsHome(el); });
-  el.querySelector('#allLabels').onclick=()=>downloadBlob(labelsPDF(plans,name), `${name} - panel labels.pdf`);
+  el.querySelector('#allLabels').onclick=async()=>{ try{ await needPDF(); }catch(e){ toast(e.message); return; } downloadBlob(labelsPDF(plans,name), `${name} - panel labels.pdf`); };
 }
 function downloadBlob(blob, name){
   if(window.claude && window.claude.use){

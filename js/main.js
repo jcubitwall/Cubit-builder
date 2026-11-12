@@ -5,7 +5,24 @@ import './tools-ui.js';
 import './savestate.js';
 import './finishes-ui.js';
 /* the offline copy (sw.js): the app opens and works with weak or no signal */
-if('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('sw.js').catch(()=>{});
+// the offline copy (sw.js). The app opens from the copy kept on the device; when a new release has been fetched in
+// the background, a note offers "Reload" and the new release takes over on that reload.
+if('serviceWorker' in navigator && window.isSecureContext){
+  const offer = w => { if(!w || document.getElementById('swNew')) return;
+    const n=document.createElement('div'); n.id='swNew'; n.className='sw-new'; n.setAttribute('role','status');
+    n.innerHTML='<span>A new version of Cubit Builder is ready.</span><button class="btn">Reload</button><button class="btn ghost" aria-label="Later">Later</button>';
+    n.children[1].onclick=()=>{ n.children[1].disabled=true; w.postMessage('cubit:reload'); };
+    n.children[2].onclick=()=>n.remove();
+    document.body.appendChild(n); };
+  let reloading=false, hadController=!!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', ()=>{ if(hadController && !reloading){ reloading=true; location.reload(); } hadController=true; });
+  navigator.serviceWorker.register('sw.js').then(reg=>{
+    if(reg.waiting && navigator.serviceWorker.controller) offer(reg.waiting);
+    reg.addEventListener('updatefound', ()=>{ const w=reg.installing; w?.addEventListener('statechange', ()=>{ if(w.state==='installed' && navigator.serviceWorker.controller) offer(w); }); });
+    // an iPad left open for days still hears about new releases
+    setInterval(()=>reg.update().catch(()=>{}), 30*60*1000);
+  }).catch(()=>{});
+}
 import { loadRules } from './wall-rules.js';
 import { loadShapes } from './shapes.js';
 import { state, initState } from './state.js';
@@ -45,6 +62,8 @@ window.addEventListener('cubit:draft', e=>{ setTimeout(()=>{ renderModels(); bui
   setTimeout(()=>toast(F?.locked ? `${F.name} is signed and locked · your change went into a draft in My Drafts` : `Editing your draft of ${F?.name||'this home'} · the original is unchanged`), 1800); });   // after the change's own message
 import { initPhone } from './phone.js';
 import { initZoomView } from './zoomview.js';
+import { warmPDF } from './pdflib.js';
+warmPDF();   // the PDF maker, fetched quietly once the app is up
 
 function bindTog(id,key,fn){ const b=document.getElementById(id); b.onclick=()=>{ state[key]=!state[key]; b.setAttribute('aria-pressed',state[key]); fn(); }; }
 /* Exploded view: the home (or the isolated pod); while a cabinet is isolated, that cabinet */
