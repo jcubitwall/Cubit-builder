@@ -75,7 +75,7 @@ const NAV_BASE = [
 /* the makers' catalogues (brands.js) fill their group once loaded */
 /* …and each store's list goes right under the category it's for ("Home Depot store" under Fireplaces) */
 const storeKey = c => String(c).replace(/^d:/,'');
-const withStores = cs => cs.flatMap(c=>{ const k=Array.isArray(c)?c[0]:c; return [c, ...storesFor(storeKey(k)).map(({store})=>[`s:${store.id}:${storeKey(k)}`, `${store.name} store`])]; });
+const withStores = cs => cs.flatMap(c=>{ const k=Array.isArray(c)?c[0]:c; return [c, ...storesFor(storeKey(k)).map(({store})=>[`s:${store.id}:${storeKey(k)}`, `${store.name} ${k==='d:bx'?'catalogue':'store'}`])]; });
 const NAV = () => NAV_BASE.filter(([g])=>g!=='Maker catalogues');
 /* ---------------------------------------------------------------- catalogues inside each category
    Every category has the Cubit catalogue (what homes use) and, where there are any, outside catalogues: a maker's
@@ -85,7 +85,7 @@ const UNIT_CAT = { 'u:win':'window', 'u:ext':'door', 'u:int':'door' };
 function sourcesFor(cat){
   const out=[];
   const uc=UNIT_CAT[cat]; if(uc) BRANDS.forEach(b=>{ if((b.styles||[]).some(st=>TYPES[st.type]?.cat===uc || (uc==='door' && TYPES[st.type]?.cat==='patio'))) out.push({ id:`brand:${b.id}`, label:`${b.name} catalogue` }); });
-  storesFor(storeKey(cat)).forEach(({store})=>out.push({ id:`store:${store.id}`, label:`${store.name} store` }));
+  storesFor(storeKey(cat)).forEach(({store})=>out.push({ id:`store:${store.id}`, label:`${store.name} ${cat==='d:bx'?'catalogue':'store'}` }));
   return out;
 }
 const srcPick={}; try{ Object.assign(srcPick, JSON.parse(localStorage.getItem('cubit-lib-src')||'{}')); }catch(e){}
@@ -350,13 +350,19 @@ onUnitsChanged(()=>{ if(dlg?.open && view.cat.startsWith('u:') && view.tab==='li
 /* a store's list for one category: what can be ordered online and shipped to Cubit; Adopt puts it in the Cubit library */
 function storeGrid(sid, key){
   const S=storeById(sid), L=S?.cats?.[key]||[], ed=canEdit(), catName=navName(CATS.some(c=>c.k===key)?key:'d:'+key);
-  const card=P=>{ const done=isAdopted(sid, key, P.sku), mine=done && ITEMS.find(x=>x.k===`HD${P.sku}`);
+  const card=P=>{ if(key==='bx') return boxCard(P); const done=isAdopted(sid, key, P.sku), mine=done && ITEMS.find(x=>x.k===`HD${P.sku}`);
     return `<div class="cw-card cw-bcard cw-catc${done?' in':''}"><div class="cw-thumb">${mine?frontSVG(newItem(mine.k)):`<svg viewBox="0 0 ${P.w+4} ${P.h+4}" aria-hidden="true"><rect x="2" y="2" width="${P.w}" height="${P.h}" fill="#cfd3d6" stroke="#1c211e" stroke-width="${Math.max(P.w,P.h)/90}"/><rect x="${2+P.w*0.06}" y="${2+P.h*0.1}" width="${P.w*0.88}" height="${P.h*0.8}" fill="#24282c"/></svg>`}</div>
       <b>${esc(P.name)}</b><small><code>${esc(P.model)}</code> · SKU ${esc(P.sku)} · ${fin2(P.w)} × ${fin2(P.h)} × ${fin2(P.d)}${P.lbs?` · ${P.lbs} lb`:''}</small>
       <small>${P.price?`<b>$${P.price.toLocaleString('en-CA',{minimumFractionDigits:P.price%1?2:0})}</b> · `:''}${[P.btu?`${P.btu.toLocaleString()} BTU`:'', P.watts?`${P.watts} W`:'', P.power||''].filter(Boolean).join(' · ')}</small>
       ${P.note?`<p class="note">${esc(P.note)}</p>`:''}
-      <div class="cw-bact"><a class="btn ghost sm" href="${esc(P.url)}" target="_blank" rel="noopener">Home Depot</a>${done?`<span class="note">✓ In the Cubit library${mine?'':''}</span>`:ed?`<button class="btn sm" data-sadopt="${esc(P.sku)}">Adopt</button>`:''}</div></div>`; };
-  return `<section class="cw-grid cw-bgrid"><div class="cw-span cat-head"><h3>${esc(S?.name||sid)} store · ${esc(catName)} <a href="${esc(S?.url||'')}" target="_blank" rel="noopener" class="linkbtn">${esc((S?.url||'').replace(/^https?:\/\/(www\.)?/,''))}</a></h3>
+      <div class="cw-bact"><a class="btn ghost sm" href="${esc(P.url)}" target="_blank" rel="noopener">${esc(S?.name||'Store')}</a>${done?`<span class="note">✓ In the Cubit library${mine?'':''}</span>`:ed?`<button class="btn sm" data-sadopt="${esc(P.sku)}">Adopt</button>`:''}</div></div>`; };
+  function boxCard(P){ const done=isAdopted(sid, key, P.sku);
+    return `<div class="cw-card cw-bcard cw-catc${done?' in':''}"><div class="cw-thumb">${boxSVG(P)}</div>
+      <b>${esc(P.brand)} ${esc(P.model)}</b><p class="cw-bname">${esc(P.name)}</p>
+      <small>${P.gang?`${P.gang} gang · `:''}${fin2(P.w)} × ${fin2(P.h)} × ${fin2(P.d)} deep${P.cuin?` · ${P.cuin} cu in`:''} · ${esc(P.material||'')}${P.mount==='surface'?' · surface mount':''} · Eddy item ${esc(P.sku)}</small>
+      ${P.confirm?'<p class="note warn">Size not confirmed yet: check it on the Eddy page before adopting.</p>':''}${P.note?`<p class="note">${esc(P.note)}</p>`:''}
+      <div class="cw-bact"><a class="btn ghost sm" href="${esc(P.url)}" target="_blank" rel="noopener">${esc(S?.name||'Store')}</a>${done?'<span class="note">✓ In the Cubit catalogue</span>':ed?`<button class="btn sm" data-sadopt="${esc(P.sku)}">Adopt</button>`:''}</div></div>`; }
+  return `<section class="cw-grid cw-bgrid"><div class="cw-span cat-head"><h3>${esc(S?.name||sid)} ${key==='bx'?'catalogue':'store'} · ${esc(catName)} <a href="${esc(S?.url||'')}" target="_blank" rel="noopener" class="linkbtn">${esc((S?.url||'').replace(/^https?:\/\/(www\.)?/,''))}</a></h3>
       <p class="note">${esc(S?.note||'')} Ships to ${esc(S?.shipTo||'')}${S?.pickup?` (or pick up at ${esc(S.pickup)})`:''}. Checked ${esc(S?.checked||'')}. ${ed?'<b>Adopt</b> puts one in the Cubit library for the whole team.':'Editors and admins adopt these into the Cubit library.'}</p></div>
     ${L.map(card).join('') || '<p class="note">Nothing listed yet.</p>'}</section>`;
 }
@@ -369,9 +375,9 @@ onAdoptedChanged(()=>{ if(dlg?.open && view.tab==='lib' && !view.item) render();
 /* the electrical device boxes (boxes.js): which walls get which, and the pocket the CNC cuts for each */
 function boxGrid(){
   const card=b=>`<div class="cw-card cw-bcard"><div class="cw-thumb">${boxSVG(b)}</div><b>${esc(b.name)}</b>
-    <small>${b.model?`<code>${esc(b.model)}</code> · `:''}${b.w} × ${b.h} × ${b.d}″ deep${b.cuin?` · ${b.cuin} cu in`:''}${b.price?` · $${b.price.toFixed(2)}`:''}</small>
+    <small>${b.model?`<code>${esc(b.model)}</code> · `:''}${b.gang>1?`${b.gang} gang · `:''}${fin2(b.w)} × ${fin2(b.h)} × ${fin2(b.d)} deep${b.cuin?` · ${b.cuin} cu in`:''}${b.price?` · $${b.price.toFixed(2)}`:''}</small>
     <small>CNC pocket ${fin2(b.pocket.w)} × ${fin2(b.pocket.h)}, <b>${fin2(b.pocket.depth)} deep</b></small>
-    <p class="note">${b.use==='jbox'?'<b>Automatic for hardwired fireplaces</b>. ':b.use==='shallow'?`<b>Automatic in walls thinner than ${fin2(THIN_BELOW)}</b>. `:`<b>Automatic in walls ${fin2(THIN_BELOW)} and thicker</b>. `}${esc(b.note||'')}${b.url?` <a class="linkbtn" href="${esc(b.url)}" target="_blank" rel="noopener">Home Depot</a>`:''}</p></div>`;
+    <p class="note">${b.use==='adopted'?`<b>Adopted from ${esc(b.store?.name||'a store')}</b> (item ${esc(b.store?.sku||'')}). `:b.use==='jbox'?'<b>Automatic for hardwired fireplaces</b>. ':b.use==='shallow'?`<b>Automatic in walls thinner than ${fin2(THIN_BELOW)}</b>. `:`<b>Automatic in walls ${fin2(THIN_BELOW)} and thicker</b>. `}${esc(b.note||'')}${b.url?` <a class="linkbtn" href="${esc(b.url)}" target="_blank" rel="noopener">${esc(b.store?.name||'Home Depot')}</a>`:''}</p></div>`;
   return `<section class="cw-grid cw-bgrid"><p class="note cw-span">The box a plug, switch or data jack sits in. Each wall gets one by its thickness, and the CNC pocket follows (a box's depth unlocked by hand in the panel builder keeps its own).</p>${BOXLIB.map(card).join('')}</section>`;
 }
 /* fold away a category group (left) or a heading's cards (right); remembered in this browser */
