@@ -7,9 +7,10 @@
    Adopt (editors and admins) puts a product in the Cubit library for the whole team (api/adopted; this browser
    when opened locally): a cabinet-library category gets a fixed-size item of that size (casework.js
    defStoreItem; a fireplace insert also becomes an Insert choice in the surround); a plug / switch / data
-   category gets a device (devices.js). */
+   category gets a device (devices.js); a device box ('bx', e.g. Eddy Group) joins the Cubit box catalogue (boxes.js). */
 import { CATS, defStoreItem } from './casework.js';
 import { saveDevice, deviceById } from './devices.js';
+import { addBox } from './boxes.js';
 
 const STORES=[], ADOPTED=[]; let remote=false; const LOCAL='cubit-adopted';
 const subs=[]; const onAdoptedChanged = fn => subs.push(fn);
@@ -30,11 +31,12 @@ const isCasework = cat => CATS.some(c=>c.k===cat);
 function register(a){
   const s=storeById(a.store), P={ ...a.product, storeId:a.store, store:s?.name||a.store };
   if(isCasework(a.cat)) return defStoreItem(a.cat, P);
+  if(a.cat==='bx') return addBox(a.product, a.store, s?.name||a.store);   // a device box: into the Cubit box catalogue
   return null;
 }
 async function adopt(storeId, cat, P){
   const a={ id:adoptId(storeId, cat, P.sku), store:storeId, cat, product:P };
-  if(!isCasework(cat)){   // a plug, switch or data device: into the device library
+  if(!isCasework(cat) && cat!=='bx'){   // a plug, switch or data device: into the device library
     const id=`${cat.toUpperCase()}-HD${P.sku}`.slice(0,48);
     if(!deviceById(id)) await saveDevice({ id, kind:cat, name:P.name, note:`${P.brand} ${P.model} · SKU ${P.sku}`, store:{ id:storeId, sku:P.sku, url:P.url, price:P.price } });
   }
