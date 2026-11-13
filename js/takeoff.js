@@ -17,6 +17,7 @@ import { pickFor } from './state.js';
 import { unitFor, catOf, TYPES } from './units.js';
 import { sealRole, sealsFor, SEAL } from './seals.js';
 import { H, sidingSpan, SIDING } from './config.js';
+import { homeSiding } from './sidinglayout.js';
 /* compression seal around every opening between pods (both pods): [{n, len} …] and total inches */
 function sealRun(){ const sl=slotsFor(state.model); let tot=0, n=0, hi=0; sl.forEach(s=>{ const r=sealRole(s, sl); sealsFor(bodyWall(s,pickFor(s)), r, H).forEach(x=>{ tot+=x.len; n++; if(r==='high') hi++; }); }); return {tot, n, hi}; }
 
@@ -45,19 +46,10 @@ function upstairsTakeoff(k=state.model){
   return { pods:ups.length, epsSqft, epsSheets:Math.ceil(epsSqft*1.1/32-1e-6), posts:U.posts.length, grounded:lens.filter(l=>l.ground).length, stocks:Object.values(byStock).sort((a,b)=>a.stock-b.stock), postLen, stock, conc, tubeYd3,
     floors:Math.max(...ups.map(p=>p.lv))+1 };
 }
-/* siding (config.js SIDING): every exterior side of every pod, in full-height panels of the library's profile (Rando Rib),
-   each cut to the floor's siding length: ½″ over the steel frame (½″ under the floor upstairs) to 1″ under the roof.
-   Panels per side = the side's length / the profile's cover width, rounded up; openings aren't taken off (the
-   panels are cut around them on the wall). Corner and top / bottom trims aren't in yet. */
-function sidingTakeoff(k=state.model){
-  const P=SIDINGLIB.find(x=>x.id==='rando-rib') || SIDINGLIB[0]; if(!P) return null;
-  const runs={};
-  slotsFor(k).filter(s=>s.type==='ext').forEach(s=>{ const r=(runs[s.pod.i+'|'+s.side] ||= { lv:s.pod.lv||0, len:0 }); r.len+=s.len*12; });
-  const by={};
-  Object.values(runs).forEach(r=>{ const S=sidingSpan(r.lv), key=S.len.toFixed(3); const b=(by[key] ||= { n:0, len:S.len, lv:r.lv, run:0, sides:0, S });
-    b.n+=Math.ceil(r.len/P.cover-1e-6); b.run+=r.len; b.sides++; });
-  return { P, lines:Object.values(by).sort((a,b)=>a.lv-b.lv) };
-}
+/* siding (sidinglayout.js): every exterior wall laid out by the panel rules (33″ cover, pulled back to 31¾″, or hopped
+   to 30–30½″; flange end at the Einspine corners, rib end at the brick molds), with filler pieces and custom trims.
+   Panel length = the floor's siding span: ½″ over the steel frame (½″ under the floor upstairs) to 1″ under the roof. */
+function sidingTakeoff(k=state.model){ return homeSiding(k); }
 /* item: { n, what, len?, note? } — n pieces of `what`, each `len` inches long when it's a cut piece */
 function homeTakeoff(){
   const stages=[], add=(id,title,items,note='')=>{ if(items.length) stages.push({id,title,items,note}); };
@@ -118,9 +110,11 @@ function homeTakeoff(){
     add('up','Upper floors',items,`${T.pods} pod${T.pods>1?'s':''} above the ground floor, ${T.floors} floors`); } }
   // Siding
   { const T=sidingTakeoff(); if(T){ const P=T.P;
-    add('siding','Siding',T.lines.map(b=>({ n:b.n, what:`${P.name} panel, ${fin(P.cover)} cover`, len:b.len,
-      note:`${b.lv?'upper floor · ½″ below the floor':'ground floor · ½″ over the steel frame'} to 1″ under the roof · ${b.sides} side${b.sides>1?'s':''}, ${fft(b.run)} of wall · openings not taken off` })),
-      `${P.material||'Metal'} · ${fin(P.depth)} deep · trims to come`); } }
+    add('siding','Siding',[
+      ...T.panels.map(p=>({ n:p.n, what:`${P.name} panel, cut to length${p.rip?` and ripped to ${fin(p.rip)}`:''}`, len:p.len, note:`${p.what} · ${(p.len/12*P.lbPerFt*(p.rip?p.rip/P.cover:1)).toFixed(1)} lb each` })),
+      ...T.fillers.map(f=>({ n:f.n, what:`Filler piece ${fin(f.w)} wide, bent to match (${fin(f.w*P.developed/P.cover)} flat)`, len:f.len, note:f.at })),
+      ...T.trims.map(t=>({ n:t.n, what:`${t.what} (custom bend)`, len:t.len }))],
+      `${P.name} ${P.gauge||''} · ${T.nPanels} panels${T.hops?`, ${T.hops} hopped a rib`:''} · ${fft(T.runs)} of exterior wall, ${T.nOpen} opening${T.nOpen===1?'':'s'} · about ${Math.round(T.lb).toLocaleString()} lb of siding`); } }
   // Windows & doors
   { const g={}; let open=0;
     slotsFor(state.model).forEach(s=>{ const w=bodyWall(s, pickFor(s)); (w?.openings||[]).filter(catOf).forEach(o=>{ const r=unitFor(s,o);
@@ -158,7 +152,8 @@ function shoppingList(){
     if(T.posts){ T.stocks.forEach(s=>add('Upper floors', s.n, `8×8 pressure-treated post × ${s.stock}′`)); add('Upper floors', T.posts, '8×8 post base');
       const g=T.grounded; if(g){ if(T.conc){ add('Upper floors', g, `${TUBE.d}″ Sonotube × 4′`); add('Upper floors', +(T.tubeYd3*g*1.1).toFixed(2), 'yd³ concrete (Sonotubes, incl. 10%)'); }
       else add('Upper floors', g, 'ground screw, post head'); } } } }
-  { const T=sidingTakeoff(); if(T) T.lines.forEach(b=>add('Siding', b.n, `${T.P.name} panel ${fin(T.P.cover)} cover × ${fin(b.len)}`)); }
+  { const T=sidingTakeoff(); if(T){ T.panels.forEach(p=>add('Siding', p.n, `${T.P.name} panel × ${fin(p.len)}${p.rip?`, ripped to ${fin(p.rip)}`:''}`));
+    T.fillers.forEach(f=>add('Siding', f.n, `filler ${fin(f.w)} wide × ${fin(f.len)}`)); T.trims.forEach(t=>add('Siding', t.n, `${t.what} × ${fin(t.len)}`)); } }
   const u={}; slotsFor(state.model).forEach(s=>{ const w=bodyWall(s, pickFor(s)); (w?.openings||[]).filter(catOf).forEach(o=>{ const r=unitFor(s,o); if(r) u[r.unit.name+' ('+r.unit.id+')']=(u[r.unit.name+' ('+r.unit.id+')']||0)+1; }); });
   Object.entries(u).forEach(([k,n])=>add('Windows & doors', n, k));
   { const S=sealRun(); if(S.n) add('Seals', +(S.tot/12*1.1).toFixed(0), `ft · ${SEAL.name}`); }

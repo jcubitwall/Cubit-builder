@@ -1553,3 +1553,6 @@ body.walking .present-bar{display:none}
 .cw-bfilt .wb-k{font-size:12px;color:var(--ink2,#5b6359);text-transform:uppercase;letter-spacing:.06em}
 .cw-bfilt small{opacity:.6;margin-left:2px}
 .cw-bname{margin:2px 0 4px;font-size:13px;line-height:1.35}
+.sid-card h3{margin:0 0 8px}.sid-card h3 small{font-weight:400;color:#6b7068;font-size:13px;margin-left:6px}.sid-card h4{margin:14px 0 4px}
+.sid-tab{border-collapse:collapse;font-size:13px;margin:8px 0}.sid-tab th{text-align:left;font-weight:600;padding:3px 10px 3px 0;color:#454a43}.sid-tab td{padding:3px 18px 3px 0}
+.sid-lap{margin:4px 0}.sid-lap figcaption{font-size:12px;color:#5b6159}.sid-rules{padding-left:18px;margin:4px 0}.sid-rules li{margin:2px 0}
