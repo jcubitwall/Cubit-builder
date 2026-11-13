@@ -146,7 +146,7 @@ dialog#projDlg::backdrop{background:rgba(20,24,22,.45)}
 .wl button.lay .n{font-weight:500}
 /* keep the 3D stage and the sidebar to the window height on desktop; the sidebar scrolls inside */
 @media (min-width: 901px){
-  .studio{flex:none;height:calc(100vh - 88px);min-height:560px}
+  .studio{flex:none;height:calc(100vh - 88px);height:calc(100dvh - 88px);min-height:560px}
   .studio > aside{max-height:100%}
 }
 @media (min-width: 901px){
@@ -156,7 +156,7 @@ dialog#projDlg::backdrop{background:rgba(20,24,22,.45)}
 .side-b > *{flex-shrink:0}
 
 /* plan editor */
-#planner{display:grid;grid-template-columns:280px minmax(0,1fr) 320px;gap:12px;flex:none;height:calc(100vh - 88px);min-height:560px}
+#planner{display:grid;grid-template-columns:280px minmax(0,1fr) 320px;gap:12px;flex:none;height:calc(100vh - 88px);height:calc(100dvh - 88px);min-height:560px}
 #palette,#planSide{background:var(--surface);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
 #planSide .side-b{overflow:auto}
 .pal{overflow:auto;padding:10px 12px 16px;display:flex;flex-direction:column;gap:8px}
@@ -226,7 +226,7 @@ body.dragging, body.dragging *{cursor:grabbing!important}
 .fs-tools{display:flex}
 .fs-tools .toggles{display:flex;gap:6px}
 .fs-tools .tog{background:color-mix(in srgb,var(--surface) 92%,transparent)}
-.studio.fs{position:fixed;inset:0;z-index:50;height:100vh!important;min-height:0;margin:0;gap:0;grid-template-columns:1fr!important;grid-template-rows:1fr!important;background:var(--stage)}
+.studio.fs{position:fixed;inset:0;z-index:50;height:100vh!important;height:100dvh!important;min-height:0;margin:0;gap:0;grid-template-columns:1fr!important;grid-template-rows:1fr!important;background:var(--stage)}
 .studio.fs #stage{border-radius:0;min-height:0;height:100%}
 .studio.fs .fs-tools{display:flex}
 .studio.fs .fs-tools .toggles{display:flex;gap:6px;flex-wrap:wrap}
@@ -556,7 +556,7 @@ tr.hand-row td{background:#f7eefb}
 .seal-call{display:inline-block;border:2px solid #1f6fe0;border-left-width:8px;border-radius:8px;padding:5px 10px;font-size:13px;line-height:1.45;color:#222;background:#eef4fd;margin:6px 0}
 .seal-call.high{border-color:#e8170f;background:#fdeceb}
 /* ---------- the blueprint builder: one big view, the options float over it ---------- */
-html:not(.phone) .studio.build:not(.fs){position:relative;grid-template-columns:1fr;height:calc(100vh - 92px);min-height:480px}
+html:not(.phone) .studio.build:not(.fs){position:relative;grid-template-columns:1fr;height:calc(100vh - 92px);height:calc(100dvh - 92px);min-height:480px}
 html:not(.phone) .studio.build:not(.fs) #stage{height:100%;min-height:0}
 html:not(.phone) .studio.build:not(.fs) > aside{position:absolute;top:12px;right:12px;bottom:12px;width:min(380px,calc(100% - 24px));z-index:6;box-shadow:0 12px 40px rgba(0,0,0,.22);transform:translateX(calc(100% + 24px));transition:transform .22s ease;visibility:hidden;max-height:none}
 html:not(.phone) .studio.build.panel-open:not(.fs) > aside{transform:none;visibility:visible}
@@ -794,7 +794,7 @@ html,body{overscroll-behavior:none}   /* no rubber-band scroll */
 .hist-btns{display:inline-flex;gap:4px;margin-right:6px}.hist-btns .btn{min-width:36px;font-size:16px}
 
 /* Shape studio: full screen, nothing but the drawing */
-dialog.ss-dlg{position:fixed;inset:0;width:100vw;height:100vh;max-width:none;max-height:none;margin:0;padding:0;border:0;background:var(--bg);color:var(--ink)}
+dialog.ss-dlg{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;border:0;background:var(--bg);color:var(--ink)}
 dialog.ss-dlg::backdrop{background:var(--bg)}
 .ss{display:flex;flex-direction:column;height:100%}
 .ss-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;padding-top:max(8px, calc(env(safe-area-inset-top,0px) + 6px));border-bottom:1px solid var(--line);background:var(--surface)}
@@ -1447,7 +1447,7 @@ body.orbiting .build-tray{opacity:.15;pointer-events:none}
 html.phone .tray-q{flex-basis:140px}
 html.phone .tray-rooms button span{display:none}
 /* ---------------------------------------------------------------- Tools tab (tools-ui.js) and the Saved note (savestate.js) */
-.tools-dlg{border:0;padding:0;width:min(860px,calc(100vw - 32px));max-height:calc(100vh - 48px);border-radius:16px;background:var(--surface);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.tools-dlg{border:0;padding:0;width:min(860px,calc(100vw - 32px));max-height:calc(100vh - 48px);max-height:calc(100dvh - 48px);border-radius:16px;background:var(--surface);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.25)}
 .tools-dlg::backdrop{background:rgba(20,22,20,.35)}
 .tools{padding:18px 20px 22px;display:flex;flex-direction:column;gap:16px}
 .tools-h{display:flex;align-items:center;justify-content:space-between}
@@ -1556,3 +1556,5 @@ body.walking .present-bar{display:none}
 .sid-card h3{margin:0 0 8px}.sid-card h3 small{font-weight:400;color:#6b7068;font-size:13px;margin-left:6px}.sid-card h4{margin:14px 0 4px}
 .sid-tab{border-collapse:collapse;font-size:13px;margin:8px 0}.sid-tab th{text-align:left;font-weight:600;padding:3px 10px 3px 0;color:#454a43}.sid-tab td{padding:3px 18px 3px 0}
 .sid-lap{margin:4px 0}.sid-lap figcaption{font-size:12px;color:#5b6159}.sid-rules{padding-left:18px;margin:4px 0}.sid-rules li{margin:2px 0}
+/* Safari on iPad: if the page ever scrolls (its toolbar growing and shrinking), the header stays at the top */
+html:not(.phone) header.bar{position:sticky;top:0;z-index:30;background:var(--bg);margin-top:calc(-1 * max(14px, calc(env(safe-area-inset-top,0px) + 10px)));padding-top:max(14px, calc(env(safe-area-inset-top,0px) + 10px))}
