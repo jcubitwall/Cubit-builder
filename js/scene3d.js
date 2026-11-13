@@ -762,6 +762,7 @@ function applyRimVis(){
 let LV=[];
 setTimeout(()=>setLevelTest(i=>levelShows(i)), 0);
 const levelShows = i => { const lv=LV[i]||0, at=state.level||0; return document.body.classList.contains('two-d') ? lv===at : lv<=at; };   // 3D: this floor and the ones below; 2D: just this one
+const layerHooks=[]; const onLayers = fn => { layerHooks.push(fn); };
 function applyLayers(){
   if(!floorGroup) return;
   LV=podList(state.model).map(p=>p.lv);
@@ -794,6 +795,7 @@ function applyLayers(){
   applyIsolate();
   applyFurniture();
   applyGhost();
+  layerHooks.forEach(f=>f());   // e.g. the install steps keep their own siding showing
 }
 /* Isolate: one wall, floor / ceiling / roof layer or deck on its own, to look at from every side (underneath too).
    Everything else in the home is hidden; the part keeps its own switches (windows, lumber, splines). */
@@ -910,4 +912,4 @@ function setExplodeGoal(v){ explodeGoal=v; }
 function explodeAt(v){ explodeT=v; explodeGoal=v; applyExplode(); }
 
 
-export { addHandleSource, levelShows, onBuilt, buildUnit, northGroup, explodeAt, buildLayerMesh, buildDeckMesh, DECK_MAT, LAYER_COLOR, applyGhost, focusIsolated, isoTarget, stage, renderer, scene, camera, controls, sun, grid, homeGroup, wallGroups, themeColors, applyTheme, MAT, lineMat, numberSprite, buildWallMesh, buildHome, explodeT, applyExplode, highlight, resize, ray, loop, setExplodeGoal, applyLayers, focusCamera, podCentres, roofGroup, floorGroup, screwGroup, pickables, explodeGoal, mouse };
+export { onLayers, addHandleSource, levelShows, onBuilt, buildUnit, northGroup, explodeAt, buildLayerMesh, buildDeckMesh, DECK_MAT, LAYER_COLOR, applyGhost, focusIsolated, isoTarget, stage, renderer, scene, camera, controls, sun, grid, homeGroup, wallGroups, themeColors, applyTheme, MAT, lineMat, numberSprite, buildWallMesh, buildHome, explodeT, applyExplode, highlight, resize, ray, loop, setExplodeGoal, applyLayers, focusCamera, podCentres, roofGroup, floorGroup, screwGroup, pickables, explodeGoal, mouse };

@@ -48,21 +48,21 @@ function flatMesh(P, x, w, y0, y1, mat, flip=false){
   m.rotation.x=Math.PI/2; m.scale.set((flip?-1:1)/FT, 1/FT, 1/FT); m.position.set((flip ? x+w : x)/FT, y1/FT, 0); m.userData.siding=true; return m;
 }
 /* one run's pieces (sidinglayout planRun): panels with their rib end where the plan says, rips cut to width */
-function runMeshes(P, R, y0, y1, out, mat, matF){
-  R.pieces.forEach(p=>{
-    if(p.kind==='panel') out.push(p.ribR ? panelMesh(P, p.x1-P.w, y0, y1, true, mat) : panelMesh(P, p.x0, y0, y1, false, mat));
-    else out.push(flatMesh(P, p.x0, p.w, y0, y1, matF, p.ribR)); });
+function runMeshes(P, R, y0, y1, out, mat, matF, ri=0){
+  R.pieces.forEach((p,pi)=>{
+    const m = p.kind==='panel' ? (p.ribR ? panelMesh(P, p.x1-P.w, y0, y1, true, mat) : panelMesh(P, p.x0, y0, y1, false, mat)) : flatMesh(P, p.x0, p.w, y0, y1, matF, p.ribR);
+    m.userData.sk=`p|${ri}|${pi}`; out.push(m); });
 }
 /* the trims on this wall: its half of each corner / connector, and the joiner between two openings */
 function trimMeshes(P, Wl, out, mat){
   const TR=SIDING_TRIM, z=(P.depth||0.77)+0.03, th=0.04, H=Wl.y1-Wl.y0;
-  const strip=(x0,x1)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT, H/FT, th/FT), mat); m.position.set((x0+x1)/2/FT, (Wl.y0+Wl.y1)/2/FT, z/FT); m.userData.siding=true; out.push(m); };
+  const strip=(x0,x1,sk)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT, H/FT, th/FT), mat); m.position.set((x0+x1)/2/FT, (Wl.y0+Wl.y1)/2/FT, z/FT); m.userData.siding=true; m.userData.sk=sk; out.push(m); };
   const legOf=(e,d)=> e==='C' ? TR.corner.leg : e==='I' ? TR.inside.leg : e==='J' ? d+TR.joint.lap : 0;
   const R0=Wl.runs[0], R1=Wl.runs[Wl.runs.length-1];
   const l0=legOf(Wl.ends[0], R0?.d?.[0]||0), l1=legOf(Wl.ends[1], R1?.d?.[1]||0);
   const g=TR.joint.gap/2;   // a connector spans the ¾″ gap between the pods: each wall draws its half
-  if(l0>0) strip(Wl.ends[0]==='J'?-g:0, l0); if(l1>0) strip(Wl.L-l1, Wl.ends[1]==='J'?Wl.L+g:Wl.L);
-  Wl.runs.forEach(R=>{ if(R.joiner){ const c=R.joiner.x; strip(c-TR.joiner.w/2, c+TR.joiner.w/2); } else if(R.joinerOnly) strip(R.x0, R.x1); });
+  if(l0>0) strip(Wl.ends[0]==='J'?-g:0, l0, 'tL'); if(l1>0) strip(Wl.L-l1, Wl.ends[1]==='J'?Wl.L+g:Wl.L, 'tR');
+  Wl.runs.forEach((R,ri)=>{ if(R.joiner){ const c=R.joiner.x; strip(c-TR.joiner.w/2, c+TR.joiner.w/2, `j|${ri}`); } else if(R.joinerOnly) strip(R.x0, R.x1, `j|${ri}`); });
 }
 /* every piece of siding on one exterior wall, for its wall group (tl = where the group starts along the wall, in) */
 function sidingMeshes(slot, tl, colour){
@@ -71,16 +71,16 @@ function sidingMeshes(slot, tl, colour){
   const mat=new THREE.MeshStandardMaterial({ color:colour, roughness:0.45, metalness:0.35, side:THREE.DoubleSide });
   const matF=new THREE.MeshStandardMaterial({ color:colour, roughness:0.55, metalness:0.3, side:THREE.DoubleSide });
   const out=[];
-  Wl.runs.forEach(R=>runMeshes(P, R, Wl.y0, Wl.y1, out, mat, matF));
+  Wl.runs.forEach((R,ri)=>runMeshes(P, R, Wl.y0, Wl.y1, out, mat, matF, ri));
   trimMeshes(P, Wl, out, new THREE.MeshStandardMaterial({ color:new THREE.Color(colour).multiplyScalar(0.8), roughness:0.5, metalness:0.3, side:THREE.DoubleSide }));
   // above and below every opening: a matte black ACM panel, no metal siding: against the wall, running ACM_LAP under the siding each side
   const acm=new THREE.MeshStandardMaterial({ color:0x111214, roughness:0.85, metalness:0.1 }), T=ACM_T;
-  const acmMesh=(x0,x1,y0,y1)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT, (y1-y0)/FT, T/FT), acm); m.position.set((x0+x1)/2/FT, (y0+y1)/2/FT, T/2/FT); m.userData.siding=true; return m; };
-  Wl.runs.filter(R=>R.narrow).forEach(R=>out.push(acmMesh(R.x0, R.x1, Wl.y0, Wl.y1)));
-  Wl.cols.forEach(c=>{
-    if(c.below>0.5) out.push(acmMesh(c.m.x0-ACM_LAP, c.m.x1+ACM_LAP, Wl.y0, Wl.y0+c.below));
-    if(c.above>0.5) out.push(acmMesh(c.m.x0-ACM_LAP, c.m.x1+ACM_LAP, Wl.y1-c.above, Wl.y1)); });
-  out.forEach(m=>{ m.position.x-=tl/FT; });       // the group starts tl in from the wall's corner
+  const acmMesh=(x0,x1,y0,y1,sk)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT, (y1-y0)/FT, T/FT), acm); m.position.set((x0+x1)/2/FT, (y0+y1)/2/FT, T/2/FT); m.userData.siding=true; m.userData.sk=sk; return m; };
+  Wl.runs.forEach((R,ri)=>{ if(R.narrow) out.push(acmMesh(R.x0, R.x1, Wl.y0, Wl.y1, `n|${ri}`)); });
+  Wl.cols.forEach((c,ci)=>{
+    if(c.below>0.5) out.push(acmMesh(c.m.x0-ACM_LAP, c.m.x1+ACM_LAP, Wl.y0, Wl.y0+c.below, `a|${ci}|below`));
+    if(c.above>0.5) out.push(acmMesh(c.m.x0-ACM_LAP, c.m.x1+ACM_LAP, Wl.y1-c.above, Wl.y1, `a|${ci}|above`)); });
+  out.forEach(m=>{ m.position.x-=tl/FT; m.userData.wall=slot.id; });       // the group starts tl in from the wall's corner
   return out;
 }
 export { sidingMeshes };
