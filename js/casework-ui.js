@@ -7,7 +7,7 @@ import { cabinetJob, jobZip, sheetSVG, CAB_CNC } from './cabcnc.js';
 import { MODELS } from './data.js';
 import { itemModel } from './casework3d.js';
 import { frontSVG } from './casework-svg.js';
-import { centreUnderWindow, fitBaseToSink, furnitureOf, furnById, updateItem, removeItem, duplicateItem, turnItem, refreshItem, addItem, snap, applyFurniture, podsShown, freeSpot, groupMembers, makeGroup, ungroup, relinkGroup, renameGroup, setGroupFrom, removeGroup, groupRecipe } from './furniture.js';
+import { sinkBack, sinkBackMax, sinkGap, centreUnderWindow, fitBaseToSink, furnitureOf, furnById, updateItem, removeItem, duplicateItem, turnItem, refreshItem, addItem, snap, applyFurniture, podsShown, freeSpot, groupMembers, makeGroup, ungroup, relinkGroup, renameGroup, setGroupFrom, removeGroup, groupRecipe } from './furniture.js';
 import { plumbNote } from './plumbing.js';
 import { KITCHENS, kitchenById, newKitchenId, saveKitchen, deleteKitchen, onKitchensChanged } from './kitchens.js';
 import { kitchenPicture, recipeOf } from './kitchen3d.js';
@@ -914,7 +914,12 @@ function kitchenNote(it, d, ed){
   if(d.dock){
     if(!it.dock) return `<p class="note">Drag it onto a sink base to dock it there: the base takes its size and the countertop gets its hole.</p>`;
     const at=it.dock.at||'C';
+    const cab=furnById(it.dock.cab), back=cab ? sinkBack(it, cab) : sinkGap(it), bmax=cab ? sinkBackMax(it, cab) : back, moved=isFinite(it.dock.back);
     return `<div class="cw-opt"><span>In the sink base</span><div class="seg">${[['L','Left'],['C','Centre'],['R','Right']].map(([k,l])=>`<button data-dock="${k}" aria-pressed="${at===k}" ${ed?'':'disabled'}>${l}</button>`).join('')}</div></div>
+      <div class="cw-opt"><span>Off the wall</span><div class="row sink-back"><button class="btn ghost sm" data-sback="-0.5" ${ed&&back>0?'':'disabled'} title="Move it back ½″">◂ Back</button>
+        <label class="cw-f"><input id="fSinkBack" value="${esc(show(back))}" inputmode="decimal" ${ed?'':'disabled'}><i>${unitSign()}</i></label>
+        <button class="btn ghost sm" data-sback="0.5" ${ed&&back<bmax?'':'disabled'} title="Move it forward ½″">Forward ▸</button>${moved&&ed?`<button class="linkbtn" id="fSinkBackReset">Back to ${show(sinkGap(it))}${unitSign()}</button>`:''}</div></div>
+      <p class="note">From the wall to the back of the sink. It can come forward until 1″ of countertop is left in front (${show(bmax)}${unitSign()} here).</p>
       <p class="note">${(it.opt?.mount||d.mount)==='top'?`Top mount: the hole is cut ${show(settings().counter.lap)}${unitSign()} in from the sink's edge all the way round.`:`Bottom mount: the sink is recessed under the countertop, which runs ${show(settings().counter.reveal||0)}${unitSign()} over the bowl all the way round.`}</p>`; }
   const isBB = d.cat==='baseboard';
   const under = (it.k==='BS' || it.sinkMin || isBB) && it.wall && ed ? `<div class="row"><button class="btn ghost sm" id="fUnderWin">${isBB?'Snap to centre of window':'Centre under the window'}</button></div>` : '';
@@ -963,6 +968,10 @@ function furnSide(sideH, sideB){
     toast(!r.wanted ? 'Already centred under the window' : Math.abs(r.moved-r.wanted)<0.01 ? `Moved ${show(Math.abs(r.moved))}${unitSign()}: the ${d.cat==='baseboard'?'heater':'sink'} is centred under the window` : `Moved ${show(Math.abs(r.moved))}${unitSign()} of ${show(Math.abs(r.wanted))}${unitSign()}: ${d.cat==='baseboard'?'it':'the row'} is against a wall or another unit`); });
   sideB.querySelector('#fFitSink')?.addEventListener('click',()=>{ fitBaseToSink(it.id); refreshItem(it); renderSide(); toast('Sink base fitted to its sink'); });
   sideB.querySelectorAll('[data-dock]').forEach(b=>b.onclick=()=>{ ch({ dock:{ ...(it.dock||{}), at:b.dataset.dock } }); });
+  { const setBack=v=>{ const cab=furnById(it.dock?.cab); if(!cab) return; const c=Math.min(sinkBackMax(it,cab), Math.max(0, v)); ch({ dock:{ ...(it.dock||{}), back:+c.toFixed(4) } }); furnitureOf().forEach(refreshItem); };
+    sideB.querySelectorAll('[data-sback]').forEach(b=>b.onclick=()=>{ const cab=furnById(it.dock?.cab); if(cab) setBack(sinkBack(it,cab)+(+b.dataset.sback)); });
+    const inp=sideB.querySelector('#fSinkBack'); if(inp) inp.onchange=()=>{ const v=parseLen(inp.value); if(isFinite(v)) setBack(v); else renderSide(); };
+    sideB.querySelector('#fSinkBackReset')?.addEventListener('click',()=>{ const dk={ ...(it.dock||{}) }; delete dk.back; ch({ dock:dk }); furnitureOf().forEach(refreshItem); }); }
   sideB.querySelectorAll('[data-fo]').forEach(b=>b.onclick=()=>{ const raw=b.dataset.v; ch({opt:{...(it.opt||{}), [b.dataset.fo]:isNaN(+raw)?raw:+raw}}); });
   return true;
 }
