@@ -23,7 +23,8 @@ import { bodyWall } from './panels.js';
 import { pickFor } from './state.js';
 
 const MOLD = 1.5;        // brick mold, each side and top and bottom of the opening
-const FILL_MIN = 3;      // the narrowest filler worth bending
+const FILL_MIN = 3;
+const ACM_LAP = 1.5;      // the ACM above / below an opening runs this far under the siding each side (the rib end laps over it)      // the narrowest filler worth bending
 const EPS = 1e-6;
 const profile = () => SIDINGLIB.find(x=>x.id==='rando-rib') || SIDINGLIB[0] || null;
 
@@ -95,7 +96,7 @@ function homeSiding(k){
       if(st.filler>0.01) add(fills, r16(st.filler)+'×'+r16(Wl.H), { w:r16(st.filler), len:r16(Wl.H), at:st.fillerAt }); });
     // above and below every opening: no metal siding, a matte black aluminium composite (ACM) panel the brick mold's width
     Wl.cols.forEach(c=>[['above',c.above],['below',c.below]].forEach(([where,h])=>{ if(h<0.5) return;
-      const w=r16(c.m.x1-c.m.x0); add(acm, w+'×'+r16(h), { w, h:r16(h), where }); }));
+      const w=r16(c.m.x1-c.m.x0+2*ACM_LAP); add(acm, w+'×'+r16(h), { w, h:r16(h), where }); }));
   });
   // trims: corners from where the exterior walls meet, J-trim and head flashing at every brick mold
   const pts={};
@@ -122,4 +123,4 @@ function homeSiding(k){
             nOpen && { n:1, what:'J-trim at brick molds (sides and sills), total', len:r16(jLen) },
             ...Object.values(headBy).map(h=>({ n:h.n, what:'Head drip flashing over brick mold (1″ past each side)', len:h.len })) ].filter(Boolean) };
 }
-export { MOLD, FILL_MIN, fit, stretch, wallLayout, homeSiding, profile as sidingProfile };
+export { ACM_LAP, MOLD, FILL_MIN, fit, stretch, wallLayout, homeSiding, profile as sidingProfile };
