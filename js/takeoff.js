@@ -19,6 +19,7 @@ import { sealRole, sealsFor, SEAL } from './seals.js';
 import { H, sidingSpan, SIDING } from './config.js';
 import { homeSiding } from './sidinglayout.js';
 import { membraneTakeoff } from './membrane.js';
+import { accentWalls } from './accent.js';
 import { sidingSchedule, SIDING_SCREWS } from './sidingsheet.js';
 /* compression seal around every opening between pods (both pods): [{n, len} …] and total inches */
 function sealRun(){ const sl=slotsFor(state.model); let tot=0, n=0, hi=0; sl.forEach(s=>{ const r=sealRole(s, sl); sealsFor(bodyWall(s,pickFor(s)), r, H).forEach(x=>{ tot+=x.len; n++; if(r==='high') hi++; }); }); return {tot, n, hi}; }
@@ -120,6 +121,11 @@ function homeTakeoff(){
       ...T.trims.map(t=>({ n:t.n, what:`${t.what}${t.std?' (standard)':' (bent to suit)'}`, len:t.len })),
       ...(()=>{ const Sc=sidingSchedule(); return Sc ? [{ n:Sc.bags, what:`bag of ${SIDING_SCREWS.bag} siding screws`, note:`${Sc.screws.toLocaleString()} screws: ${SIDING_SCREWS.perPanel} per panel, ${SIDING_SCREWS.perRip} per rip, +10% for ends` }] : []; })()],
       `${P.name} ${P.gauge||''} · ${T.nStock} stock panels (${T.nRips} rips)${T.hops?`, ${T.hops} hopped a rib`:''} · ${fft(T.runs)} of exterior wall, ${T.nOpen} opening${T.nOpen===1?'':'s'} · about ${Math.round(T.lb).toLocaleString()} lb of siding · the full schedule is in Sheets → Siding schedule`); } }
+  // ACP accent walls
+  { const W=accentWalls(); if(W.length){ const by={}; W.forEach(A=>{ (by[A.colour.name] ||= { n:0, walls:[] }); by[A.colour.name].n+=A.sheets.length; by[A.colour.name].walls.push(A.s.label); });
+    add('accent','Accent walls',[ ...Object.entries(by).map(([c,v])=>({ n:v.n, what:`ACP sheet 4′ × 10′, ${c}`, note:v.walls.join(', ') })),
+      { n:W.reduce((a,A)=>a+A.screws.length,0), what:'screws in the reveals', note:'about every 16″' } ],
+      `${W.length} wall${W.length>1?'s':''} faced with ACP instead of siding · layouts and DXF in Sheets → Accent walls`); } }
   // Membrane: on the exterior OSB sheets at the shop, before the CNC; seam tape on site
   { const T=membraneTakeoff(state.model); if(T){ const M=T.M;
     add('membrane','Membrane',[
@@ -165,6 +171,7 @@ function shoppingList(){
       else add('Upper floors', g, 'ground screw, post head'); } } } }
   { const T=sidingTakeoff(); if(T){ T.stock.forEach(p=>add('Siding', p.n, `${T.P.name} panel × ${fin(p.len)}`));
     if(T.acm.length) add('Siding', T.acmSheets, 'ACM sheet 4 × 8, matte black (above / below windows and doors)'); T.trims.forEach(t=>add('Siding', t.n, `${t.what} × ${fin(t.len)}`)); const Sc=sidingSchedule(); if(Sc) add('Siding', Sc.bags, `siding screws, bag of ${SIDING_SCREWS.bag} (${Sc.screws.toLocaleString()} screws)`); } }
+  { const W=accentWalls(); const by={}; W.forEach(A=>{ by[A.colour.name]=(by[A.colour.name]||0)+A.sheets.length; }); Object.entries(by).forEach(([c,n])=>add('Accent walls', n, `ACP sheet 4′ × 10′, ${c}`)); }
   { const T=membraneTakeoff(state.model); if(T){ add('Membrane', T.rolls || Math.round(T.sqft), T.rolls ? `${T.M.name}, roll` : `sq ft ${T.M.name} (on ${T.sheets} OSB sheets)`); add('Membrane', T.tapeRolls || Math.ceil(T.tapeFt), T.tapeRolls ? `${T.M.tape?.name}, roll` : `ft ${T.M.tape?.name||'seam tape'} 3″`); } }
   const u={}; slotsFor(state.model).forEach(s=>{ const w=bodyWall(s, pickFor(s)); (w?.openings||[]).filter(catOf).forEach(o=>{ const r=unitFor(s,o); if(r) u[r.unit.name+' ('+r.unit.id+')']=(u[r.unit.name+' ('+r.unit.id+')']||0)+1; }); });
   Object.entries(u).forEach(([k,n])=>add('Windows & doors', n, k));

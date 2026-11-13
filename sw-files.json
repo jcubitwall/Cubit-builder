@@ -1,9 +1,10 @@
 {
-"version": "8e5ba884ca2a",
+"version": "923c32a7b51e",
 "files": [
 "./",
 "brand/cubit-logo.png",
 "css/app.css",
+"data/acp.json",
 "data/brands.json",
 "data/decks.json",
 "data/families.json",
@@ -29,6 +30,8 @@
 "icon-512.png",
 "icon.svg",
 "index.html",
+"js/accent.js",
+"js/accentsheet.js",
 "js/approval.js",
 "js/blueprint-ui.js",
 "js/blueprint.js",

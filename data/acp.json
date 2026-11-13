@@ -1,0 +1,20 @@
+{
+ "sheet": { "w": 48, "h": 120, "t": 4, "note": "4 mm ACP, 4′ × 10′ sheets" },
+ "groove": { "w": 0.5, "joint": 3, "reveal": 1.5, "note": "½″ bit: 3 mm deep where two sheets meet (the joint), 1.5 mm deep for every other reveal line; the screws go in the reveals" },
+ "screws": { "every": 16, "fromEnd": 2 },
+ "colours": [
+  { "id":"black", "name":"Matte black", "hex":"#151617", "wood":false },
+  { "id":"white", "name":"White", "hex":"#eceeee", "wood":false },
+  { "id":"darkgrey", "name":"Dark grey", "hex":"#3b3f43", "wood":false },
+  { "id":"midgrey", "name":"Medium grey", "hex":"#7c8287", "wood":false },
+  { "id":"silver", "name":"Silver", "hex":"#b9bec2", "wood":false, "metal":true },
+  { "id":"birch", "name":"Birch woodgrain", "hex":"#dcc6a2", "wood":true, "grain":"#c4a57a" },
+  { "id":"walnut", "name":"Walnut woodgrain", "hex":"#5c3f2c", "wood":true, "grain":"#3e2a1d" },
+  { "id":"teak", "name":"Teak woodgrain", "hex":"#ad7a45", "wood":true, "grain":"#8a5a2e" }
+ ],
+ "patterns": [
+  { "id":"board", "name":"Board look", "note":"vertical boards; sheet joints fall on a board line", "sizes":[3,4,6], "size":4, "sizeName":"board width" },
+  { "id":"geo", "name":"Geometric lines", "note":"random straight lines across the whole wall, no two alike; sheet joints run plumb", "sizes":[], "size":null },
+  { "id":"hex", "name":"Hexagons", "note":"pointy-top hexagons; sheets meet along hexagon edges (a zigzag joint)", "sizes":[13.714,19.2,32], "size":19.2, "sizeName":"hexagon width" }
+ ]
+}

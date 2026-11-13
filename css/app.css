@@ -1565,3 +1565,7 @@ html:not(.phone) header.bar{position:sticky;top:0;z-index:30;background:var(--bg
 .sd-tab td small{color:#555}
 .sd-runs{margin:6px 0 10px;padding-left:20px;color:#333}
 .sd-prof.sd-wide{grid-column:1/-1}
+.acc-sw{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px}
+.acc-sw button{width:30px;height:30px;border-radius:6px;border:1px solid var(--line);cursor:pointer;padding:0}
+.acc-sw button[aria-pressed="true"]{outline:2px solid var(--ink,#1c211e);outline-offset:2px}
+.acc-sw .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}

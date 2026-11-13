@@ -4,6 +4,7 @@ import { MODELS, SIDINGLIB } from './data.js';
 import { lvlHolesOn } from './lvlholes.js';
 import { sidingMeshes } from './sidingmesh.js';
 import { membraneMesh } from './membrane.js';
+import { accentOf, accentMeshes } from './accent.js';
 import { colourOf } from './finishes.js';
 import { isShop } from './mode.js';
 import { designFinish } from './finishes.js';
@@ -578,10 +579,12 @@ function buildHome(){
       m.userData.seal=role; g.add(m); });
     // Design, with finishes picked: siding on the outside of exterior walls, paint on the room faces
     if(FIN){ const t=(w.t||(s.type==='int'?4.5:6.5))/FT, L=wallLen(w)/FT, holes=(w.openings||[]).filter(o=>(o.w||o.d||0)>=3);
-      if(s.type==='ext' && FIN.siding){ const sk=wallSkin(L, holes, FIN.siding, (SIDINGLIB.find(x=>x.id==='rando-rib')||SIDINGLIB[0])?.depth/FT || 0.03, true, s.pod?.lv||0); sk.userData.sidingSkin=true; g.add(sk); }
+      if(s.type==='ext' && FIN.siding && !accentOf(s)){ const sk=wallSkin(L, holes, FIN.siding, (SIDINGLIB.find(x=>x.id==='rando-rib')||SIDINGLIB[0])?.depth/FT || 0.03, true, s.pod?.lv||0); sk.userData.sidingSkin=true; g.add(sk); }
       if(FIN.paint){ g.add(wallSkin(L, holes, FIN.paint, -t-0.03, false)); if(s.type==='int') g.add(wallSkin(L, holes, FIN.paint, 0.03, false)); } }
     // the Siding layer: the real panels, laid out by the siding rules (sidingmesh.js), in the finish colour (or plain steel)
-    if(s.type==='ext') sidingMeshes(s, w.trim?.[0]||0, FIN?.siding || colourOf('siding') || '#7d8489').forEach(m=>g.add(m));
+    if(s.type==='ext' && !accentOf(s)) sidingMeshes(s, w.trim?.[0]||0, FIN?.siding || colourOf('siding') || '#7d8489').forEach(m=>g.add(m));
+    // an ACP accent wall instead of the siding (accent.js): always shown, the wall's own finish
+    if(s.type==='ext' && accentOf(s)) accentMeshes(s, w.trim?.[0]||0).forEach(m=>g.add(m));
     // the Membrane layer: the breathable PolarBlock wrap on the SIP panels' outside face (membrane.js)
     if(s.type==='ext'){ const mb=membraneMesh(w); if(mb) g.add(mb); }
     // the wire holes through the roof LVL (drilled by hand): an orange peg sticking out of the wall line at the rim

@@ -28,6 +28,7 @@ import { sidingSpan, WALL_BASE } from './config.js';
 import { slotsFor } from './layout.js';
 import { bodyWall } from './panels.js';
 import { pickFor, state } from './state.js';
+import { accentOf } from './accent.js';
 
 const MOLD = 1.5;          // brick mold, each side and top and bottom of the opening
 const ACM_LAP = 1.5;       // the ACM above / below an opening runs this far under the siding each side
@@ -151,7 +152,7 @@ function wallLayout(s, P=profile(), ext=null){
 function homeSiding(k){
   const P=profile(); if(!P) return null;
   const ext=slotsFor(k).filter(s=>s.type==='ext');
-  const walls=ext.map(s=>wallLayout(s,P,ext)).filter(Boolean);
+  const walls=ext.filter(s=>!accentOf(s,k)).map(s=>wallLayout(s,P,ext)).filter(Boolean);   // an ACP accent wall has no siding (accent.js)
   const add=(o,key,v)=>{ (o[key] ||= { ...v, n:0 }).n++; };
   const full={}, acm={}, rips=[];
   let hops=0, joiners=0, narrow=0;
