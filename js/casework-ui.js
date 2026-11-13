@@ -44,7 +44,7 @@ let dlg=null, view={ tab:'lib', cat:'base', item:null, edit:null, explode:0, sel
 import { makeHistory, histButtons, bindHistory } from './local-history.js';
 import { LIB, LAYERLIB, DECKLIB, SIDINGLIB, MEMBRANELIB } from './data.js';
 import { membraneTakeoff } from './membrane.js';
-import { homeSiding, MOLD, FILL_MIN } from './sidinglayout.js';
+import { homeSiding, MOLD, SIDING_TRIM } from './sidinglayout.js';
 import { fft } from './format.js';
 import { UNITLIB, TYPES, unitSVG, saveTeamUnit, unitById, onUnitsChanged } from './units.js';
 import { BOXLIB, THIN_BELOW, boxSVG } from './boxes.js';
@@ -412,13 +412,14 @@ function sidingGrid(){
     <h4>Layout rules</h4>
     <ul class="note sid-rules">
       <li>Height: ½″ over the steel frame on the ground floor (½″ below the floor upstairs) to 1″ under the roof.</li>
-      <li>Start at an Einspine corner with the long flat and end flange; the rib end points away from the corner.</li>
-      <li>The rib end butts the brick mold: ${fin2(MOLD)} outside the window or door on each side, top and bottom.</li>
-      <li>Panels are pulled back evenly to close a run exactly; if whole panels can't, a filler piece bent to the same look takes up the rest (never under ${fin2(FILL_MIN)}). Between two openings the two runs meet on a filler in the middle.</li>
-      <li>Above and below every window and door there is no metal siding: a matte black aluminium composite (ACM) panel against the wall, the brick mold's width plus 1½″ each side: it runs under the siding and the rib end laps over it.</li>
-      <li>Trims (custom bends): outside corners at the Einspines, inside corners, joints between pods, J-trim at the brick molds, drip flashing over each head.</li>
+      <li>Rib ends point at the windows and doors (they butt the brick mold, ${fin2(MOLD)} outside the opening, tucking up to ${fin2(SIDING_TRIM.mold.tuck)} into the J-trim). With no opening, the flange end goes to the Einspine corner.</li>
+      <li>Every Einspine corner gets the same standard corner trim (${SIDING_TRIM.corner.leg}″ legs, screwed so it comes off to reach the spine): the siding stops ${fin2(SIDING_TRIM.corner.clear)}–${fin2(SIDING_TRIM.corner.leg-SIDING_TRIM.corner.lap)} from the corner. Inside corners get a standard inside trim.</li>
+      <li>Joints between pods get a connector bent to suit: the siding stops ${fin2(SIDING_TRIM.joint.clear)}–${fin2(SIDING_TRIM.joint.max)} from the pod's end, so this is where the slack goes.</li>
+      <li>Runs close with whole panels wherever that play allows (fewest hopped ribs). Otherwise the last piece is a rip cut from a stock panel, its cut edge under a trim. Nothing bent to order but the connectors.</li>
+      <li>Between two openings the runs go out from each brick mold and meet under a standard ${SIDING_TRIM.joiner.w}″ joiner.</li>
+      <li>Above and below every window and door: matte black ACM (4 mm) against the wall, the brick mold's width plus 1½″ each side under the siding. A strip too narrow for siding is black ACM full height.</li>
     </ul>
-    ${home && home.P.id===P.id ? `<h4>This home</h4><p class="note">${home.nPanels} panels${home.hops?` (${home.hops} hopped a rib)`:''}, ${home.fillers.reduce((a,f)=>a+f.n,0)} filler pieces, ${home.acm.reduce((a,x)=>a+x.n,0)} black ACM panels above / below the openings, ${home.trims.length} kinds of trim · ${Math.round(home.lb).toLocaleString()} lb of siding on ${fft(home.runs)} of exterior wall. Every piece is in the Takeoff.</p>`:''}
+    ${home && home.P.id===P.id ? `<h4>This home</h4><p class="note">${home.nStock} stock panels (${home.nPanels} whole, ${home.nRips} rips)${home.hops?`, ${home.hops} hopped a rib`:''}, ${home.acm.reduce((a,x)=>a+x.n,0)} black ACM panels above / below the openings, ${home.trims.filter(t=>t.joint).reduce((a,t)=>a+t.n,0)} connectors bent to suit, the rest standard · ${Math.round(home.lb).toLocaleString()} lb of siding on ${fft(home.runs)} of exterior wall. Every piece and the crew's steps: Sheets → Siding schedule.</p>`:''}
     <p class="note">Scanned from ${esc(P.source?.file||'STEP')} on ${esc(P.source?.scanned||'')} (${fin2(P.sample)} sample).</p></div>`;
   return `<section class="cw-grid cw-bgrid">${L.map(card).join('')}</section>`;
 }
