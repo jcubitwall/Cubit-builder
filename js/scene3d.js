@@ -613,7 +613,7 @@ function buildHome(){
   { const t=FRAME.lvl.t/FT, e=0.004;   // ~1/20″ proud so the rim's outside face isn't drawn on top of the slab's
     pods.forEach((p,pi)=>{ p.i=pi; });
     pods.forEach(p=>[[FLOOR_BUILD.rimZ, FRAME.lvl.floor, 'floor-int'], [ROOF_BUILD.rimZ, FRAME.lvl.roof, 'ceiling-int']].forEach(([z0,h,lay])=>{
-      const y=(z0-WALL_BASE)/FT, hh=h/FT, box=(x0,z0_,x1,z1)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(x1-x0,hh,z1-z0_),FRAME_MAT.lvl); m.position.set((x0+x1)/2, y+hh/2, (z0_+z1)/2); m.userData={pod:p.i, lay, base:m.position.clone()}; rimGroup.add(m); };
+      const y=(z0-WALL_BASE)/FT, hh=h/FT, box=(x0,z0_,x1,z1)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(x1-x0,hh,z1-z0_),FRAME_MAT.lvl); m.position.set((x0+x1)/2, y+hh/2, (z0_+z1)/2); m.userData={pod:p.i, lay, base:m.position.clone(), build:'lvl'}; rimGroup.add(m); };
       box(p.x+t, p.z-e, p.x+p.w-t, p.z+t); box(p.x+t, p.z+p.d-t, p.x+p.w-t, p.z+p.d+e);
       box(p.x-e, p.z+t, p.x+t, p.z+p.d-t); box(p.x+p.w-t, p.z+t, p.x+p.w+e, p.z+p.d-t); }));
     // floor cassette: 8″ EPS strips and 16″ 2×4 joint blocks in the 1½″ gap between the two floor layers
@@ -637,7 +637,7 @@ function buildHome(){
         cutStairs([p.x+x0/FT, p.z+z0/FT, p.x+x1/FT, p.z+z1/FT], SH).forEach(([a0,b0,a1,b1])=>{
           const m=new THREE.Mesh(new THREE.BoxGeometry(a1-a0, rh*0.98, b1-b0), mat);
           m.position.set((a0+a1)/2, ry+rh/2, (b0+b1)/2); m.userData={pod:p.i, lay:'ceiling-int', base:m.position.clone(), build:kind}; rimGroup.add(m); }); };
-      R.eps.forEach(r=>putR(r, FRAME_MAT.eps, 'eps')); R.blocks.forEach(r=>putR(r, FRAME_MAT.lvl, 'block')); });
+      R.eps.forEach(r=>putR(r, FRAME_MAT.eps, 'eps')); R.blocks.forEach(r=>putR(r, FRAME_MAT.lvl, 'lvl')); });
   }
   unitMeshes=[]; wallGroups.forEach(g=>g.traverse(o=>{ if(o.userData.unit) unitMeshes.push(o); }));
   buildUpstairs(pods);
@@ -662,7 +662,17 @@ function buildHome(){
   }
   computeSpread(); if(state.exploded && explodeGoal<=0.02) explodeGoal=1; explodeT = state.exploded ? explodeGoal : 0; applyExplode();   // keeps how far apart it was
 }
-const FRAME_MAT = { steel:new THREE.MeshStandardMaterial({color:0x3d4247, roughness:0.45, metalness:0.6}), acp:new THREE.MeshStandardMaterial({color:0xc9ccd0, roughness:0.35, metalness:0.3}), eps:new THREE.MeshStandardMaterial({color:0xe9eef2, roughness:0.95}), wood:new THREE.MeshStandardMaterial({color:0xe0b36a, roughness:0.8}), osb:new THREE.MeshStandardMaterial({color:0xb7864a, roughness:0.9}), lvl:new THREE.MeshStandardMaterial({color:0xc9783a, roughness:0.75}) };
+const FRAME_MAT = { steel:new THREE.MeshStandardMaterial({color:0x3d4247, roughness:0.45, metalness:0.6}), acp:new THREE.MeshStandardMaterial({color:0xc9ccd0, roughness:0.35, metalness:0.3}), eps:new THREE.MeshStandardMaterial({color:0xe9eef2, roughness:0.95}), wood:new THREE.MeshStandardMaterial({color:0xe0b36a, roughness:0.8}), osb:new THREE.MeshStandardMaterial({color:0xb7864a, roughness:0.9}), lvl:new THREE.MeshStandardMaterial({color:0xffffff, map:lvlTexture(), roughness:0.7}) };
+/* LVL: laminated veneer, the plies running the length of the board as fine light and dark lines */
+function lvlTexture(){
+  const c=document.createElement('canvas'); c.width=512; c.height=128; const g=c.getContext('2d');
+  g.fillStyle='#c98f55'; g.fillRect(0,0,512,128);
+  let y=0, seed=7; const rnd=()=>((seed=(seed*16807)%2147483647)/2147483647);
+  while(y<128){ const h=2+rnd()*4, l=0.82+rnd()*0.3; g.fillStyle=`rgb(${Math.round(201*l)},${Math.round(143*l)},${Math.round(85*l)})`; g.fillRect(0,y,512,h);
+    g.fillStyle='rgba(90,52,20,0.45)'; g.fillRect(0,y+h-0.6,512,0.6); y+=h; }
+  for(let i=0;i<70;i++){ const x=rnd()*512, yy=rnd()*128, w=20+rnd()*90; g.fillStyle=`rgba(110,66,28,${0.08+rnd()*0.12})`; g.fillRect(x,yy,w,0.8+rnd()); }
+  const t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.anisotropy=4; return t;
+}
 const CEIL_Z = 106.6;   // bottom of the roof cassette (interior ceiling), inches above the bottom of the floor
 const CONC = { foam:new THREE.MeshStandardMaterial({color:0xe6ebef, roughness:0.95}), core:new THREE.MeshStandardMaterial({color:0xa9aba6, roughness:0.9}),
   foot:new THREE.MeshStandardMaterial({color:0x8f918c, roughness:0.95}), access:new THREE.MeshBasicMaterial({color:0xd0661f}) };
@@ -735,13 +745,13 @@ function applyExplode(){
   explodeFurniture(e, sp, eP, eW, lift);
   applyRimVis();
 }
-/* LVL rims and the floor build-up show with Lumber & LVL (exploded or not); the steel frames and ACM with their own switch */
+/* the LVL rims and roof blocks show with LVL, the rest of the floor / roof build-up with Lumber (exploded or not); the steel frames and ACM with their own switch */
 function applyRimVis(){
   if(!rimGroup) return; const S=state.show, F=state.focusPod, ex=explodeT>0.01;
   rimGroup.visible=!state.isolate;   // an isolated part shows on its own
   rimGroup.children.forEach(m=>{ const u=m.userData, layerOn = u.lay==='floor-int' ? S.floors : (S.ceiling||S.roof);
     // the steel frames and ACM under the floor are their own layer
-    m.visible = (F==null || u.pod===F) && levelShows(u.pod) && (u.lay==='frame' ? S.frames!==false : S.framing); });   // their own switches, exploded or not
+    m.visible = (F==null || u.pod===F) && levelShows(u.pod) && (u.lay==='frame' ? S.frames!==false : u.build==='lvl' ? !!S.lvl : S.framing); });   // LVL on its own switch; the EPS strips and 2×4 blocks go with Lumber   // their own switches, exploded or not
 }
 /* what shows: each layer on its own (Layers menu) */
 /* which floor shows: on the ground floor (state.level 0) the upstairs pods are hidden so you can work inside; on
@@ -769,7 +779,7 @@ function applyLayers(){
   wallGroups.forEach(g=>g.children.forEach(o=>{ if(o.userData.seal) o.visible = S.seals!==false && isShop(); }));   // the seals are a shop detail
   wallGroups.forEach(g=>g.children.forEach(o=>{ if(o.userData.membrane) o.visible = !!S.membrane; }));
   wallGroups.forEach(g=>g.children.forEach(o=>{ if(o.userData.siding) o.visible = !!S.siding; else if(o.userData.sidingSkin) o.visible = !S.siding; }));   // the Siding layer replaces the painted-on look
-  // framing: lumber & LVL and the OSB splines switch on their own; both show through see-through walls
+  // framing: the wall lumber and the OSB splines switch on their own; both show through see-through walls (the LVL doesn't need that)
   framingMeshes.forEach(m=>m.visible=(m.userData.spline ? S.splines : S.framing) && S.walls && inPod(m.userData.pod));
   applyRimVis();
   const see = S.framing || S.splines;

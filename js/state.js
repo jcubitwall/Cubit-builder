@@ -6,7 +6,7 @@ import { checkpoint } from './history.js';
 import { ensureDraft } from './pods.js';
 
 const state = { model:'cove', picks:{}, units:{}, found:{}, deckOC:{}, icf:{ brand:'nudura', core:6 }, layerPicks:{}, cabinets:{}, furniture:{}, lights:{}, wallA:{}, faces:{}, names:{}, bearing:{}, northUp:false, selected:null, exploded:false, nums:true, letters:true,
-  show:{ roof:false, ceiling:false, walls:true, floors:true, decks:true, screws:false, frames:true, seals:true, units:true, framing:false, splines:false, swlinks:true, siding:false, membrane:false }, focusPod:null, glass:false, inset:6, view:'studio', face:'int', reverse:false, sheetSlot:null };
+  show:{ roof:false, ceiling:false, walls:true, floors:true, decks:true, screws:false, frames:true, seals:true, units:true, framing:false, lvl:false, splines:false, swlinks:true, siding:false, membrane:false }, focusPod:null, glass:false, inset:6, view:'studio', face:'int', reverse:false, sheetSlot:null };
 const KEY='cubit-wall-studio';
 setScope(()=>state.model);   // a locked home sees its walls as they were when it was locked (data.js FROZEN)
 function initState(){

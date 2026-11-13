@@ -16,7 +16,7 @@ const CW_ROWS = CW_CATS.map(c=>['cw-'+c.k, c.name, CW_COL[c.k]]);
 /* the switches in groups that fold away (tap a group's name); the group's own switch turns all of it on or off */
 const GROUPS = [
   ['shell', 'Shell', [['roof','Roof','#4b514d'], ['ceiling','Ceiling','#d9d2bf'], ['siding','Siding (Rando Rib)','#7d8489'], ['membrane','Membrane (PolarBlock)','#7fa1cb'], ['walls','Walls (SIP)','#c9a46a'], ['units','Windows & doors','#8fc3ea']]],
-  ['build', 'Inside the panels', [['seals','Compression seals','#e8170f'], ['framing','Lumber & LVL','#e0b36a'], ['splines','OSB splines','#b7864a']]],
+  ['build', 'Inside the panels', [['seals','Compression seals','#e8170f'], ['framing','Lumber','#e0b36a'], ['lvl','LVL','#c9783a'], ['splines','OSB splines','#b7864a']]],
   ['cab',   'Cabinets & furniture', CW_ROWS],
   ['base',  'Floors & foundation', [['floors','Floors','#8d8f86'], ['decks','Decks','#a88f5d'], ['frames','Steel frame & ACM','#3d4247'], ['screws','Ground screws & foundation','#56606b']]],
   ['view',  'View & labels', [['glass','See-through glass & doors'], ['letters','Wall letters'], ['nums','Panel numbers'], ['swlinks','3-way switch links','#ff7a00']]],
@@ -26,11 +26,11 @@ const FOLD_KEY='cubit-layers-folded';
 let folded = (()=>{ try{ const v=JSON.parse(localStorage.getItem(FOLD_KEY)||'null'); if(Array.isArray(v)) return new Set(v); }catch(e){} return new Set(['cab','focus']); })();
 const keepFolded = () => { try{ localStorage.setItem(FOLD_KEY, JSON.stringify([...folded])); }catch(e){} };
 /* Focus presets: what a trade wants to see. Walls go see-through whenever lumber or splines show. */
-const BASE = { roof:false, ceiling:false, walls:true, floors:true, decks:true, screws:false, frames:true, seals:true, units:true, framing:false, splines:false };
+const BASE = { roof:false, ceiling:false, walls:true, floors:true, decks:true, screws:false, frames:true, seals:true, units:true, framing:false, lvl:false, splines:false };
 const FOCUS = [
   ['home',    'Whole home',      {}],
   ['sip',     'SIP panels',      { roof:true, ceiling:true, decks:false, units:false }],
-  ['lumber',  'Lumber & LVL',    { framing:true, splines:true, decks:false, units:false }],
+  ['lumber',  'Lumber & LVL',    { framing:true, lvl:true, splines:true, decks:false, units:false }],
   ['splines', 'Splines',         { splines:true, decks:false, units:false }],
   ['units',   'Windows & doors', { decks:false, glassOn:true }],
   ['found',   'Foundation',      { screws:true, walls:false, units:false }],
