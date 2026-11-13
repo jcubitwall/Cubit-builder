@@ -36,6 +36,7 @@ import { openWallBuilder } from './wall-builder.js';
 import { elecWallBlock, bindElecWall, elecHomeLine, bindElecHome } from './electrical-ui.js';
 import { lvlHolesOn, setLvlHole, isExitDoor } from './lvlholes.js';
 import { plumbWallBlock } from './plumbing.js';
+import { ACPLIB, accentOf, setAccent, accentLayout, acpPattern } from './accent.js';
 import './shape-studio.js';
 import { openLayerBuilder } from './layer-builder.js';
 import './panel-builder.js';
@@ -444,6 +445,7 @@ function renderSideInner(){
       ${unitsBlock(s, bodyWall(s,w))}
       ${elecWallBlock(s)}
       ${plumbWallBlock(s)}
+      ${accentBlock(s)}
       ${(()=>{ const cv=cabinetsOf(state.model)[s.id], d=cabDepth(cv), kind=d ? (typeof cv==='object' ? cv.kind : 'Custom') : 'None';
         return `<div class="cab-box"><div class="eyebrow">Cabinets on this wall · deepest unit</div>
           <div class="seg wrap" role="group" aria-label="Deepest cabinet on this wall">${CAB_PRESETS.map(([n,v])=>`<button data-cab="${v}" data-cabn="${n}" aria-pressed="${kind===n}">${n}${v?` ${v}″`:''}</button>`).join('')}</div>
@@ -465,6 +467,7 @@ function renderSideInner(){
     sideB.querySelector('#wMir')?.addEventListener('click',()=>{ const id=mirrorId(w.id); choose(s, id); const pt=partnerOf(s, slots); if(pt) choose(pt, mirrorId(id), {follow:true}); buildHome(); renderSide(); toast(`${s.label} mirrored`+(pt?` · ${pt.label} follows`:'')); });
     bindUnits(s, bodyWall(s,w));
     bindElecWall(sideB, s);
+    bindAccent(s);
     if(isInt && !s.part) bindJointWall(s);
     sideB.querySelector('#jLead')?.addEventListener('click',()=>{ makeLead(s); buildHome(); renderSide(); toast(`${s.other?.label||'The other'}'s wall now takes this wall's openings`); });
     sideB.querySelector('#jFree')?.addEventListener('click',()=>{ const f=!jointInfo(s)?.free; setFree(s, f); buildHome(); renderSide(); toast(f?'The two walls can now differ':'The two walls match again'); });
@@ -552,6 +555,25 @@ function bindFoundation(){
 }
 
 /* the wire hole through the roof LVL beside an exterior door (always) or a window (only when picked): lvlholes.js */
+/* ACP accent wall (accent.js): instead of the siding, on request */
+function accentBlock(s){
+  if(s.type!=='ext' || s.part) return '';
+  const a=accentOf(s), A=a ? accentLayout(s,a) : null, P=a ? acpPattern(a.pattern) : null;
+  return `<div class="cab-box acc-box"><div class="eyebrow">Accent wall · ACP instead of the siding</div>
+    <div class="seg wrap" role="group" aria-label="Accent look"><button data-accp="" aria-pressed="${!a}">None</button>${ACPLIB.patterns.map(p=>`<button data-accp="${p.id}" aria-pressed="${a?.pattern===p.id}">${esc(p.name)}</button>`).join('')}</div>
+    ${a?`<div class="acc-sw" role="group" aria-label="ACP colour">${ACPLIB.colours.map(c=>`<button data-accc="${c.id}" aria-pressed="${a.colour===c.id}" title="${esc(c.name)}" style="background:${c.wood?`repeating-linear-gradient(90deg,${c.hex} 0 5px,${c.grain} 5px 6px)`:c.hex}"><span class="sr">${esc(c.name)}</span></button>`).join('')}</div>
+      <p class="note"><b>${esc(ACPLIB.colours.find(c=>c.id===a.colour)?.name||'')}</b>${ACPLIB.colours.find(c=>c.id===a.colour)?.wood?' · woodgrain runs plumb':''} · ${esc(P.note||'')}</p>
+      ${P.sizes?.length?`<div class="seg wrap" role="group" aria-label="${esc(P.sizeName||'size')}">${P.sizes.map(z=>`<button data-accz="${z}" aria-pressed="${Math.abs((a.size??P.size)-z)<0.01}">${fin(z)}</button>`).join('')}</div><p class="note">${esc(P.sizeName||'')}</p>`:''}
+      ${a.pattern==='geo'?`<div class="row"><button class="btn ghost" id="accNew">New lines</button></div>`:''}
+      ${A?`<p class="note">${A.sheets.length} sheet${A.sheets.length>1?'s':''} 4′ × 10′ · ${Math.round(A.area)} sq ft · ${Math.round(A.jointFt)} ft of joint (3 mm) and ${Math.round(A.revealFt)} ft of reveal (1.5 mm) · ${A.screws.length} screws. Layout and DXF: Sheets → Accent walls.</p>`:''}`:''}</div>`;
+}
+function bindAccent(s){
+  const a=accentOf(s), go=v=>{ setAccent(s, v); buildHome(); renderSide(); };
+  sideB.querySelectorAll('[data-accp]').forEach(b=>b.onclick=()=>{ const p=b.dataset.accp; go(p ? { ...(a||{}), pattern:p, size:acpPattern(p).size } : null); });
+  sideB.querySelectorAll('[data-accc]').forEach(b=>b.onclick=()=>go({ ...a, colour:b.dataset.accc }));
+  sideB.querySelectorAll('[data-accz]').forEach(b=>b.onclick=()=>go({ ...a, size:+b.dataset.accz }));
+  sideB.querySelector('#accNew')?.addEventListener('click',()=>go({ ...a, seed:Math.floor(Math.random()*1e6) }));
+}
 function lvlSeg(s, o){
   if(s.type==='int' || !['door','patio','window'].includes(o.kind)) return '';
   const h=lvlHolesOn(s).find(x=>okey(x.o)===okey(o)), side=h?.side||'', door=isExitDoor(o), k=esc(okey(o));

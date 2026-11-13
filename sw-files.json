@@ -1,5 +1,5 @@
 {
-"version": "e480433317fa",
+"version": "de5d2a9548a1",
 "files": [
 "./",
 "brand/cubit-logo.png",
@@ -11,6 +11,8 @@
 "icon-512.png",
 "icon.svg",
 "index.html",
+"js/accent.js",
+"js/accentsheet.js",
 "js/approval.js",
 "js/blueprint-ui.js",
 "js/blueprint.js",
