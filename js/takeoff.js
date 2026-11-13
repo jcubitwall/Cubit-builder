@@ -113,6 +113,8 @@ function homeTakeoff(){
     add('siding','Siding',[
       ...T.panels.map(p=>({ n:p.n, what:`${P.name} panel, cut to length${p.rip?` and ripped to ${fin(p.rip)}`:''}`, len:p.len, note:`${p.what} · ${(p.len/12*P.lbPerFt*(p.rip?p.rip/P.cover:1)).toFixed(1)} lb each` })),
       ...T.fillers.map(f=>({ n:f.n, what:`Filler piece ${fin(f.w)} wide, bent to match (${fin(f.w*P.developed/P.cover)} flat)`, len:f.len, note:f.at })),
+      ...T.acm.map(a=>({ n:a.n, what:`ACM panel, matte black, ${fin(a.w)} × ${fin(a.h)}`, note:`${a.where} a window / door (no metal siding there)` })),
+      ...(T.acm.length?[{ n:T.acmSheets, what:'ACM sheet 4 × 8, matte black', note:'for the pieces above, plus 15% for cutting' }]:[]),
       ...T.trims.map(t=>({ n:t.n, what:`${t.what} (custom bend)`, len:t.len }))],
       `${P.name} ${P.gauge||''} · ${T.nPanels} panels${T.hops?`, ${T.hops} hopped a rib`:''} · ${fft(T.runs)} of exterior wall, ${T.nOpen} opening${T.nOpen===1?'':'s'} · about ${Math.round(T.lb).toLocaleString()} lb of siding`); } }
   // Windows & doors
@@ -153,7 +155,7 @@ function shoppingList(){
       const g=T.grounded; if(g){ if(T.conc){ add('Upper floors', g, `${TUBE.d}″ Sonotube × 4′`); add('Upper floors', +(T.tubeYd3*g*1.1).toFixed(2), 'yd³ concrete (Sonotubes, incl. 10%)'); }
       else add('Upper floors', g, 'ground screw, post head'); } } } }
   { const T=sidingTakeoff(); if(T){ T.panels.forEach(p=>add('Siding', p.n, `${T.P.name} panel × ${fin(p.len)}${p.rip?`, ripped to ${fin(p.rip)}`:''}`));
-    T.fillers.forEach(f=>add('Siding', f.n, `filler ${fin(f.w)} wide × ${fin(f.len)}`)); T.trims.forEach(t=>add('Siding', t.n, `${t.what} × ${fin(t.len)}`)); } }
+    T.fillers.forEach(f=>add('Siding', f.n, `filler ${fin(f.w)} wide × ${fin(f.len)}`)); if(T.acm.length) add('Siding', T.acmSheets, 'ACM sheet 4 × 8, matte black (above / below windows and doors)'); T.trims.forEach(t=>add('Siding', t.n, `${t.what} × ${fin(t.len)}`)); } }
   const u={}; slotsFor(state.model).forEach(s=>{ const w=bodyWall(s, pickFor(s)); (w?.openings||[]).filter(catOf).forEach(o=>{ const r=unitFor(s,o); if(r) u[r.unit.name+' ('+r.unit.id+')']=(u[r.unit.name+' ('+r.unit.id+')']||0)+1; }); });
   Object.entries(u).forEach(([k,n])=>add('Windows & doors', n, k));
   { const S=sealRun(); if(S.n) add('Seals', +(S.tot/12*1.1).toFixed(0), `ft · ${SEAL.name}`); }

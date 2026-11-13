@@ -413,10 +413,10 @@ function sidingGrid(){
       <li>Start at an Einspine corner with the long flat and end flange; the rib end points away from the corner.</li>
       <li>The rib end butts the brick mold: ${fin2(MOLD)} outside the window or door on each side, top and bottom.</li>
       <li>Panels are pulled back evenly to close a run exactly; if whole panels can't, a filler piece bent to the same look takes up the rest (never under ${fin2(FILL_MIN)}). Between two openings the two runs meet on a filler in the middle.</li>
-      <li>Above and below each opening, short pieces cut from panels fill the brick-mold width.</li>
+      <li>Above and below every window and door there is no metal siding: a matte black aluminium composite (ACM) panel fills the brick mold's width.</li>
       <li>Trims (custom bends): outside corners at the Einspines, inside corners, joints between pods, J-trim at the brick molds, drip flashing over each head.</li>
     </ul>
-    ${home && home.P.id===P.id ? `<h4>This home</h4><p class="note">${home.nPanels} panels${home.hops?` (${home.hops} hopped a rib)`:''}, ${home.fillers.reduce((a,f)=>a+f.n,0)} filler pieces, ${home.trims.length} kinds of trim · ${Math.round(home.lb).toLocaleString()} lb of siding on ${fft(home.runs)} of exterior wall. Every piece is in the Takeoff.</p>`:''}
+    ${home && home.P.id===P.id ? `<h4>This home</h4><p class="note">${home.nPanels} panels${home.hops?` (${home.hops} hopped a rib)`:''}, ${home.fillers.reduce((a,f)=>a+f.n,0)} filler pieces, ${home.acm.reduce((a,x)=>a+x.n,0)} black ACM panels above / below the openings, ${home.trims.length} kinds of trim · ${Math.round(home.lb).toLocaleString()} lb of siding on ${fft(home.runs)} of exterior wall. Every piece is in the Takeoff.</p>`:''}
     <p class="note">Scanned from ${esc(P.source?.file||'STEP')} on ${esc(P.source?.scanned||'')} (${fin2(P.sample)} sample).</p></div>`;
   return `<section class="cw-grid cw-bgrid">${L.map(card).join('')}</section>`;
 }
