@@ -120,12 +120,12 @@ function homeTakeoff(){
       ...T.trims.map(t=>({ n:t.n, what:`${t.what} (custom bend)`, len:t.len })),
       ...(()=>{ const Sc=sidingSchedule(); return Sc ? [{ n:Sc.bags, what:`bag of ${SIDING_SCREWS.bag} siding screws`, note:`${Sc.screws.toLocaleString()} screws, ${SIDING_SCREWS.perPanel} per panel and filler` }] : []; })()],
       `${P.name} ${P.gauge||''} · ${T.nPanels} panels${T.hops?`, ${T.hops} hopped a rib`:''} · ${fft(T.runs)} of exterior wall, ${T.nOpen} opening${T.nOpen===1?'':'s'} · about ${Math.round(T.lb).toLocaleString()} lb of siding`); } }
-  // Membrane: the breathable wrap on the SIP panels' outside face
+  // Membrane: on the exterior OSB sheets at the shop, before the CNC; seam tape on site
   { const T=membraneTakeoff(state.model); if(T){ const M=T.M;
     add('membrane','Membrane',[
-      { n:Math.round(T.net), what:`sq ft ${M.name} (${M.tMM||1} mm)`, note:`on the walls, net of ${Math.round(T.open)} sq ft of openings` },
-      { n:Math.ceil(T.buy), what:'sq ft to order', note:`with ${Math.round((M.lap??0.1)*100)}% for laps${T.rolls?` · ${T.rolls} rolls`:' · roll size to confirm'}` }],
-      `${T.walls} exterior walls · the SIP panels' outside face only`); } }
+      { n:T.sheets, what:`exterior OSB sheets 4 × 8 to cover with ${M.name} (${M.tMM||1} mm) before the CNC`, note:`${Math.round(T.sqft)} sq ft${T.rolls?` · ${T.rolls} rolls`:' · roll size to confirm'}` },
+      { n:Math.ceil(T.tapeFt), what:`ft of ${M.tape?.name||'seam tape'}, ${M.tape?.w||3}″, darker blue`, note:`${T.joints} panel joints${T.tapeRolls?` · ${T.tapeRolls} rolls`:' · roll length to confirm'}` }],
+      `no laps: the membrane is on every sheet, the tape covers each joint between exterior panels`); } }
   // Windows & doors
   { const g={}; let open=0;
     slotsFor(state.model).forEach(s=>{ const w=bodyWall(s, pickFor(s)); (w?.openings||[]).filter(catOf).forEach(o=>{ const r=unitFor(s,o);
@@ -165,7 +165,7 @@ function shoppingList(){
       else add('Upper floors', g, 'ground screw, post head'); } } } }
   { const T=sidingTakeoff(); if(T){ T.panels.forEach(p=>add('Siding', p.n, `${T.P.name} panel × ${fin(p.len)}${p.rip?`, ripped to ${fin(p.rip)}`:''}`));
     T.fillers.forEach(f=>add('Siding', f.n, `filler ${fin(f.w)} wide × ${fin(f.len)}`)); if(T.acm.length) add('Siding', T.acmSheets, 'ACM sheet 4 × 8, matte black (above / below windows and doors)'); T.trims.forEach(t=>add('Siding', t.n, `${t.what} × ${fin(t.len)}`)); const Sc=sidingSchedule(); if(Sc) add('Siding', Sc.bags, `siding screws, bag of ${SIDING_SCREWS.bag} (${Sc.screws.toLocaleString()} screws)`); } }
-  { const T=membraneTakeoff(state.model); if(T) add('Membrane', T.rolls || Math.ceil(T.buy), T.rolls ? `${T.M.name}, roll` : `sq ft ${T.M.name} (incl. ${Math.round((T.M.lap??0.1)*100)}% laps)`); }
+  { const T=membraneTakeoff(state.model); if(T){ add('Membrane', T.rolls || Math.round(T.sqft), T.rolls ? `${T.M.name}, roll` : `sq ft ${T.M.name} (on ${T.sheets} OSB sheets)`); add('Membrane', T.tapeRolls || Math.ceil(T.tapeFt), T.tapeRolls ? `${T.M.tape?.name}, roll` : `ft ${T.M.tape?.name||'seam tape'} 3″`); } }
   const u={}; slotsFor(state.model).forEach(s=>{ const w=bodyWall(s, pickFor(s)); (w?.openings||[]).filter(catOf).forEach(o=>{ const r=unitFor(s,o); if(r) u[r.unit.name+' ('+r.unit.id+')']=(u[r.unit.name+' ('+r.unit.id+')']||0)+1; }); });
   Object.entries(u).forEach(([k,n])=>add('Windows & doors', n, k));
   { const S=sealRun(); if(S.n) add('Seals', +(S.tot/12*1.1).toFixed(0), `ft · ${SEAL.name}`); }
