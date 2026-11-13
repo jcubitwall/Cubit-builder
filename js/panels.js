@@ -130,7 +130,7 @@ function outlinePts(S, seg=40){
 /* moves (or mirrors) the drawn points of an item along the wall: f maps x → x (its own x is set by the caller) */
 function mapX(o, f){
   const m=P=>P.map(([x,y])=>[+f(x).toFixed(4),y]);
-  return {...o, ...(o.ends?{ends:m(o.ends)}:{}), ...(o.path?{path:m(o.path)}:{}), ...(o.islands?{islands:o.islands.map(m)}:{}), ...(o.tool?{tool:o.tool.map(m)}:{}),
+  return {...o, ...(o.ends?{ends:m(o.ends)}:{}), ...(o.path?{path:m(o.path)}:{}), ...(o.islands?{islands:o.islands.map(m)}:{}), ...(o.tool?{tool:o.tool.map(m)}:{}), ...(o.route?{route:o.route.map(([x,y,d])=>[+f(x).toFixed(4),y,d])}:{}),
     ...(o.slope?{slope:mapSlope(o.slope, ([x,y])=>[+f(x).toFixed(4),y])}:{}), ...(o.taper?{taper:{ ...o.taper, cx:+f(o.taper.cx).toFixed(4) }}:{})};
 }
 /* a face item (box, pocket, round recess, chase…) as an outline in face coords; toX maps its x to the face's x.
@@ -228,7 +228,7 @@ function handOf(f){
   if(f.hand) return 'mark';
   if(f.light) return null;
   const bit=0.749;
-  if(f.shape==='poly' && Array.isArray(f.tool) && !f.tool.length) return 'auto';
+  if(f.shape==='poly' && !f.route && Array.isArray(f.tool) && !f.tool.length) return 'auto';
   if(f.shape==='round' && (f.d||f.dia||f.w) < bit) return 'auto';
   if(f.shape==='slot' && (f.sw||0.75) < bit) return 'auto';
   if((!f.shape || f.shape==='rect') && f.w && (f.h??f.d) && Math.min(f.w, f.h??f.d) < bit) return 'auto';

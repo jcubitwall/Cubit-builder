@@ -31,6 +31,11 @@
        An outside door gets a double box (the room's lights + the outside light).
      · Walls between pods: boxes only on the face toward the wall's own pod.
      · Data boxes (network / TV) are optional per home: the TV wall in front of a sofa and opposite each bed, 16″.
+     · Baseboard heater: its wire comes out of the wall 3″ up from the floor, 3″ in from the heater's right end (seen
+       from the room). The CNC routes it from the nearest usable chase (one not cut by a window or door), on the room
+       face: a hole straight into the chase at 6″ up, the bit down to the middle of the SIP (whatever its thickness), a 3″
+       radius curve toward the heater that levels out at 3″ up, then straight along to the wire spot. The depth comes up
+       steadily from the middle of the panel (starting on the curve) to 1″ deep at the wire spot. ¾″ SIP cutter (tool 13).
    Chases first: every box sits on an electrical chase (wall-rules.js: 6″ in from each edge of the original 48″
    panel, then every 12″; dead centre first, nudged up to 2″ either way if it has to be) when one is within reach (18″ for plugs, 6″ for switches) of where the rule wants it,
    and clear of openings, panel joints, cabinets and other boxes. Otherwise it stays where the rule wants it and is
@@ -158,6 +163,48 @@ function planFor(k=state.model){
   memo={ sig, plan:P }; return P;
 }
 
+/* a baseboard heater's wire run (header). a = along the wall from the left seen from OUTSIDE; the room face's x is
+   Lin − a. Seen from the room the heater's right end is its low-a end (a0). */
+const BB = { up:3, inFromRight:3, chaseY:6, r:3, endDepth:1, bit:0.75 };
+function heaterRoute(W, it, id){
+  const tIn=+(W.w.t || W.t*FT), aH=it.a0+BB.inFromRight, yH=BB.up;
+  const cut=(W.w.openings||[]).filter(o=>o.w>0);
+  const usable=W.chases.filter(c=>!cut.some(o=>c>o.x-BB.bit/2-0.25 && c<o.x+o.w+BB.bit/2+0.25));
+  if(!usable.length) return { items:[], flag:`No usable chase on ${W.s.label} for the baseboard heater's wire`, aH };
+  const aC=usable.slice().sort((p,q)=>Math.abs(p-aH)-Math.abs(q-aH))[0], dx=aH-aC, sg=Math.sign(dx)||1, r=Math.min(BB.r, Math.abs(dx));
+  // the path along the room face, in a (outside) coords: down the chase if the wire spot is closer than 3″, the curve, then straight
+  const P=[[aC, BB.chaseY]];
+  if(BB.chaseY-r > yH+1e-6) P.push([aC, yH+r]);
+  if(r>1e-6) for(let i=1;i<=9;i++){ const th=i/9*Math.PI/2; P.push([aC+sg*r*(1-Math.cos(th)), yH+r*(1-Math.sin(th))]); }
+  if(Math.abs(aH-P[P.length-1][0])>1e-6 || Math.abs(yH-P[P.length-1][1])>1e-6) P.push([aH, yH]);
+  // the depth: the middle of the panel at the chase, coming up evenly along the path to 1″ at the wire spot
+  const len=[0]; for(let i=1;i<P.length;i++) len.push(len[i-1]+Math.hypot(P[i][0]-P[i-1][0], P[i][1]-P[i-1][1]));
+  const tot=len[len.length-1]||1, d0=tIn/2, pts=P.map((p,i)=>[p[0], p[1], +(d0+(BB.endDepth-d0)*len[i]/tot).toFixed(4)]);
+  // split at panel joints: each panel gets its own piece (x on the room face)
+  const lo=Math.min(aC,aH), hi=Math.max(aC,aH), cuts=W.joints.filter(j=>j>lo+1e-6 && j<hi-1e-6);
+  const edges=[-Infinity, ...cuts, Infinity], items=[];
+  for(let k=0;k<edges.length-1;k++){ const e0=edges[k], e1=edges[k+1], seg=[];
+    for(let i=0;i<pts.length;i++){ const p=pts[i], q=pts[i+1]; if(p[0]>=e0-1e-9 && p[0]<=e1+1e-9) seg.push(p);
+      if(q) [e0,e1].forEach(e=>{ if(isFinite(e) && (p[0]-e)*(q[0]-e)<0){ const f=(e-p[0])/(q[0]-p[0]); seg.push([e, p[1]+f*(q[1]-p[1]), p[2]+f*(q[2]-p[2])]); } }); }
+    if(seg.length<2) continue;
+    const route=seg.map(([a,y,d])=>[+(W.Lin-a).toFixed(4), +y.toFixed(4), d]);
+    const xs=route.map(p=>p[0]), ys=route.map(p=>p[1]), path=grooveOutline(route, BB.bit/2);
+    items.push({ kind:'pocket', shape:'poly', route, path, x:+((Math.min(...xs)+Math.max(...xs))/2).toFixed(4), y:+((Math.min(...ys)+Math.max(...ys))/2).toFixed(4),
+      w:+(Math.max(...xs)-Math.min(...xs)+BB.bit).toFixed(4), h:+(Math.max(...ys)-Math.min(...ys)+BB.bit).toFixed(4), depth:+Math.max(...route.map(p=>p[2])).toFixed(4),
+      name:'Heater wire run', auto:id+(items.length?`-${items.length}`:''), heater:it.I.it.k }); }
+  const atJoint=W.joints.some(j=>Math.abs(j-aH)<BB.bit/2+0.5);
+  return { items, aH, aC, flag: cuts.length ? `The baseboard heater's wire run on ${W.s.label} crosses a panel joint (spline): check it`
+    : atJoint ? `The baseboard heater's wire spot on ${W.s.label} is on a panel joint: slide the heater an inch or two` : null };
+}
+/* the ¾″ groove's outline around a centre line (room-face x, y), round ends */
+function grooveOutline(route, r){
+  const P=route.map(p=>[p[0],p[1]]); if(P.length===1){ const [x,y]=P[0], o=[]; for(let i=0;i<=24;i++){ const a=i/24*Math.PI*2; o.push([+(x+r*Math.cos(a)).toFixed(4), +(y+r*Math.sin(a)).toFixed(4)]); } return o; }
+  const nrm=i=>{ const a=P[Math.max(0,i-1)], b=P[Math.min(P.length-1,i+1)], dx=b[0]-a[0], dy=b[1]-a[1], l=Math.hypot(dx,dy)||1; return [-dy/l, dx/l]; };
+  const L=P.map((p,i)=>{ const n=nrm(i); return [p[0]+n[0]*r, p[1]+n[1]*r]; }), R=P.map((p,i)=>{ const n=nrm(i); return [p[0]-n[0]*r, p[1]-n[1]*r]; });
+  const cap=(c,from,to)=>{ const a0=Math.atan2(from[1]-c[1], from[0]-c[0]), out=[]; let a1=Math.atan2(to[1]-c[1], to[0]-c[0]); while(a1>a0) a1-=Math.PI*2; for(let i=1;i<8;i++){ const a=a0+(a1-a0)*i/8; out.push([c[0]+r*Math.cos(a), c[1]+r*Math.sin(a)]); } return out; };
+  const n=P.length-1, out=[...L, ...cap(P[n], L[n], R[n]), ...R.slice().reverse(), ...cap(P[0], R[0], L[0])]; out.push(out[0]);
+  return out.map(([x,y])=>[+x.toFixed(4), +y.toFixed(4)]);
+}
 function compute(k){
   const E=elecOf(k)||{}, Hm=homeModel(k);
   const walls=Hm.walls, boxes=[], flags=[], tubs=tubsOf(Hm);
@@ -560,8 +607,14 @@ function compute(k){
     const nm = b.rk==='switch' && b.way>1 ? `${b.way}-way switch box` : NAME[b.rk] || 'Box';
     const item={ kind:'box', shape:'rect', w, h, depth:b.rk==='jbox' ? 2.25 : 3, ...(b.rk==='jbox'?{ box:'BX-JB-4SQ' }:{}), x:+(b.face==='in' ? W.Lin-b.a : b.a).toFixed(4), y:b.y, rk:b.rk==='wp'?'plug':b.rk, name:nm, gang:gangOf(b), devs:(b.devs||[]).map(id=>deviceById(id)?.name).filter(Boolean), ...(b.sn?{ sn:b.sn, uses:b.useText, links:b.uses.filter(u=>u.grp).map(u=>({ grp:u.grp, order:u.order.map(id=>outById[id]?.sn) })) }:{}), auto:b.id, ...(b.chase?{}:{ offChase:true }) };
     (b.face==='in' ? o.inside : o.outside).push(item); b.name=nm; });
+  /* ---- baseboard heater wire runs (header): one per heater, on the room face */
+  const routes=[];
+  walls.forEach(W=>W.items.filter(it=>/^BB-/.test(it.I.it.k||'')).forEach((it,i)=>{
+    const r=heaterRoute(W, it, `bbw-${W.s.id}-${i}`); if(!r) return; routes.push(r);
+    (byWall[W.s.id] ||= { inside:[], outside:[] }).inside.push(...r.items);
+    if(r.flag) flags.push({ t:r.flag, w:W.s.id }); }));
   const removed=boxes.filter(b=>b.removed);
-  return { byWall, boxes:out, removed, flags, confirms, rooms:Object.values(rooms).map(R=>({ key:R.key, name:R.name, entries:R.entries.length, bath:R.bath, kitchen:R.kitchen, bed:R.bed })) };
+  return { byWall, routes, boxes:out, removed, flags, confirms, rooms:Object.values(rooms).map(R=>({ key:R.key, name:R.name, entries:R.entries.length, bath:R.bath, kitchen:R.kitchen, bed:R.bed })) };
 }
 
 /* the wall's boxes: the rules' instead of the library's */
