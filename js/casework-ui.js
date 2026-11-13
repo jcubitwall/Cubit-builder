@@ -916,7 +916,8 @@ function kitchenNote(it, d, ed){
     const at=it.dock.at||'C';
     return `<div class="cw-opt"><span>In the sink base</span><div class="seg">${[['L','Left'],['C','Centre'],['R','Right']].map(([k,l])=>`<button data-dock="${k}" aria-pressed="${at===k}" ${ed?'':'disabled'}>${l}</button>`).join('')}</div></div>
       <p class="note">${(it.opt?.mount||d.mount)==='top'?`Top mount: the hole is cut ${show(settings().counter.lap)}${unitSign()} in from the sink's edge all the way round.`:`Bottom mount: the sink is recessed under the countertop, which runs ${show(settings().counter.reveal||0)}${unitSign()} over the bowl all the way round.`}</p>`; }
-  const under = (it.k==='BS' || it.sinkMin) && it.wall && ed ? `<div class="row"><button class="btn ghost sm" id="fUnderWin">Centre under the window</button></div>` : '';
+  const isBB = d.cat==='baseboard';
+  const under = (it.k==='BS' || it.sinkMin || isBB) && it.wall && ed ? `<div class="row"><button class="btn ghost sm" id="fUnderWin">${isBB?'Snap to centre of window':'Centre under the window'}</button></div>` : '';
   if(it.sinkMin) return under+`<p class="note">Holds a sink: at least ${show(it.sinkMin)}${unitSign()} wide (it can be made wider, not narrower). Its stretchers are narrowed over the sink.</p>${ed && it.w>it.sinkMin+0.01?`<div class="row"><button class="btn ghost sm" id="fFitSink">Fit to the sink (${show(it.sinkMin)}${unitSign()})</button></div>`:''}`;
   if(under) return under;
   if(d.cat==='counter'){ const C=settings().counter, H=it.sinks||[];
@@ -959,7 +960,7 @@ function furnSide(sideH, sideB){
     if(isFinite(v) && v>=0) ch({[k]:v}); else inp.value=show(it[k]||0); });
   sideB.querySelector('#fUnderWin')?.addEventListener('click',()=>{ const r=centreUnderWindow(it.id); if(!r.ok){ toast(r.why); return; }
     furnitureOf().forEach(refreshItem); renderSide();
-    toast(!r.wanted ? 'Already centred under the window' : Math.abs(r.moved-r.wanted)<0.01 ? `Moved ${show(Math.abs(r.moved))}${unitSign()}: the sink is centred under the window` : `Moved ${show(Math.abs(r.moved))}${unitSign()} of ${show(Math.abs(r.wanted))}${unitSign()}: the row is against a wall or another unit`); });
+    toast(!r.wanted ? 'Already centred under the window' : Math.abs(r.moved-r.wanted)<0.01 ? `Moved ${show(Math.abs(r.moved))}${unitSign()}: the ${d.cat==='baseboard'?'heater':'sink'} is centred under the window` : `Moved ${show(Math.abs(r.moved))}${unitSign()} of ${show(Math.abs(r.wanted))}${unitSign()}: ${d.cat==='baseboard'?'it':'the row'} is against a wall or another unit`); });
   sideB.querySelector('#fFitSink')?.addEventListener('click',()=>{ fitBaseToSink(it.id); refreshItem(it); renderSide(); toast('Sink base fitted to its sink'); });
   sideB.querySelectorAll('[data-dock]').forEach(b=>b.onclick=()=>{ ch({ dock:{ ...(it.dock||{}), at:b.dataset.dock } }); });
   sideB.querySelectorAll('[data-fo]').forEach(b=>b.onclick=()=>{ const raw=b.dataset.v; ch({opt:{...(it.opt||{}), [b.dataset.fo]:isNaN(+raw)?raw:+raw}}); });

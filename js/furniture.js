@@ -514,13 +514,14 @@ function rowOf(cab){
    above. Returns { ok, moved (in), wanted (in), why } */
 function centreUnderWindow(id){
   const cab=byId(id); if(!cab) return { ok:false, why:'No cabinet.' };
-  if(!cab.wall) return { ok:false, why:'This cabinet isn’t backed onto a wall.' };
+  if(!cab.wall) return { ok:false, why:'This isn’t backed onto a wall.' };
   const W=windowsIn(cab.wall); if(!W.length) return { ok:false, why:'There’s no window in the wall behind it.' };
-  const m=sinkMiddle(cab), mx=toItem(cab, m.u, m.v).x;
+  const bb=itemDef(cab.k)?.cat==='baseboard';   // a baseboard heater moves on its own, by its own middle
+  const m=bb ? toPod(cab, 0, cab.d/2/FT) : sinkMiddle(cab), mx=toItem(cab, m.u, m.v).x;
   const pick=W.map(w=>{ const p=homeToPod(cab.pod, w.x, w.z); return p && { w, x:toItem(cab, p.u, p.v).x }; }).filter(Boolean).sort((a,b)=>Math.abs(a.x-mx)-Math.abs(b.x-mx))[0];
   if(!pick) return { ok:false, why:'Couldn’t place the window.' };
   const want=pick.x-mx; if(Math.abs(want)<0.01/FT) return { ok:true, moved:0, wanted:0 };
-  const row=rowOf(cab); if(!row.length) return { ok:false, why:'Couldn’t find the cabinet row.' };
+  const row=bb ? [{ o:cab }] : rowOf(cab); if(!row.length) return { ok:false, why:'Couldn’t find the cabinet row.' };
   const room = want<0 ? roomBeyond(row[0].o,'L') : roomBeyond(row[row.length-1].o,'R');
   const d=Math.sign(want)*Math.min(Math.abs(want), Math.max(0, room));
   checkpoint(); ensureDraft();

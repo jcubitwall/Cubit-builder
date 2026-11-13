@@ -18,7 +18,7 @@ import { podList, slotsFor, layerSlotsFor } from './layout.js';
 import { setIsolate, setPod, openLayers } from './layers.js';
 import { camera, controls, renderer, homeGroup, pickables, buildHome, highlight } from './scene3d.js';
 import { addPod, movePod, rotatePod, addDeck, moveDeck, dockSpots, deckSpots, foot, deckFoot, addPart, movePart, partSnaps, problem, mirrorPod, deletePod, removeDeck, turnDeck } from './pods.js';
-import { duplicateItem, removeItem } from './furniture.js';
+import { duplicateItem, removeItem, centreUnderWindow } from './furniture.js';
 import { homeCost, money, book } from './prices.js';
 import { podOffsets, midAt } from './layout.js';
 import { UP, MAX_LV } from './config.js';
@@ -821,7 +821,7 @@ window.addEventListener('cubit:home', ()=>{ elecSig=elecSigNow(); });
    panel is for the details. Delete asks twice. Keys do the same (R turn, D duplicate, Delete), and a right-click or a
    long press held still picks a thing and brings the bar up. */
 const qb=document.createElement('div'); qb.className='quickbar'; qb.hidden=true; qb.setAttribute('role','toolbar'); qb.setAttribute('aria-label','Quick actions'); stage.appendChild(qb);
-const QI={ turn:'M12 4a8 8 0 1 1-7.4 5M4 4v5h5', mir:'M12 3v18M8 7 3 12l5 5M16 7l5 5-5 5', flip:'M3 12h18M7 8l5-5 5 5M7 16l5 5 5-5', dup:'M8 8h11v11H8zM5 16V5h11', del:'M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13', wall:'M12 3v18M4 3h16v18H4z', more:'M5 12h.01M12 12h.01M19 12h.01' };
+const QI={ win:'M4 4h16v12H4zM12 4v12M8 20h8M12 16v4', turn:'M12 4a8 8 0 1 1-7.4 5M4 4v5h5', mir:'M12 3v18M8 7 3 12l5 5M16 7l5 5-5 5', flip:'M3 12h18M7 8l5-5 5 5M7 16l5 5 5-5', dup:'M8 8h11v11H8zM5 16V5h11', del:'M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13', wall:'M12 3v18M4 3h16v18H4z', more:'M5 12h.01M12 12h.01M19 12h.01' };
 const qBtn=(k, label, icon, cls='')=>`<button class="qb-b ${cls}" data-q="${k}" title="${label}" aria-label="${label}"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="${QI[icon]}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>${label}</span></button>`;
 function selection(){
   if(state.selFurn && furnById(state.selFurn)) return { kind:'furn', id:state.selFurn };
@@ -835,7 +835,7 @@ let qbFor='', qbSure=null;
 function renderQB(sel){
   qbFor=sel ? sel.kind+':'+sel.id : ''; qbSure=null;
   if(!sel || !editable()){ qb.hidden=true; return; }
-  if(sel.kind==='furn') qb.innerHTML=qBtn('turn','Turn','turn')+qBtn('mir','Mirror','mir')+qBtn('dup','Duplicate','dup')+qBtn('del','Delete','del','danger');
+  if(sel.kind==='furn') qb.innerHTML=(itemDef(furnById(sel.id)?.k)?.cat==='baseboard' && furnById(sel.id)?.wall ? qBtn('win','Centre on window','win') : '')+qBtn('turn','Turn','turn')+qBtn('mir','Mirror','mir')+qBtn('dup','Duplicate','dup')+qBtn('del','Delete','del','danger');
   else if(sel.kind==='deck') qb.innerHTML=qBtn('turn','Turn','turn')+qBtn('dup','Duplicate','dup')+qBtn('del','Delete','del','danger');
   else qb.innerHTML=`<span class="qb-l">${(MODELS[state.model].pods[sel.pi] && `Pod ${sel.pi+1}`)}</span>`+qBtn('turn','Turn','turn')+qBtn('mir','Mirror','mir')+qBtn('flip','Flip','flip')+qBtn('dup','Duplicate','dup')+qBtn('wall','Wall across','wall')+qBtn('wallL','Wall along','wall')+qBtn('del','Delete','del','danger');
   qb.hidden=false;
@@ -879,6 +879,8 @@ function qAct(q){
   if(sel.kind==='furn'){ const it=furnById(sel.id);
     if(q==='turn'){ turnItem(sel.id, 1); refreshItem(furnById(sel.id)); renderSide(); toast('Turned 90°'); }
     else if(q==='mir'){ updateItem(sel.id, { mirror:!it.mirror }); refreshItem(furnById(sel.id)); renderSide(); toast(it.mirror?'Back the usual way':'Mirrored'); }
+    else if(q==='win'){ const r=centreUnderWindow(sel.id); if(!r.ok){ toast(r.why); return; } furnitureOf().forEach(refreshItem); renderSide();
+      toast(!r.wanted ? 'Already centred under the window' : Math.abs(r.moved-r.wanted)<0.01 ? 'Centred under the window' : 'Moved as far as it can go: it’s against a wall or another unit'); }
     else if(q==='dup'){ const c=duplicateItem(sel.id); if(c){ state.selFurn=c.id; refreshItem(c); applyFurniture(); renderSide(); toast('Duplicated · drag it where it goes'); } }
     else if(q==='del'){ removeItem(sel.id); refreshItem({id:sel.id}); state.selFurn=null; renderSide(); highlight(); toast('Removed · undo brings it back'); }
     return; }
