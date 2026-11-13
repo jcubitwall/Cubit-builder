@@ -39,6 +39,7 @@ import { CATS, ITEMS, newItem, itemDef, partsOf } from './casework.js';
 import { frontSVG } from './casework-svg.js';
 import { openCaseLib } from './casework-ui.js';
 import { setPanel, panelOpen, enterFullscreen, exitFullscreen } from './fullscreen.js';
+import './sidingplayer.js';
 import { sun as SUN } from './scene3d.js';
 import { initViewCube, zoomToFace, doUndo, doRedo } from './viewcube.js';
 import { onHistory } from './history.js';
