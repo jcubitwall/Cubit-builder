@@ -1,11 +1,12 @@
 /* Cubit Builder — membrane.js : the breathable exterior membrane (PolarBlock, 1 mm) on the exterior walls.
-   It covers the SIP panels' outside face only: each exterior wall from its base to the top of the panel, its full
-   length, cut out at every window, door and vent. Not on the steel frame, floors, roof or the pod-to-pod joints.
-   The Membrane layer (Layers → Shell) shows it in the 3D with its real print; the Takeoff lists the square feet. */
+   It goes on each exterior OSB sheet at the shop BEFORE the CNC cuts it, so it is cut out with the panel (windows,
+   doors, vents) and there are no laps: on site the only work is the 3″ seam tape (same product, darker blue)
+   centred over every joint between exterior panels. Not on the steel frame, floors, roof or pod-to-pod joints.
+   The Membrane layer (Layers → Shell) shows it and the tape in the 3D; the Takeoff lists sheets and tape. */
 import { MEMBRANELIB } from './data.js';
 import { H } from './config.js';
 import { slotsFor } from './layout.js';
-import { bodyWall, wallLen } from './panels.js';
+import { bodyWall, wallLen, panelSpans } from './panels.js';
 import { pickFor } from './state.js';
 
 const FT = 12;
@@ -21,6 +22,12 @@ function printTexture(M){
   TEX.repeat.set(FT/(M.print?.w||48), FT/(M.print?.h||96));   // the shape's UVs are in feet
   return TEX;
 }
+/* the joints between this wall's panels (x, in from the wall's left end) and the tape's runs up each, missing openings */
+function tapeRuns(w){
+  const sp=panelSpans(w), J=sp.slice(0,-1).filter((s,i)=>Math.abs(s[1]-sp[i+1][0])<0.01).map(s=>s[1]);
+  return J.map(x=>{ let segs=[[0,H]]; holesOf(w).filter(o=>o.shape!=='round' && o.x<x+1.5 && o.x+o.w>x-1.5).forEach(o=>{ segs=segs.flatMap(([a,b])=>{ const c=o.y, d=o.y+o.h; if(d<=a||c>=b) return [[a,b]]; const r=[]; if(c>a) r.push([a,c]); if(d<b) r.push([d,b]); return r; }); });
+    return { x, segs:segs.filter(([a,b])=>b-a>0.5) }; });
+}
 /* the membrane on one exterior wall, in its wall group's coordinates (feet; z out from the outside face) */
 function membraneMesh(w){
   const M=membrane(); if(!M || !w) return null;
@@ -32,16 +39,22 @@ function membraneMesh(w){
     sh.holes.push(p); });
   const m=new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshStandardMaterial({ color:0xffffff, map:printTexture(M), roughness:0.9, metalness:0, side:THREE.DoubleSide,
     polygonOffset:true, polygonOffsetFactor:-1, polygonOffsetUnits:-1 }));
-  m.position.z=t/2; m.userData.membrane=true; return m;
+  m.position.z=t/2; m.userData.membrane=true;
+  // the seam tape over each joint
+  const T=M.tape, tw=(T?.w||3)/FT, tm=new THREE.MeshStandardMaterial({ color:new THREE.Color(T?.color||'#3f5f93'), roughness:0.8, metalness:0, side:THREE.DoubleSide, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2 });
+  tapeRuns(w).forEach(r=>r.segs.forEach(([a,b])=>{ const g=new THREE.Mesh(new THREE.PlaneGeometry(tw, (b-a)/FT), tm); g.position.set(r.x/FT, (a+b)/2/FT, t*0.9); m.add(g); }));
+  return m;
 }
-/* the whole home: square feet on the walls (net of openings), and with the laps */
+/* the whole home: the exterior OSB sheets it goes on (whole sheets, before the CNC cuts them) and the seam tape */
 function membraneTakeoff(k){
   const M=membrane(); if(!M) return null;
-  let gross=0, open=0, walls=0;
+  let sheets=0, sqin=0, tape=0, joints=0, walls=0;
   slotsFor(k).filter(s=>s.type==='ext').forEach(s=>{ const w=bodyWall(s, pickFor(s)); if(!w) return; walls++;
-    gross += wallLen(w)*H; open += holesOf(w).reduce((a,o)=>a+holeArea(o),0); });
+    const sp=panelSpans(w); sheets+=sp.length; sqin+=sp.length*48*H;
+    tapeRuns(w).forEach(r=>{ joints++; tape+=r.segs.reduce((a,[x,y])=>a+(y-x),0); }); });
   if(!walls) return null;
-  const net=(gross-open)/144, buy=net*(1+(M.lap??0.1));
-  return { M, walls, gross:gross/144, open:open/144, net, buy, rolls: M.roll ? Math.ceil(buy/(M.roll.w*M.roll.len/144)) : null };
+  const sqft=sqin/144, tapeFt=tape/12;
+  return { M, walls, sheets, sqft, joints, tapeFt, rolls: M.roll ? Math.ceil(sqft/(M.roll.w*M.roll.len/144)) : null,
+    tapeRolls: M.tape?.roll ? Math.ceil(tapeFt*1.05/M.tape.roll) : null };
 }
 export { membrane, membraneMesh, membraneTakeoff };
