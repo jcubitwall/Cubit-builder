@@ -18,6 +18,7 @@ tag = "v1"
 new_sqlite_classes = ["MongoHolder"]
 
 # MariaDB through Hyperdrive (the id is the Hyperdrive configuration made in the dashboard)
-# [[hyperdrive]]
-# binding = "MARIADB"
-# id = "<the Hyperdrive configuration id>"
+# (cubit-mariadb: AWS RDS MariaDB 11.8 in ca-central-1, database "cubit", caching off so saves are seen at once)
+[[hyperdrive]]
+binding = "MARIADB"
+id = "f700dfb88ada4786bbf9c1e4cdd4bb09"
