@@ -19,6 +19,7 @@ import { sealRole, sealsFor, SEAL } from './seals.js';
 import { H, sidingSpan, SIDING } from './config.js';
 import { homeSiding } from './sidinglayout.js';
 import { membraneTakeoff } from './membrane.js';
+import { sidingSchedule, SIDING_SCREWS } from './sidingsheet.js';
 /* compression seal around every opening between pods (both pods): [{n, len} …] and total inches */
 function sealRun(){ const sl=slotsFor(state.model); let tot=0, n=0, hi=0; sl.forEach(s=>{ const r=sealRole(s, sl); sealsFor(bodyWall(s,pickFor(s)), r, H).forEach(x=>{ tot+=x.len; n++; if(r==='high') hi++; }); }); return {tot, n, hi}; }
 
@@ -116,7 +117,8 @@ function homeTakeoff(){
       ...T.fillers.map(f=>({ n:f.n, what:`Filler piece ${fin(f.w)} wide, bent to match (${fin(f.w*P.developed/P.cover)} flat)`, len:f.len, note:f.at })),
       ...T.acm.map(a=>({ n:a.n, what:`ACM panel, matte black, ${fin(a.w)} × ${fin(a.h)}`, note:`${a.where} a window / door (no metal siding there)` })),
       ...(T.acm.length?[{ n:T.acmSheets, what:'ACM sheet 4 × 8, matte black', note:'for the pieces above, plus 15% for cutting' }]:[]),
-      ...T.trims.map(t=>({ n:t.n, what:`${t.what} (custom bend)`, len:t.len }))],
+      ...T.trims.map(t=>({ n:t.n, what:`${t.what} (custom bend)`, len:t.len })),
+      ...(()=>{ const Sc=sidingSchedule(); return Sc ? [{ n:Sc.bags, what:`bag of ${SIDING_SCREWS.bag} siding screws`, note:`${Sc.screws.toLocaleString()} screws, ${SIDING_SCREWS.perPanel} per panel and filler` }] : []; })()],
       `${P.name} ${P.gauge||''} · ${T.nPanels} panels${T.hops?`, ${T.hops} hopped a rib`:''} · ${fft(T.runs)} of exterior wall, ${T.nOpen} opening${T.nOpen===1?'':'s'} · about ${Math.round(T.lb).toLocaleString()} lb of siding`); } }
   // Membrane: the breathable wrap on the SIP panels' outside face
   { const T=membraneTakeoff(state.model); if(T){ const M=T.M;
@@ -162,7 +164,7 @@ function shoppingList(){
       const g=T.grounded; if(g){ if(T.conc){ add('Upper floors', g, `${TUBE.d}″ Sonotube × 4′`); add('Upper floors', +(T.tubeYd3*g*1.1).toFixed(2), 'yd³ concrete (Sonotubes, incl. 10%)'); }
       else add('Upper floors', g, 'ground screw, post head'); } } } }
   { const T=sidingTakeoff(); if(T){ T.panels.forEach(p=>add('Siding', p.n, `${T.P.name} panel × ${fin(p.len)}${p.rip?`, ripped to ${fin(p.rip)}`:''}`));
-    T.fillers.forEach(f=>add('Siding', f.n, `filler ${fin(f.w)} wide × ${fin(f.len)}`)); if(T.acm.length) add('Siding', T.acmSheets, 'ACM sheet 4 × 8, matte black (above / below windows and doors)'); T.trims.forEach(t=>add('Siding', t.n, `${t.what} × ${fin(t.len)}`)); } }
+    T.fillers.forEach(f=>add('Siding', f.n, `filler ${fin(f.w)} wide × ${fin(f.len)}`)); if(T.acm.length) add('Siding', T.acmSheets, 'ACM sheet 4 × 8, matte black (above / below windows and doors)'); T.trims.forEach(t=>add('Siding', t.n, `${t.what} × ${fin(t.len)}`)); const Sc=sidingSchedule(); if(Sc) add('Siding', Sc.bags, `siding screws, bag of ${SIDING_SCREWS.bag} (${Sc.screws.toLocaleString()} screws)`); } }
   { const T=membraneTakeoff(state.model); if(T) add('Membrane', T.rolls || Math.ceil(T.buy), T.rolls ? `${T.M.name}, roll` : `sq ft ${T.M.name} (incl. ${Math.round((T.M.lap??0.1)*100)}% laps)`); }
   const u={}; slotsFor(state.model).forEach(s=>{ const w=bodyWall(s, pickFor(s)); (w?.openings||[]).filter(catOf).forEach(o=>{ const r=unitFor(s,o); if(r) u[r.unit.name+' ('+r.unit.id+')']=(u[r.unit.name+' ('+r.unit.id+')']||0)+1; }); });
   Object.entries(u).forEach(([k,n])=>add('Windows & doors', n, k));
