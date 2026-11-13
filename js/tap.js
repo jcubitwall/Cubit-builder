@@ -103,6 +103,10 @@ function shapedOp(ops, o, U, t, z, W, warn, item=false){
   const tool=TOOLS[13].d, thru=z<=THRU+1e-6;
   const what = o.shape==='round' ? `${item&&!thru?'recess':'hole'} ⌀ ${fin(o.d||o.dia)}` : o.shape==='slot' ? `${item?'chase':'slot'} ${fin(o.sw)} wide`
              : o.shape==='poly' ? `${thru?'shaped cut':'shaped pocket'} ${fin(o.w||0)} × ${fin(o.h||0)}` : `${o.kind==='box'?'box':'pocket'} ${fin(o.w)} × ${fin(o.h)}`;
+  if(o.route){   // a wire run (baseboard heater, electrical.js): the ¾″ SIP cutter along its centre line, its depth at every point
+    const run=o.route.map(([x,y,d])=>[+U(x).toFixed(4), y, +Math.max(THRU, t-d).toFixed(4)]);
+    ops.push({ tp:'chases', kind:'path3', runs:[run], tool:13, what:`${o.name||'wire run'} (${fin(Math.max(...o.route.map(p=>p[2])))} → ${fin(o.route[o.route.length-1][2])} deep)` });
+    return; }
   if(o.slope || o.taper){ bullnoseOp(ops, o, U, t, warn); return; }
   if(o.shape==='poly'){
     // any other outline: the ¾″ bit follows the paths worked out from the drawing (profile inside a through cut,
