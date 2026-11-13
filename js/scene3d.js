@@ -3,7 +3,7 @@ import { CEIL, FLOOR, FT, H, POD, PW, T, WALL_BASE, LAYER_KINDS, NOTCH, UP, EPS_
 import { MODELS, SIDINGLIB } from './data.js';
 import { lvlHolesOn } from './lvlholes.js';
 import { sidingMeshes } from './sidingmesh.js';
-import { membraneMesh } from './membrane.js';
+import { membraneMesh, membraneOn } from './membrane.js';
 import { accentOf, accentMeshes } from './accent.js';
 import { colourOf } from './finishes.js';
 import { isShop } from './mode.js';
@@ -586,7 +586,7 @@ function buildHome(){
     // an ACP accent wall instead of the siding (accent.js): always shown, the wall's own finish
     if(s.type==='ext' && accentOf(s)) accentMeshes(s, w.trim?.[0]||0).forEach(m=>g.add(m));
     // the Membrane layer: the breathable PolarBlock wrap on the SIP panels' outside face (membrane.js)
-    if(s.type==='ext'){ const mb=membraneMesh(w); if(mb) g.add(mb); }
+    if(membraneOn(s)){ const mb=membraneMesh(w); if(mb) g.add(mb); }
     // the wire holes through the roof LVL (drilled by hand): an orange peg sticking out of the wall line at the rim
     if(s.type==='ext') lvlHolesOn(s).forEach(h=>{ const t=(w.t||6.5)/FT, m=new THREE.Mesh(new THREE.CylinderGeometry(0.75/FT, 0.75/FT, t+0.25, 16), LVL_PEG);
       m.rotation.x=Math.PI/2; m.position.set(h.x/FT, h.y/FT, -t/2+0.125); m.userData.lvlHole=true; g.add(m); });
