@@ -241,7 +241,8 @@ export async function onRequestPost({ request, env }){
         ] : [
           ['library history', (await Promise.all(LIB.map(l => count(l.hist)))).reduce((a,b)=>a+b, 0), await M.coll('history').count({ coll:{ $in:LIB.map(l=>l.coll) } })],
           ['prices', await len('prices/book.json'), await n('SELECT COUNT(*) n FROM prices')],
-          ['shop lists', await count('shop/'), await n('SELECT COUNT(DISTINCT home) n FROM shop_ticks')],
+          ['shop list ticks', await (async () => { let c = 0, cur; do{ const r = await page(env, 'shop/', cur, 200); cur = r.truncated ? r.cursor : null;
+            for(const o of r.objects) c += Object.keys(await getJ(env, o.key) || {}).length; }while(cur); return c; })(), await n('SELECT COUNT(*) n FROM shop_ticks')],
           ['photos', null, await n(`SELECT COUNT(*) n FROM files WHERE kind='photo'`)],
           ['catalogue sets (repo)', SEED.length, await M.coll('seed_sets').count()],
         ];
