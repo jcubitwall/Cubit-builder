@@ -192,9 +192,7 @@ function heaterRoute(W, it, id){
     items.push({ kind:'pocket', shape:'poly', route, path, x:+((Math.min(...xs)+Math.max(...xs))/2).toFixed(4), y:+((Math.min(...ys)+Math.max(...ys))/2).toFixed(4),
       w:+(Math.max(...xs)-Math.min(...xs)+BB.bit).toFixed(4), h:+(Math.max(...ys)-Math.min(...ys)+BB.bit).toFixed(4), depth:+Math.max(...route.map(p=>p[2])).toFixed(4),
       name:'Heater wire run', auto:id+(items.length?`-${items.length}`:''), heater:it.I.it.k }); }
-  const atJoint=W.joints.some(j=>Math.abs(j-aH)<BB.bit/2+0.5);
-  return { items, aH, aC, flag: cuts.length ? `The baseboard heater's wire run on ${W.s.label} crosses a panel joint (spline): check it`
-    : atJoint ? `The baseboard heater's wire spot on ${W.s.label} is on a panel joint: slide the heater an inch or two` : null };
+  return { items, aH, aC, flag:null };   // a wire spot or run on a panel joint is fine (the run is split per panel)
 }
 /* the ¾″ groove's outline around a centre line (room-face x, y), round ends */
 function grooveOutline(route, r){
