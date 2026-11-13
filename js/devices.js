@@ -100,7 +100,7 @@ function defaultDevice(rk, way=1, note=''){
   if(rk==='appl') return /range/i.test(note) ? 'RC-1450' : /fridge/i.test(note) ? 'RC-SGL-15' : 'RC-DEC-15';
   if(rk==='data') return 'DT-CAT6-COAX';
   if(rk==='tvr') return 'RC-DEC-15';
-  if(rk==='jbox') return null;
+  if(rk==='jbox' || rk==='light') return null;   // a wall light box: the fixture goes on it, no device
   return 'RC-DEC-15';
 }
 /* a small front view of a device (for the Library cards and lists) */

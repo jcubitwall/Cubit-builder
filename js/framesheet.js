@@ -5,6 +5,7 @@ import { FRAME, SPINE } from './config.js';
 import { fin, fft } from './format.js';
 import { state } from './state.js';
 import { homeFraming, podRims, framingTakeoff, platesByPod } from './framing.js';
+import { lvlHoles } from './lvlholes.js';
 import { layoutOffsets, podList } from './layout.js';
 import { downloadBlob } from './sheets.js';
 
@@ -80,6 +81,8 @@ function renderFramingSheet(el){
     <div class="plates">${platesByPod(walls).map(P=>`<div class="plate-pod"><b>${esc(P.pod.label)}</b><div class="plate-pair">${platePlanSVG(P,'floor')}${platePlanSVG(P,'ceiling')}</div></div>`).join('')}<div class="plate-pod"><b>Bevel</b>${bevelSVG()}</div><div class="plate-pod"><b>Pod corner · Einspine</b>${cornerSVG()}<p class="note" style="color:#444;max-width:420px">Wood behind both faces of the spine from the bottom of the floor to the top of the roof: floor LVL ends, the notched bottom plate, the two corner studs, the notched top plate, the roof LVL ends. Every Dynobite screw through the spine lands in wood: 3 into each of the 4 LVL ends and 1 per side every 2′ up the wall, 18 per Einspine (3½″).</p></div></div>
     <div class="eyebrow" style="color:#555;margin:12px 0 4px">LVL rims by pod</div>
     <table class="boxes"><thead><tr><th>Pod</th><th>Floor rim 1⅞″ × 9½″</th><th>Roof rim 1⅞″ × 11⅞″</th></tr></thead><tbody>${rims.map(R=>`<tr><td>${esc(R.pod.label)}</td><td>2 × ${fin(R.pieces[0][2])} · 2 × ${fin(R.pieces[1][2])}</td><td>2 × ${fin(R.pieces[2][2])} · 2 × ${fin(R.pieces[3][2])}</td></tr>`).join('')}</tbody></table>
+    ${(()=>{ const H=lvlHoles(); return H.length ? `<div class="eyebrow" style="color:#b0530f;margin:12px 0 4px">By hand · wire holes through the roof LVL (¾″ bit, straight through, 5″ down from the top of the LVL = 5½″ below the roof)</div>
+    <table class="boxes"><thead><tr><th>Pod</th><th>Wall</th><th>Beside</th><th>Side (from outside)</th><th>From the wall's left end</th></tr></thead><tbody>${H.map(h=>`<tr><td>${esc(h.s.pod.label)}</td><td>${esc(h.s.label)}</td><td>${h.o.kind==='patio'?'Patio door':h.o.kind==='door'?'Door':'Window'} ${fin(h.o.w)} × ${fin(h.o.h)}</td><td>${h.side==='L'?'Left':'Right'}${h.auto?' (nearest the middle of the pod)':''}</td><td><b>${fin(h.along)}</b>${h.off?' · past the end of the wall':''}</td></tr>`).join('')}</tbody></table>` : ''; })()}
     <div class="eyebrow" style="color:#555;margin:12px 0 4px">By wall</div>
     ${walls.map(W=>`<details class="frwall"><summary><b>${esc(W.slot.label)}</b> · ${esc(W.slot.detail)} · ${esc(W.w.id)} · ${W.pieces.length} pieces</summary>${wallFramingHTML(W)}</details>`).join('')}`;
   el.querySelector('#frCsv').onclick=()=>downloadBlob(new Blob([csv(walls,rims)],{type:'text/csv'}), `${m.name} - framing cut list.csv`);

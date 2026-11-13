@@ -12,7 +12,7 @@ import { devicesOf, deviceById } from './devices.js';
 import { usesRules, homeAuto, slotAuto, summary, relay, setData, setThreeWay, removeBox, restoreBox, moveBox, resetBox, setGang, GANG, CONTROLS, setSwitchUse, pairSwitch, unpairSwitch, switchSchedule, switchLinks, setDevice, deviceCounts, addBox, boxesOn, ruleWall, nextChase, elecOf, ELEC_H, ELEC_NAME } from './electrical.js';
 
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const SHORT = { plug:'Plug', counter:'Counter plug', gfci:'GFCI plug', appl:'Appliance plug', jbox:'Junction box', switch:'Switch', double:'Double switch', data:'Data', wp:'Outside plug', tvr:'TV box (recessed)' };
+const SHORT = { light:'Wall light', plug:'Plug', counter:'Counter plug', gfci:'GFCI plug', appl:'Appliance plug', jbox:'Junction box', switch:'Switch', double:'Double switch', data:'Data', wp:'Outside plug', tvr:'TV box (recessed)' };
 const refresh = async () => { const [{ buildHome }, { renderSide }]=await Promise.all([import('./scene3d.js'), import('./sidebar.js')]); buildHome(); renderSide(); if(dlg?.open) render(); };
 const refreshSide = async () => { const { renderSide }=await import('./sidebar.js'); renderSide(); };
 const say = async t => { const { toast }=await import('./sidebar.js'); toast(t); };
@@ -133,7 +133,7 @@ function elecWallBlock(s){
     return `<div class="el-row${pickId===b.id?' on':''}" data-id="${esc(b.id)}" data-face="${b.face}" data-a="${b.a}" data-x="${b.x}" data-y="${b.y}" ${b.lock?'':'data-pick="1"'}>
       <div><b>${esc(b.way>1 ? `${b.way}-way switch` : SHORT[b.rk]||b.name)}</b>${b.sn?` <span class="sw-sn">${esc(b.sn)}</span>`:''}${(b.g||1)>1?` · ${b.g===3?'triple':'double'} box`:''}${(b.uses||[]).map(linkChip).join('')}${b.useText?`<small class="sw-txt">${esc(b.useText)}</small>`:(b.devs||[]).length?`<small class="sw-txt">${esc((b.devs||[]).map(id=>deviceById(id)?.name).filter(Boolean).join(' · '))}</small>`:''}${b.face==='out'?' · outside':''} <small>${fin(b.x)} from the left${b.face==='in'?' (seen from inside)':''} · ${fin(b.y)} up${b.note?` · ${esc(b.note)}`:''}</small><div class="el-tags">${tags}</div></div>
       ${b.lock?`<div class="el-act"><span class="el-ok" title="It goes where the fireplace goes: move the fireplace, or change its Power (Plug / Hardwired)">🔒 with the fireplace</span></div>`:`<div class="el-act edit-only"><button class="btn ghost sm" data-mv="-1" title="Next chase to the left" aria-label="Next chase to the left">◀</button><button class="btn ghost sm" data-mv="1" title="Next chase to the right" aria-label="Next chase to the right">▶</button>${b.moved?'<button class="btn ghost sm" data-reset title="Back to where the rule put it" aria-label="Reset">↺</button>':''}<button class="btn ghost sm" data-rm title="Remove" aria-label="Remove">✕</button></div>`}</div>${pickId===b.id && !b.lock ? editor(b) : ''}`; };
-  const adds=['plug','switch','counter','data', ...(s.type==='ext'?['wp']:[])];
+  const adds=['plug','switch','counter','data','light', ...(s.type==='ext'?['wp']:[])];
   if(!on) return `<div class="el-box"><div class="eyebrow">Plugs & switches</div>
       <p class="note">This wall keeps the plugs and switches drawn in the wall library. Furniture and appliances against it still get their own plugs${(list||[]).length?':':'.'}</p>
       ${(list||[]).map(row).join('')}
@@ -176,7 +176,7 @@ function bindElecWall(root, s){
   root.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{ const rk=b.dataset.add, w=bw(), L=w.L, face=rk==='wp'?'out':'in';
     const taken=(boxesOn(s)||[]).filter(x=>x.face===face).map(x=>x.a);
     let a=nextChase(s, w, L/2-0.01, 1) ?? L/2; for(let i=0;i<12 && taken.some(t=>Math.abs(t-a)<4);i++){ const n=nextChase(s, w, a, i%2?-1:1); if(n==null) break; a=n; }
-    addBox(s, rk==='wp'?'wp':rk, a, ELEC_H[rk], face); refresh(); say(`${SHORT[rk]} added on ${s.label}: move it with ◀ ▶`); });
+    addBox(s, rk==='wp'?'wp':rk, a, ELEC_H[rk], face); refresh(); say(rk==='light' ? `Wall light added on ${s.label} at ${ELEC_H.light}″: set exactly where it goes; its wire run follows from the nearest chase` : `${SHORT[rk]} added on ${s.label}: move it with ◀ ▶`); });
 }
 
 /* ---------------------------------------------------------------- the home (sidebar line + dialog) */
