@@ -118,7 +118,7 @@ function homeTakeoff(){
       ...T.acm.map(a=>({ n:a.n, what:`ACM panel, matte black, ${fin(a.w)} × ${fin(a.h)}`, note:a.where==='beside'?'beside an opening, too narrow for siding':`${a.where} a window / door (no metal siding there)` })),
       ...(T.acm.length?[{ n:T.acmSheets, what:'ACM sheet 4 × 8, matte black', note:'for the pieces above, plus 15% for cutting' }]:[]),
       ...T.trims.map(t=>({ n:t.n, what:`${t.what}${t.std?' (standard)':' (bent to suit)'}`, len:t.len })),
-      ...(()=>{ const Sc=sidingSchedule(); return Sc ? [{ n:Sc.bags, what:`bag of ${SIDING_SCREWS.bag} siding screws`, note:`${Sc.screws.toLocaleString()} screws, ${SIDING_SCREWS.perPanel} per panel and rip` }] : []; })()],
+      ...(()=>{ const Sc=sidingSchedule(); return Sc ? [{ n:Sc.bags, what:`bag of ${SIDING_SCREWS.bag} siding screws`, note:`${Sc.screws.toLocaleString()} screws: ${SIDING_SCREWS.perPanel} per panel, ${SIDING_SCREWS.perRip} per rip, +10% for ends` }] : []; })()],
       `${P.name} ${P.gauge||''} · ${T.nStock} stock panels (${T.nRips} rips)${T.hops?`, ${T.hops} hopped a rib`:''} · ${fft(T.runs)} of exterior wall, ${T.nOpen} opening${T.nOpen===1?'':'s'} · about ${Math.round(T.lb).toLocaleString()} lb of siding · the full schedule is in Sheets → Siding schedule`); } }
   // Membrane: on the exterior OSB sheets at the shop, before the CNC; seam tape on site
   { const T=membraneTakeoff(state.model); if(T){ const M=T.M;

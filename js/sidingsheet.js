@@ -8,7 +8,7 @@ import { state } from './state.js';
 import { homeSiding, MOLD, ACM_LAP, SIDING_TRIM as TR } from './sidinglayout.js';
 import { downloadBlob } from './sheets.js';
 
-const SCREWS = { perPanel:12, bag:250, what:'siding screw' };
+const SCREWS = { perPanel:12, perRip:4, extra:0.10, bag:250, what:'siding screw' };   // a rip gets 4: the next panel's screws serve as the rest · +10% for ends and odd spots
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const f2 = v => fin(Math.round(v*16)/16);
 const EDGE = { C:'the Einspine corner trim', I:'the inside corner trim', J:'the pod joint connector', M:'the brick mold', X:'the joiner' };
@@ -25,13 +25,13 @@ function schedule(k=state.model){
   const S=homeSiding(k); if(!S) return null;
   const P=S.P, rows=[], mark={};
   S.panels.forEach((p,i)=>{ const m='P'+(i+1); mark['P|'+p.len]=m; rows.push({ mark:m, group:'Siding', profile:P.name, what:'Full panel, cut to length', w:P.w, len:p.len, n:p.n, screws:SCREWS.perPanel, lb:p.len/12*P.lbPerFt, note:`lay at ${f2(TR.nom)} cover (${f2(P.coverMin)}–${f2(P.cover)} is fine; hopped ${f2(P.hop[0])}–${f2(P.hop[1])} where the wall says)` }); });
-  S.rips.forEach((r,i)=>{ const m='R'+(i+1); mark['R|'+r.w+'|'+r.keeps+'|'+r.len]=m; rows.push({ mark:m, group:'Siding', profile:P.name, what:`Rip ${f2(r.w)} showing, keeps the ${r.keeps==='rib'?'rib end':'flange end'}`, w:r.w, len:r.len, n:r.n, screws:SCREWS.perPanel, note:'cut from a stock panel; cut edge goes under the trim' }); });
+  S.rips.forEach((r,i)=>{ const m='R'+(i+1); mark['R|'+r.w+'|'+r.keeps+'|'+r.len]=m; rows.push({ mark:m, group:'Siding', profile:P.name, what:`Rip ${f2(r.w)} showing, keeps the ${r.keeps==='rib'?'rib end':'flange end'}`, w:r.w, len:r.len, n:r.n, screws:SCREWS.perRip, note:'cut from a stock panel; cut edge goes under the trim · 4 screws: the next panel\'s screws serve as the rest' }); });
   S.trims.forEach((t,i)=>{ const m=t.joint ? 'J'+(S.trims.filter(x=>x.joint).indexOf(t)+1) : 'T'+(i+1); if(t.joint) mark['J|'+t.w+'|'+t.len]=m;
     rows.push({ mark:m, group:'Trim', profile:t.std?'Standard trim':'Bent to suit', what:t.what, w:t.w??null, len:t.len, n:t.n, screws:null, note:[t.legs, t.note].filter(Boolean).join(' · ') }); });
   S.acm.forEach((a,i)=>rows.push({ mark:'A'+(i+1), group:'ACM', profile:'ACM 4 mm, matte black', what:a.where==='beside' ? 'Strip beside an opening, full height' : `Panel ${a.where} a window / door`, w:a.w, len:a.h, n:a.n, screws:null, note:a.note||`brick mold + ${f2(ACM_LAP)} under the siding each side` }));
   rows.forEach(r=>{ r.screwsAll = r.screws ? r.screws*r.n : 0; });
-  const screws=rows.reduce((a,r)=>a+r.screwsAll,0);
-  return { S, P, rows, mark, screws, bags:Math.ceil(screws/SCREWS.bag) };
+  const net=rows.reduce((a,r)=>a+r.screwsAll,0), screws=Math.ceil(net*(1+SCREWS.extra));
+  return { S, P, rows, mark, net, screws, bags:Math.ceil(screws/SCREWS.bag) };
 }
 /* the crew's steps for one run */
 function runSteps(R, Sc, Wl){
@@ -61,7 +61,7 @@ const endName = (e, Wl, i) => e==='C' ? 'Einspine corner' : e==='J' ? 'joint to 
 function renderSidingSheet(el){
   const m=MODELS[state.model], Sc=schedule();
   if(!Sc){ el.innerHTML='<p class="note">No siding profile in the Library yet.</p>'; return; }
-  const { S, P, rows, screws, bags }=Sc;
+  const { S, P, rows, net, screws, bags }=Sc;
   const nGrp=g=>rows.filter(r=>r.group===g).reduce((a,r)=>a+r.n,0);
   const pairs=S.stockRips.filter(g=>g.length===2).length;
   const tr=r=>`<tr><td><b>${r.mark}</b></td><td>${esc(r.profile)}</td><td>${esc(r.what)}</td><td>${r.w!=null?f2(r.w):'—'}</td><td><b>${f2(r.len)}</b> <small>(${fft(r.len)})</small></td><td><b>${r.n}</b></td><td>${r.screws!=null?r.screws:'—'}</td><td>${r.screws!=null?r.screwsAll:'—'}</td><td><small>${esc(r.note||'')}</small></td></tr>`;
@@ -77,7 +77,7 @@ function renderSidingSheet(el){
       ${S.stock.map(s=>`<tr><td><b>${s.n}</b> ${esc(P.name)} panels × ${f2(s.len)} (${fft(s.len)})</td><td>${S.nPanels} go up whole · ${S.stockRips.length} are cut into ${S.nRips} rips${pairs?` (${pairs} panel${pairs>1?'s':''} give two rips each)`:''}</td></tr>`).join('')}
       ${S.trims.map(t=>`<tr><td><b>${t.n}</b> ${esc(t.what)}${t.what.includes('total')?'':` × ${f2(t.len)}`}${t.what.includes('total')?` ${f2(t.len)} (${fft(t.len)})`:''}</td><td>${t.std?'standard':'bent to suit'}${t.legs?` · ${esc(t.legs)}`:''}</td></tr>`).join('')}
       <tr><td><b>${S.acmSheets}</b> ACM sheets 4 × 8, matte black</td><td>${nGrp('ACM')} pieces above / below the openings${S.narrow?` and ${S.narrow} strip${S.narrow>1?'s':''} too narrow for siding`:''}, 15% for cutting</td></tr>
-      <tr><td><b>${bags} bag${bags===1?'':'s'}</b> of ${SCREWS.bag} ${SCREWS.what}s</td><td>${screws.toLocaleString()} screws: ${SCREWS.perPanel} per panel and per rip · ${(bags*SCREWS.bag-screws).toLocaleString()} spare</td></tr></tbody></table>
+      <tr><td><b>${bags} bag${bags===1?'':'s'}</b> of ${SCREWS.bag} ${SCREWS.what}s</td><td>${screws.toLocaleString()} screws: ${SCREWS.perPanel} per panel, ${SCREWS.perRip} per rip (${net.toLocaleString()}) + ${Math.round(SCREWS.extra*100)}% for ends and odd spots · ${(bags*SCREWS.bag-screws).toLocaleString()} more in the bags</td></tr></tbody></table>
 
     <div class="eyebrow" style="color:#555;margin:12px 0 4px">How it goes (every wall)</div>
     <ol class="note sd-rules">
@@ -97,7 +97,7 @@ function renderSidingSheet(el){
     <div class="eyebrow" style="color:#555;margin:12px 0 4px">Every piece</div>
     <div class="tblwrap"><table class="boxes sd-tab"><thead><tr><th>Mark</th><th>Profile</th><th>Piece</th><th>Width</th><th>Length</th><th>Qty</th><th>Screws each</th><th>Screws</th><th>Note</th></tr></thead>
       <tbody>${rows.map(tr).join('')}</tbody>
-      <tfoot><tr><td colspan="5"><b>Total</b></td><td><b>${rows.reduce((a,r)=>a+r.n,0)}</b></td><td></td><td><b>${screws.toLocaleString()}</b></td><td>${bags} bag${bags===1?'':'s'} of screws</td></tr></tfoot></table></div>
+      <tfoot><tr><td colspan="5"><b>Total</b></td><td><b>${rows.reduce((a,r)=>a+r.n,0)}</b></td><td></td><td><b>${net.toLocaleString()}</b></td><td>+ ${Math.round(SCREWS.extra*100)}% = ${screws.toLocaleString()} · ${bags} bag${bags===1?'':'s'} of screws</td></tr></tfoot></table></div>
     ${S.stockRips.some(g=>g.length===2)?`<p class="note" style="color:#444">Rips cut two from one panel: ${S.stockRips.filter(g=>g.length===2).map(([a,b])=>`${f2(a.w)} (rib end) + ${f2(b.w)} (flange end)`).join(' · ')}.</p>`:''}
 
     <div class="eyebrow" style="color:#555;margin:12px 0 4px">Wall by wall · measured from the wall's left end, standing outside facing it</div>
@@ -110,7 +110,7 @@ function renderSidingSheet(el){
     const q=v=>`"${String(v??'').replace(/"/g,'""')}"`;
     const lines=[['Mark','Profile','Piece','Width (in)','Length (in)','Qty','Screws each','Screws','Note'].map(q).join(',')];
     rows.forEach(r=>lines.push([r.mark,r.profile,r.what,r.w!=null?r.w.toFixed(3):'',r.len.toFixed(3),r.n,r.screws??'',r.screwsAll||'',r.note].map(q).join(',')));
-    lines.push(['','','Screws','','','',SCREWS.perPanel,screws,`${bags} bags of ${SCREWS.bag}`].map(q).join(','));
+    lines.push(['','','Screws (+10% for ends and odd spots)','','','','',screws,`${bags} bags of ${SCREWS.bag}`].map(q).join(','));
     downloadBlob(new Blob([lines.join('\n')],{type:'text/csv'}), `${m?.name||'home'} - siding schedule.csv`); };
 }
 export { renderSidingSheet, schedule as sidingSchedule, SCREWS as SIDING_SCREWS };
