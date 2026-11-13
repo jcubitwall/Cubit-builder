@@ -2,6 +2,27 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<script>/* fast start: every file the app reads while it opens is asked for at once, right here, instead of one after
+   another as each part of the app loads (16 trips to the server in a row, each waiting on the last). The app's own
+   fetch() then gets the answer that is already on its way. Each one is used once; anything not used in 30 s is dropped. */
+(function(){
+  var API=['me','walls','layers','units','projects','customers','kitchens','adopted','catalog','devices','library','casework','wallrules','shapes','drafts'],
+      DATA=['walls','models','layers','pods','decks','siding','brands','units','projects','stores','families','submodels','sinks','fixtures-lifepodgo-shower','fixtures-maax-biarritz','fixtures-maax-biarritz-85'],
+      early={}, real=window.fetch.bind(window);
+  try{
+    API.forEach(function(n){ early['api/'+n]=real('api/'+n,{cache:'no-store'}); });
+    DATA.forEach(function(n){ early['data/'+n+'.json']=real('data/'+n+'.json'); });
+    for(var k in early) early[k].catch(function(){});
+  }catch(e){ early={}; }
+  window.fetch=function(input, init){
+    if(typeof input==='string' && !(init && ((init.method && init.method!=='GET') || init.body))){
+      var k=input.replace(/^\.\//,''), got=early[k];
+      if(got){ delete early[k]; return got.catch(function(){ return real(input, init); }); }
+    }
+    return real(input, init);
+  };
+  setTimeout(function(){ early={}; }, 30000);
+})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Cubit Builder</title>
 <meta name="description" content="Configure Cubit pod homes wall by wall, explode them in 3D, and print assembly sheets and ground-screw layouts.">
