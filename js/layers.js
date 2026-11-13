@@ -15,7 +15,7 @@ const CW_ROWS = CW_CATS.map(c=>['cw-'+c.k, c.name, CW_COL[c.k]]);
 /* top down, the way the home is built: roof first, the ground screws and foundation last */
 /* the switches in groups that fold away (tap a group's name); the group's own switch turns all of it on or off */
 const GROUPS = [
-  ['shell', 'Shell', [['roof','Roof','#4b514d'], ['ceiling','Ceiling','#d9d2bf'], ['siding','Siding (Rando Rib)','#7d8489'], ['walls','Walls (SIP)','#c9a46a'], ['units','Windows & doors','#8fc3ea']]],
+  ['shell', 'Shell', [['roof','Roof','#4b514d'], ['ceiling','Ceiling','#d9d2bf'], ['siding','Siding (Rando Rib)','#7d8489'], ['membrane','Membrane (PolarBlock)','#7fa1cb'], ['walls','Walls (SIP)','#c9a46a'], ['units','Windows & doors','#8fc3ea']]],
   ['build', 'Inside the panels', [['seals','Compression seals','#e8170f'], ['framing','Lumber & LVL','#e0b36a'], ['splines','OSB splines','#b7864a']]],
   ['cab',   'Cabinets & furniture', CW_ROWS],
   ['base',  'Floors & foundation', [['floors','Floors','#8d8f86'], ['decks','Decks','#a88f5d'], ['frames','Steel frame & ACM','#3d4247'], ['screws','Ground screws & foundation','#56606b']]],

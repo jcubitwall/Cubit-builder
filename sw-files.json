@@ -1,5 +1,5 @@
 {
-"version": "253deba39ab1",
+"version": "69741941ca5d",
 "files": [
 "./",
 "brand/cubit-logo.png",
@@ -12,6 +12,8 @@
 "data/fixtures-maax-biarritz.json",
 "data/imports.json",
 "data/layers.json",
+"data/membrane-polarblock.jpg",
+"data/membranes.json",
 "data/models.json",
 "data/pods.json",
 "data/projects.json",
@@ -84,6 +86,7 @@
 "js/local-history.js",
 "js/lvlholes.js",
 "js/main.js",
+"js/membrane.js",
 "js/midhandles.js",
 "js/mode.js",
 "js/names.js",

@@ -18,6 +18,7 @@ import { unitFor, catOf, TYPES } from './units.js';
 import { sealRole, sealsFor, SEAL } from './seals.js';
 import { H, sidingSpan, SIDING } from './config.js';
 import { homeSiding } from './sidinglayout.js';
+import { membraneTakeoff } from './membrane.js';
 /* compression seal around every opening between pods (both pods): [{n, len} …] and total inches */
 function sealRun(){ const sl=slotsFor(state.model); let tot=0, n=0, hi=0; sl.forEach(s=>{ const r=sealRole(s, sl); sealsFor(bodyWall(s,pickFor(s)), r, H).forEach(x=>{ tot+=x.len; n++; if(r==='high') hi++; }); }); return {tot, n, hi}; }
 
@@ -117,6 +118,12 @@ function homeTakeoff(){
       ...(T.acm.length?[{ n:T.acmSheets, what:'ACM sheet 4 × 8, matte black', note:'for the pieces above, plus 15% for cutting' }]:[]),
       ...T.trims.map(t=>({ n:t.n, what:`${t.what} (custom bend)`, len:t.len }))],
       `${P.name} ${P.gauge||''} · ${T.nPanels} panels${T.hops?`, ${T.hops} hopped a rib`:''} · ${fft(T.runs)} of exterior wall, ${T.nOpen} opening${T.nOpen===1?'':'s'} · about ${Math.round(T.lb).toLocaleString()} lb of siding`); } }
+  // Membrane: the breathable wrap on the SIP panels' outside face
+  { const T=membraneTakeoff(state.model); if(T){ const M=T.M;
+    add('membrane','Membrane',[
+      { n:Math.round(T.net), what:`sq ft ${M.name} (${M.tMM||1} mm)`, note:`on the walls, net of ${Math.round(T.open)} sq ft of openings` },
+      { n:Math.ceil(T.buy), what:'sq ft to order', note:`with ${Math.round((M.lap??0.1)*100)}% for laps${T.rolls?` · ${T.rolls} rolls`:' · roll size to confirm'}` }],
+      `${T.walls} exterior walls · the SIP panels' outside face only`); } }
   // Windows & doors
   { const g={}; let open=0;
     slotsFor(state.model).forEach(s=>{ const w=bodyWall(s, pickFor(s)); (w?.openings||[]).filter(catOf).forEach(o=>{ const r=unitFor(s,o);
@@ -156,6 +163,7 @@ function shoppingList(){
       else add('Upper floors', g, 'ground screw, post head'); } } } }
   { const T=sidingTakeoff(); if(T){ T.panels.forEach(p=>add('Siding', p.n, `${T.P.name} panel × ${fin(p.len)}${p.rip?`, ripped to ${fin(p.rip)}`:''}`));
     T.fillers.forEach(f=>add('Siding', f.n, `filler ${fin(f.w)} wide × ${fin(f.len)}`)); if(T.acm.length) add('Siding', T.acmSheets, 'ACM sheet 4 × 8, matte black (above / below windows and doors)'); T.trims.forEach(t=>add('Siding', t.n, `${t.what} × ${fin(t.len)}`)); } }
+  { const T=membraneTakeoff(state.model); if(T) add('Membrane', T.rolls || Math.ceil(T.buy), T.rolls ? `${T.M.name}, roll` : `sq ft ${T.M.name} (incl. ${Math.round((T.M.lap??0.1)*100)}% laps)`); }
   const u={}; slotsFor(state.model).forEach(s=>{ const w=bodyWall(s, pickFor(s)); (w?.openings||[]).filter(catOf).forEach(o=>{ const r=unitFor(s,o); if(r) u[r.unit.name+' ('+r.unit.id+')']=(u[r.unit.name+' ('+r.unit.id+')']||0)+1; }); });
   Object.entries(u).forEach(([k,n])=>add('Windows & doors', n, k));
   { const S=sealRun(); if(S.n) add('Seals', +(S.tot/12*1.1).toFixed(0), `ft · ${SEAL.name}`); }
