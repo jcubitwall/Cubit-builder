@@ -34,6 +34,7 @@ import { draftBlock, bindDraftBlock, draftsRow } from './publish-ui.js';
 import { lightEditorHTML, bindLightEditor } from './light-edit-ui.js';
 import { openWallBuilder } from './wall-builder.js';
 import { elecWallBlock, bindElecWall, elecHomeLine, bindElecHome } from './electrical-ui.js';
+import { lvlHolesOn, setLvlHole, isExitDoor } from './lvlholes.js';
 import { plumbWallBlock } from './plumbing.js';
 import './shape-studio.js';
 import { openLayerBuilder } from './layer-builder.js';
@@ -550,6 +551,13 @@ function bindFoundation(){
     toast(b.dataset.found==='concrete'?'Home on a concrete ICF foundation':'Home on ground screws'); });
 }
 
+/* the wire hole through the roof LVL beside an exterior door (always) or a window (only when picked): lvlholes.js */
+function lvlSeg(s, o){
+  if(s.type==='int' || !['door','patio','window'].includes(o.kind)) return '';
+  const h=lvlHolesOn(s).find(x=>okey(x.o)===okey(o)), side=h?.side||'', door=isExitDoor(o), k=esc(okey(o));
+  const b=(v,l)=>`<button data-lvl="${v}" data-k="${k}" aria-pressed="${(side||'off')===v}">${l}</button>`;
+  return `<div class="unit-opts lvl-opt"><span class="muted">Wire hole by hand through the roof LVL${h?.auto?' · the side nearest the middle of the pod':''}</span><span class="seg sm" role="group" aria-label="Wire hole side">${door?'':b('off','None')}${b('L','Left')}${b('R','Right')}</span>${h?.off?'<span class="muted">This side runs past the end of the wall: use the other side.</span>':''}</div>`;
+}
 /* windows & doors in the selected wall: which library unit goes in each opening */
 const KIND_NAME = { window:'Window', door:'Door', patio:'Patio door' };
 function unitsBlock(s, w){
@@ -574,7 +582,7 @@ function unitsBlock(s, w){
     const wsink = o.kind==='window' ? (()=>{ const P=planWindowOverSink(s,o); if(!P.ok) return '';
       if(Math.abs(P.dx)<0.01) return `<span class="muted">Centred over the sink below${P.joint?' (as near as the panel joint allows)':''}.</span>`;
       return `<div class="unit-opts"><button class="btn ghost edit-only" data-wsink="${esc(okey(o))}" title="Moves the window in this home's own copy of the wall">Centre over the sink (${P.dx>0?'→':'←'} ${fin(Math.abs(P.dx))})</button></div>`; })() : '';
-    return `<div class="unit-row"><div class="unit-pic">${r?unitSVG(r.unit.type,r.hand,o.w,o.h,44,s.type==='int',o.shape==='round'):unitSVG('none','L',o.w,o.h,44,false,o.shape==='round')}</div><div class="unit-main"><b>${o.shape==='round'?'Round window':KIND_NAME[o.kind]} ${n[o.kind]}</b> <span class="muted">${o.shape==='round'?'⌀ '+fin(o.d||o.w)+' round R.O.':fin(o.w)+' × '+fin(o.h)+' R.O.'}${o.y>0?' · sill '+fin(o.y):''}</span>${tiles}<span class="shop-only">${sel}</span>${hand||swing?`<div class="unit-opts">${hand}${swing}</div>`:''}${ownerSeg}${wsink}${r?`<span class="muted">${esc(pr?unitLabel(r).replace(/swings (in|out)/, m=>'swings into '+(m.endsWith('in')?s.pod.label:pr.slot.pod.label)):unitLabel(r))}${r.unit.sample?' · sample unit':''}${r.unit.rso?` · RSO ${fin(r.unit.rso.w)} × ${fin(r.unit.rso.h)}${Math.abs(r.unit.rso.w-o.w)>0.25||Math.abs(r.unit.rso.h-o.h)>0.25?' (this opening is '+fin(o.w)+' × '+fin(o.h)+')':''}`:''}${r.unit.egress?' · egress':''}</span>`:''}</div></div>`;
+    return `<div class="unit-row"><div class="unit-pic">${r?unitSVG(r.unit.type,r.hand,o.w,o.h,44,s.type==='int',o.shape==='round'):unitSVG('none','L',o.w,o.h,44,false,o.shape==='round')}</div><div class="unit-main"><b>${o.shape==='round'?'Round window':KIND_NAME[o.kind]} ${n[o.kind]}</b> <span class="muted">${o.shape==='round'?'⌀ '+fin(o.d||o.w)+' round R.O.':fin(o.w)+' × '+fin(o.h)+' R.O.'}${o.y>0?' · sill '+fin(o.y):''}</span>${tiles}<span class="shop-only">${sel}</span>${hand||swing?`<div class="unit-opts">${hand}${swing}</div>`:''}${ownerSeg}${wsink}${lvlSeg(s,o)}${r?`<span class="muted">${esc(pr?unitLabel(r).replace(/swings (in|out)/, m=>'swings into '+(m.endsWith('in')?s.pod.label:pr.slot.pod.label)):unitLabel(r))}${r.unit.sample?' · sample unit':''}${r.unit.rso?` · RSO ${fin(r.unit.rso.w)} × ${fin(r.unit.rso.h)}${Math.abs(r.unit.rso.w-o.w)>0.25||Math.abs(r.unit.rso.h-o.h)>0.25?' (this opening is '+fin(o.w)+' × '+fin(o.h)+')':''}`:''}${r.unit.egress?' · egress':''}</span>`:''}</div></div>`;
   }).join('')}</div>${!ops.every(o=>unitsFor(o, s).length)?'<p class="note">Add a window or door to the library with <b>Upload STEP → Window / door</b>.</p>':''}`;
 }
 function bindUnits(s, w){
@@ -586,6 +594,8 @@ function bindUnits(s, w){
   sideB.querySelectorAll('.units [data-h]').forEach(b=>b.onclick=()=>{ const o=byK(b.dataset.k), c=cur(o); if(c){ setUnit(s,o,{...c, hand:b.dataset.h}); done(); } });
   sideB.querySelectorAll('.units [data-sw]').forEach(b=>b.onclick=()=>{ const o=byK(b.dataset.k), c=cur(o); if(c){ setUnit(s,o,{...c, swing:b.dataset.sw}); done(); } });
   // a door between two pods: which pod's wall holds it
+  sideB.querySelectorAll('.units [data-lvl]').forEach(b=>b.onclick=()=>{ const o=byK(b.dataset.k); if(!o) return; setLvlHole(s, o, b.dataset.lvl); done();
+    toast(b.dataset.lvl==='off' ? 'No wire hole beside this window' : `Wire hole through the roof LVL, ${b.dataset.lvl==='L'?'left':'right'} of the ${o.kind==='window'?'window':'door'}`); });
   sideB.querySelectorAll('.units [data-own]').forEach(b=>b.onclick=()=>{ setDoorOwner(s, byK(b.dataset.own)); done(); });
   sideB.querySelectorAll('.units [data-move]').forEach(b=>b.onclick=()=>{ const o=byK(b.dataset.move), pr=pairOf(s,o); if(pr){ setDoorOwner(pr.slot, pr.o); state.selected=pr.slot.id; done(); } });
   sideB.querySelectorAll('.units [data-wsink]').forEach(b=>b.onclick=async()=>{ const o=byK(b.dataset.wsink); b.disabled=true;

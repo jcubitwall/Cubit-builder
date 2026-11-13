@@ -1,6 +1,7 @@
 /* Cubit Builder — scene3d.js */
 import { CEIL, FLOOR, FT, H, POD, PW, T, WALL_BASE, LAYER_KINDS, NOTCH, UP, EPS_PAD, sidingSpan } from './config.js';
 import { MODELS, SIDINGLIB } from './data.js';
+import { lvlHolesOn } from './lvlholes.js';
 import { isShop } from './mode.js';
 import { designFinish } from './finishes.js';
 import { podOffsets, screwsFor, slotsFor, layerSlotsFor, podList, deckList, layoutOffsets, padsFor, upstairs, POST } from './layout.js';
@@ -183,6 +184,7 @@ function carvable(cands, a,b,y0,y1){
    Paint covers the wall (0 to H). Siding covers the siding span of its floor (config.js sidingSpan: ½″ over the steel
    frame, or ½″ below the floor upstairs, to 1″ under the roof), drawn with the library profile's ribs at their real
    spacing (the texture repeats every cover width; the shape's UVs are in feet). */
+const LVL_PEG = new THREE.MeshStandardMaterial({ color:0xe8731a, roughness:0.5, emissive:0x5a2200 });
 const RIBS = new Map();
 function ribTexture(P){
   if(RIBS.has(P.id)) return RIBS.get(P.id);
@@ -575,6 +577,9 @@ function buildHome(){
     if(FIN){ const t=(w.t||(s.type==='int'?4.5:6.5))/FT, L=wallLen(w)/FT, holes=(w.openings||[]).filter(o=>(o.w||o.d||0)>=3);
       if(s.type==='ext' && FIN.siding) g.add(wallSkin(L, holes, FIN.siding, (SIDINGLIB.find(x=>x.id==='rando-rib')||SIDINGLIB[0])?.depth/FT || 0.03, true, s.pod?.lv||0));
       if(FIN.paint){ g.add(wallSkin(L, holes, FIN.paint, -t-0.03, false)); if(s.type==='int') g.add(wallSkin(L, holes, FIN.paint, 0.03, false)); } }
+    // the wire holes through the roof LVL (drilled by hand): an orange peg sticking out of the wall line at the rim
+    if(s.type==='ext') lvlHolesOn(s).forEach(h=>{ const t=(w.t||6.5)/FT, m=new THREE.Mesh(new THREE.CylinderGeometry(0.75/FT, 0.75/FT, t+0.25, 16), LVL_PEG);
+      m.rotation.x=Math.PI/2; m.position.set(h.x/FT, h.y/FT, -t/2+0.125); m.userData.lvlHole=true; g.add(m); });
     g.traverse(o=>{ if(o.isMesh) { o.userData.slotId=s.id; pickables.push(o);} });
     if(state.letters && isShop()){   // wall letters are for the shop (Design names walls in the side panel)
       const t=(w.t||6.5)/12, mid=wallLen(w)/2/FT;

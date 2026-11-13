@@ -52,7 +52,7 @@ import { checkpoint } from './history.js';
 import { FT } from './config.js';
 import { fin } from './format.js';
 
-const H = { plug:16, counter:42, gfci:42, switch:48, double:48, data:16, wp:16, tvr:48 };
+const H = { plug:16, counter:42, gfci:42, switch:48, double:48, data:16, wp:16, tvr:48, light:66 };
 const REACH = { plug:18, counter:18, gfci:18, appl:18, data:18, wp:18, switch:6, double:6, jbox:6, tvr:36 };
 const R_WALL = 70.866, R_COUNTER = 35.433, MIN_RUN = 35.433, MIN_COUNTER = 11.8, BASIN = 39.37;
 const NUDGE = 2;   // a box up to 2″ either side of a chase's centre still counts as on it (centre first)
@@ -64,7 +64,7 @@ const gangOf = b => b.g || (b.rk==='double' || b.rk==='tvr' ? 2 : 1);
 /* what each switch in a switch box does (one per gang), for the electrician */
 const CONTROLS = { room:'Room lights', pot:'Pot lights', out:'Outside light', fan:'Exhaust fan', cfan:'Ceiling fan', ucab:'Under-cabinet lights', pend:'Pendant / island lights', wall:'Wall light', splug:'Switched plug', other:'Other', none:'Not set yet' };
 const SWITCHY = new Set(['switch','double']);   // a recessed TV box: double size to start
-const NAME = { plug:'Plug box', counter:'Counter plug box', gfci:'GFCI plug box', appl:'Appliance plug box', switch:'Switch box', double:'Double switch box', data:'Data box', wp:'Outside plug (WP)', jbox:'Junction box (hardwired)', tvr:'Recessed TV box' };
+const NAME = { light:'Wall light box', plug:'Plug box', counter:'Counter plug box', gfci:'GFCI plug box', appl:'Appliance plug box', switch:'Switch box', double:'Double switch box', data:'Data box', wp:'Outside plug (WP)', jbox:'Junction box (hardwired)', tvr:'Recessed TV box' };
 /* receptacles (not switches) never go under a window: anywhere below its sill, from 1½″ outside one side to 1½″
    outside the other */
 const RCPT = new Set(['plug','counter','gfci','appl','data','wp','tvr']);
@@ -166,15 +166,19 @@ function planFor(k=state.model){
 /* a baseboard heater's wire run (header). a = along the wall from the left seen from OUTSIDE; the room face's x is
    Lin − a. Seen from the room the heater's right end is its low-a end (a0). */
 const BB = { up:3, inFromRight:3, chaseY:6, r:3, endDepth:1, bit:0.75 };
-function heaterRoute(W, it, id){
-  const tIn=+(W.w.t || W.t*FT), aH=it.a0+BB.inFromRight, yH=BB.up;
+function heaterRoute(W, it, id){ const r=wireRoute(W, it.a0+BB.inFromRight, BB.up, id, 'Heater wire run'); if(r) r.items.forEach(x=>x.heater=it.I.it.k); return r; }
+/* a wall light box (placed exactly, by hand): the same run from the nearest usable chase, the hole into the chase 3″
+   above the box's centre, the 3″ curve down to the box's centre height, then straight to the box, 1″ deep at the end */
+function lightRoute(W, b, id){ return wireRoute(W, b.a, b.y, id, 'Wall light wire run'); }
+function wireRoute(W, aH, yH, id, label){
+  const tIn=+(W.w.t || W.t*FT), chaseY=yH+(BB.chaseY-BB.up);
   const cut=(W.w.openings||[]).filter(o=>o.w>0);
   const usable=W.chases.filter(c=>!cut.some(o=>c>o.x-BB.bit/2-0.25 && c<o.x+o.w+BB.bit/2+0.25));
-  if(!usable.length) return { items:[], flag:`No usable chase on ${W.s.label} for the baseboard heater's wire`, aH };
+  if(!usable.length) return { items:[], flag:`No usable chase on ${W.s.label} for the ${label.toLowerCase()}`, aH };
   const aC=usable.slice().sort((p,q)=>Math.abs(p-aH)-Math.abs(q-aH))[0], dx=aH-aC, sg=Math.sign(dx)||1, r=Math.min(BB.r, Math.abs(dx));
   // the path along the room face, in a (outside) coords: down the chase if the wire spot is closer than 3″, the curve, then straight
-  const P=[[aC, BB.chaseY]];
-  if(BB.chaseY-r > yH+1e-6) P.push([aC, yH+r]);
+  const P=[[aC, chaseY]];
+  if(chaseY-r > yH+1e-6) P.push([aC, yH+r]);
   if(r>1e-6) for(let i=1;i<=9;i++){ const th=i/9*Math.PI/2; P.push([aC+sg*r*(1-Math.cos(th)), yH+r*(1-Math.sin(th))]); }
   if(Math.abs(aH-P[P.length-1][0])>1e-6 || Math.abs(yH-P[P.length-1][1])>1e-6) P.push([aH, yH]);
   // the depth: the middle of the panel at the chase, coming up evenly along the path to 1″ at the wire spot
@@ -191,7 +195,7 @@ function heaterRoute(W, it, id){
     const xs=route.map(p=>p[0]), ys=route.map(p=>p[1]), path=grooveOutline(route, BB.bit/2);
     items.push({ kind:'pocket', shape:'poly', route, path, x:+((Math.min(...xs)+Math.max(...xs))/2).toFixed(4), y:+((Math.min(...ys)+Math.max(...ys))/2).toFixed(4),
       w:+(Math.max(...xs)-Math.min(...xs)+BB.bit).toFixed(4), h:+(Math.max(...ys)-Math.min(...ys)+BB.bit).toFixed(4), depth:+Math.max(...route.map(p=>p[2])).toFixed(4),
-      name:'Heater wire run', auto:id+(items.length?`-${items.length}`:''), heater:it.I.it.k }); }
+      name:label, auto:id+(items.length?`-${items.length}`:'') }); }
   return { items, aH, aC, flag:null };   // a wire spot or run on a panel joint is fine (the run is split per panel)
 }
 /* the ¾″ groove's outline around a centre line (room-face x, y), round ends */
@@ -556,10 +560,10 @@ function compute(k){
   boxes.forEach(b=>{ if(!b.id) return; if(b.lock){ out.push(b); return; }   // a locked box (the fireplace's) ignores hand changes
     if(ov.del?.[b.id]){ b.removed=true; return; }
     if(ov.g?.[b.id]) b.g=ov.g[b.id];
-    const mv=ov.mv?.[b.id]; if(mv){ if(mv.a!=null){ const fit=onWall(b.W, mv.a); b.a=fit.a; if(fit.moved) b.shrunk=true; } if(mv.y!=null) b.y=mv.y; b.moved=true; b.chase=onChase(b.W,b.a); b.flags=b.flags.filter(f=>f!=='needs a chase'); if(!b.chase) b.flags.push('needs a chase'); if(RCPT.has(b.rk) && underWindow(b.W,b.a,b.y)) b.flags.push('under a window'); if(b.face==='in' && RCPT.has(b.rk) && nearTub(tubs,b.W,b.a,BOX.std.w/2)) b.flags.push('within 500 mm of the tub / shower'); }
+    const mv=ov.mv?.[b.id]; if(mv){ if(mv.a!=null){ const fit=onWall(b.W, mv.a); b.a=fit.a; if(fit.moved) b.shrunk=true; } if(mv.y!=null) b.y=mv.y; b.moved=true; b.chase=onChase(b.W,b.a)||b.rk==='light'; b.flags=b.flags.filter(f=>f!=='needs a chase'); if(!b.chase) b.flags.push('needs a chase'); if(RCPT.has(b.rk) && underWindow(b.W,b.a,b.y)) b.flags.push('under a window'); if(b.face==='in' && RCPT.has(b.rk) && nearTub(tubs,b.W,b.a,BOX.std.w/2)) b.flags.push('within 500 mm of the tub / shower'); }
     out.push(b); });
   (ov.add||[]).forEach(u=>{ const W=byKey[u.w]; if(!W) return; const fit=onWall(W, u.a), chase=onChase(W,fit.a);
-    out.push({ id:u.id, W, face:u.face||'in', a:fit.a, ...(fit.moved?{ shrunk:true }:{}), y:u.y, rk:u.rk, ...(u.g?{ g:u.g }:{}), chase, user:true, note:u.note||'', why:'added by hand', flags:[...(chase||u.face==='out'?[]:['needs a chase']), ...(RCPT.has(u.rk) && underWindow(W,u.a,u.y)?['under a window']:[]), ...((u.face||'in')==='in' && RCPT.has(u.rk) && nearTub(tubs,W,u.a,BOX.std.w/2)?['within 500 mm of the tub / shower']:[])] }); });
+    out.push({ id:u.id, W, face:u.face||'in', a:fit.a, ...(fit.moved?{ shrunk:true }:{}), y:u.y, rk:u.rk, ...(u.g?{ g:u.g }:{}), chase:chase||u.rk==='light', user:true, note:u.note||'', why:u.rk==='light'?'wall light, placed by hand':'added by hand', flags:[...(chase||u.face==='out'||u.rk==='light'?[]:['needs a chase']), ...(RCPT.has(u.rk) && underWindow(W,u.a,u.y)?['under a window']:[]), ...((u.face||'in')==='in' && RCPT.has(u.rk) && nearTub(tubs,W,u.a,BOX.std.w/2)?['within 500 mm of the tub / shower']:[])] }); });
   out.forEach(b=>{ if(b.shrunk) b.flags.push('the wall got shorter: moved back onto it, check where it goes'); });
 
   /* ---- switches: a number each (S1, S2 … for the electrician) and what each switch in the box does.
@@ -611,6 +615,8 @@ function compute(k){
     const r=heaterRoute(W, it, `bbw-${W.s.id}-${i}`); if(!r) return; routes.push(r);
     (byWall[W.s.id] ||= { inside:[], outside:[] }).inside.push(...r.items);
     if(r.flag) flags.push({ t:r.flag, w:W.s.id }); }));
+  out.filter(b=>b.rk==='light' && b.face==='in').forEach(b=>{ const r=lightRoute(b.W, b, `lw-${b.id}`); if(!r) return; routes.push(r);
+    (byWall[b.W.s.id] ||= { inside:[], outside:[] }).inside.push(...r.items); if(r.flag) flags.push({ t:r.flag, w:b.W.s.id }); });
   const removed=boxes.filter(b=>b.removed);
   return { byWall, routes, boxes:out, removed, flags, confirms, rooms:Object.values(rooms).map(R=>({ key:R.key, name:R.name, entries:R.entries.length, bath:R.bath, kitchen:R.kitchen, bed:R.bed })) };
 }

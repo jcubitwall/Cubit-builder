@@ -8,6 +8,7 @@ import { foundationOf } from './state.js';
 import { screwsFor, slotsFor, layerSlotsFor, deckList, podList } from './layout.js';
 import { renderDeckSheet, renderDecksTakeoff } from './decksheet.js';
 import { renderFramingSheet, wallFramingHTML } from './framesheet.js';
+import { lvlHolesOn, holeText } from './lvlholes.js';
 import { wallFraming, floorBuild } from './framing.js';
 import { takeoffHTML } from './takeoff.js';
 import { renderCostSheet } from './prices-ui.js';
@@ -112,7 +113,7 @@ function renderSheet(){
     <div id="wall3d" class="w3full"><span class="w3cap">3D · panels pulled apart · drag to turn</span></div>
     <div class="tblwrap"><div class="eyebrow" style="color:#555;margin-bottom:4px">Cut &amp; stack · ShopSabre</div>${stackTableHTML(plan)}</div>
     <div class="tblwrap">${boxTable(w,face,s)}</div>
-    <div class="tblwrap"><div class="eyebrow" style="color:#555;margin:10px 0 4px">Framing · this wall</div>${wallFramingHTML(wallFraming(s, pickFor(s)))}</div>`;
+    <div class="tblwrap"><div class="eyebrow" style="color:#555;margin:10px 0 4px">Framing · this wall</div>${wallFramingHTML(wallFraming(s, pickFor(s)))}</div>${(()=>{ const L=lvlHolesOn(s); return L.length ? `<div class="lvl-holes"><div class="eyebrow" style="color:#b0530f;margin:10px 0 4px">By hand · wire holes through the roof LVL</div><ul>${L.map(h=>`<li>${holeText(h)}${h.off?' <b>· past the end of the wall: switch it to the other side</b>':''}</li>`).join('')}</ul></div>` : ''; })()}`;
   el.querySelectorAll('[data-face]').forEach(b=>b.onclick=()=>{ setFace(s,b.dataset.face); renderSheet(); });
   el.querySelector('#wallLabels').onclick=async()=>{ try{ await needPDF(); }catch(e){ toast(e.message); return; } downloadBlob(labelsPDF([plan], MODELS[state.model].name), `${MODELS[state.model].name} - ${plan.slot.pod.label} Wall ${plan.slot.letter} labels.pdf`); };
   buildWall3D(w);
