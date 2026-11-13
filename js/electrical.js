@@ -167,23 +167,32 @@ function planFor(k=state.model){
    Lin − a. Seen from the room the heater's right end is its low-a end (a0). */
 const BB = { up:3, inFromRight:3, chaseY:6, r:3, endDepth:1, bit:0.75 };
 function heaterRoute(W, it, id){ const r=wireRoute(W, it.a0+BB.inFromRight, BB.up, id, 'Heater wire run'); if(r) r.items.forEach(x=>x.heater=it.I.it.k); return r; }
-/* a wall light box (placed exactly, by hand): the same run from the nearest usable chase, the hole into the chase 3″
-   above the box's centre, the 3″ curve down to the box's centre height, then straight to the box, 1″ deep at the end */
-function lightRoute(W, b, id){ return wireRoute(W, b.a, b.y, id, 'Wall light wire run'); }
-function wireRoute(W, aH, yH, id, label){
-  const tIn=+(W.w.t || W.t*FT), chaseY=yH+(BB.chaseY-BB.up);
+/* a wall light box (placed exactly, by hand; the standard single-gang SHALLOW box): the same run from the nearest
+   usable chase (the hole into the chase 3″ above the box's centre, the 3″ curve down to the box's centre height, then
+   straight), ending at the SIDE of the box, and NOT tapering: it stays in the middle of the panel all the way. A chase
+   that runs through the box itself: straight down the chase to the top of the box. */
+const LIGHT_BOX = { w:2.375, h:3.375, depth:1.625, box:'BX-IBV-1100L' };   // boxes.js: Iberville 1100L, 1½″ deep, pocket 1⅝″
+function lightRoute(W, b, id){ return wireRoute(W, b.a, b.y, id, 'Wall light wire run', { box:LIGHT_BOX, flat:true }); }
+function wireRoute(W, aT, yT, id, label, opt={}){
+  const tIn=+(W.w.t || W.t*FT), chaseY=yT+(BB.chaseY-BB.up);
   const cut=(W.w.openings||[]).filter(o=>o.w>0);
   const usable=W.chases.filter(c=>!cut.some(o=>c>o.x-BB.bit/2-0.25 && c<o.x+o.w+BB.bit/2+0.25));
-  if(!usable.length) return { items:[], flag:`No usable chase on ${W.s.label} for the ${label.toLowerCase()}`, aH };
-  const aC=usable.slice().sort((p,q)=>Math.abs(p-aH)-Math.abs(q-aH))[0], dx=aH-aC, sg=Math.sign(dx)||1, r=Math.min(BB.r, Math.abs(dx));
-  // the path along the room face, in a (outside) coords: down the chase if the wire spot is closer than 3″, the curve, then straight
-  const P=[[aC, chaseY]];
-  if(chaseY-r > yH+1e-6) P.push([aC, yH+r]);
-  if(r>1e-6) for(let i=1;i<=9;i++){ const th=i/9*Math.PI/2; P.push([aC+sg*r*(1-Math.cos(th)), yH+r*(1-Math.sin(th))]); }
-  if(Math.abs(aH-P[P.length-1][0])>1e-6 || Math.abs(yH-P[P.length-1][1])>1e-6) P.push([aH, yH]);
-  // the depth: the middle of the panel at the chase, coming up evenly along the path to 1″ at the wire spot
+  if(!usable.length) return { items:[], flag:`No usable chase on ${W.s.label} for the ${label.toLowerCase()}`, aH:aT };
+  const aC=usable.slice().sort((p,q)=>Math.abs(p-aT)-Math.abs(q-aT))[0];
+  let aH=aT, yH=yT, P;
+  if(opt.box && Math.abs(aT-aC) <= opt.box.w/2){ aH=aC; yH=yT+opt.box.h/2; P=[[aC, chaseY],[aC, yH]]; }   // the chase runs into the box: down to its top
+  else {
+    if(opt.box) aH = aT - Math.sign(aT-aC)*opt.box.w/2;   // stop at the box's side
+    const dx=aH-aC, sg=Math.sign(dx)||1, r=Math.min(BB.r, Math.abs(dx));
+    // the path along the room face, in a (outside) coords: down the chase if the end is closer than 3″, the curve, then straight
+    P=[[aC, chaseY]];
+    if(chaseY-r > yH+1e-6) P.push([aC, yH+r]);
+    if(r>1e-6) for(let i=1;i<=9;i++){ const th=i/9*Math.PI/2; P.push([aC+sg*r*(1-Math.cos(th)), yH+r*(1-Math.sin(th))]); }
+    if(Math.abs(aH-P[P.length-1][0])>1e-6 || Math.abs(yH-P[P.length-1][1])>1e-6) P.push([aH, yH]); }
+  // the depth: the middle of the panel at the chase; a heater's run comes up evenly along the path to 1″ at the wire spot,
+  // a wall light's stays in the middle of the panel
   const len=[0]; for(let i=1;i<P.length;i++) len.push(len[i-1]+Math.hypot(P[i][0]-P[i-1][0], P[i][1]-P[i-1][1]));
-  const tot=len[len.length-1]||1, d0=tIn/2, pts=P.map((p,i)=>[p[0], p[1], +(d0+(BB.endDepth-d0)*len[i]/tot).toFixed(4)]);
+  const tot=len[len.length-1]||1, d0=tIn/2, dEnd=opt.flat ? d0 : BB.endDepth, pts=P.map((p,i)=>[p[0], p[1], +(d0+(dEnd-d0)*len[i]/tot).toFixed(4)]);
   // split at panel joints: each panel gets its own piece (x on the room face)
   const lo=Math.min(aC,aH), hi=Math.max(aC,aH), cuts=W.joints.filter(j=>j>lo+1e-6 && j<hi-1e-6);
   const edges=[-Infinity, ...cuts, Infinity], items=[];
@@ -607,7 +616,7 @@ function compute(k){
   const byWall={};
   out.forEach(b=>{ const {w,h}=b.rk==='jbox' ? BOX.jbox : (GANG[gangOf(b)]||sz(b.rk)), W=b.W, o=(byWall[W.s.id] ||= { inside:[], outside:[] });
     const nm = b.rk==='switch' && b.way>1 ? `${b.way}-way switch box` : NAME[b.rk] || 'Box';
-    const item={ kind:'box', shape:'rect', w, h, depth:b.rk==='jbox' ? 2.25 : 3, ...(b.rk==='jbox'?{ box:'BX-JB-4SQ' }:{}), x:+(b.face==='in' ? W.Lin-b.a : b.a).toFixed(4), y:b.y, rk:b.rk==='wp'?'plug':b.rk, name:nm, gang:gangOf(b), devs:(b.devs||[]).map(id=>deviceById(id)?.name).filter(Boolean), ...(b.sn?{ sn:b.sn, uses:b.useText, links:b.uses.filter(u=>u.grp).map(u=>({ grp:u.grp, order:u.order.map(id=>outById[id]?.sn) })) }:{}), auto:b.id, ...(b.chase?{}:{ offChase:true }) };
+    const item={ kind:'box', shape:'rect', w, h, depth:b.rk==='jbox' ? 2.25 : b.rk==='light' ? LIGHT_BOX.depth : 3, ...(b.rk==='jbox'?{ box:'BX-JB-4SQ' }:b.rk==='light'?{ box:LIGHT_BOX.box }:{}), x:+(b.face==='in' ? W.Lin-b.a : b.a).toFixed(4), y:b.y, rk:b.rk==='wp'?'plug':b.rk, name:nm, gang:gangOf(b), devs:(b.devs||[]).map(id=>deviceById(id)?.name).filter(Boolean), ...(b.sn?{ sn:b.sn, uses:b.useText, links:b.uses.filter(u=>u.grp).map(u=>({ grp:u.grp, order:u.order.map(id=>outById[id]?.sn) })) }:{}), auto:b.id, ...(b.chase?{}:{ offChase:true }) };
     (b.face==='in' ? o.inside : o.outside).push(item); b.name=nm; });
   /* ---- baseboard heater wire runs (header): one per heater, on the room face */
   const routes=[];
