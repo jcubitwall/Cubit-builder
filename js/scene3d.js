@@ -2,6 +2,8 @@
 import { CEIL, FLOOR, FT, H, POD, PW, T, WALL_BASE, LAYER_KINDS, NOTCH, UP, EPS_PAD, sidingSpan } from './config.js';
 import { MODELS, SIDINGLIB } from './data.js';
 import { lvlHolesOn } from './lvlholes.js';
+import { sidingMeshes } from './sidingmesh.js';
+import { colourOf } from './finishes.js';
 import { isShop } from './mode.js';
 import { designFinish } from './finishes.js';
 import { podOffsets, screwsFor, slotsFor, layerSlotsFor, podList, deckList, layoutOffsets, padsFor, upstairs, POST } from './layout.js';
@@ -575,8 +577,10 @@ function buildHome(){
       m.userData.seal=role; g.add(m); });
     // Design, with finishes picked: siding on the outside of exterior walls, paint on the room faces
     if(FIN){ const t=(w.t||(s.type==='int'?4.5:6.5))/FT, L=wallLen(w)/FT, holes=(w.openings||[]).filter(o=>(o.w||o.d||0)>=3);
-      if(s.type==='ext' && FIN.siding) g.add(wallSkin(L, holes, FIN.siding, (SIDINGLIB.find(x=>x.id==='rando-rib')||SIDINGLIB[0])?.depth/FT || 0.03, true, s.pod?.lv||0));
+      if(s.type==='ext' && FIN.siding){ const sk=wallSkin(L, holes, FIN.siding, (SIDINGLIB.find(x=>x.id==='rando-rib')||SIDINGLIB[0])?.depth/FT || 0.03, true, s.pod?.lv||0); sk.userData.sidingSkin=true; g.add(sk); }
       if(FIN.paint){ g.add(wallSkin(L, holes, FIN.paint, -t-0.03, false)); if(s.type==='int') g.add(wallSkin(L, holes, FIN.paint, 0.03, false)); } }
+    // the Siding layer: the real panels, laid out by the siding rules (sidingmesh.js), in the finish colour (or plain steel)
+    if(s.type==='ext') sidingMeshes(s, w.trim?.[0]||0, FIN?.siding || colourOf('siding') || '#7d8489').forEach(m=>g.add(m));
     // the wire holes through the roof LVL (drilled by hand): an orange peg sticking out of the wall line at the rim
     if(s.type==='ext') lvlHolesOn(s).forEach(h=>{ const t=(w.t||6.5)/FT, m=new THREE.Mesh(new THREE.CylinderGeometry(0.75/FT, 0.75/FT, t+0.25, 16), LVL_PEG);
       m.rotation.x=Math.PI/2; m.position.set(h.x/FT, h.y/FT, -t/2+0.125); m.userData.lvlHole=true; g.add(m); });
@@ -760,6 +764,7 @@ function applyLayers(){
   floorMats.forEach(m=>{ m.transparent=S.screws; m.opacity=S.screws?0.35:1; m.depthWrite=!S.screws; m.needsUpdate=true; });
   unitMeshes.forEach(m=>m.visible=S.units);
   wallGroups.forEach(g=>g.children.forEach(o=>{ if(o.userData.seal) o.visible = S.seals!==false && isShop(); }));   // the seals are a shop detail
+  wallGroups.forEach(g=>g.children.forEach(o=>{ if(o.userData.siding) o.visible = !!S.siding; else if(o.userData.sidingSkin) o.visible = !S.siding; }));   // the Siding layer replaces the painted-on look
   // framing: lumber & LVL and the OSB splines switch on their own; both show through see-through walls
   framingMeshes.forEach(m=>m.visible=(m.userData.spline ? S.splines : S.framing) && S.walls && inPod(m.userData.pod));
   applyRimVis();

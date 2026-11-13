@@ -52,7 +52,7 @@ function stretch(x0, x1, a, b, P){
     const half=fit(W/2, P), h2=fit(W-W/2, P);
     // join the two leftovers into one middle filler where possible
     const f=half.filler+h2.filler;
-    return { x0, x1, W, ends:[a,b], covers:[...half.covers, ...h2.covers], filler:f, fillerAt:'middle', hops:(half.hops||0)+(h2.hops||0), split:true };
+    return { x0, x1, W, ends:[a,b], covers:[...half.covers, ...h2.covers], nLeft:half.covers.length, filler:f, fillerAt:'middle', hops:(half.hops||0)+(h2.hops||0), split:true };
   }
   const r=fit(W, P);
   // above / below an opening: what whole panels can't cover is ripped from a stock panel (no bent filler needed)
