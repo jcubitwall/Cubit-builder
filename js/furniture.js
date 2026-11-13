@@ -107,7 +107,7 @@ function snap(it, pt, wallGroups, homeGroup, keepA=null, lockA=null){
     const l=f.worldToLocal(homeGroup.localToWorld(pt.clone())), cab=baseUnder(p.i, l.x, l.z, it.id);
     if(cab){ const fresh=it.dock?.cab!==cab.id, cw={ ...cab, w:Math.max(cab.w, sinkBaseMin(it)) };
       const at=dockAt(it, cw, toItem(cw, l.x, l.z).x*FT), P=dockPose(it, cw, at);
-      if(P) return { pod:p.i, u:P.u, v:P.v, a:P.a, y:P.y, wall:cab.wall||null, dock:{ cab:cab.id, at, ...(fresh?{fresh:true}:{}) } }; } }
+      if(P) return { pod:p.i, u:P.u, v:P.v, a:P.a, y:P.y, wall:cab.wall||null, dock:{ cab:cab.id, at, ...(fresh?{fresh:true}:{}), ...(!fresh && isFinite(it.dock?.back)?{ back:it.dock.back }:{}) } }; } }
   const r=snapItem(it, pt, wallGroups, homeGroup, keepA, lockA); return r ? { ...r, dock:null } : r;
 }
 /* an upper cabinet being dragged in: over a base cabinet on the same wall it takes that base's width and lines up
@@ -391,10 +391,15 @@ function dockPose(sink, cab, at){
   const SB=KF().sinkBase, hole=sinkHole(sink); if(!hole) return null;
   let x=0; const side=cab.w/2-SB.keep-hole.w/2;
   if(at==='L') x=-Math.max(0,side); else if(at==='R') x=Math.max(0,side);
-  const gap=itemDef(sink.k)?.gap ?? 2, p=toPod(cab, (x-(hole.cx||0))/FT, gap/FT);   // x: the hole's centre; the sink's own middle is cx off it
+  const gap=sinkBack(sink, cab), p=toPod(cab, (x-(hole.cx||0))/FT, gap/FT);   // x: the hole's centre; the sink's own middle is cx off it
   const top=(cab.y||0)+cab.h;   // top mount: the rim sits on the countertop · bottom mount: the sink hangs under it
   return { u:p.u, v:p.v, a:cab.a||0, y:+(hole.mount==='top' ? top+KF().counter.t-sink.h+0.2 : top-sink.h).toFixed(4), x, hole, gap };
 }
+/* how far the sink's back sits off the wall (in): its own gap (2″…) unless moved forward / back in the base
+   (sink.dock.back); never so far forward that less than 1″ of countertop is left in front of it */
+const sinkGap = sink => itemDef(sink.k)?.gap ?? 2;
+const sinkBackMax = (sink, cab) => Math.max(0, +(cab.d + KF().counter.over - 1 - sink.d).toFixed(4));
+function sinkBack(sink, cab){ const b=sink.dock?.back; return Math.min(sinkBackMax(sink, cab), Math.max(0, isFinite(b) ? b : sinkGap(sink))); }
 /* which of L / C / R a point (inches across the base from its middle) is nearest */
 function dockAt(sink, cab, xIn){ const SB=KF().sinkBase, hole=sinkHole(sink); if(!hole) return 'C';
   const side=Math.max(0, cab.w/2-SB.keep-hole.w/2), opts=[['L',-side],['C',0],['R',side]];
@@ -556,4 +561,4 @@ const DEPTH_CATS=new Set(['base','upper','tall','linen','wardrobe','vanity','app
 function wallDepths(k=state.model){ const out={}; list(k).forEach(it=>{ if(it.wall && DEPTH_CATS.has(itemDef(it.k)?.cat)) out[it.wall]=Math.max(out[it.wall]||0, it.d); }); return out; }
 
 const podsShown = () => lastPods;
-export { setLevelTest, onFurnChanged, centreUnderWindow, sinksOnWall, windowsIn, fitBaseToSink, dockAt, turnStart, turnTo, freeSpot, clash, setWalls, handleMeshes, roomBeyond, stretchTo, updateHandles, onFurnApplied, setCabExplode, resetCabExplode, cabExploded, explodeFurniture, furnHolder, podsShown, showFurnGhost, hideFurnGhost, setHolderVisible, list as furnitureOf, byId as furnById, buildFurniture, refreshItem, applyFurniture, furnMeshes, snap, podAt, addItem, updateItem, removeItem, duplicateItem, turnItem, podRemoved, wallDepths, shownCat, CATS as FURN_CATS , cabExplodeGoal , rotXZ, groupMembers, makeGroup, ungroup, relinkGroup, renameGroup, setGroupFrom, removeGroup, setMany, moveHolder, groupRecipe, placeRecipe, addRecipe };
+export { sinkBack, sinkBackMax, sinkGap, setLevelTest, onFurnChanged, centreUnderWindow, sinksOnWall, windowsIn, fitBaseToSink, dockAt, turnStart, turnTo, freeSpot, clash, setWalls, handleMeshes, roomBeyond, stretchTo, updateHandles, onFurnApplied, setCabExplode, resetCabExplode, cabExploded, explodeFurniture, furnHolder, podsShown, showFurnGhost, hideFurnGhost, setHolderVisible, list as furnitureOf, byId as furnById, buildFurniture, refreshItem, applyFurniture, furnMeshes, snap, podAt, addItem, updateItem, removeItem, duplicateItem, turnItem, podRemoved, wallDepths, shownCat, CATS as FURN_CATS , cabExplodeGoal , rotXZ, groupMembers, makeGroup, ungroup, relinkGroup, renameGroup, setGroupFrom, removeGroup, setMany, moveHolder, groupRecipe, placeRecipe, addRecipe };
