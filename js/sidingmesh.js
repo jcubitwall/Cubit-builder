@@ -80,7 +80,7 @@ function sidingMeshes(slot, tl, colour){
   Wl.cols.forEach((c,ci)=>{
     if(c.below>0.5) out.push(acmMesh(c.m.x0-ACM_LAP, c.m.x1+ACM_LAP, Wl.y0, Wl.y0+c.below, `a|${ci}|below`));
     if(c.above>0.5) out.push(acmMesh(c.m.x0-ACM_LAP, c.m.x1+ACM_LAP, Wl.y1-c.above, Wl.y1, `a|${ci}|above`)); });
-  out.forEach(m=>{ m.position.x-=tl/FT; m.userData.wall=slot.id; });       // the group starts tl in from the wall's corner
+  out.forEach(m=>{ m.position.x-=tl/FT; m.position.z+=0.05/FT; m.userData.wall=slot.id; });   // over the 1 mm membrane, never through it       // the group starts tl in from the wall's corner
   return out;
 }
 export { sidingMeshes };

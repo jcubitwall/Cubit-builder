@@ -439,7 +439,7 @@ function membraneGrid(){
     <p class="note">${esc(M.covers||'')}</p>
     <p class="note">Shown in the 3D with <b>Layers → Shell → Membrane</b> (off unless switched on).</p>
     ${M.tape?`<p class="note">${esc(M.tape.note||'')}</p>`:''}
-    ${home ? `<h4>This home</h4><p class="note">${home.sheets} exterior OSB sheets (${Math.round(home.sqft).toLocaleString()} sq ft of membrane, put on before the CNC) · ${Math.ceil(home.tapeFt)} ft of seam tape over ${home.joints} joints${home.rolls?` · ${home.rolls} rolls`:''}. In the Takeoff.</p>`:''}
+    ${home ? `<h4>This home</h4><p class="note">${home.sheets} outside OSB sheets: exterior walls and the walls where pods join (${Math.round(home.sqft).toLocaleString()} sq ft of membrane, put on before the CNC) · ${Math.ceil(home.tapeFt)} ft of seam tape over ${home.joints} joints${home.rolls?` · ${home.rolls} rolls`:''}. In the Takeoff.</p>`:''}
     ${M.note?`<p class="note">${esc(M.note)}</p>`:''}</div>`;
   return `<section class="cw-grid cw-bgrid">${L.map(card).join('')}</section>`;
 }

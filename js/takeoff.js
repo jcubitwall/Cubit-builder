@@ -129,9 +129,9 @@ function homeTakeoff(){
   // Membrane: on the exterior OSB sheets at the shop, before the CNC; seam tape on site
   { const T=membraneTakeoff(state.model); if(T){ const M=T.M;
     add('membrane','Membrane',[
-      { n:T.sheets, what:`exterior OSB sheets 4 × 8 to cover with ${M.name} (${M.tMM||1} mm) before the CNC`, note:`${Math.round(T.sqft)} sq ft${T.rolls?` · ${T.rolls} rolls`:' · roll size to confirm'}` },
+      { n:T.sheets, what:`outside OSB sheets 4 × 8 (exterior walls and the walls where pods join) to cover with ${M.name} (${M.tMM||1} mm) before the CNC`, note:`${Math.round(T.sqft)} sq ft${T.rolls?` · ${T.rolls} rolls`:' · roll size to confirm'}` },
       { n:Math.ceil(T.tapeFt), what:`ft of ${M.tape?.name||'seam tape'}, ${M.tape?.w||3}″, darker blue`, note:`${T.joints} panel joints${T.tapeRolls?` · ${T.tapeRolls} rolls`:' · roll length to confirm'}` }],
-      `no laps: the membrane is on every sheet, the tape covers each joint between exterior panels`); } }
+      `no laps: the membrane is on every sheet, the tape covers each joint between those panels`); } }
   // Windows & doors
   { const g={}; let open=0;
     slotsFor(state.model).forEach(s=>{ const w=bodyWall(s, pickFor(s)); (w?.openings||[]).filter(catOf).forEach(o=>{ const r=unitFor(s,o);

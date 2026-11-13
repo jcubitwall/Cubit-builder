@@ -11,7 +11,7 @@
    "w": 48,
    "h": 96.5
   },
-  "covers": "Put on the outside face of each exterior OSB sheet at the shop, before the sheet goes on the CNC: it is cut out with the panel. Not on the steel frame, floors, roof or the pod-to-pod joints.",
+  "covers": "Put on the outside face of each OSB sheet at the shop, before the sheet goes on the CNC: it is cut out with the panel. Every exterior wall, and each pod's own SIP wall where two pods join (no siding there). Not on the steel frame, floors or roof.",
   "roll": null,
   "note": "Print scale assumed: the dashed lines 12\u2033 apart (the picture 48\u2033 wide). Roll sizes (membrane and tape) to confirm.",
   "tape": {
