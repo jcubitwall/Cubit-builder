@@ -28,7 +28,13 @@ function printTexture(M){
 /* the joints between this wall's panels (x, in from the wall's left end) and the tape's runs up each, missing openings */
 function tapeRuns(w){
   const sp=panelSpans(w), J=sp.slice(0,-1).filter((s,i)=>Math.abs(s[1]-sp[i+1][0])<0.01).map(s=>s[1]);
-  return J.map(x=>{ let segs=[[0,H]]; holesOf(w).filter(o=>o.shape!=='round' && o.x<x+1.5 && o.x+o.w>x-1.5).forEach(o=>{ segs=segs.flatMap(([a,b])=>{ const c=o.y, d=o.y+o.h; if(d<=a||c>=b) return [[a,b]]; const r=[]; if(c>a) r.push([a,c]); if(d<b) r.push([d,b]); return r; }); });
+  const half=(membrane()?.tape?.w||3)/2;
+  /* the height an opening takes out of the tape at x (the tape is 3″ wide, so its nearer edge counts): a square
+     opening its full height; a round window the chord of the circle at the tape's nearer edge */
+  const cut=(o,x)=>{ if(o.shape==='round'){ const d=o.d||o.w, r=d/2, cx=o.x+r, cy=o.y+r, dx=Math.max(0, Math.abs(x-cx)-half);
+      if(dx>=r) return null; const h=Math.sqrt(r*r-dx*dx); return [cy-h, cy+h]; }
+    return o.x<x+half && o.x+o.w>x-half ? [o.y, o.y+o.h] : null; };
+  return J.map(x=>{ let segs=[[0,H]]; holesOf(w).forEach(o=>{ const k=cut(o,x); if(!k) return; const [c,d]=k; segs=segs.flatMap(([a,b])=>{ if(d<=a||c>=b) return [[a,b]]; const r=[]; if(c>a) r.push([a,c]); if(d<b) r.push([d,b]); return r; }); });
     return { x, segs:segs.filter(([a,b])=>b-a>0.5) }; });
 }
 /* the membrane on one exterior wall, in its wall group's coordinates (feet; z out from the outside face) */
