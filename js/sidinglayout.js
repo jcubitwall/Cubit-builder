@@ -14,8 +14,8 @@
      • between two brick molds both edges must be rib ends: two runs meet in the middle on a filler
      • where whole panels can't make the width exactly, a filler piece (bent to the same look) takes up the rest;
        it is never narrower than FILL_MIN — panels are pulled back to make room for it
-   Above and below each opening the column between its brick-mold sides gets short pieces cut from panels the
-   same way. All in inches; x along the wall from its left end seen from outside, y up from the wall base. */
+   Above and below each opening (between its brick-mold sides) there is NO metal siding: a matte black aluminium
+   composite (ACM) panel fills it. All in inches; x along the wall from its left end seen from outside, y up from the wall base. */
 import { SIDINGLIB } from './data.js';
 import { sidingSpan, WALL_BASE } from './config.js';
 import { slotsFor } from './layout.js';
@@ -88,15 +88,14 @@ function wallLayout(s, P=profile()){
 function homeSiding(k){
   const P=profile(); if(!P) return null;
   const walls=slotsFor(k).filter(s=>s.type==='ext').map(s=>wallLayout(s,P)).filter(Boolean);
-  const cut={}, fills={}, add=(o,key,v)=>{ (o[key] ||= { ...v, n:0 }).n++; };
+  const cut={}, fills={}, acm={}, add=(o,key,v)=>{ (o[key] ||= { ...v, n:0 }).n++; };
   const r16=v=>Math.round(v*16)/16;
   walls.forEach(Wl=>{
     Wl.full.forEach(st=>{ st.covers.forEach(c=>add(cut, r16(Wl.H)+'', { len:r16(Wl.H), what:'full height' }));
       if(st.filler>0.01) add(fills, r16(st.filler)+'×'+r16(Wl.H), { w:r16(st.filler), len:r16(Wl.H), at:st.fillerAt }); });
+    // above and below every opening: no metal siding, a matte black aluminium composite (ACM) panel the brick mold's width
     Wl.cols.forEach(c=>[['above',c.above],['below',c.below]].forEach(([where,h])=>{ if(h<0.5) return;
-      c.fit.covers.forEach(()=>add(cut, r16(h)+'', { len:r16(h), what:`${where} an opening` }));
-      if(c.fit.rip>0.01) add(cut, r16(h)+'|'+r16(c.fit.rip), { len:r16(h), rip:r16(c.fit.rip), what:`${where} an opening, ripped to ${r16(c.fit.rip)}″ wide` });
-      if(c.fit.filler>0.01) add(fills, r16(c.fit.filler)+'×'+r16(h), { w:r16(c.fit.filler), len:r16(h), at:`${where} an opening` }); }));
+      const w=r16(c.m.x1-c.m.x0); add(acm, w+'×'+r16(h), { w, h:r16(h), where }); }));
   });
   // trims: corners from where the exterior walls meet, J-trim and head flashing at every brick mold
   const pts={};
@@ -115,7 +114,8 @@ function homeSiding(k){
   const lb = panels.reduce((a,p)=>a+p.n*p.len/12*P.lbPerFt*(p.rip?p.rip/P.cover:1),0) + fillers.reduce((a,f)=>a+f.n*f.len*f.w*(P.developed/P.cover)*P.t*P.steel,0);
   const hops=walls.reduce((a,Wl)=>a+Wl.full.reduce((b,st)=>b+(st.hops||0),0),0);
   const headBy={}; head.forEach(l=>{ (headBy[l] ||= { len:l, n:0 }).n++; });
-  return { P, walls, panels, fillers, nPanels, hops, lb, runs, nOpen,
+  const acmPieces=Object.values(acm).sort((a,b)=>b.w*b.h-a.w*a.h), acmArea=acmPieces.reduce((a,p)=>a+p.n*p.w*p.h,0);
+  return { P, walls, panels, fillers, nPanels, hops, lb, runs, nOpen, acm:acmPieces, acmSheets:Math.ceil(acmArea*1.15/(48*96)-1e-9),
     trims:[ corner.out.n && { n:corner.out.n, what:'Outside corner trim (Einspine corner)', len:r16(corner.out.len) },
             corner.ins.n && { n:corner.ins.n, what:'Inside corner trim', len:r16(corner.ins.len) },
             corner.joint.n && { n:corner.joint.n, what:'Joint trim where two pods’ walls meet in line', len:r16(corner.joint.len) },

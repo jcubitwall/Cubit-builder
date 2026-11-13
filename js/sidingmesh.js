@@ -6,6 +6,7 @@
 import { wallLayout, sidingProfile } from './sidinglayout.js';
 
 const FT = 12;
+const ACM_T = 0.157;   // 4 mm aluminium composite, matte black (thickness to confirm)
 let SHAPE=null, SHAPE_ID=null;
 /* the cross-section as one closed outline (the scan's edges, chained end to end) */
 function profileShape(P){
@@ -68,9 +69,12 @@ function sidingMeshes(slot, tl, colour){
   const matF=new THREE.MeshStandardMaterial({ color:colour, roughness:0.55, metalness:0.3, side:THREE.DoubleSide });
   const out=[];
   Wl.full.forEach(st=>runMeshes(P, st, Wl.y0, Wl.y1, out, mat, matF));
+  // above and below every opening: a matte black ACM panel, no metal siding (its face flush with the siding's face)
+  const acm=new THREE.MeshStandardMaterial({ color:0x111214, roughness:0.85, metalness:0.1 }), T=ACM_T;
+  const acmMesh=(x0,x1,y0,y1)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT, (y1-y0)/FT, T/FT), acm); m.position.set((x0+x1)/2/FT, (y0+y1)/2/FT, (P.depth-T/2)/FT); m.userData.siding=true; return m; };
   Wl.cols.forEach(c=>{
-    if(c.below>0.5) runMeshes(P, c.fit, Wl.y0, Wl.y0+c.below, out, mat, matF);
-    if(c.above>0.5) runMeshes(P, c.fit, Wl.y1-c.above, Wl.y1, out, mat, matF); });
+    if(c.below>0.5) out.push(acmMesh(c.m.x0, c.m.x1, Wl.y0, Wl.y0+c.below));
+    if(c.above>0.5) out.push(acmMesh(c.m.x0, c.m.x1, Wl.y1-c.above, Wl.y1)); });
   out.forEach(m=>{ m.position.x-=tl/FT; });       // the group starts tl in from the wall's corner
   return out;
 }
