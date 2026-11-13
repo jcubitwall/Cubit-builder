@@ -7,11 +7,11 @@
    fetch() then gets the answer that is already on its way. Each one is used once; anything not used in 30 s is dropped. */
 (function(){
   var API=['me','walls','layers','units','projects','customers','kitchens','adopted','catalog','devices','library','casework','wallrules','shapes','drafts'],
-      DATA=['walls','models','layers','pods','decks','siding','brands','units','projects','stores','families','submodels','sinks','fixtures-lifepodgo-shower','fixtures-maax-biarritz','fixtures-maax-biarritz-85'],
+      DATA=['walls','models','layers','pods','decks','siding','membranes','brands','units','projects','stores','families','submodels','fixtures-lifepodgo-shower','fixtures-maax-biarritz','fixtures-maax-biarritz-85'],
       early={}, real=window.fetch.bind(window);
   try{
     API.forEach(function(n){ early['api/'+n]=real('api/'+n,{cache:'no-store'}); });
-    DATA.forEach(function(n){ early['data/'+n+'.json']=real('data/'+n+'.json'); });
+    DATA.forEach(function(n){ early['api/seed/'+n]=real('api/seed/'+n); });   // the catalogue sets, from the database
     for(var k in early) early[k].catch(function(){});
   }catch(e){ early={}; }
   window.fetch=function(input, init){
@@ -82,6 +82,7 @@
 <link rel="modulepreload" href="js/sync.js">
 <link rel="modulepreload" href="js/lvlholes.js">
 <link rel="modulepreload" href="js/sidingmesh.js">
+<link rel="modulepreload" href="js/membrane.js">
 <link rel="modulepreload" href="js/layout.js">
 <link rel="modulepreload" href="js/plumbing.js">
 <link rel="modulepreload" href="js/stairs.js">

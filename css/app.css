@@ -1558,3 +1558,4 @@ body.walking .present-bar{display:none}
 .sid-lap{margin:4px 0}.sid-lap figcaption{font-size:12px;color:#5b6159}.sid-rules{padding-left:18px;margin:4px 0}.sid-rules li{margin:2px 0}
 /* Safari on iPad: if the page ever scrolls (its toolbar growing and shrinking), the header stays at the top */
 html:not(.phone) header.bar{position:sticky;top:0;z-index:30;background:var(--bg);margin-top:calc(-1 * max(14px, calc(env(safe-area-inset-top,0px) + 10px)));padding-top:max(14px, calc(env(safe-area-inset-top,0px) + 10px))}
+.mem-swatch{height:220px;border-radius:8px;border:1px solid var(--line);background-size:auto 220px;background-repeat:repeat-x;margin:8px 0 12px}

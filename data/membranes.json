@@ -1,0 +1,19 @@
+[
+ {
+  "id": "polarblock-wrap",
+  "name": "PolarBlock breathable membrane",
+  "brand": "PolarBlock",
+  "kind": "Breathable exterior membrane (weather barrier)",
+  "t": 0.0394,
+  "tMM": 1,
+  "image": "data/membrane-polarblock.jpg",
+  "print": {
+   "w": 48,
+   "h": 96.5
+  },
+  "covers": "The outside face of the exterior SIP panels only: not the steel frame, the floors, the roof or the pod-to-pod joints; cut out at every window, door and vent.",
+  "lap": 0.1,
+  "roll": null,
+  "note": "Print scale assumed: the dashed lines 12\u2033 apart (the picture 48\u2033 wide). Roll size to confirm."
+ }
+]

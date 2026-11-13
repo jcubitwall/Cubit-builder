@@ -17,6 +17,7 @@ const PODLIB = [];          // unique pods: the pods catalogue (api/seed/pods) +
 const POD_KEY = 'cubit-pods';
 const DECKLIB = [];         // deck / porch frames: the decks catalogue (api/seed/decks) + decks saved in this browser
 const SIDINGLIB = [];       // siding profiles scanned from STEP (tools/siding/scan_profile.py): the siding catalogue (api/seed/siding)
+const MEMBRANELIB = [];     // wall membranes (the membranes catalogue, api/seed/membranes): the PolarBlock breathable wrap on the SIP panels' outside face
 const DECK_KEY = 'cubit-decks';
 const CUSTOM_KEY = 'cubit-custom-models';
 /* Homes that are locked (signed, in production, built, archived) keep the walls and floors they were locked with.
@@ -34,8 +35,10 @@ async function loadData(){
     fetch('api/seed/layers').then(r=>r.ok?r.json():[]).catch(()=>[]),
     fetch('api/seed/pods').then(r=>r.ok?r.json():[]).catch(()=>[]),
     fetch('api/seed/decks').then(r=>r.ok?r.json():[]).catch(()=>[]),
-    fetch('api/seed/siding').then(r=>r.ok?r.json():[]).catch(()=>[])
-  ]).then(([w,m,l,p,dk,sd])=>{ p.forEach(x=>PODLIB.push({...x, src:'library'})); dk.forEach(x=>DECKLIB.push({...x, src:'library'})); SIDINGLIB.push(...sd); return [w,m,l]; });
+    fetch('api/seed/siding').then(r=>r.ok?r.json():[]).catch(()=>[]),
+    // not moved into the database yet (a set added after the migration): the app's own copy
+    fetch('api/seed/membranes').then(r=>r.ok?r.json():fetch('data/membranes.json').then(r=>r.ok?r.json():[])).catch(()=>[])
+  ]).then(([w,m,l,p,dk,sd,mb])=>{ MEMBRANELIB.push(...(mb||[])); p.forEach(x=>PODLIB.push({...x, src:'library'})); dk.forEach(x=>DECKLIB.push({...x, src:'library'})); SIDINGLIB.push(...sd); return [w,m,l]; });
   try{ JSON.parse(localStorage.getItem(DECK_KEY)||'[]').forEach(x=>{ if(!DECKLIB.find(y=>y.id===x.id)) DECKLIB.push({...x, src:'saved'}); }); }catch(e){}
   try{ JSON.parse(localStorage.getItem(POD_KEY)||'[]').forEach(x=>{ if(!PODLIB.find(y=>y.id===x.id)) PODLIB.push({...x, src:'saved'}); }); }catch(e){}
   try{ JSON.parse(localStorage.getItem('cubit-layers-saved')||'[]').forEach(x=>{ const i=layers.findIndex(y=>y.id===x.id); if(i<0) layers.push({...x, src:'saved'}); else layers[i]={...x, src:'saved'}; }); }catch(e){}
@@ -112,4 +115,4 @@ const layerById = id => {
 /* the id of a layer mirrored once more along x ('x') or z ('z') */
 const layerMirrorId = (id, ax) => { const s=splitLayerId(id); const x=ax==='x'?!s.x:s.x, z=ax==='z'?!s.z:s.z; return s.base+(x||z?`~m${x?'x':''}${z?'z':''}`:''); };
 
-export { SIDINGLIB, isHomeWallId, FROZEN, BUILTIN, setScope, splitLayerId, mirrorLayer, forgetLayerMirrors, layerMirrorId, clearMirrors, DECKLIB, deckById, saveDeckLib, MODELS, LIB, LAYERLIB, PODLIB, loadData, optionsFor, byId, mirrorId, mirrorWall, podById, layerOptions, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib };
+export { SIDINGLIB, MEMBRANELIB, isHomeWallId, FROZEN, BUILTIN, setScope, splitLayerId, mirrorLayer, forgetLayerMirrors, layerMirrorId, clearMirrors, DECKLIB, deckById, saveDeckLib, MODELS, LIB, LAYERLIB, PODLIB, loadData, optionsFor, byId, mirrorId, mirrorWall, podById, layerOptions, layerById, saveCustomModels, savePodLib, saveWallLib, saveLayerLib };

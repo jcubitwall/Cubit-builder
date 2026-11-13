@@ -42,7 +42,8 @@ function download(name, text, type='text/csv'){ const a=document.createElement('
 /* ---------------------------------------------------------------- the window */
 let dlg=null, view={ tab:'lib', cat:'base', item:null, edit:null, explode:0, sel:null };
 import { makeHistory, histButtons, bindHistory } from './local-history.js';
-import { LIB, LAYERLIB, DECKLIB, SIDINGLIB } from './data.js';
+import { LIB, LAYERLIB, DECKLIB, SIDINGLIB, MEMBRANELIB } from './data.js';
+import { membraneTakeoff } from './membrane.js';
 import { homeSiding, MOLD, FILL_MIN } from './sidinglayout.js';
 import { fft } from './format.js';
 import { UNITLIB, TYPES, unitSVG, saveTeamUnit, unitById, onUnitsChanged } from './units.js';
@@ -61,7 +62,7 @@ import { rules, saveRules, sharedRules } from './wall-rules.js';
    that category's settings: Shop settings (cabinets, countertops, sinks), Wall rules (walls, floors, electrical
    heights and locks), the electrical / plumbing / heating rules. */
 const NAV_BASE = [
-  ['Building', [['b:walls','Walls'],['b:layers','Floors, ceilings & roofs'],['b:decks','Decks'],['x:sid','Siding']]],
+  ['Building', [['b:walls','Walls'],['b:layers','Floors, ceilings & roofs'],['b:decks','Decks'],['x:sid','Siding'],['x:mem','Membrane']]],
   ['Windows & doors', [['u:win','Windows'],['u:ext','Exterior doors'],['u:int','Interior doors']]],
   ['Maker catalogues', []],
   ['Plugs & switches', [['d:sw','Switches'],['d:rc','Plugs (receptacles)'],['d:dt','Data & TV'],['d:bx','Device boxes']]],
@@ -126,7 +127,7 @@ const LAYER_NAME = {'floor-ext':'Exterior floor','floor-int':'Interior floor','c
 const U_OF = { 'u:win':u=>TYPES[u.type]?.cat==='window', 'u:ext':u=>TYPES[u.type]?.cat!=='window' && u.place!=='int', 'u:int':u=>u.place==='int' };
 const live = x => !x.deleted && !x.purged;
 const homeGroups = () => { const G=new Map(); try{ furnitureOf().forEach(o=>{ if(o.grp?.id) (G.get(o.grp.id)||G.set(o.grp.id,[]).get(o.grp.id)).push(o); }); }catch(e){} return [...G.values()]; };
-const countOf = c => c==='x:sid' ? SIDINGLIB.length : c.startsWith('s:') ? (storeById(c.split(':')[1])?.cats?.[c.split(':')[2]]||[]).length : c==='d:bx' ? BOXLIB.length : c==='k:kit' ? KITCHENS.length : c.startsWith('u:cat:') ? catalogOf(c.slice(6)).length : c.startsWith('d:') ? DEVICES.filter(d=>d.kind===c.slice(2) && live(d)).length : c.startsWith('b:') ? B_LIST[c]().filter(live).length : c.startsWith('u:') ? UNITLIB.filter(u=>U_OF[c](u) && live(u)).length : ITEMS.filter(i=>i.cat===c && live(i) && !i.legacy).length;
+const countOf = c => c==='x:sid' ? SIDINGLIB.length : c==='x:mem' ? MEMBRANELIB.length : c.startsWith('s:') ? (storeById(c.split(':')[1])?.cats?.[c.split(':')[2]]||[]).length : c==='d:bx' ? BOXLIB.length : c==='k:kit' ? KITCHENS.length : c.startsWith('u:cat:') ? catalogOf(c.slice(6)).length : c.startsWith('d:') ? DEVICES.filter(d=>d.kind===c.slice(2) && live(d)).length : c.startsWith('b:') ? B_LIST[c]().filter(live).length : c.startsWith('u:') ? UNITLIB.filter(u=>U_OF[c](u) && live(u)).length : ITEMS.filter(i=>i.cat===c && live(i) && !i.legacy).length;
 const navName = c => (c.startsWith('b:')||c.startsWith('u:')||c.startsWith('d:')||c.startsWith('k:')||c.startsWith('s:')||c.startsWith('x:')) ? (NAV().flatMap(([,cs])=>cs).find(x=>Array.isArray(x) && x[0]===c)||[0,c])[1] : (CATS.find(x=>x.k===c)?.name || c);
 let showGone=false;
 /* undo / redo of the item on screen: its sizes, options and mirror */
@@ -178,6 +179,7 @@ function renderInner(){
   if(view.cat.startsWith('b:')){ body.innerHTML=nav+buildingGrid(view.cat); bindNav(body); bindBuilding(body); return; }
   if(view.cat==='d:bx'){ body.innerHTML=nav+boxGrid(); bindNav(body); return; }
   if(view.cat==='x:sid'){ body.innerHTML=nav+sidingGrid(); bindNav(body); return; }
+  if(view.cat==='x:mem'){ body.innerHTML=nav+membraneGrid(); bindNav(body); return; }
   if(view.cat.startsWith('s:')){ const [,sid,key]=view.cat.split(':'); body.innerHTML=nav+storeGrid(sid,key); bindNav(body); bindStore(body,sid,key); return; }
   if(view.cat.startsWith('d:')){ body.innerHTML=nav+deviceGrid(view.cat); bindNav(body); bindDevices(body); return; }
   if(view.cat==='k:kit'){ body.innerHTML=nav+kitchenGrid(); bindNav(body); bindKitchens(body); return; }
@@ -418,6 +420,25 @@ function sidingGrid(){
     </ul>
     ${home && home.P.id===P.id ? `<h4>This home</h4><p class="note">${home.nPanels} panels${home.hops?` (${home.hops} hopped a rib)`:''}, ${home.fillers.reduce((a,f)=>a+f.n,0)} filler pieces, ${home.acm.reduce((a,x)=>a+x.n,0)} black ACM panels above / below the openings, ${home.trims.length} kinds of trim · ${Math.round(home.lb).toLocaleString()} lb of siding on ${fft(home.runs)} of exterior wall. Every piece is in the Takeoff.</p>`:''}
     <p class="note">Scanned from ${esc(P.source?.file||'STEP')} on ${esc(P.source?.scanned||'')} (${fin2(P.sample)} sample).</p></div>`;
+  return `<section class="cw-grid cw-bgrid">${L.map(card).join('')}</section>`;
+}
+/* the wall membranes (membrane.js): the breathable wrap on the SIP panels' outside face */
+function membraneGrid(){
+  const L=MEMBRANELIB; if(!L.length) return '<section class="cw-grid cw-bgrid"><p class="note">No membranes yet.</p></section>';
+  let home=null; try{ home=state.model ? membraneTakeoff(state.model) : null; }catch(e){}
+  const card=M=>`<div class="cw-card sid-card cw-span">
+    <h3>${esc(M.name)} <small>${esc(M.kind||'')} · ${M.tMM||1} mm</small></h3>
+    <div class="mem-swatch" style="background-image:url('${esc(M.image)}')" role="img" aria-label="The membrane's print"></div>
+    <table class="sid-tab"><tbody>
+      <tr><th>Thickness</th><td>${M.tMM||1} mm (${(M.t||0.0394).toFixed(3)}″)</td><th>Breathable</th><td>Yes (vapour open)</td></tr>
+      <tr><th>Print repeat</th><td>${fin2(M.print?.w||48)} × ${fin2(M.print?.h||96)}</td><th>Laps allowed for</th><td>${Math.round((M.lap??0.1)*100)}%</td></tr>
+      <tr><th>Roll</th><td colspan="3">${M.roll ? `${fin2(M.roll.w)} × ${Math.round(M.roll.len/12)}′` : 'to confirm'}</td></tr>
+    </tbody></table>
+    <h4>Where it goes</h4>
+    <p class="note">${esc(M.covers||'')}</p>
+    <p class="note">Shown in the 3D with <b>Layers → Shell → Membrane</b> (off unless switched on).</p>
+    ${home ? `<h4>This home</h4><p class="note">${Math.round(home.net).toLocaleString()} sq ft on ${home.walls} exterior walls (${Math.round(home.gross).toLocaleString()} sq ft less ${Math.round(home.open)} sq ft of openings) · order ${Math.ceil(home.buy).toLocaleString()} sq ft with laps${home.rolls?` (${home.rolls} rolls)`:''}. In the Takeoff.</p>`:''}
+    ${M.note?`<p class="note">${esc(M.note)}</p>`:''}</div>`;
   return `<section class="cw-grid cw-bgrid">${L.map(card).join('')}</section>`;
 }
 /* the electrical device boxes (boxes.js): which walls get which, and the pocket the CNC cuts for each */
