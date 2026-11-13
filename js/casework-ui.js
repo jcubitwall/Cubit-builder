@@ -42,7 +42,9 @@ function download(name, text, type='text/csv'){ const a=document.createElement('
 /* ---------------------------------------------------------------- the window */
 let dlg=null, view={ tab:'lib', cat:'base', item:null, edit:null, explode:0, sel:null };
 import { makeHistory, histButtons, bindHistory } from './local-history.js';
-import { LIB, LAYERLIB, DECKLIB } from './data.js';
+import { LIB, LAYERLIB, DECKLIB, SIDINGLIB } from './data.js';
+import { homeSiding, MOLD, FILL_MIN } from './sidinglayout.js';
+import { fft } from './format.js';
 import { UNITLIB, TYPES, unitSVG, saveTeamUnit, unitById, onUnitsChanged } from './units.js';
 import { BOXLIB, THIN_BELOW, boxSVG } from './boxes.js';
 import { STORES, storeById, storesFor, isAdopted, adopt as adoptStore, onAdoptedChanged } from './stores.js';
@@ -59,7 +61,7 @@ import { rules, saveRules, sharedRules } from './wall-rules.js';
    that category's settings: Shop settings (cabinets, countertops, sinks), Wall rules (walls, floors, electrical
    heights and locks), the electrical / plumbing / heating rules. */
 const NAV_BASE = [
-  ['Building', [['b:walls','Walls'],['b:layers','Floors, ceilings & roofs'],['b:decks','Decks']]],
+  ['Building', [['b:walls','Walls'],['b:layers','Floors, ceilings & roofs'],['b:decks','Decks'],['x:sid','Siding']]],
   ['Windows & doors', [['u:win','Windows'],['u:ext','Exterior doors'],['u:int','Interior doors']]],
   ['Maker catalogues', []],
   ['Plugs & switches', [['d:sw','Switches'],['d:rc','Plugs (receptacles)'],['d:dt','Data & TV'],['d:bx','Device boxes']]],
@@ -124,8 +126,8 @@ const LAYER_NAME = {'floor-ext':'Exterior floor','floor-int':'Interior floor','c
 const U_OF = { 'u:win':u=>TYPES[u.type]?.cat==='window', 'u:ext':u=>TYPES[u.type]?.cat!=='window' && u.place!=='int', 'u:int':u=>u.place==='int' };
 const live = x => !x.deleted && !x.purged;
 const homeGroups = () => { const G=new Map(); try{ furnitureOf().forEach(o=>{ if(o.grp?.id) (G.get(o.grp.id)||G.set(o.grp.id,[]).get(o.grp.id)).push(o); }); }catch(e){} return [...G.values()]; };
-const countOf = c => c.startsWith('s:') ? (storeById(c.split(':')[1])?.cats?.[c.split(':')[2]]||[]).length : c==='d:bx' ? BOXLIB.length : c==='k:kit' ? KITCHENS.length : c.startsWith('u:cat:') ? catalogOf(c.slice(6)).length : c.startsWith('d:') ? DEVICES.filter(d=>d.kind===c.slice(2) && live(d)).length : c.startsWith('b:') ? B_LIST[c]().filter(live).length : c.startsWith('u:') ? UNITLIB.filter(u=>U_OF[c](u) && live(u)).length : ITEMS.filter(i=>i.cat===c && live(i) && !i.legacy).length;
-const navName = c => (c.startsWith('b:')||c.startsWith('u:')||c.startsWith('d:')||c.startsWith('k:')||c.startsWith('s:')) ? (NAV().flatMap(([,cs])=>cs).find(x=>Array.isArray(x) && x[0]===c)||[0,c])[1] : (CATS.find(x=>x.k===c)?.name || c);
+const countOf = c => c==='x:sid' ? SIDINGLIB.length : c.startsWith('s:') ? (storeById(c.split(':')[1])?.cats?.[c.split(':')[2]]||[]).length : c==='d:bx' ? BOXLIB.length : c==='k:kit' ? KITCHENS.length : c.startsWith('u:cat:') ? catalogOf(c.slice(6)).length : c.startsWith('d:') ? DEVICES.filter(d=>d.kind===c.slice(2) && live(d)).length : c.startsWith('b:') ? B_LIST[c]().filter(live).length : c.startsWith('u:') ? UNITLIB.filter(u=>U_OF[c](u) && live(u)).length : ITEMS.filter(i=>i.cat===c && live(i) && !i.legacy).length;
+const navName = c => (c.startsWith('b:')||c.startsWith('u:')||c.startsWith('d:')||c.startsWith('k:')||c.startsWith('s:')||c.startsWith('x:')) ? (NAV().flatMap(([,cs])=>cs).find(x=>Array.isArray(x) && x[0]===c)||[0,c])[1] : (CATS.find(x=>x.k===c)?.name || c);
 let showGone=false;
 /* undo / redo of the item on screen: its sizes, options and mirror */
 const pickIt = it => it ? JSON.parse(JSON.stringify({ w:it.w, h:it.h, d:it.d, y:it.y||0, opt:it.opt||{}, mirror:!!it.mirror })) : null;
@@ -175,6 +177,7 @@ function renderInner(){
     if(S.on.startsWith('store:')){ const sid=S.on.slice(6), key=storeKey(view.cat); body.innerHTML=nav+storeGrid(sid,key); bindNav(body); bindStore(body,sid,key); return; } }
   if(view.cat.startsWith('b:')){ body.innerHTML=nav+buildingGrid(view.cat); bindNav(body); bindBuilding(body); return; }
   if(view.cat==='d:bx'){ body.innerHTML=nav+boxGrid(); bindNav(body); return; }
+  if(view.cat==='x:sid'){ body.innerHTML=nav+sidingGrid(); bindNav(body); return; }
   if(view.cat.startsWith('s:')){ const [,sid,key]=view.cat.split(':'); body.innerHTML=nav+storeGrid(sid,key); bindNav(body); bindStore(body,sid,key); return; }
   if(view.cat.startsWith('d:')){ body.innerHTML=nav+deviceGrid(view.cat); bindNav(body); bindDevices(body); return; }
   if(view.cat==='k:kit'){ body.innerHTML=nav+kitchenGrid(); bindNav(body); bindKitchens(body); return; }
@@ -242,7 +245,7 @@ onKitchensChanged(()=>{ if(dlg?.open && view.cat==='k:kit' && !view.item && view
 /* ---------------------------------------------------------------- windows & doors, by brand
    The Cubit library: what homes use. Sorted under each maker, the ones still to confirm with the maker flagged.
    Editors and admins edit any of them to any size (the rough opening follows unless set by hand). */
-const fin2 = v => { const w=Math.floor(v+1e-6), f=Math.round((v-w)*16), g=(a,b)=>b?g(b,a%b):a; return f ? (f===16?`${w+1}″`:`${w} ${f/g(f,16)}/${16/g(f,16)}″`) : `${w}″`; };
+const fin2 = v => { const w=Math.floor(v+1e-6), f=Math.round((v-w)*16), g=(a,b)=>b?g(b,a%b):a; return f ? (f===16?`${w+1}″`:`${w?w+' ':''}${f/g(f,16)}/${16/g(f,16)}″`) : `${w}″`; };
 const unitLine = u => { const r=rsoOf(u); return `${esc(TYPES[u.type]?.label||u.type)} · ${fin2(u.w)} × ${fin2(u.h)} unit${r?` · RSO ${fin2(r.w)} × ${fin2(r.h)}`:''}`; };
 function unitGrid(cat){
   const ed=canEdit(), all=UNITLIB.filter(u=>U_OF[cat](u) && !u.purged), items=all.filter(u=>!u.deleted), gone=all.length-items.length;
@@ -372,6 +375,51 @@ function bindStore(body, sid, key){
     try{ await adoptStore(sid, key, P); toast(`${P.brand} ${P.model} adopted into the Cubit ${navName(CATS.some(c=>c.k===key)?key:'d:'+key).toLowerCase()} library`); render(); }catch(err){ toast('Not adopted: '+err.message); b.disabled=false; } });
 }
 onAdoptedChanged(()=>{ if(dlg?.open && view.tab==='lib' && !view.item) render(); });
+/* siding (data/siding.json, scanned from STEP): the profile drawn from the scan, its measurements, the coverage rules
+   and how it's laid out (sidinglayout.js), and what this home takes */
+function profileSVG(P, wpx=640, cover=null, hop=false){
+  const s=wpx/(P.w+0.6), Hh=(P.depth+0.5)*s*3.2, Y=y=>Hh-0.25*s*3.2-y*s*3.2, X=x=>(x+0.3)*s;   // depth drawn 3.2× so the ribs read
+  const path=(P.profile||[]).map(g=>`M${X(g.a[0]).toFixed(1)} ${Y(g.a[1]).toFixed(1)}L${X(g.b[0]).toFixed(1)} ${Y(g.b[1]).toFixed(1)}`).join('');
+  return `<svg viewBox="0 0 ${wpx} ${Hh.toFixed(0)}" width="100%" style="max-width:${wpx}px" aria-hidden="true"><line x1="0" x2="${wpx}" y1="${Y(0).toFixed(1)}" y2="${Y(0).toFixed(1)}" stroke="#b9b4a6" stroke-dasharray="4 3"/><path d="${path}" stroke="#1c211e" stroke-width="1.6" fill="none"/>
+    <text x="${X(0)}" y="${Y(P.depth)-6}" font-size="11" fill="#5b6159">rib end</text><text x="${X(P.w)}" y="${Y(P.depth)-6}" font-size="11" fill="#5b6159" text-anchor="end">long flat + end flange</text>
+    <text x="${wpx/2}" y="${Hh-2}" font-size="10" fill="#8a8f86" text-anchor="middle">wall side · depth drawn 3.2× for clarity</text></svg>`;
+}
+function lapSVG(P, cov, label){   // two panels lapped at a cover: the next panel's rib end over this one's flange end
+  const wpx=640, s=wpx/(cov+P.w+0.6), Y=y=>34-y*s*3.2, X=x=>(x+0.3)*s;
+  const one=(dx,col)=>`<path d="${(P.profile||[]).map(g=>`M${X(g.a[0]+dx).toFixed(1)} ${Y(g.a[1]).toFixed(1)}L${X(g.b[0]+dx).toFixed(1)} ${Y(g.b[1]).toFixed(1)}`).join('')}" stroke="${col}" stroke-width="1.4" fill="none"/>`;
+  // this panel flipped (flange end toward the next one is at its right); the next starts at +cov
+  return `<figure class="sid-lap"><svg viewBox="0 0 ${wpx} 44" width="100%" style="max-width:${wpx}px" aria-hidden="true">${one(0,'#3c4043')}${one(cov,'#1f7a9a')}</svg><figcaption>${label}</figcaption></figure>`;
+}
+function sidingGrid(){
+  const L=SIDINGLIB; if(!L.length) return '<section class="cw-grid cw-bgrid"><p class="note">No siding scanned yet.</p></section>';
+  let home=null; try{ home=state.model ? homeSiding(state.model) : null; }catch(e){}
+  const card=P=>`<div class="cw-card sid-card cw-span">
+    <h3>${esc(P.name)} <small>${esc(P.material||'')} · ${esc(P.gauge||fin2(P.t)+' sheet')}</small></h3>
+    ${profileSVG(P)}
+    <table class="sid-tab"><tbody>
+      <tr><th>Full cover</th><td>${fin2(P.cover)}</td><th>Overall width</th><td>${fin2(P.w)}</td></tr>
+      <tr><th>Depth (wall to face)</th><td>${fin2(P.depth)}</td><th>Sheet thickness</th><td>${P.t.toFixed(3)}″</td></tr>
+      <tr><th>Flat width (coil)</th><td>${P.developed}″</td><th>Cross-section</th><td>${P.area} sq in</td></tr>
+      <tr><th>Weight</th><td>${P.lbPerFt} lb per foot of panel</td><th>Per sq ft of wall</th><td>${(P.lbPerFt/(P.cover/12)).toFixed(2)} lb</td></tr>
+      <tr><th>Ribs on the wall</th><td colspan="3">${(P.grooves||[]).filter(([a,b])=>b-a>0.1).map(([a,b])=>fin2(b-a)).join(', ')} wide</td></tr>
+      <tr><th>Faces</th><td colspan="3">${(P.faces||[]).map(([a,b])=>fin2(b-a)).join(', ')} wide</td></tr>
+    </tbody></table>
+    <h4>Coverage</h4>
+    ${lapSVG(P, P.cover, `Full cover ${fin2(P.cover)}`)}${lapSVG(P, P.coverMin, `Pulled back to ${fin2(P.coverMin)} (anywhere from ${fin2(P.cover)} down to here)`)}${lapSVG(P, P.hop[0], `Hopped the rib: ${fin2(P.hop[1])} down to ${fin2(P.hop[0])}`)}
+    <p class="note">No setting between ${fin2(P.hop[1])} and ${fin2(P.coverMin)}.</p>
+    <h4>Layout rules</h4>
+    <ul class="note sid-rules">
+      <li>Height: ½″ over the steel frame on the ground floor (½″ below the floor upstairs) to 1″ under the roof.</li>
+      <li>Start at an Einspine corner with the long flat and end flange; the rib end points away from the corner.</li>
+      <li>The rib end butts the brick mold: ${fin2(MOLD)} outside the window or door on each side, top and bottom.</li>
+      <li>Panels are pulled back evenly to close a run exactly; if whole panels can't, a filler piece bent to the same look takes up the rest (never under ${fin2(FILL_MIN)}). Between two openings the two runs meet on a filler in the middle.</li>
+      <li>Above and below each opening, short pieces cut from panels fill the brick-mold width.</li>
+      <li>Trims (custom bends): outside corners at the Einspines, inside corners, joints between pods, J-trim at the brick molds, drip flashing over each head.</li>
+    </ul>
+    ${home && home.P.id===P.id ? `<h4>This home</h4><p class="note">${home.nPanels} panels${home.hops?` (${home.hops} hopped a rib)`:''}, ${home.fillers.reduce((a,f)=>a+f.n,0)} filler pieces, ${home.trims.length} kinds of trim · ${Math.round(home.lb).toLocaleString()} lb of siding on ${fft(home.runs)} of exterior wall. Every piece is in the Takeoff.</p>`:''}
+    <p class="note">Scanned from ${esc(P.source?.file||'STEP')} on ${esc(P.source?.scanned||'')} (${fin2(P.sample)} sample).</p></div>`;
+  return `<section class="cw-grid cw-bgrid">${L.map(card).join('')}</section>`;
+}
 /* the electrical device boxes (boxes.js): which walls get which, and the pocket the CNC cuts for each */
 function boxGrid(){
   const card=b=>`<div class="cw-card cw-bcard"><div class="cw-thumb">${boxSVG(b)}</div><b>${esc(b.name)}</b>

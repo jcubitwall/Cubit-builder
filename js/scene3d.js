@@ -188,7 +188,7 @@ function ribTexture(P){
   if(RIBS.has(P.id)) return RIBS.get(P.id);
   const W=1024, c=document.createElement('canvas'); c.width=W; c.height=4; const g=c.getContext('2d'), px=x=>x/P.cover*W;
   g.fillStyle='#fff'; g.fillRect(0,0,W,4);
-  (P.grooves||[]).forEach(([x0,x1])=>{ const a=Math.max(0,x0), b=Math.min(P.cover,x1); if(b<=a) return;
+  (P.grooves||[]).filter(([x0,x1])=>x1-x0>0.1).forEach(([x0,x1])=>{ const a=Math.max(0,x0), b=Math.min(P.cover,x1); if(b<=a) return;
     const wall=0.19;   // the slanted sides of a rib (4.1 mm across, from the scan)
     g.fillStyle='rgba(0,0,0,.30)'; g.fillRect(px(a-wall), 0, px(wall), 4);    // the side in shadow
     g.fillStyle='rgba(0,0,0,.16)'; g.fillRect(px(a), 0, px(b-a), 4);           // the rib bottom, ¾″ back
