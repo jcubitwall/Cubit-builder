@@ -1,5 +1,5 @@
 {
-"version": "69741941ca5d",
+"version": "5c039f79f196",
 "files": [
 "./",
 "brand/cubit-logo.png",
@@ -115,6 +115,7 @@
 "js/sidebar.js",
 "js/sidinglayout.js",
 "js/sidingmesh.js",
+"js/sidingsheet.js",
 "js/sink-window.js",
 "js/slope.js",
 "js/stair-spiral.js",

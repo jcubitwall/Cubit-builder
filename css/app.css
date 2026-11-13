@@ -1559,3 +1559,9 @@ body.walking .present-bar{display:none}
 /* Safari on iPad: if the page ever scrolls (its toolbar growing and shrinking), the header stays at the top */
 html:not(.phone) header.bar{position:sticky;top:0;z-index:30;background:var(--bg);margin-top:calc(-1 * max(14px, calc(env(safe-area-inset-top,0px) + 10px)));padding-top:max(14px, calc(env(safe-area-inset-top,0px) + 10px))}
 .mem-swatch{height:220px;border-radius:8px;border:1px solid var(--line);background-size:auto 220px;background-repeat:repeat-x;margin:8px 0 12px}
+.sd-profiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}
+.sd-prof{border:1px solid #d9d6cc;border-radius:8px;padding:10px 12px;background:#fff}
+.sd-prof small{color:#666}
+.sd-tab td small{color:#555}
+.sd-runs{margin:6px 0 10px;padding-left:20px;color:#333}
+.sd-prof.sd-wide{grid-column:1/-1}

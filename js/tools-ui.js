@@ -9,7 +9,7 @@ const isPhone = () => document.documentElement.classList.contains('phone');
 const SHEETS = [
   ['__take', 'Take-off', 'by build stage'], ['__shop', 'Shopping list', 'to buy, tick off'], ['__cost', 'Cost to build', 'from the price book'],
   ['__bp', 'Blueprints', 'the drawing set, PDF'], ['__cnc', 'CNC cut files', 'G-code for the panels'], ['__labels', 'Panel labels', 'cut & stack'],
-  ['__frame', 'Framing', 'lumber cut list'], ['__found', 'Foundation', 'screws or ICF'],
+  ['__frame', 'Framing', 'lumber cut list'], ['__siding', 'Siding schedule', 'every piece, screws'], ['__found', 'Foundation', 'screws or ICF'],
 ];
 /* the ⋯ menu's tools, by id: [id, title, note] (shown only when this person has it) */
 const TOOLS = [
