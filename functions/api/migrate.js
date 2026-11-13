@@ -193,17 +193,19 @@ export async function onRequestPost({ request, env }){
         return { step, homes, ticks:n };
       }
 
-      case 'seed': {
-        const out = {};
-        for(const s of SEED){ const r = await asset(env, request, `/data/${s}.json`); if(!r) continue;
-          out[s] = (await writeSet(M, s, await r.json(), `moved from the repo by ${me.email}`)).items; }
-        // sinks uploaded as STEP files: data/sinks.json and each sink's meshes (none yet: nothing to move)
-        const sk = await asset(env, request, '/data/sinks.json');
-        if(sk){ const L = await sk.json(); out.sinks = (await writeSet(M, 'sinks', L, me.email)).items;
-          for(const s of L){ const f = s.file && await asset(env, request, '/'+s.file); if(f){ await writeSet(M, `sinks/${s.id}`, await f.json(), me.email); s.file = `api/seed/sinks/${s.id}`; } }
+      case 'seed': {   // one set per call (Cloudflare caps the calls one request may make); cursor = the next set's place
+        const ALL = [...SEED, 'sinks'], i = Math.max(0, parseInt(b.cursor||'0',10)||0), s = ALL[i];
+        const next = i+1 < ALL.length ? String(i+1) : null;
+        if(s !== 'sinks'){ const r = await asset(env, request, `/data/${s}.json`);
+          const items = r ? (await writeSet(M, s, await r.json(), `moved from the repo by ${me.email}`)).items : 'not in the repo';
+          return { step, set:s, items, cursor:next }; }
+        // sinks uploaded as STEP files: data/sinks.json and each sink's meshes (none yet: an empty list, so the app's request finds it)
+        const sk = await asset(env, request, '/data/sinks.json'); let n = 0;
+        if(sk){ const L = await sk.json(); n = L.length;
+          for(const x of L){ const f = x.file && await asset(env, request, '/'+x.file); if(f){ await writeSet(M, `sinks/${x.id}`, await f.json(), me.email); x.file = `api/seed/sinks/${x.id}`; } }
           await writeSet(M, 'sinks', L, me.email); }
-        else out.sinks = (await writeSet(M, 'sinks', [], me.email)).items;   // none yet: an empty list, so the app's request finds it
-        return { step, sets:out };
+        else await writeSet(M, 'sinks', [], me.email);
+        return { step, set:'sinks', items:n, cursor:next };
       }
 
       case 'imports': {
@@ -228,20 +230,22 @@ export async function onRequestPost({ request, env }){
         const n = async sql_ => +(await db.one(sql_)).n;
         const count = async prefix => { let c = 0, cur; do{ const r = await page(env, prefix, cur, 1000); cur = r.truncated ? r.cursor : null; c += r.objects.length; }while(cur); return c; };
         const len = async key => { const v = await getJ(env, key); return Array.isArray(v) ? v.length : v ? Object.keys(v.members || v.items || v).length : 0; };
-        const rows = [
+        const part = b.cursor === '1' ? 1 : 0;   // two halves (the cap on calls per request)
+        const rows = part === 0 ? [
           ['team', await len('catalog/team.json'), await n('SELECT COUNT(*) n FROM team_members')],
           ['customers', await len('customers/index.json'), await n('SELECT COUNT(*) n FROM customers')],
           ['projects (on the list)', await len('projects/index.json'), await n('SELECT COUNT(*) n FROM projects WHERE deleted_at IS NULL')],
           ['project versions', await count('projects/history/'), await M.coll('project_versions').count()],
           ['drafts', await count('drafts/'), await M.coll('drafts').count()],
           ...await Promise.all(LIB.map(async l => [l.coll, await len(l.key), await M.coll(l.coll).count()])),
+        ] : [
           ['library history', (await Promise.all(LIB.map(l => count(l.hist)))).reduce((a,b)=>a+b, 0), await M.coll('history').count({ coll:{ $in:LIB.map(l=>l.coll) } })],
           ['prices', await len('prices/book.json'), await n('SELECT COUNT(*) n FROM prices')],
           ['shop lists', await count('shop/'), await n('SELECT COUNT(DISTINCT home) n FROM shop_ticks')],
           ['photos', null, await n(`SELECT COUNT(*) n FROM files WHERE kind='photo'`)],
           ['catalogue sets (repo)', SEED.length, await M.coll('seed_sets').count()],
         ];
-        return { step, rows:rows.map(([what, files, db_]) => ({ what, files, db:db_, ok: files == null || db_ >= files })) };
+        return { step, rows:rows.map(([what, files, db_]) => ({ what, files, db:db_, ok: files == null || db_ >= files })), cursor: part === 0 ? '1' : null };
       }
 
       case 'cleanup': {

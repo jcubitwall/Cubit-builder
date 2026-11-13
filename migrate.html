@@ -25,7 +25,7 @@ const log=document.getElementById('log'), say=t=>{ log.textContent+=t+'\n'; log.
 async function call(body){ const r=await fetch('api/migrate',{ method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(body) });
   const j=await r.json().catch(()=>({ error:'HTTP '+r.status })); if(!r.ok || j.error) throw new Error(j.error||('HTTP '+r.status)); return j; }
 async function check(){
-  const c=await call({ step:'check' }); const ok=c.rows.every(r=>r.ok);
+  const c={ rows:[] }; let cursor=null; do{ const r=await call({ step:'check', cursor }); c.rows.push(...r.rows); cursor=r.cursor||null; }while(cursor); const ok=c.rows.every(r=>r.ok);
   document.getElementById('check').innerHTML='<table><tr><th>What</th><th>In files</th><th>In the databases</th><th></th></tr>'+c.rows.map(r=>`<tr><td>${r.what}</td><td class="n">${r.files??'—'}</td><td class="n">${r.db}</td><td class="${r.ok?'ok':'bad'}">${r.ok?'✓':'missing'}</td></tr>`).join('')+'</table>';
   document.getElementById('clean').disabled=!ok; say(ok?'Check: everything is in the databases.':'Check: something is missing; see the table.');
 }
