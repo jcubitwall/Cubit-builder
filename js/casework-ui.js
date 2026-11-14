@@ -47,6 +47,7 @@ import { membraneTakeoff } from './membrane.js';
 import { ACPLIB, accentWalls } from './accent.js';
 import { libRules } from './lib-rules.js';
 import { productCard, openProduct, closeProduct } from './productview.js';
+import { mediaOf, keyStore, keyCubit } from './productmedia.js';
 import { libSettingsHTML, bindLibSettings } from './libsettings.js';
 import { homeSiding, MOLD, SIDING_TRIM } from './sidinglayout.js';
 import { fft } from './format.js';
@@ -238,7 +239,7 @@ function renderInner(){
   const acts=id=>`<div class="cw-bact"><button class="btn ghost sm" data-c3d="${esc(id)}">3D</button><button class="btn ghost sm editor-only" data-cren="${esc(id)}">Rename</button><button class="btn ghost sm danger editor-only" data-cdel="${esc(id)}">Delete</button></div>`;
   const card = unitCat
     ? u=>`<div class="cw-card cw-bcard" data-uid="${esc(u.id)}"><div class="cw-thumb">${unitSVG(u.type, u.hand||'L', u.w, u.h, 120, u.place==='int', TYPES[u.type]?.round)}</div><b>${esc(u.name)}</b><small><code>${esc(u.id)}</code> · ${esc(TYPES[u.type]?.label||u.type)} · ${u.w} × ${u.h}″${u.sample?' · sample':''}</small>${acts(u.id)}${rulesBox(unitRules(u)).replace('<details class="ir-box" open>','<details class="ir-box">')}</div>`
-    : d=>{ const it=newItem(d.k); return productCard({ name:d.name, price:d.store?.price||null }, { id:d.k, cls:'cw-bcard', attrs:` data-k="${esc(d.k)}"`, thumb:frontSVG(it), adopted:!!d.store, sub:`${sizeTxt(it)}${d.fixed?' · fixed size':''}`, noPrice:true, actions:acts(d.k) }); };
+    : d=>{ const it=newItem(d.k), m=mediaOf(keyCubit(d.k)); return productCard({ name:d.name, price:m.price||d.price||d.store?.price||null, images:m.images, was:m.was }, { id:d.k, cls:'cw-bcard', attrs:` data-k="${esc(d.k)}"`, thumb:frontSVG(it), adopted:!!d.store, sub:`${sizeTxt(it)}${d.fixed?' · fixed size':''}`, noPrice:true, actions:acts(d.k) }); };
   body.innerHTML=nav+`
     <section class="cw-grid cw-bgrid"><div class="cw-bbar"><input type="search" id="cwQ" placeholder="Search names and IDs" aria-label="Search">${gone?`<button class="linkbtn editor-only" id="cwGone" title="⋯ → Deleted items">Deleted (${gone})</button>`:''}</div>
     ${items.map(card).join('') || `<p class="note">${unitCat?'None yet. Add one with ⋯ → Upload STEP → Window / door.':'Empty.'}</p>`}</section>`;
@@ -423,12 +424,27 @@ function productThumb(P, key, done, big=false){
   if(P.w>0 && P.h>0) return `<svg viewBox="0 0 ${P.w+4} ${P.h+4}" aria-hidden="true"><rect x="2" y="2" width="${P.w}" height="${P.h}" fill="#cfd3d6" stroke="#1c211e" stroke-width="${Math.max(P.w,P.h)/90}"/><rect x="${2+P.w*0.06}" y="${2+P.h*0.1}" width="${P.w*0.88}" height="${P.h*0.8}" fill="#24282c"/></svg>`;
   return `<svg viewBox="0 0 100 70" aria-hidden="true"><rect x="8" y="8" width="84" height="54" rx="6" fill="#e6e3da"/><text x="50" y="41" font-size="10" text-anchor="middle" fill="#8a8578">no photo yet</text></svg>`;
 }
+/* a Cubit catalogue item as a product: what we know of it, with its photos and the store it comes from */
+function cubitProduct(k){
+  const d=itemDef(k); if(!d) return null; const m=mediaOf(keyCubit(k)), it=newItem(k);
+  const { by, at, store:mstore, ...rest }=m;
+  return { P:{ sku:d.sku||m.sku||'', name:d.name, brand:d.brand||'', model:d.model||'', price:d.price||d.store?.price||null, url:d.url||d.store?.url||m.url||'', w:it.w, h:it.h, d:it.d, ...rest, note:m.note||d.note||'' },
+    store: storeById(d.store?.id || mstore) };
+}
+function openCubitProduct(k, again={}){
+  const C=cubitProduct(k); if(!C) return;
+  openProduct(dlg, C.P, { store:C.store, adopted:true, crumb:`${navName(itemDef(k).cat)} › Cubit catalogue`, thumb:frontSVG(newItem(k)), rules:itemRules(k).map(r=>[r.area, r.t]),
+    edit: canEdit() ? { key:keyCubit(k), open:again.open, reopen:()=>openCubitProduct(k, { open:true }), saved:()=>render() } : null,
+    actions:`<button class="btn sm" id="pvOpen3d">3D, sizes and parts</button>`,
+    onBind: el=>el.querySelector('#pvOpen3d')?.addEventListener('click', ()=>{ closeProduct(); view.item=newItem(k); view.edit=null; render(); }) });
+}
 /* tap a product: its page (photos, then the info sheet dragged up) */
-function openStoreProduct(sid, key, sku){
+function openStoreProduct(sid, key, sku, again={}){
   const S=storeById(sid), P=(S?.cats?.[key]||[]).find(p=>p.sku===sku); if(!P) return;
   const done=isAdopted(sid, key, sku), mine=done && ITEMS.find(x=>x.k===`HD${P.sku}`), ed=canEdit();
   const rules = mine ? itemRules(mine.k).map(r=>[r.area, r.t]) : [];
   openProduct(dlg, P, { store:S, adopted:done, crumb:`${navName(view.cat)} › ${S?.name||''}`, thumb:productThumb(P, key, done, true), rules,
+    edit: ed ? { key:keyStore(sid, sku), open:again.open, reopen:()=>openStoreProduct(sid, key, sku, { open:true }), saved:()=>render() } : null,
     cubitNote: done ? 'Adopted into the Cubit catalogue: it can be placed in any home.' : '',
     actions: done ? (mine?`<button class="btn sm" id="pvOpen">Open in the Cubit catalogue</button>`:'<span class="pv-ok">✓ In the Cubit catalogue</span>') : ed&&canAdopt(key) ? `<button class="btn sm" id="pvAdopt">Adopt into the Cubit catalogue</button>` : '',
     onBind: el=>{
@@ -725,7 +741,7 @@ function renderDetail(body){
     </div>
     <div class="cw-side">
       ${d.note?`<p class="note">${esc(d.note)} · check the maker's current spec sheet before ordering.</p>`:''}
-      ${rulesBox(itemRules(it.k))}${d.store?`<button class="btn ghost sm" id="cwProd">Product page: photos, stock, specs</button> `:''}<button class="linkbtn" id="cwToRules">All ${esc(cat.name.toLowerCase())} rules and settings →</button>
+      ${rulesBox(itemRules(it.k))}<button class="btn ghost sm" id="cwProd">Product page: photos, documents, specs</button> <button class="linkbtn" id="cwToRules">All ${esc(cat.name.toLowerCase())} rules and settings →</button>
       <div class="cw-sizes">
         ${sizeRow('w','Width',it.w,d.sizes,d.wR,d.fixed)}
         ${sizeRow('h','Height',it.h,d.hSizes,d.hR,d.fixed)}
@@ -750,7 +766,7 @@ function renderDetail(body){
   const apply=(patch)=>{ if(editing) updateItem(it.id, patch); else Object.assign(it, patch); if(d.sized && patch.opt) Object.assign(it, d.sized(it)); if(editing){ refreshItem(it); renderSide(); } const ex=view.explode; render(); view.explode=ex; };
   bindHistory(body, HIST, ()=>{ const ex=view.explode; render(); view.explode=ex; });
   body.querySelector('#cwBack').onclick=()=>{ if(editing){ dlg.close(); return; } view.item=null; render(); };
-  body.querySelector('#cwProd')?.addEventListener('click',()=>{ const st=storeById(d.store.id), key=Object.keys(st?.cats||{}).find(k=>(st.cats[k]||[]).some(p=>p.sku===d.store.sku)); if(key) openStoreProduct(d.store.id, key, d.store.sku); else toast('That store\'s listing isn\'t loaded.'); });
+  body.querySelector('#cwProd')?.addEventListener('click',()=>{ if(d.store){ const st=storeById(d.store.id), key=Object.keys(st?.cats||{}).find(k=>(st.cats[k]||[]).some(p=>p.sku===d.store.sku)); if(key){ openStoreProduct(d.store.id, key, d.store.sku); return; } } openCubitProduct(it.k); });
   body.querySelector('#cwToRules')?.addEventListener('click',()=>{ view.item=null; view.edit=null; view.tab='set'; render(); });
   body.querySelector('#cwFront').onclick=()=>V?.front(); body.querySelector('#cwIso').onclick=()=>V?.iso();
   body.querySelector('#cwExB').onclick=e=>{ V?.explodeTo(view.explode>0.5?0:1); };

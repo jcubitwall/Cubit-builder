@@ -1,0 +1,224 @@
+{
+ "note": "Photos and extra data for products: store products by store:<store id>:<sku>, Cubit catalogue items by cubit:<item key>. Team edits (api/stores, info) go on top.",
+ "media": {
+  "store:homedepot-ca:1001352048": {
+   "images": [
+    "https://images.homedepot.ca/productimages/p_1001352048.jpg?product-images=l"
+   ],
+   "heat": "up to 400 sq ft (supplemental)",
+   "docNames": [
+    "Manual",
+    "Installation guide",
+    "Assembly instructions",
+    "Use & care",
+    "Warranty"
+   ],
+   "checked": "2026-11-14"
+  },
+  "store:homedepot-ca:1001837203": {
+   "images": [
+    "https://images.homedepot.ca/productimages/p_1001837203.jpg?product-images=l"
+   ],
+   "docNames": [
+    "Installation and owner's manual (EN/FR)",
+    "Spec sheet",
+    "Catalogue"
+   ],
+   "checked": "2026-11-14"
+  },
+  "store:homedepot-ca:1001491707": {
+   "images": [
+    "https://images.homedepot.ca/productimages/p_1001491707.jpg?product-images=l"
+   ],
+   "btu": 4777,
+   "heat": "400–999 sq ft",
+   "docNames": [
+    "Installation guide",
+    "Use & care",
+    "Warranty"
+   ],
+   "docs": [
+    {
+     "name": "Dimplex SIL48 spec sheet (PDF)",
+     "url": "https://cdn.shopify.com/s/files/1/0016/8801/0863/files/X-SIL48-Spec_sheet.pdf"
+    }
+   ],
+   "checked": "2026-11-14"
+  },
+  "store:homedepot-ca:1001972855": {
+   "images": [
+    "https://images.homedepot.ca/productimages/p_1001972855.jpg?product-images=l"
+   ],
+   "watts": 1500,
+   "btu": 5100,
+   "power": "120 V, 12.6 A · plug-in or hardwired",
+   "heat": "up to 1,000 sq ft",
+   "checked": "2026-11-14"
+  },
+  "store:homedepot-ca:1001777701": {
+   "images": [
+    "https://images.homedepot.ca/productimages/p_1001777701.jpg?product-images=l"
+   ],
+   "watts": 1500,
+   "btu": 5000,
+   "power": "plug-in or hardwired",
+   "heat": "400–999 sq ft",
+   "price": 749,
+   "docNames": [
+    "Installation manual",
+    "Napoleon brochure (EN)",
+    "Napoleon brochure (FR)"
+   ],
+   "checked": "2026-11-14"
+  },
+  "store:homedepot-ca:1001561188": {
+   "images": [
+    "https://images.homedepot.ca/productimages/p_1001561188.jpg?product-images=l"
+   ],
+   "btu": 8794,
+   "power": "plug-in",
+   "heat": "250–399 sq ft",
+   "checked": "2026-11-14"
+  },
+  "store:homedepot-ca:1001156640": {
+   "images": [
+    "https://images.homedepot.ca/productimages/p_1001156640.jpg?product-images=l"
+   ],
+   "btu": 4695,
+   "heat": "400–999 sq ft",
+   "docNames": [
+    "Installation guide",
+    "Assembly instructions",
+    "Brochure",
+    "Use & care",
+    "Warranty"
+   ],
+   "checked": "2026-11-14"
+  },
+  "store:homedepot-ca:1000852078": {
+   "images": [
+    "https://images.homedepot.ca/productimages/p_1000852078.jpg?product-images=l"
+   ],
+   "watts": 1500,
+   "btu": 4500,
+   "power": "120 V · plug-in (1500 / 750 W)",
+   "heat": "up to 400 sq ft",
+   "price": 249.99,
+   "docNames": [
+    "Manual"
+   ],
+   "checked": "2026-11-14"
+  },
+  "store:homedepot-ca:1000701403": {
+   "images": [
+    "https://images.homedepot.ca/productimages/p_1000701403.jpg?product-images=l"
+   ],
+   "btu": 4606,
+   "heat": "400–999 sq ft",
+   "price": 648,
+   "checked": "2026-11-14"
+  },
+  "store:homedepot-ca:1000719541": {
+   "images": [
+    "https://images.homedepot.ca/productimages/p_1000719541.jpg?product-images=l"
+   ],
+   "btu": 4915,
+   "power": "plug-in",
+   "heat": "up to 999 sq ft",
+   "price": 299,
+   "docNames": [
+    "Installation guide",
+    "Use & care"
+   ],
+   "checked": "2026-11-14"
+  },
+  "cubit:TS-MIR-LIB-L": {
+   "images": [
+    "https://images.homedepot.ca/productimages/p_1000714777.jpg?product-images=l"
+   ],
+   "store": "homedepot-ca",
+   "sku": "1000714777",
+   "url": "https://www.homedepot.ca/product/1000714777"
+  },
+  "cubit:TS-MIR-LIB-R": {
+   "images": [
+    "https://images.homedepot.ca/productimages/p_1000714777.jpg?product-images=l"
+   ],
+   "store": "homedepot-ca",
+   "sku": "1000714777",
+   "url": "https://www.homedepot.ca/product/1000714777"
+  },
+  "cubit:SH-MAAX-BIA": {
+   "images": [
+    "https://images.homedepot.ca/productimages/p_1000161589.jpg?product-images=l"
+   ],
+   "store": "homedepot-ca",
+   "sku": "1000161589",
+   "url": "https://www.homedepot.ca/product/1000161589"
+  },
+  "cubit:SH-MAAX-BIA36": {
+   "images": [
+    "https://images.homedepot.ca/productimages/p_1001927075.jpg?product-images=l"
+   ],
+   "store": "homedepot-ca",
+   "sku": "1001927075",
+   "url": "https://www.homedepot.ca/product/1001927075"
+  },
+  "cubit:BB-DX-20": {
+   "images": [
+    "https://images.homedepot.ca/productimages/p_1000709635.jpg?product-images=l"
+   ],
+   "store": "homedepot-ca",
+   "sku": "1000709635",
+   "url": "https://www.homedepot.ca/product/1000709635"
+  },
+  "cubit:BB-DX-25": {
+   "images": [
+    "https://images.homedepot.ca/productimages/p_1000709636.jpg?product-images=l"
+   ],
+   "store": "homedepot-ca",
+   "sku": "1000709636",
+   "url": "https://www.homedepot.ca/product/1000709636"
+  },
+  "cubit:BB-DX-30": {
+   "images": [
+    "https://images.homedepot.ca/productimages/p_1000709637.jpg?product-images=l"
+   ],
+   "store": "homedepot-ca",
+   "sku": "1000709637",
+   "url": "https://www.homedepot.ca/product/1000709637"
+  },
+  "cubit:BB-DX-35": {
+   "images": [
+    "https://images.homedepot.ca/productimages/p_1000709638.jpg?product-images=l"
+   ],
+   "store": "homedepot-ca",
+   "sku": "1000709638",
+   "url": "https://www.homedepot.ca/product/1000709638"
+  },
+  "cubit:BB-DX-40": {
+   "images": [
+    "https://images.homedepot.ca/productimages/p_1000709639.jpg?product-images=l"
+   ],
+   "store": "homedepot-ca",
+   "sku": "1000709639",
+   "url": "https://www.homedepot.ca/product/1000709639"
+  },
+  "cubit:BB-DX-50": {
+   "images": [
+    "https://images.homedepot.ca/productimages/p_1000709640.jpg?product-images=l"
+   ],
+   "store": "homedepot-ca",
+   "sku": "1000709640",
+   "url": "https://www.homedepot.ca/product/1000709640"
+  },
+  "cubit:BB-DX-60": {
+   "images": [
+    "https://images.homedepot.ca/productimages/p_1000709641.jpg?product-images=l"
+   ],
+   "store": "homedepot-ca",
+   "sku": "1000709641",
+   "url": "https://www.homedepot.ca/product/1000709641"
+  }
+ }
+}
