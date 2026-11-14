@@ -46,6 +46,7 @@ import { LIB, LAYERLIB, DECKLIB, SIDINGLIB, MEMBRANELIB } from './data.js';
 import { membraneTakeoff } from './membrane.js';
 import { ACPLIB, accentWalls } from './accent.js';
 import { libRules } from './lib-rules.js';
+import { productCard, openProduct, closeProduct } from './productview.js';
 import { libSettingsHTML, bindLibSettings } from './libsettings.js';
 import { homeSiding, MOLD, SIDING_TRIM } from './sidinglayout.js';
 import { fft } from './format.js';
@@ -237,7 +238,7 @@ function renderInner(){
   const acts=id=>`<div class="cw-bact"><button class="btn ghost sm" data-c3d="${esc(id)}">3D</button><button class="btn ghost sm editor-only" data-cren="${esc(id)}">Rename</button><button class="btn ghost sm danger editor-only" data-cdel="${esc(id)}">Delete</button></div>`;
   const card = unitCat
     ? u=>`<div class="cw-card cw-bcard" data-uid="${esc(u.id)}"><div class="cw-thumb">${unitSVG(u.type, u.hand||'L', u.w, u.h, 120, u.place==='int', TYPES[u.type]?.round)}</div><b>${esc(u.name)}</b><small><code>${esc(u.id)}</code> · ${esc(TYPES[u.type]?.label||u.type)} · ${u.w} × ${u.h}″${u.sample?' · sample':''}</small>${acts(u.id)}${rulesBox(unitRules(u)).replace('<details class="ir-box" open>','<details class="ir-box">')}</div>`
-    : d=>{ const it=newItem(d.k); return `<div class="cw-card cw-bcard" data-k="${d.k}"><div class="cw-thumb">${frontSVG(it)}</div><b>${esc(d.name)}</b><small>${sizeTxt(it)}${d.fixed?' · fixed size':''}</small>${acts(d.k)}</div>`; };
+    : d=>{ const it=newItem(d.k); return productCard({ name:d.name, price:d.store?.price||null }, { id:d.k, cls:'cw-bcard', attrs:` data-k="${esc(d.k)}"`, thumb:frontSVG(it), adopted:!!d.store, sub:`${sizeTxt(it)}${d.fixed?' · fixed size':''}`, noPrice:true, actions:acts(d.k) }); };
   body.innerHTML=nav+`
     <section class="cw-grid cw-bgrid"><div class="cw-bbar"><input type="search" id="cwQ" placeholder="Search names and IDs" aria-label="Search">${gone?`<button class="linkbtn editor-only" id="cwGone" title="⋯ → Deleted items">Deleted (${gone})</button>`:''}</div>
     ${items.map(card).join('') || `<p class="note">${unitCat?'None yet. Add one with ⋯ → Upload STEP → Window / door.':'Empty.'}</p>`}</section>`;
@@ -400,33 +401,43 @@ onUnitsChanged(()=>{ if(dlg?.open && view.cat.startsWith('u:') && view.tab==='li
 /* a store's list for one category: what can be ordered online and shipped to Cubit; Adopt puts it in the Cubit library */
 function storeGrid(sid, key){
   const S=storeById(sid), L=S?.cats?.[key]||[], ed=canEdit(), catName=navName(CATS.some(c=>c.k===key)?key:/^[a-z]+:/.test(key)?key:'d:'+key), adoptable=canAdopt(key);
-  const card=P=>{ if(key==='bx') return boxCard(P); if(!(P.w>0 && P.h>0)) return plainCard(P); const done=isAdopted(sid, key, P.sku), mine=done && ITEMS.find(x=>x.k===`HD${P.sku}`);
-    return `<div class="cw-card cw-bcard cw-catc${done?' in':''}"><div class="cw-thumb">${mine?frontSVG(newItem(mine.k)):`<svg viewBox="0 0 ${P.w+4} ${P.h+4}" aria-hidden="true"><rect x="2" y="2" width="${P.w}" height="${P.h}" fill="#cfd3d6" stroke="#1c211e" stroke-width="${Math.max(P.w,P.h)/90}"/><rect x="${2+P.w*0.06}" y="${2+P.h*0.1}" width="${P.w*0.88}" height="${P.h*0.8}" fill="#24282c"/></svg>`}</div>
-      <b>${esc(P.name)}</b><small><code>${esc(P.model)}</code> · SKU ${esc(P.sku)} · ${fin2(P.w)} × ${fin2(P.h)} × ${fin2(P.d)}${P.lbs?` · ${P.lbs} lb`:''}</small>
-      <small>${P.price?`<b>$${P.price.toLocaleString('en-CA',{minimumFractionDigits:P.price%1?2:0})}</b> · `:''}${[P.btu?`${P.btu.toLocaleString()} BTU`:'', P.watts?`${P.watts} W`:'', P.power||''].filter(Boolean).join(' · ')}</small>
-      ${P.note?`<p class="note">${esc(P.note)}</p>`:''}
-      <div class="cw-bact"><a class="btn ghost sm" href="${esc(P.url)}" target="_blank" rel="noopener">${esc(S?.name||'Store')}</a>${done?`<span class="note">✓ In the Cubit library${mine?'':''}</span>`:ed&&adoptable?`<button class="btn sm" data-sadopt="${esc(P.sku)}">Adopt</button>`:''}${S?.team&&ed?`<button class="btn ghost sm danger" data-sdel="${esc(P.sku)}">Remove</button>`:''}</div></div>`; };
-  function plainCard(P){ return `<div class="cw-card cw-bcard cw-catc"><b>${esc(P.name)}</b><small>${[P.brand,P.model&&`<code>${esc(P.model)}</code>`,P.sku&&`SKU ${esc(P.sku)}`].filter(Boolean).map(x=>x.startsWith('<')?x:esc(x)).join(' · ')}</small>
-      ${P.price?`<small><b>$${(+P.price).toLocaleString('en-CA',{minimumFractionDigits:P.price%1?2:0})}</b>${P.unit?` / ${esc(P.unit)}`:''}</small>`:''}${P.note?`<p class="note">${esc(P.note)}</p>`:''}
-      <div class="cw-bact">${P.url?`<a class="btn ghost sm" href="${esc(P.url)}" target="_blank" rel="noopener">${esc(S?.name||'Store')}</a>`:''}${S?.team&&ed?`<button class="btn ghost sm danger" data-sdel="${esc(P.sku)}">Remove</button>`:''}</div></div>`; }
-  function boxCard(P){ const done=isAdopted(sid, key, P.sku);
-    return `<div class="cw-card cw-bcard cw-catc${done?' in':''}"><div class="cw-thumb">${boxSVG(P)}</div>
-      <b>${esc(P.brand)} ${esc(P.model)}</b><p class="cw-bname">${esc(P.name)}</p>
-      <small>${P.gang?`${P.gang} gang · `:''}${fin2(P.w)} × ${fin2(P.h)} × ${fin2(P.d)} deep${P.cuin?` · ${P.cuin} cu in`:''} · ${esc(P.material||'')}${P.mount==='surface'?' · surface mount':''} · Eddy item ${esc(P.sku)}</small>
-      ${P.confirm?'<p class="note warn">Size not confirmed yet: check it on the Eddy page before adopting.</p>':''}${P.note?`<p class="note">${esc(P.note)}</p>`:''}
-      <div class="cw-bact"><a class="btn ghost sm" href="${esc(P.url)}" target="_blank" rel="noopener">${esc(S?.name||'Store')}</a>${done?'<span class="note">✓ In the Cubit catalogue</span>':ed?`<button class="btn sm" data-sadopt="${esc(P.sku)}">Adopt</button>`:''}</div></div>`; }
+  const card=P=>{ const done=isAdopted(sid, key, P.sku);
+    const acts=[done?'<span class="pv-ok">✓ In the Cubit catalogue</span>':ed&&adoptable?`<button class="btn sm" data-sadopt="${esc(P.sku)}">Adopt</button>`:'', S?.team&&ed?`<button class="btn ghost sm danger" data-sdel="${esc(P.sku)}">Remove</button>`:''].join('');
+    return productCard(P, { store:S, adopted:done, thumb:productThumb(P, key, done), actions:acts, badges:P.confirm?['Size to confirm']:[] }); };
   const info = S?.team ? [S.kind==='online'?'Online store':'Local store', S.address, S.phone, S.note].filter(Boolean).map(esc).join(' · ')
     : `${esc(S?.note||'')} Ships to ${esc(S?.shipTo||'')}${S?.pickup?` (or pick up at ${esc(S.pickup)})`:''}. Checked ${esc(S?.checked||'')}.`;
   return `<section class="cw-grid cw-bgrid"><div class="cw-span cat-head"><h3>${esc(S?.name||sid)} ${key==='bx'?'catalogue':'store'} · ${esc(catName)} ${S?.url?`<a href="${esc(S.url)}" target="_blank" rel="noopener" class="linkbtn">${esc(S.url.replace(/^https?:\/\/(www\.)?/,''))}</a>`:''}</h3>
       <p class="note">${info} ${adoptable?(ed?'<b>Adopt</b> puts one in the Cubit library for the whole team.':'Editors and admins adopt these into the Cubit library.'):''}</p></div>
-    ${L.map(card).join('') || '<p class="note">Nothing listed yet.</p>'}
+    <div class="pv-row cw-span">${L.map(card).join('') || '<p class="note">Nothing listed yet.</p>'}</div>
     ${S?.team&&ed?`<form class="cw-card cw-span st-form" id="stProd"><h4>Add a product to ${esc(S.name)}</h4>
       <label><span>Name</span><input name="name" required></label><label><span>Brand</span><input name="brand"></label><label><span>Model</span><input name="model"></label><label><span>SKU / item #</span><input name="sku"></label>
       <label><span>Price $</span><input name="price" inputmode="decimal"></label><label><span>Per</span><input name="unit" placeholder="each, box, roll, ft…"></label><label><span>Link</span><input name="url" placeholder="https://"></label>
       <label><span>Size W × H × D ″</span><input name="size" placeholder="optional, e.g. 30 x 18 x 12"></label><label class="wide"><span>Note</span><input name="note"></label>
       <div class="row"><button class="btn sm" type="submit">Add</button><button class="btn ghost sm danger" type="button" id="stDel">Take ${esc(S.name)} off this category</button></div></form>`:''}</section>`;
 }
+/* a product with no photo yet: our drawing of it (the adopted item, a device box, or its outline) */
+function productThumb(P, key, done, big=false){
+  const mine=done && ITEMS.find(x=>x.k===`HD${P.sku}`);
+  if(mine) return frontSVG(newItem(mine.k));
+  if(key==='bx' && P.w>0) return boxSVG(P);
+  if(P.w>0 && P.h>0) return `<svg viewBox="0 0 ${P.w+4} ${P.h+4}" aria-hidden="true"><rect x="2" y="2" width="${P.w}" height="${P.h}" fill="#cfd3d6" stroke="#1c211e" stroke-width="${Math.max(P.w,P.h)/90}"/><rect x="${2+P.w*0.06}" y="${2+P.h*0.1}" width="${P.w*0.88}" height="${P.h*0.8}" fill="#24282c"/></svg>`;
+  return `<svg viewBox="0 0 100 70" aria-hidden="true"><rect x="8" y="8" width="84" height="54" rx="6" fill="#e6e3da"/><text x="50" y="41" font-size="10" text-anchor="middle" fill="#8a8578">no photo yet</text></svg>`;
+}
+/* tap a product: its page (photos, then the info sheet dragged up) */
+function openStoreProduct(sid, key, sku){
+  const S=storeById(sid), P=(S?.cats?.[key]||[]).find(p=>p.sku===sku); if(!P) return;
+  const done=isAdopted(sid, key, sku), mine=done && ITEMS.find(x=>x.k===`HD${P.sku}`), ed=canEdit();
+  const rules = mine ? itemRules(mine.k).map(r=>[r.area, r.t]) : [];
+  openProduct(dlg, P, { store:S, adopted:done, crumb:`${navName(view.cat)} › ${S?.name||''}`, thumb:productThumb(P, key, done, true), rules,
+    cubitNote: done ? 'Adopted into the Cubit catalogue: it can be placed in any home.' : '',
+    actions: done ? (mine?`<button class="btn sm" id="pvOpen">Open in the Cubit catalogue</button>`:'<span class="pv-ok">✓ In the Cubit catalogue</span>') : ed&&canAdopt(key) ? `<button class="btn sm" id="pvAdopt">Adopt into the Cubit catalogue</button>` : '',
+    onBind: el=>{
+      el.querySelector('#pvOpen')?.addEventListener('click', ()=>{ closeProduct(); view.item=newItem(mine.k); render(); });
+      el.querySelector('#pvAdopt')?.addEventListener('click', async e=>{ e.currentTarget.disabled=true; try{ await adoptStore(sid, key, P); toast('Adopted into the Cubit catalogue'); closeProduct(); render(); }catch(err){ toast('Not adopted: '+err.message); e.currentTarget.disabled=false; } }); } });
+}
 function bindStore(body, sid, key){
+  body.querySelectorAll('.pv-card').forEach(c=>{ const go=e=>{ if(e.target.closest('button,a,input')) return; openStoreProduct(sid, key, c.dataset.pv); };
+    c.addEventListener('click', go); c.addEventListener('keydown', e=>{ if(e.key==='Enter') go(e); }); });
   bindSrc(body);
   const S=storeById(sid), f=body.querySelector('#stProd');
   if(f && S) f.onsubmit=async e=>{ e.preventDefault(); const v=Object.fromEntries(new FormData(f)); if(!String(v.name||'').trim()) return;
@@ -714,7 +725,7 @@ function renderDetail(body){
     </div>
     <div class="cw-side">
       ${d.note?`<p class="note">${esc(d.note)} · check the maker's current spec sheet before ordering.</p>`:''}
-      ${rulesBox(itemRules(it.k))}<button class="linkbtn" id="cwToRules">All ${esc(cat.name.toLowerCase())} rules and settings →</button>
+      ${rulesBox(itemRules(it.k))}${d.store?`<button class="btn ghost sm" id="cwProd">Product page: photos, stock, specs</button> `:''}<button class="linkbtn" id="cwToRules">All ${esc(cat.name.toLowerCase())} rules and settings →</button>
       <div class="cw-sizes">
         ${sizeRow('w','Width',it.w,d.sizes,d.wR,d.fixed)}
         ${sizeRow('h','Height',it.h,d.hSizes,d.hR,d.fixed)}
@@ -739,6 +750,7 @@ function renderDetail(body){
   const apply=(patch)=>{ if(editing) updateItem(it.id, patch); else Object.assign(it, patch); if(d.sized && patch.opt) Object.assign(it, d.sized(it)); if(editing){ refreshItem(it); renderSide(); } const ex=view.explode; render(); view.explode=ex; };
   bindHistory(body, HIST, ()=>{ const ex=view.explode; render(); view.explode=ex; });
   body.querySelector('#cwBack').onclick=()=>{ if(editing){ dlg.close(); return; } view.item=null; render(); };
+  body.querySelector('#cwProd')?.addEventListener('click',()=>{ const st=storeById(d.store.id), key=Object.keys(st?.cats||{}).find(k=>(st.cats[k]||[]).some(p=>p.sku===d.store.sku)); if(key) openStoreProduct(d.store.id, key, d.store.sku); else toast('That store\'s listing isn\'t loaded.'); });
   body.querySelector('#cwToRules')?.addEventListener('click',()=>{ view.item=null; view.edit=null; view.tab='set'; render(); });
   body.querySelector('#cwFront').onclick=()=>V?.front(); body.querySelector('#cwIso').onclick=()=>V?.iso();
   body.querySelector('#cwExB').onclick=e=>{ V?.explodeTo(view.explode>0.5?0:1); };
