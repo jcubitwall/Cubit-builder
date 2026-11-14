@@ -7,8 +7,10 @@ import { fin, fft } from './format.js';
 import { state } from './state.js';
 import { homeSiding, MOLD, ACM_LAP, SIDING_TRIM as TR } from './sidinglayout.js';
 import { downloadBlob } from './sheets.js';
+import { onLibSettings } from './libsettings.js';
 
-const SCREWS = { perPanel:12, perRip:4, extra:0.10, bag:250, what:'siding screw' };   // a rip gets 4: the next panel's screws serve as the rest · +10% for ends and odd spots
+const SCREWS = { perPanel:12, perRip:4, extra:0.10, bag:250, what:'siding screw' };
+onLibSettings(ls=>Object.assign(SCREWS, { perPanel:ls('siding','screwsPanel'), perRip:ls('siding','screwsRip'), extra:ls('siding','screwsExtra')/100, bag:ls('siding','screwBag') }));   // a rip gets 4: the next panel's screws serve as the rest · +10% for ends and odd spots
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const f2 = v => fin(Math.round(v*16)/16);
 const EDGE = { C:'the Einspine corner trim', I:'the inside corner trim', J:'the pod joint connector', M:'the brick mold', X:'the joiner' };

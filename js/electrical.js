@@ -166,6 +166,7 @@ function planFor(k=state.model){
 /* a baseboard heater's wire run (header). a = along the wall from the left seen from OUTSIDE; the room face's x is
    Lin − a. Seen from the room the heater's right end is its low-a end (a0). */
 const BB = { up:3, inFromRight:3, chaseY:6, r:3, endDepth:1, bit:0.75 };
+import('./libsettings.js').then(m=>m.onLibSettings(ls=>Object.assign(BB, { up:ls('heater','up'), inFromRight:ls('heater','inFromRight'), chaseY:ls('heater','chaseY'), r:ls('heater','r'), endDepth:ls('heater','endDepth') })));   // Library → Baseboard heaters → Rules
 function heaterRoute(W, it, id){ const r=wireRoute(W, it.a0+BB.inFromRight, BB.up, id, 'Heater wire run'); if(r) r.items.forEach(x=>x.heater=it.I.it.k); return r; }
 /* a wall light box (placed exactly, by hand; the standard single-gang SHALLOW box): the same run from the nearest
    usable chase (the hole into the chase 3″ above the box's centre, the 3″ curve down to the box's centre height, then

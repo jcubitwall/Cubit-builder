@@ -1,5 +1,5 @@
 {
-"version": "cbde8a025268",
+"version": "ed9d252df63d",
 "files": [
 "./",
 "brand/cubit-logo.png",
@@ -63,8 +63,10 @@
 "js/layer-builder.js",
 "js/layers.js",
 "js/layout.js",
+"js/lib-rules.js",
 "js/libedit.js",
 "js/library-ui.js",
+"js/libsettings.js",
 "js/light-edit-ui.js",
 "js/lights.js",
 "js/local-history.js",

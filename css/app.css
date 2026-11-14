@@ -1591,3 +1591,20 @@ html:not(.phone) header.bar{position:sticky;top:0;z-index:30;background:var(--bg
 .sp-text{line-height:1.4}
 .sp-nav{display:flex;gap:8px;align-items:center;margin-top:8px}
 .sp-nav input{flex:1}
+.lr-box{margin:0 0 16px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--paper,#fff)}
+.lr-box h3{margin:0 0 8px}
+.lr-list li{margin:3px 0}
+.lr-more{margin-top:8px}
+.ls-box{display:grid;gap:10px}
+.ls-area{border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:6px 14px}
+.ls-area legend{font-weight:700;padding:0 4px}
+.ls-f{display:flex;flex-direction:column;gap:2px;font-size:12.5px}
+.ls-in{display:flex;align-items:center;gap:4px}
+.ls-in input{width:90px}
+.ls-def{color:#b25f1a}
+.st-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;align-items:end}
+.st-form h4,.st-form .row,.st-form .wide,.st-form .seg{grid-column:1/-1}
+.st-form label{display:flex;flex-direction:column;gap:2px;font-size:12.5px}
+.acc-sw.lib{gap:12px}
+.acc-chip{display:flex;flex-direction:column;align-items:flex-start;gap:3px;width:110px;font-size:12px}
+.acc-chip span{width:100%;height:46px;border-radius:6px;border:1px solid var(--line)}

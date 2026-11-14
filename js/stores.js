@@ -14,8 +14,14 @@ import { addBox } from './boxes.js';
 
 const STORES=[], ADOPTED=[]; let remote=false; const LOCAL='cubit-adopted';
 const subs=[]; const onAdoptedChanged = fn => subs.push(fn);
+let teamRemote=false; const TEAM_LOCAL='cubit-team-stores';
 async function loadStores(){
   try{ const r=await fetch('api/seed/stores'); if(r.ok){ STORES.length=0; ((await r.json()).stores||[]).forEach(s=>STORES.push(s)); } }catch(e){}
+  // the team's own stores, local or online (api/stores; this browser when opened locally)
+  let T=null;
+  try{ const r=await fetch('api/stores',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ T=(await r.json()).stores||[]; teamRemote=true; } }catch(e){}
+  if(!T){ try{ T=JSON.parse(localStorage.getItem(TEAM_LOCAL)||'[]'); }catch(e){ T=[]; } }
+  T.forEach(s=>{ if(!STORES.some(x=>x.id===s.id)) STORES.push({ ...s, team:true }); });
   let L=null;
   try{ const r=await fetch('api/adopted',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ L=await r.json(); remote=true; } }catch(e){}
   if(!L){ try{ L=JSON.parse(localStorage.getItem(LOCAL)||'[]'); }catch(e){ L=[]; } }
@@ -23,7 +29,23 @@ async function loadStores(){
 }
 const storeById = id => STORES.find(s=>s.id===id) || null;
 /* the stores that have a list for a Library category key: [{ store, items }] */
-const storesFor = key => STORES.filter(s=>s.cats?.[key]?.length).map(s=>({ store:s, items:s.cats[key] }));
+const storesFor = key => STORES.filter(s=>s.cats?.[key]?.length || (s.team && s.cats && key in s.cats)).map(s=>({ store:s, items:s.cats[key]||[] }));
+/* the team's own stores: add / change one (with its lists), or take one off */
+async function saveTeamStore(st){
+  const s={ ...st, team:true };
+  if(teamRemote){ const r=await fetch('api/stores',{method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({op:'save', store:s})}); const o=await r.json().catch(()=>({})); if(!r.ok) throw new Error(o.error||`Server said ${r.status}`); }
+  else { const L=STORES.filter(x=>x.team && x.id!==s.id); try{ localStorage.setItem(TEAM_LOCAL, JSON.stringify([s, ...L])); }catch(e){} }
+  const i=STORES.findIndex(x=>x.id===s.id); if(i>=0) STORES[i]=s; else STORES.push(s);
+  subs.forEach(f=>{ try{ f(); }catch(e){} }); return s;
+}
+async function deleteTeamStore(id){
+  if(teamRemote){ const r=await fetch('api/stores',{method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({op:'delete', id})}); const o=await r.json().catch(()=>({})); if(!r.ok) throw new Error(o.error||`Server said ${r.status}`); }
+  const i=STORES.findIndex(x=>x.id===id && x.team); if(i>=0) STORES.splice(i,1);
+  if(!teamRemote){ try{ localStorage.setItem(TEAM_LOCAL, JSON.stringify(STORES.filter(x=>x.team))); }catch(e){} }
+  subs.forEach(f=>{ try{ f(); }catch(e){} });
+}
+/* which categories a store product can be adopted into the Cubit library from */
+const canAdopt = cat => isCasework(cat) || ['sw','rc','dt','bx'].includes(cat);
 const adoptId = (storeId, cat, sku) => `${storeId}:${cat}:${sku}`;
 const isAdopted = (storeId, cat, sku) => ADOPTED.some(a=>a.id===adoptId(storeId, cat, sku));
 const isCasework = cat => CATS.some(c=>c.k===cat);
@@ -46,4 +68,4 @@ async function adopt(storeId, cat, P){
   if(!ADOPTED.some(x=>x.id===a.id)) ADOPTED.unshift(a);
   const it=register(a); subs.forEach(f=>{ try{ f(); }catch(e){} }); return it;
 }
-export { STORES, ADOPTED, loadStores, storeById, storesFor, isAdopted, adopt, onAdoptedChanged };
+export { STORES, ADOPTED, loadStores, storeById, storesFor, isAdopted, adopt, onAdoptedChanged, saveTeamStore, deleteTeamStore, canAdopt };

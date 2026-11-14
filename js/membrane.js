@@ -9,10 +9,12 @@ import { H } from './config.js';
 import { slotsFor } from './layout.js';
 import { bodyWall, wallLen, panelSpans } from './panels.js';
 import { pickFor, jointWallT } from './state.js';
+import { ls } from './libsettings.js';
 
 const FT = 12;
 /* the walls it goes on: every exterior wall, and each pod's own SIP wall where two pods join (unless taken out) */
 const membraneOn = s => s.type==='ext' || (s.type==='int' && s.other && !s.part && jointWallT(s)!==0);
+const tapeW = () => ls('membrane','tapeW');   // the Library's Membrane rules page
 const membrane = () => MEMBRANELIB.find(x=>x.id==='polarblock-wrap') || MEMBRANELIB[0] || null;
 const holesOf = w => (w.openings||[]).filter(o=>(o.w||o.d||0)>=1);
 const holeArea = o => o.shape==='round' ? Math.PI*((o.d||o.w)/2)**2 : (o.w||0)*Math.max(0, Math.min(o.y+o.h, H)-Math.max(o.y, 0));
@@ -28,7 +30,7 @@ function printTexture(M){
 /* the joints between this wall's panels (x, in from the wall's left end) and the tape's runs up each, missing openings */
 function tapeRuns(w){
   const sp=panelSpans(w), J=sp.slice(0,-1).filter((s,i)=>Math.abs(s[1]-sp[i+1][0])<0.01).map(s=>s[1]);
-  const half=(membrane()?.tape?.w||3)/2;
+  const half=tapeW()/2;
   /* the height an opening takes out of the tape at x (the tape is 3″ wide, so its nearer edge counts): a square
      opening its full height; a round window the chord of the circle at the tape's nearer edge */
   const cut=(o,x)=>{ if(o.shape==='round'){ const d=o.d||o.w, r=d/2, cx=o.x+r, cy=o.y+r, dx=Math.max(0, Math.abs(x-cx)-half);
@@ -50,7 +52,7 @@ function membraneMesh(w){
     polygonOffset:true, polygonOffsetFactor:2, polygonOffsetUnits:2 }));   // pushed back: the siding over it always wins
   m.position.z=t/2; m.userData.membrane=true;
   // the seam tape over each joint
-  const T=M.tape, tw=(T?.w||3)/FT, tm=new THREE.MeshStandardMaterial({ color:new THREE.Color(T?.color||'#3f5f93'), roughness:0.8, metalness:0, side:THREE.DoubleSide, polygonOffset:true, polygonOffsetFactor:1, polygonOffsetUnits:1 });
+  const T=M.tape, tw=tapeW()/FT, tm=new THREE.MeshStandardMaterial({ color:new THREE.Color(T?.color||'#3f5f93'), roughness:0.8, metalness:0, side:THREE.DoubleSide, polygonOffset:true, polygonOffsetFactor:1, polygonOffsetUnits:1 });
   tapeRuns(w).forEach(r=>r.segs.forEach(([a,b])=>{ const g=new THREE.Mesh(new THREE.PlaneGeometry(tw, (b-a)/FT), tm); g.position.set(r.x/FT, (a+b)/2/FT, t*0.9); m.add(g); }));
   return m;
 }
