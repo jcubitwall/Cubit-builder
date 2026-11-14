@@ -31,6 +31,7 @@ import { slotsFor } from './layout.js';
 import { bodyWall } from './panels.js';
 import { pickFor, state } from './state.js';
 import { accentOf } from './accent.js';
+import { onLibSettings } from './libsettings.js';
 
 const MOLD = 1.5;          // brick mold, each side and top and bottom of the opening
 const ACM_ROUND = { lap:0.5 };   // round windows: the ACM in two halves split at the window's middle, the upper lapping this far over the lower
@@ -43,6 +44,12 @@ const TR = {
   joiner: { w:6, lap:1, name:'Joiner (flat batten)', note:'standard, where two runs meet between openings' },
   nom: 32.5, ripMin: 3, saw: 0.25,
 };
+// the Library's Siding rules page can change these (libsettings.js)
+onLibSettings(ls=>{ Object.assign(TR.corner, { leg:ls('siding','cornerLeg'), clear:ls('siding','cornerClear'), lap:ls('siding','cornerLap') });
+  Object.assign(TR.inside, { leg:ls('siding','insideLeg'), clear:ls('siding','insideClear') });
+  Object.assign(TR.joint, { clear:ls('siding','jointClear'), max:ls('siding','jointMax'), lap:ls('siding','jointLap') });
+  TR.mold.tuck=ls('siding','moldTuck'); TR.joiner.w=ls('siding','joinerW'); TR.nom=ls('siding','nom'); TR.ripMin=ls('siding','ripMin');
+  ACM_ROUND.lap=ls('acm','roundLap'); });
 const FILL_MIN = TR.ripMin;
 const EPS = 1e-6;
 const profile = () => SIDINGLIB.find(x=>x.id==='rando-rib') || SIDINGLIB[0] || null;

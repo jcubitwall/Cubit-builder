@@ -97,7 +97,7 @@ document.getElementById('bPlan').onclick=()=>{ if(state.view==='plan'){ closePla
 document.querySelectorAll('.hint').forEach(h=>{ const host=h.parentNode; const off=()=>{ h.classList.add('gone'); host.removeEventListener('pointerdown',off); }; host.addEventListener('pointerdown',off); });
 
 (async function boot(){
-  try{ await loadRole(); await loadData(); await (await import("./brands.js")).loadBrands(); await loadUnits(); await loadProjects(); await loadCustomers(); await loadKitchens(); await (await import("./stores.js")).loadStores(); await loadCatalog(); await (await import('./devices.js')).loadDevices(); await loadEdits(); await loadSettings(); await loadFixtures(); await loadRules(); await loadShapes(); }
+  try{ await loadRole(); await loadData(); await (await import("./brands.js")).loadBrands(); await loadUnits(); await loadProjects(); await loadCustomers(); await loadKitchens(); await (await import("./stores.js")).loadStores(); await loadCatalog(); await (await import('./devices.js')).loadDevices(); await loadEdits(); await loadSettings(); await loadFixtures(); await loadRules(); (await import('./libsettings.js')).applyLibSettings(); await loadShapes(); }
   catch(e){ document.getElementById('sideH').innerHTML='<h2>Could not load the wall library</h2><p>Open the app from its web address (GitHub Pages) or a local web server, not by double-clicking the file.</p>'; return; }
   initState(); try{ await loadDrafts(); }catch(e){}
   try{ refreshOpen(state.model); }catch(e){ console.warn('refresh', e); }   // a team home on screen: its latest save, not this device's older copy

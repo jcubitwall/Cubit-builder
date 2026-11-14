@@ -16,12 +16,14 @@ import { ROOF_TOP, WALL_BASE } from './config.js';
 import { slotsFor, podOffsets } from './layout.js';
 import { bodyWall } from './panels.js';
 import { okey } from './units.js';
+import { onLibSettings } from './libsettings.js';
 import { checkpoint } from './history.js';
 import { ensureDraft } from './pods.js';
 import { saveCustomModels } from './data.js';
 
 const LVLH = { bit:0.75, mold:1.5, out:2, below:5.5, lvl:1.875 };
-const Y = ROOF_TOP - LVLH.below - WALL_BASE;     // the hole's centre, in wall coordinates (inches up from the wall's base)
+let Y = ROOF_TOP - LVLH.below - WALL_BASE;
+onLibSettings(ls=>{ LVLH.bit=ls('lvl','bit'); LVLH.out=ls('lvl','out'); LVLH.below=ls('lvl','below'); Y=ROOF_TOP-LVLH.below-WALL_BASE; });   // Library → Windows / Exterior doors → Rules     // the hole's centre, in wall coordinates (inches up from the wall's base)
 const keyOf = (s, o) => `${wkey(s)}|${okey(o)}`;
 const isDoor = o => o.kind==='door' || o.kind==='patio';
 const picks = (k=state.model) => MODELS[k]?.elec?.lvl || {};

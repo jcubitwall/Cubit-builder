@@ -27,7 +27,9 @@ const CHASE = { first:6, every:12, panel:48 };
 const KEY='cubit-wall-rules';
 let R=clone(DEFAULTS), remote=false;
 function clone(o){ return JSON.parse(JSON.stringify(o)); }
-function merge(d, s){ const o=clone(d); Object.keys(o).forEach(k=>{ if(s && typeof s[k]==='object') Object.assign(o[k], s[k], {label:o[k].label}); }); return o; }
+function merge(d, s){ const o=clone(d); Object.keys(o).forEach(k=>{ if(s && typeof s[k]==='object') Object.assign(o[k], s[k], {label:o[k].label}); });
+  if(s?.lib && typeof s.lib==='object') o.lib=clone(s.lib);   // the Library's adjustable rule settings (libsettings.js)
+  return o; }
 async function loadRules(){
   try{ const r=await fetch('api/wallrules',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ R=merge(DEFAULTS, await r.json()); remote=true; return R; } }catch(e){}
   try{ R=merge(DEFAULTS, JSON.parse(localStorage.getItem(KEY)||'{}')); }catch(e){}

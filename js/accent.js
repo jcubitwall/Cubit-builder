@@ -17,11 +17,14 @@ import { bodyWall } from './panels.js';
 import { checkpoint } from './history.js';
 import { ensureDraft } from './pods.js';
 import { wallLayout, SIDING_TRIM } from './sidinglayout.js';
+import { onLibSettings } from './libsettings.js';
 
 const LIB = { sheet:{ w:48, h:120 }, groove:{ w:0.5, joint:3, reveal:1.5, overlap:0.5 }, screws:{ every:16, fromEnd:2 }, colours:[], patterns:[] };
 let loaded=null;
 function loadACP(){ return loaded ||= fetch('data/acp.json').then(r=>r.ok?r.json():null).then(j=>{ if(j) Object.assign(LIB, j); return LIB; }).catch(()=>LIB); }
-loadACP();
+loadACP().then(()=>applyACP());
+function applyACP(ls=LS){ if(!ls) return; LIB.groove.overlap=ls('acp','overlap'); LIB.screws={ ...LIB.screws, every:ls('acp','screwEvery'), fromEnd:ls('acp','screwFromEnd') }; }
+let LS=null; onLibSettings(ls=>{ LS=ls; applyACP(ls); });
 const MOLD = 1.5, EPS = 1e-6;
 const colourOf = id => LIB.colours.find(c=>c.id===id) || LIB.colours[0] || { id:'black', name:'Matte black', hex:'#151617' };
 const patternOf = id => LIB.patterns.find(p=>p.id===id) || { id, name:id, size:null };
