@@ -1,5 +1,5 @@
 {
-"version": "c36c1a5a236e",
+"version": "69ec067be209",
 "files": [
 "./",
 "brand/cubit-logo.png",
@@ -203,7 +203,7 @@
 "js/cabcnc.js": "65b0f3af61",
 "js/casework-parts.js": "2f4eb97977",
 "js/casework-svg.js": "97fea14517",
-"js/casework-ui.js": "301646071a",
+"js/casework-ui.js": "29dfe877f5",
 "js/casework.js": "1f5bdccd3a",
 "js/casework3d.js": "d95d1aa145",
 "js/catalog.js": "1d561cd25f",
