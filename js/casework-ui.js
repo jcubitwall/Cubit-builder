@@ -474,17 +474,18 @@ onAdoptedChanged(()=>{ if(dlg?.open && view.tab==='lib' && !view.item) render();
 /* siding (data/siding.json, scanned from STEP): the profile drawn from the scan, its measurements, the coverage rules
    and how it's laid out (sidinglayout.js), and what this home takes */
 function profileSVG(P, wpx=640, cover=null, hop=false){
-  const s=wpx/(P.w+0.6), Hh=(P.depth+0.5)*s*3.2, Y=y=>Hh-0.25*s*3.2-y*s*3.2, X=x=>(x+0.3)*s;   // depth drawn 3.2× so the ribs read
+  // drawn to true scale: the depth at the same scale as the width (room above for the labels, below for the note)
+  const s=wpx/(P.w+0.6), top=20, Hh=top+P.depth*s+22, Y=y=>top+(P.depth-y)*s, X=x=>(x+0.3)*s;
   const path=(P.profile||[]).map(g=>`M${X(g.a[0]).toFixed(1)} ${Y(g.a[1]).toFixed(1)}L${X(g.b[0]).toFixed(1)} ${Y(g.b[1]).toFixed(1)}`).join('');
-  return `<svg viewBox="0 0 ${wpx} ${Hh.toFixed(0)}" width="100%" style="max-width:${wpx}px" aria-hidden="true"><line x1="0" x2="${wpx}" y1="${Y(0).toFixed(1)}" y2="${Y(0).toFixed(1)}" stroke="#b9b4a6" stroke-dasharray="4 3"/><path d="${path}" stroke="#1c211e" stroke-width="1.6" fill="none"/>
-    <text x="${X(0)}" y="${Y(P.depth)-6}" font-size="11" fill="#5b6159">rib end</text><text x="${X(P.w)}" y="${Y(P.depth)-6}" font-size="11" fill="#5b6159" text-anchor="end">long flat + end flange</text>
-    <text x="${wpx/2}" y="${Hh-2}" font-size="10" fill="#8a8f86" text-anchor="middle">wall side · depth drawn 3.2× for clarity</text></svg>`;
+  return `<svg viewBox="0 0 ${wpx} ${Hh.toFixed(0)}" width="100%" style="max-width:${wpx}px" aria-hidden="true"><line x1="0" x2="${wpx}" y1="${Y(0).toFixed(1)}" y2="${Y(0).toFixed(1)}" stroke="#b9b4a6" stroke-dasharray="4 3"/><path d="${path}" stroke="#1c211e" stroke-width="1.4" fill="none" stroke-linejoin="round"/>
+    <text x="${X(0)}" y="${top-7}" font-size="11" fill="#5b6159">rib end</text><text x="${X(P.w)}" y="${top-7}" font-size="11" fill="#5b6159" text-anchor="end">long flat + end flange</text>
+    <text x="${wpx/2}" y="${Hh-3}" font-size="10" fill="#8a8f86" text-anchor="middle">wall side · drawn to true scale</text></svg>`;
 }
-function lapSVG(P, cov, label){   // two panels lapped at a cover: the next panel's rib end over this one's flange end
-  const wpx=640, s=wpx/(cov+P.w+0.6), Y=y=>34-y*s*3.2, X=x=>(x+0.3)*s;
-  const one=(dx,col)=>`<path d="${(P.profile||[]).map(g=>`M${X(g.a[0]+dx).toFixed(1)} ${Y(g.a[1]).toFixed(1)}L${X(g.b[0]+dx).toFixed(1)} ${Y(g.b[1]).toFixed(1)}`).join('')}" stroke="${col}" stroke-width="1.4" fill="none"/>`;
+function lapSVG(P, cov, label){   // two panels lapped at a cover: the next panel's rib end over this one's flange end (true scale)
+  const wpx=640, s=wpx/(cov+P.w+0.6), Hh=Math.ceil(P.depth*s+8), Y=y=>4+(P.depth-y)*s, X=x=>(x+0.3)*s;
+  const one=(dx,col)=>`<path d="${(P.profile||[]).map(g=>`M${X(g.a[0]+dx).toFixed(1)} ${Y(g.a[1]).toFixed(1)}L${X(g.b[0]+dx).toFixed(1)} ${Y(g.b[1]).toFixed(1)}`).join('')}" stroke="${col}" stroke-width="1.3" fill="none" stroke-linejoin="round"/>`;
   // this panel flipped (flange end toward the next one is at its right); the next starts at +cov
-  return `<figure class="sid-lap"><svg viewBox="0 0 ${wpx} 44" width="100%" style="max-width:${wpx}px" aria-hidden="true">${one(0,'#3c4043')}${one(cov,'#1f7a9a')}</svg><figcaption>${label}</figcaption></figure>`;
+  return `<figure class="sid-lap"><svg viewBox="0 0 ${wpx} ${Hh}" width="100%" style="max-width:${wpx}px" aria-hidden="true">${one(0,'#3c4043')}${one(cov,'#1f7a9a')}</svg><figcaption>${label}</figcaption></figure>`;
 }
 function sidingGrid(){
   const L=SIDINGLIB; if(!L.length) return '<section class="cw-grid cw-bgrid"><p class="note">No siding scanned yet.</p></section>';
