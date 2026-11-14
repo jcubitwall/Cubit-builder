@@ -1,5 +1,5 @@
 {
-"version": "558a1f547a62",
+"version": "1659826a3e97",
 "files": [
 "./",
 "brand/cubit-logo.png",
@@ -86,6 +86,7 @@
 "js/pods.js",
 "js/prices-ui.js",
 "js/prices.js",
+"js/productmedia.js",
 "js/productview.js",
 "js/projects-ui.js",
 "js/projects.js",

@@ -1651,3 +1651,16 @@ html:not(.phone) header.bar{position:sticky;top:0;z-index:30;background:var(--bg
 .pv-specs tr{border-bottom:1px solid #eee}
 .pv-sub{color:#666;font-size:12px}
 .cw-bgrid > .pv-card{min-width:0}
+.pv-ph{position:relative}
+.pv-ph img{position:absolute;inset:0;background:#fff}
+.pv-edit{margin-top:22px;border-top:1px solid #eee;padding-top:10px}
+.pv-edit summary{cursor:pointer;font-weight:600;color:#b25f1a}
+.pv-edit h5{margin:14px 0 6px}
+.pv-edit .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.pv-edit input:not([type=file]){padding:6px 8px;border:1px solid var(--line);border-radius:6px;min-width:0;flex:1 1 160px}
+.pv-thumbs{display:flex;gap:8px;flex-wrap:wrap}
+.pv-thumbs span{position:relative;width:84px;height:84px;border:1px solid #ddd;border-radius:8px;overflow:hidden;background:#fafafa}
+.pv-thumbs img{width:100%;height:100%;object-fit:contain}
+.pv-thumbs button{position:absolute;top:2px;right:2px;border:0;border-radius:50%;width:22px;height:22px;background:rgba(0,0,0,.6);color:#fff;cursor:pointer}
+.pv-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}
+.pv-fields label{display:flex;flex-direction:column;gap:2px;font-size:12px}.pv-fields .wide{grid-column:1/-1}
