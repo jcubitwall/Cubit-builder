@@ -22,6 +22,8 @@
    Panels go up at a nominal TR.nom cover so each one still has play either way for the crew.
    A strip too narrow for siding (under TR.ripMin) gets black ACM full height instead.
    Above and below each opening: matte black ACM (4 mm), the brick mold's width plus ACM_LAP each side under the siding.
+   A round window: matte black ACM the full height around it, in two halves split at its middle (its round J-trim
+   takes the ACM's edge), each with a half-circle cut; the upper half laps ACM_ROUND.lap over the lower.
    All in inches; x along the wall from its left end seen from outside, y up from the wall base. */
 import { SIDINGLIB } from './data.js';
 import { sidingSpan, WALL_BASE } from './config.js';
@@ -31,6 +33,7 @@ import { pickFor, state } from './state.js';
 import { accentOf } from './accent.js';
 
 const MOLD = 1.5;          // brick mold, each side and top and bottom of the opening
+const ACM_ROUND = { lap:0.5 };   // round windows: the ACM in two halves split at the window's middle, the upper lapping this far over the lower
 const ACM_LAP = 1.5;       // the ACM above / below an opening runs this far under the siding each side
 const TR = {
   corner: { leg:4, clear:2, lap:1, name:'Einspine corner trim', note:'the same on every outside corner · screwed, comes off to reach the spine' },
@@ -118,9 +121,10 @@ function molds(w, L){
   const out=[];
   (w.openings||[]).filter(o=>o.kind!=='vent' && (o.w||o.d||0)>=3).forEach(o=>{
     const ow=o.w||o.d, oh=o.h||o.d, x=(w.trim?.[0]||0)+o.x;
-    out.push({ x0:Math.max(0,x-MOLD), x1:Math.min(L,x+ow+MOLD), y0:o.y-MOLD, y1:o.y+oh+MOLD, kind:o.kind, w:ow, h:oh }); });
+    out.push({ x0:Math.max(0,x-MOLD), x1:Math.min(L,x+ow+MOLD), y0:o.y-MOLD, y1:o.y+oh+MOLD, kind:o.kind, w:ow, h:oh,
+      round: o.shape==='round' ? { cx:x+ow/2, cy:o.y+ow/2, r:ow/2, d:ow } : null }); });
   out.sort((p,q)=>p.x0-q.x0);
-  const M=[]; out.forEach(m=>{ const l=M[M.length-1]; if(l && m.x0<=l.x1+EPS){ l.x1=Math.max(l.x1,m.x1); l.y0=Math.min(l.y0,m.y0); l.y1=Math.max(l.y1,m.y1); l.n++; } else M.push({ ...m, n:1 }); });
+  const M=[]; out.forEach(m=>{ const l=M[M.length-1]; if(l && m.x0<=l.x1+EPS){ l.x1=Math.max(l.x1,m.x1); l.y0=Math.min(l.y0,m.y0); l.y1=Math.max(l.y1,m.y1); l.n++; l.round=null; } else M.push({ ...m, n:1 }); });
   return M;
 }
 /* what each end of an exterior wall meets: C Einspine corner, J another pod's wall in line, I another pod's side */
@@ -143,7 +147,10 @@ function wallLayout(s, P=profile(), ext=null){
   const M=molds(w, L), runs=[], cols=[];
   let x=0, at=e0;
   M.forEach(m=>{ if(m.x0-x>0.01) runs.push(planRun(x, m.x0, at, 'M', P));
-    cols.push({ m, below:Math.max(0, m.y0-y0), above:Math.max(0, y1-m.y1) });
+    // a round window: black ACM the full height of the wall around it, in two halves split at its middle (its round
+    // J-trim takes the ACM's edge, so one piece with a hole couldn't go on); the upper half laps over the lower
+    if(m.round){ const cy=Math.min(Math.max(m.round.cy, y0+1), y1-1); cols.push({ m, round:{ ...m.round, cy }, below:cy-y0, above:y1-cy+ACM_ROUND.lap }); }
+    else cols.push({ m, below:Math.max(0, m.y0-y0), above:Math.max(0, y1-m.y1) });
     x=m.x1; at='M'; });
   if(L-x>0.01) runs.push(planRun(x, L, at, e1, P));
   return { s, L, H, y0, y1, ends:[e0,e1], runs, full:runs, cols, molds:M };
@@ -161,7 +168,10 @@ function homeSiding(k){
       if(R.narrow){ narrow++; add(acm, r16(R.W)+'×'+len+'|side', { w:r16(R.W), h:len, where:'beside', note:'too narrow for siding: full height' }); }
       R.pieces.forEach(p=>{ if(p.kind==='panel') add(full, len, { len, what:'full height' }); else rips.push({ w:r16(p.w), keeps:p.keeps, len, wall:Wl.s.label }); }); });
     Wl.cols.forEach(c=>[['above',c.above],['below',c.below]].forEach(([where,h])=>{ if(h<0.5) return;
-      const w=r16(c.m.x1-c.m.x0+2*ACM_LAP); add(acm, w+'×'+r16(h)+'|'+where, { w, h:r16(h), where }); })); });
+      const w=r16(c.m.x1-c.m.x0+2*ACM_LAP);
+      if(c.round) add(acm, w+'×'+r16(h)+'|'+where+'|round'+c.round.d, { w, h:r16(h), where:where==='above'?'upper half around':'lower half around', round:c.round.d,
+        note:`half-circle cut ⌀${r16(c.round.d)}″ into the window's round J-trim (4.5 mm) · split at the window's middle, the upper half laps ${ACM_ROUND.lap}″ over the lower` });
+      else add(acm, w+'×'+r16(h)+'|'+where, { w, h:r16(h), where }); })); });
   // rips: one stock panel can give a rib-end rip and a flange-end rip when they fit side by side
   const lapEdge=P.w-P.cover, mat=r=>r.w+lapEdge;
   const R=rips.slice().sort((a,b)=>b.w-a.w), used=new Set(), stockRips=[];
@@ -186,7 +196,8 @@ function homeSiding(k){
     else insides.push({ len:r16(c.H), walls:c.sides.map(sd=>sd.wall) }); });
   // outside corners: both walls' ends land on the same corner key (the spine), so they're counted once
   let jLen=0, head=[], nOpen=0;
-  walls.forEach(Wl=>Wl.molds.forEach(m=>{ nOpen+=m.n; const mw=m.x1-m.x0, mh=Math.min(m.y1,Wl.y1)-Math.max(m.y0,Wl.y0);
+  walls.forEach(Wl=>Wl.molds.forEach(m=>{ nOpen+=m.n; if(m.round) return;   // a round window has its own round J-trim
+    const mw=m.x1-m.x0, mh=Math.min(m.y1,Wl.y1)-Math.max(m.y0,Wl.y0);
     jLen += 2*mh; head.push(r16(mw+2)); }));
   const headBy={}; head.forEach(l=>{ (headBy[l] ||= { len:l, n:0 }).n++; });
   const jointBy={}; joints.forEach(j=>add(jointBy, j.w+'|'+j.len, { w:j.w, len:j.len }));
@@ -208,4 +219,4 @@ function homeSiding(k){
     fillers:[], nPanels, nRips:rips.length, hops, joiners, narrow, lb, runs, nOpen, corners, insides, joints,
     acm:acmPieces, acmSheets:Math.ceil(acmArea*1.15/(48*96)-1e-9), trims };
 }
-export { ACM_LAP, MOLD, FILL_MIN, TR as SIDING_TRIM, planRun, wallLayout, homeSiding, profile as sidingProfile };
+export { ACM_ROUND, ACM_LAP, MOLD, FILL_MIN, TR as SIDING_TRIM, planRun, wallLayout, homeSiding, profile as sidingProfile };

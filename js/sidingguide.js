@@ -20,10 +20,13 @@ function wallSVG(Wl, steps, wpx=980){
   const X=x=>pad+(x+6)*sc, Y=y=>top+(Wl.y1-y)*sc, out=[];
   out.push(`<rect x="${X(0)}" y="${Y(Wl.y1)}" width="${Wl.L*sc}" height="${Hpx}" fill="#f6f4ee" stroke="#1c211e"/>`);
   // openings: the rough opening and its brick mold
-  Wl.molds.forEach(m=>{ const y0=Math.max(m.y0,Wl.y0), y1=Math.min(m.y1,Wl.y1);
+  Wl.molds.forEach(m=>{ if(m.round) return; const y0=Math.max(m.y0,Wl.y0), y1=Math.min(m.y1,Wl.y1);
     out.push(`<rect x="${X(m.x0)}" y="${Y(y1)}" width="${(m.x1-m.x0)*sc}" height="${(y1-y0)*sc}" fill="#fff" stroke="#888"/><rect x="${X(m.x0+MOLD)}" y="${Y(Math.min(m.y1-MOLD,Wl.y1))}" width="${(m.x1-m.x0-2*MOLD)*sc}" height="${(Math.min(m.y1-MOLD,Wl.y1)-Math.max(m.y0+MOLD,Wl.y0))*sc}" fill="#dfeaf2" stroke="#9ab"/>`); });
   // ACM
   Wl.cols.forEach(c=>{ const x0=c.m.x0-ACM_LAP, x1=c.m.x1+ACM_LAP;
+    if(c.round){ const { cx, cy, r }=c.round;   // two black halves, the split line, the round window
+      out.push(`<rect x="${X(x0)}" y="${Y(Wl.y1)}" width="${(x1-x0)*sc}" height="${Hpx}" fill="#151617"/><line x1="${X(x0)}" y1="${Y(cy)}" x2="${X(x1)}" y2="${Y(cy)}" stroke="#d0661f" stroke-width="1.6" stroke-dasharray="5 3"/>
+        <circle cx="${X(cx)}" cy="${Y(cy)}" r="${r*sc}" fill="#dfeaf2" stroke="#9ab" stroke-width="2"/><text x="${X(x1)+3}" y="${Y(cy)-3}" font-size="9" fill="#d0661f">upper laps over</text>`); return; }
     if(c.below>0.5) out.push(`<rect x="${X(x0)}" y="${Y(Wl.y0+c.below)}" width="${(x1-x0)*sc}" height="${c.below*sc}" fill="#151617"/>`);
     if(c.above>0.5) out.push(`<rect x="${X(x0)}" y="${Y(Wl.y1)}" width="${(x1-x0)*sc}" height="${c.above*sc}" fill="#151617"/>`); });
   Wl.runs.filter(R=>R.narrow).forEach(R=>out.push(`<rect x="${X(R.x0)}" y="${Y(Wl.y1)}" width="${(R.x1-R.x0)*sc}" height="${Hpx}" fill="#151617"/>`));

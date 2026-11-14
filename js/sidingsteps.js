@@ -3,7 +3,7 @@
    Per wall: the black ACM and J-trim at each opening first, then each run left to right, its pieces from the
    rib-end side back (each new rib end laps the flange already up), the joiner, then the trims at the two ends.
    Every step names the 3D pieces it puts up (userData.sk from sidingmesh.js). */
-import { MOLD, ACM_LAP, SIDING_TRIM as TR } from './sidinglayout.js';
+import { MOLD, ACM_LAP, ACM_ROUND, SIDING_TRIM as TR } from './sidinglayout.js';
 import { fin } from './format.js';
 
 const f2 = v => fin(Math.round(v*16)/16);
@@ -13,6 +13,8 @@ function wallSteps(Wl, Sc){
   const pm=mark['P|'+len]||'P';
   Wl.cols.forEach((c,ci)=>{ const keys=[]; if(c.below>0.5) keys.push(`a|${ci}|below`); if(c.above>0.5) keys.push(`a|${ci}|above`);
     const w=c.m.x1-c.m.x0+2*ACM_LAP;
+    if(c.round){ steps.push({ kind:'acm', keys, x0:c.m.x0, x1:c.m.x1, title:`Round window ⌀${f2(c.round.d)}: black ACM in two halves`,
+      text:`Lower half first: ${f2(w)} × ${f2(c.below)}, half-circle cut, its edge slipped into the window's round J-trim. Then the upper half: ${f2(w)} × ${f2(c.above)}, into the J-trim, lapping ${f2(ACM_ROUND.lap)} over the lower at the window's middle (${f2(c.round.cy)} up). Both run ${f2(ACM_LAP)} under the siding each side.` }); return; }
     steps.push({ kind:'acm', keys, x0:c.m.x0, x1:c.m.x1, title:`Opening ${f2(c.m.x0+MOLD)} → ${f2(c.m.x1-MOLD)}: black ACM and J-trim`,
       text:`${c.below>0.5?`ACM ${f2(w)} × ${f2(c.below)} below`:''}${c.below>0.5&&c.above>0.5?' and ':''}${c.above>0.5?`ACM ${f2(w)} × ${f2(c.above)} above`:''}, against the wall, ${f2(ACM_LAP)} past the brick mold each side. Then J-trim up both sides of the brick mold and the drip flashing over the head.` }); });
   Wl.runs.forEach((R,ri)=>{ if(R.narrow) steps.push({ kind:'acm', keys:[`n|${ri}`], x0:R.x0, x1:R.x1, title:`Strip ${f2(R.x0)} → ${f2(R.x1)}: black ACM, full height`, text:`Too narrow for siding: ACM ${f2(R.W)} wide, full height, against the wall.` }); });
@@ -30,7 +32,9 @@ function wallSteps(Wl, Sc){
       const firstOfSide = R.split ? (k===0 || (p.ribR && !order[k-1].p.ribR)) : k===0;
       let where;
       if(firstOfSide){ const e=R.split ? 'M' : (R.ribsRight ? R.ends[1] : R.ends[0]);
-        where = e==='M' ? `rib end against the brick mold (tuck up to ${f2(TR.mold.tuck)} into the J-trim)` : `${p.kind==='rip'?'cut edge':'edge'} ${f2(R.ribsRight ? R.d[1] : R.d[0])} in from the wall's ${R.ribsRight?'right':'left'} end, under the ${e==='C'?'corner trim':e==='I'?'inside corner trim':'connector'} to come`; }
+        // which opening this edge is: a round window has no brick mold, its black ACM runs full height instead
+        const mx = R.split ? (p.ribR ? R.x1 : R.x0) : (R.ribsRight ? R.x1 : R.x0), mo=Wl.molds.find(m=>Math.abs(m.x0-mx)<0.01 || Math.abs(m.x1-mx)<0.01);
+        where = e==='M' ? (mo?.round ? `rib end on the line of the round window's black ACM, lapping ${f2(ACM_LAP)} over it` : `rib end against the brick mold (tuck up to ${f2(TR.mold.tuck)} into the J-trim)`) : `${p.kind==='rip'?'cut edge':'edge'} ${f2(R.ribsRight ? R.d[1] : R.d[0])} in from the wall's ${R.ribsRight?'right':'left'} end, under the ${e==='C'?'corner trim':e==='I'?'inside corner trim':'connector'} to come`; }
       else where=`rib end laps over the flange of the one before`;
       const cut = p.kind==='rip' ? ` Cut ${f2(p.w)} showing from a stock ${pm}, keep the ${p.keeps==='rib'?'rib end':'flange end'}; the cut edge goes under ${EDGE[p.cutAt]||'the trim'}.` : (p.hop ? ' Hopped a rib.' : ` Cover ${f2(p.cover)}.`);
       steps.push({ kind:p.kind, keys:[`p|${ri}|${pi}`], x0:p.x0, x1:p.x1, n, mark:m, ribR:p.ribR, ribX, piece:p,

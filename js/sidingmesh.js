@@ -3,7 +3,7 @@
    flange end at the Einspine corners, rib end at the brick molds, pulled back / hopped covers, filler pieces, and the
    short pieces above and below every opening. In the wall group's own coordinates (feet; x along the wall from where
    the group starts, y up from the wall base, z out from the outside face). */
-import { wallLayout, sidingProfile, ACM_LAP, SIDING_TRIM } from './sidinglayout.js';
+import { wallLayout, sidingProfile, ACM_LAP, ACM_ROUND, SIDING_TRIM } from './sidinglayout.js';
 
 const FT = 12;
 const ACM_T = 0.157;   // 4 mm aluminium composite, matte black
@@ -77,7 +77,15 @@ function sidingMeshes(slot, tl, colour){
   const acm=new THREE.MeshStandardMaterial({ color:0x111214, roughness:0.85, metalness:0.1 }), T=ACM_T;
   const acmMesh=(x0,x1,y0,y1,sk)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT, (y1-y0)/FT, T/FT), acm); m.position.set((x0+x1)/2/FT, (y0+y1)/2/FT, T/2/FT); m.userData.siding=true; m.userData.sk=sk; return m; };
   Wl.runs.forEach((R,ri)=>{ if(R.narrow) out.push(acmMesh(R.x0, R.x1, Wl.y0, Wl.y1, `n|${ri}`)); });
+  // a round window's two black halves, each with its half-circle cut; the upper one stands a sheet proud where it laps
+  const halfMesh=(c,ci,upper)=>{ const x0=c.m.x0-ACM_LAP, x1=c.m.x1+ACM_LAP, {cx,cy,r}=c.round, lap=ACM_ROUND.lap, sh=new THREE.Shape(), f=v=>v/FT;
+    if(!upper){ sh.moveTo(f(x0),f(Wl.y0)); sh.lineTo(f(x1),f(Wl.y0)); sh.lineTo(f(x1),f(cy)); sh.lineTo(f(cx+r),f(cy)); sh.absarc(f(cx),f(cy),f(r),0,-Math.PI,true); sh.lineTo(f(x0),f(cy)); sh.lineTo(f(x0),f(Wl.y0)); }
+    else { const yb=cy-lap, a=Math.asin(Math.min(1,lap/r)), rr=Math.sqrt(Math.max(0,r*r-lap*lap));
+      sh.moveTo(f(x0),f(yb)); sh.lineTo(f(cx-rr),f(yb)); sh.absarc(f(cx),f(cy),f(r),Math.PI+a,-a,true); sh.lineTo(f(x1),f(yb)); sh.lineTo(f(x1),f(Wl.y1)); sh.lineTo(f(x0),f(Wl.y1)); sh.lineTo(f(x0),f(yb)); }
+    const m=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,{ depth:T/FT, bevelEnabled:false, curveSegments:24 }), acm);
+    m.position.z = upper ? T/FT : 0; m.userData.siding=true; m.userData.sk=`a|${ci}|${upper?'above':'below'}`; return m; };
   Wl.cols.forEach((c,ci)=>{
+    if(c.round){ out.push(halfMesh(c,ci,false), halfMesh(c,ci,true)); return; }
     if(c.below>0.5) out.push(acmMesh(c.m.x0-ACM_LAP, c.m.x1+ACM_LAP, Wl.y0, Wl.y0+c.below, `a|${ci}|below`));
     if(c.above>0.5) out.push(acmMesh(c.m.x0-ACM_LAP, c.m.x1+ACM_LAP, Wl.y1-c.above, Wl.y1, `a|${ci}|above`)); });
   out.forEach(m=>{ m.position.x-=tl/FT; m.position.z+=0.05/FT; m.userData.wall=slot.id; });   // over the 1 mm membrane, never through it       // the group starts tl in from the wall's corner
