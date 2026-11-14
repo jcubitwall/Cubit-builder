@@ -4,7 +4,7 @@
      board  vertical boards; the sheet joints fall on a board line
      geo    random straight lines across the whole wall, angles kept apart so nothing reads as a pattern; plumb joints
      hex    pointy-top hexagons, sized so a sheet holds whole columns: the sheets meet along hexagon edges (zigzag)
-   The ½″ bit cuts every line: 3 mm deep at the joints between sheets, 1.5 mm deep for every other reveal, and the
+   Neighbouring sheets overlap ½″ (the next one over the last); the ½″ bit cuts every line: 3 mm deep in that overlap, 1.5 mm deep for every other reveal, and the
    screws go in the reveals (every ~16″). The ACP stops at the brick molds around windows and doors.
    Kept with the home: MODELS[k].accents = { '<wall key>': { pattern, colour, size, seed } }.
    In the 3D, the side panel (Exterior wall → Accent wall) and Sheets → Accent walls (elevation, sheets, DXF for the
@@ -16,8 +16,9 @@ import { slotsFor } from './layout.js';
 import { bodyWall } from './panels.js';
 import { checkpoint } from './history.js';
 import { ensureDraft } from './pods.js';
+import { wallLayout, SIDING_TRIM } from './sidinglayout.js';
 
-const LIB = { sheet:{ w:48, h:120 }, groove:{ w:0.5, joint:3, reveal:1.5 }, screws:{ every:16, fromEnd:2 }, colours:[], patterns:[] };
+const LIB = { sheet:{ w:48, h:120 }, groove:{ w:0.5, joint:3, reveal:1.5, overlap:0.5 }, screws:{ every:16, fromEnd:2 }, colours:[], patterns:[] };
 let loaded=null;
 function loadACP(){ return loaded ||= fetch('data/acp.json').then(r=>r.ok?r.json():null).then(j=>{ if(j) Object.assign(LIB, j); return LIB; }).catch(()=>LIB); }
 loadACP();
@@ -70,16 +71,24 @@ function molds(w, L){
 function accentLayout(s, a=accentOf(s)){
   if(!s || !a) return null;
   const w=bodyWall(s, pickFor(s)); if(!w) return null;
-  const L=s.len*12, S=sidingSpan(s.pod?.lv||0), y0=S.bottom-WALL_BASE, y1=S.top-WALL_BASE, H=y1-y0;
-  const holes=molds(w, L), SW=LIB.sheet.w, R=rng(a.seed||1), raw=[];
+  const LW=s.len*12, S=sidingSpan(s.pod?.lv||0), y0=S.bottom-WALL_BASE, y1=S.top-WALL_BASE, H=y1-y0;
+  // the ACP stops short of the wall's ends like the siding does: under the corner trim (clear of the Einspine), the
+  // inside corner trim or the pod joint connector; the pattern is laid out on that width and moved back after
+  const ends=(()=>{ try{ return wallLayout(s)?.ends||['C','C']; }catch(e){ return ['C','C']; } })();
+  const clr=e=> e==='I' ? SIDING_TRIM.inside.clear : e==='J' ? SIDING_TRIM.joint.clear : SIDING_TRIM.corner.clear;
+  const XA=clr(ends[0]), XB=LW-clr(ends[1]), L=XB-XA;
+  const holesW=molds(w, LW), holes=holesW.map(h=>({ ...h, x0:h.x0-XA, x1:h.x1-XA })), SW=LIB.sheet.w, R=rng(a.seed||1), raw=[];
   const P=patternOf(a.pattern), size=a.size ?? P.size;
   let sheets=[];
-  const plumbSheets=()=>{ for(let x=0, i=0; x<L-0.01; x+=SW, i++){ const x1=Math.min(L, x+SW); sheets.push({ i, x0:x, x1, outline:[[x,y0],[x1,y0],[x1,y1],[x,y1]] }); if(x1<L-0.01) raw.push({ a:[x1,y0], b:[x1,y1], kind:'joint' }); } };
+  // neighbouring sheets overlap OV (½″) at each joint, the joint's 3 mm groove in that overlap: a sheet covers SW − OV
+  const OV=LIB.groove.overlap??0.5;
+  const plumbSheets=(pitch=SW-OV)=>{ for(let x=0, i=0; x<L-0.01; x+=pitch, i++){ const x1=Math.min(L, x+pitch), a=i?x-OV/2:0, b=x1<L-0.01?x1+OV/2:L;
+    sheets.push({ i, x0:a, x1:b, outline:[[a,y0],[b,y0],[b,y1],[a,y1]] }); if(x1<L-0.01) raw.push({ a:[x1,y0], b:[x1,y1], kind:'joint' }); } };
   if(a.pattern==='board'){
-    const bw=size||4; plumbSheets();
+    const bw=size||(SW-OV)/12; plumbSheets(Math.max(1, Math.floor((SW-OV)/bw+1e-6))*bw);   // the joint lands on a board line
     for(let x=bw; x<L-0.01; x+=bw) if(!raw.some(l=>Math.abs(l.a[0]-x)<0.01)) raw.push({ a:[x,y0], b:[x,y1], kind:'reveal', board:true });
   } else if(a.pattern==='geo'){
-    plumbSheets();
+    plumbSheets(L/Math.max(1, Math.ceil((L-OV)/(SW-OV)-1e-6)));   // even sheets, no sliver at the end
     // random lines from edge to edge of the wall; angles kept apart, ends kept apart, nothing near plumb or level
     const n=Math.max(4, Math.round(L/16)), lines=[], ends=[];
     const edgePt=(e,t)=> e===0 ? [t*L, y0] : e===1 ? [L, y0+t*H] : e===2 ? [L-t*L, y1] : [0, y1-t*H];
@@ -96,7 +105,7 @@ function accentLayout(s, a=accentOf(s)){
     }
   } else if(a.pattern==='hex'){
     // pointy-top hexagons hw wide; side s = hw/√3; rows 1.5 s apart, odd rows shifted hw/2
-    const hw=size||19.2, sd=hw/Math.sqrt(3), cols=Math.max(1, Math.round((SW-hw/2)/hw)), per=cols*hw;   // a sheet holds `cols` columns + the zig
+    const hw=size||19, sd=hw/Math.sqrt(3), cols=Math.max(1, Math.floor((SW-OV-hw/2)/hw+1e-6)), per=cols*hw;   // a sheet holds `cols` columns + the zig
     const r0=Math.floor(-1), rN=Math.ceil(H/(1.5*sd))+1;
     const segs=new Map(), key=(p,q)=>{ const k=[p,q].map(v=>v.map(c=>c.toFixed(2)).join(',')).sort().join('|'); return k; };
     const seamAt = x => { const k=Math.round(x/per); return Math.abs(x-k*per)<0.01 || Math.abs(x-(k*per+hw/2))<0.01; };
@@ -112,7 +121,8 @@ function accentLayout(s, a=accentOf(s)){
     // the sheets: between neighbouring zigzags
     const zig=(X)=>{ const pts=[]; for(let r=r0; r<=rN; r++){ const cy=y0+r*1.5*sd, x=(r&1)?X+hw/2:X; pts.push([x,cy-sd/2],[x,cy+sd/2]); } return pts.map(([x,y])=>[x,Math.min(Math.max(y,y0),y1)]); };
     for(let k=0, i=0; k*per<L-0.01; k++, i++){
-      const left=k===0 ? [[0,y0],[0,y1]] : zig(k*per), right=(k+1)*per<L-0.01 ? zig((k+1)*per) : [[L,y0],[L,y1]];
+      const sh=(P,d)=>P.map(([x,y])=>[x+d,y]);   // each zigzag edge runs OV/2 past the joint line: the two sheets overlap there
+      const left=k===0 ? [[0,y0],[0,y1]] : sh(zig(k*per),-OV/2), right=(k+1)*per<L-0.01 ? sh(zig((k+1)*per),OV/2) : [[L,y0],[L,y1]];
       const outline=[...right.map(([x,y])=>[Math.min(x,L),y]), ...left.slice().reverse().map(([x,y])=>[Math.max(x,0),y])];
       const xs=outline.map(p=>p[0]); sheets.push({ i, x0:Math.min(...xs), x1:Math.max(...xs), outline, zig:true }); }
   }
@@ -126,8 +136,12 @@ function accentLayout(s, a=accentOf(s)){
     const n=Math.max(1, Math.ceil((len-2*SC.fromEnd)/SC.every)), step=(len-2*SC.fromEnd)/n;
     for(let i=0;i<=n;i++){ const t=(SC.fromEnd+i*step)/len; screws.push([l.a[0]+(l.b[0]-l.a[0])*t, l.a[1]+(l.b[1]-l.a[1])*t]); } });
   sheets.forEach(sh=>{ sh.w=Math.round((sh.x1-sh.x0)*16)/16; });
+  // back to the wall's own x
+  const mv=p=>[p[0]+XA, p[1]];
+  lines.forEach(l=>{ l.a=mv(l.a); l.b=mv(l.b); }); sheets.forEach(sh=>{ sh.x0+=XA; sh.x1+=XA; sh.outline=sh.outline.map(mv); });
+  for(let i=0;i<screws.length;i++) screws[i]=mv(screws[i]);
   const area=(L*H - holes.reduce((s,h)=>s+(h.x1-h.x0)*Math.max(0,Math.min(h.y1,y1)-Math.max(h.y0,y0)),0))/144;
-  return { s, a, P, colour:colourOf(a.colour), L, H, y0, y1, holes, lines, sheets, screws, area,
+  return { s, a, P, colour:colourOf(a.colour), L:LW, XA, XB, ends, H, y0, y1, holes:holesW, lines, sheets, screws, area,
     jointFt:lines.filter(l=>l.kind==='joint').reduce((t,l)=>t+Math.hypot(l.b[0]-l.a[0],l.b[1]-l.a[1]),0)/12,
     revealFt:lines.filter(l=>l.kind==='reveal').reduce((t,l)=>t+Math.hypot(l.b[0]-l.a[0],l.b[1]-l.a[1]),0)/12 };
 }
@@ -148,7 +162,7 @@ function woodTexture(C){
 function accentMeshes(s, tl=0){
   const A=accentLayout(s); if(!A) return [];
   const FT=12, C=A.colour, z=0.16/FT, out=[];
-  const sh=new THREE.Shape(); sh.moveTo(0,A.y0/FT); sh.lineTo(A.L/FT,A.y0/FT); sh.lineTo(A.L/FT,A.y1/FT); sh.lineTo(0,A.y1/FT); sh.lineTo(0,A.y0/FT);
+  const xa=A.XA/FT, xb=A.XB/FT, sh=new THREE.Shape(); sh.moveTo(xa,A.y0/FT); sh.lineTo(xb,A.y0/FT); sh.lineTo(xb,A.y1/FT); sh.lineTo(xa,A.y1/FT); sh.lineTo(xa,A.y0/FT);
   A.holes.forEach(h=>{ const p=new THREE.Path(), y0=Math.max(h.y0,A.y0)/FT, y1=Math.min(h.y1,A.y1)/FT; if(y1-y0<0.01) return;
     p.moveTo(h.x0/FT,y0); p.lineTo(h.x0/FT,y1); p.lineTo(h.x1/FT,y1); p.lineTo(h.x1/FT,y0); p.lineTo(h.x0/FT,y0); sh.holes.push(p); });
   const geo=new THREE.ShapeGeometry(sh);
@@ -158,6 +172,10 @@ function accentMeshes(s, tl=0){
   A.lines.forEach(l=>{ const len=Math.hypot(l.b[0]-l.a[0], l.b[1]-l.a[1]); if(len<0.2) return;
     const m=new THREE.Mesh(new THREE.PlaneGeometry(len/FT, LIB.groove.w/FT), gm);
     m.position.set((l.a[0]+l.b[0])/2/FT, (l.a[1]+l.b[1])/2/FT, z+0.002); m.rotation.z=Math.atan2(l.b[1]-l.a[1], l.b[0]-l.a[0]); m.userData.accent=true; out.push(m); });
+  // the corner trims / connector over the two ends, as on a sided wall
+  const TRx=SIDING_TRIM, tm=new THREE.MeshStandardMaterial({ color:0x3b3f43, roughness:0.5, metalness:0.3, side:THREE.DoubleSide });
+  const leg=e=> e==='C' ? TRx.corner.leg : e==='I' ? TRx.inside.leg : TRx.joint.clear+TRx.joint.lap;
+  [[0, leg(A.ends[0])],[A.L-leg(A.ends[1]), A.L]].forEach(([a,b])=>{ const m=new THREE.Mesh(new THREE.BoxGeometry((b-a)/FT, (A.y1-A.y0)/FT, 0.04/FT), tm); m.position.set((a+b)/2/FT, (A.y0+A.y1)/2/FT, z+0.3/FT); m.userData.accent=true; out.push(m); });
   out.forEach(m=>{ m.position.x-=tl/FT; });
   return out;
 }
