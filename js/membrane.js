@@ -49,10 +49,10 @@ function membraneMesh(w){
     else { const x0=o.x/FT, x1=(o.x+o.w)/FT, a=Math.max(0.001, o.y/FT), b=Math.min(y1-0.001, (o.y+o.h)/FT); p.moveTo(x0,a); p.lineTo(x0,b); p.lineTo(x1,b); p.lineTo(x1,a); p.lineTo(x0,a); }
     sh.holes.push(p); });
   const m=new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshStandardMaterial({ color:0xffffff, map:printTexture(M), roughness:0.9, metalness:0, side:THREE.DoubleSide,
-    polygonOffset:true, polygonOffsetFactor:2, polygonOffsetUnits:2 }));   // pushed back: the siding over it always wins
-  m.position.z=t/2; m.userData.membrane=true;
+    polygonOffset:true, polygonOffsetFactor:-1, polygonOffsetUnits:-1 }));   // the layers outside in: siding & ACM (−3) · tape (−2) · membrane (−1) · OSB face (+1)
+  m.position.z=t; m.userData.membrane=true;   // its outer face, 1 mm out from the OSB
   // the seam tape over each joint
-  const T=M.tape, tw=tapeW()/FT, tm=new THREE.MeshStandardMaterial({ color:new THREE.Color(T?.color||'#3f5f93'), roughness:0.8, metalness:0, side:THREE.DoubleSide, polygonOffset:true, polygonOffsetFactor:1, polygonOffsetUnits:1 });
+  const T=M.tape, tw=tapeW()/FT, tm=new THREE.MeshStandardMaterial({ color:new THREE.Color(T?.color||'#3f5f93'), roughness:0.8, metalness:0, side:THREE.DoubleSide, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2 });
   tapeRuns(w).forEach(r=>r.segs.forEach(([a,b])=>{ const g=new THREE.Mesh(new THREE.PlaneGeometry(tw, (b-a)/FT), tm); g.position.set(r.x/FT, (a+b)/2/FT, t*0.9); m.add(g); }));
   return m;
 }

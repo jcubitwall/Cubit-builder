@@ -68,13 +68,13 @@ function trimMeshes(P, Wl, out, mat){
 function sidingMeshes(slot, tl, colour){
   const P=sidingProfile(); if(!P) return [];
   const Wl=wallLayout(slot, P); if(!Wl) return [];
-  const mat=new THREE.MeshStandardMaterial({ color:colour, roughness:0.45, metalness:0.35, side:THREE.DoubleSide });
-  const matF=new THREE.MeshStandardMaterial({ color:colour, roughness:0.55, metalness:0.3, side:THREE.DoubleSide });
+  const mat=new THREE.MeshStandardMaterial({ color:colour, roughness:0.45, metalness:0.35, side:THREE.DoubleSide, polygonOffset:true, polygonOffsetFactor:-3, polygonOffsetUnits:-3 });   // outermost: over the membrane
+  const matF=new THREE.MeshStandardMaterial({ color:colour, roughness:0.55, metalness:0.3, side:THREE.DoubleSide, polygonOffset:true, polygonOffsetFactor:-3, polygonOffsetUnits:-3 });
   const out=[];
   Wl.runs.forEach((R,ri)=>runMeshes(P, R, Wl.y0, Wl.y1, out, mat, matF, ri));
-  trimMeshes(P, Wl, out, new THREE.MeshStandardMaterial({ color:new THREE.Color(colour).multiplyScalar(0.8), roughness:0.5, metalness:0.3, side:THREE.DoubleSide }));
+  trimMeshes(P, Wl, out, new THREE.MeshStandardMaterial({ color:new THREE.Color(colour).multiplyScalar(0.8), roughness:0.5, metalness:0.3, side:THREE.DoubleSide, polygonOffset:true, polygonOffsetFactor:-3, polygonOffsetUnits:-3 }));
   // above and below every opening: a matte black ACM panel, no metal siding: against the wall, running ACM_LAP under the siding each side
-  const acm=new THREE.MeshStandardMaterial({ color:0x111214, roughness:0.85, metalness:0.1 }), T=ACM_T;
+  const acm=new THREE.MeshStandardMaterial({ color:0x111214, roughness:0.85, metalness:0.1, polygonOffset:true, polygonOffsetFactor:-3, polygonOffsetUnits:-3 }), T=ACM_T;
   const acmMesh=(x0,x1,y0,y1,sk)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/FT, (y1-y0)/FT, T/FT), acm); m.position.set((x0+x1)/2/FT, (y0+y1)/2/FT, T/2/FT); m.userData.siding=true; m.userData.sk=sk; return m; };
   Wl.runs.forEach((R,ri)=>{ if(R.narrow) out.push(acmMesh(R.x0, R.x1, Wl.y0, Wl.y1, `n|${ri}`)); });
   // a round window's two black halves, each with its half-circle cut; the upper one stands a sheet proud where it laps
