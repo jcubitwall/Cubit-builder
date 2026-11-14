@@ -16,10 +16,10 @@ function render(){
   const f=finishOf();
   pop.innerHTML=`<div class="fin-h"><b>Finishes</b><button class="btn ghost sm" data-fx="1" aria-label="Close">Done</button></div>
     ${isDesign()?'':'<p class="note">The 3D shows finishes in Design. <button class="linkbtn" data-fdesign="1">Switch to Design</button></p>'}
-    ${Object.keys(PALETTE).map(part=>`<div class="fin-row"><div class="fin-l">${LABEL[part]}<small>${esc(f[part]||'not picked')}</small></div><div class="fin-sw" role="group" aria-label="${LABEL[part]}">
-      ${PALETTE[part].map(([n,c])=>`<button class="sw-b" data-part="${part}" data-n="${esc(n)}" aria-pressed="${f[part]===n}" title="${esc(n)}" style="--c:${c}"><span></span></button>`).join('')}
+    ${Object.keys(PALETTE).map(part=>`<div class="fin-row"><div class="fin-l">${LABEL[part]}<small>${esc(f[part]||(part==='units'?'Black (standard)':'not picked'))}</small></div><div class="fin-sw" role="group" aria-label="${LABEL[part]}">
+      ${PALETTE[part].map(([n,c])=>`<button class="sw-b" data-part="${part}" data-n="${esc(n)}" aria-pressed="${(f[part]||(part==='units'?'Black':''))===n}" title="${esc(n)}" style="--c:${c}"><span></span></button>`).join('')}
       ${f[part]?`<button class="sw-x" data-part="${part}" data-n="" title="Clear">✕</button>`:''}</div></div>`).join('')}
-    <p class="note">Cabinets are recorded for the selections; the 3D keeps the library's look. Everything here also fills the customer's finish selections.</p>`;
+    <p class="note">Cabinets are recorded for the selections; the 3D keeps the library's look. Windows &amp; doors show black or white in every mode; one opening can differ (tap its wall). Everything here also fills the customer's finish selections.</p>`;
 }
 function open(on){ pop.hidden=!on; document.getElementById('bFinish')?.setAttribute('aria-pressed', String(on)); if(on) render(); }
 pop.addEventListener('click', async e=>{

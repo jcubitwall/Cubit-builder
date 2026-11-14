@@ -10,7 +10,7 @@
      when the signal is back.
    tools/sw/build.py lists the files (sw-files.json) to keep on install, with each one's hash, and stamps VERSION.
    A new release copies every unchanged file from the release before and downloads only what changed. */
-const VERSION='0ec4d9305557';
+const VERSION='7eed927ddfca';
 const CACHE='cubit-'+VERSION, API='cubit-api';
 self.addEventListener('install', e=>{
   e.waitUntil((async()=>{
