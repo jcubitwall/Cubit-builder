@@ -1664,3 +1664,6 @@ html:not(.phone) header.bar{position:sticky;top:0;z-index:30;background:var(--bg
 .pv-thumbs button{position:absolute;top:2px;right:2px;border:0;border-radius:50%;width:22px;height:22px;background:rgba(0,0,0,.6);color:#fff;cursor:pointer}
 .pv-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}
 .pv-fields label{display:flex;flex-direction:column;gap:2px;font-size:12px}.pv-fields .wide{grid-column:1/-1}
+/* window & door colour: black / white */
+.ucol-dot{ display:inline-block; width:.8em; height:.8em; border-radius:50%; background:var(--c); border:1px solid rgba(127,127,127,.6); margin-right:.35em; vertical-align:-.1em; }
+.ucol-home{ margin:.2rem 0 .5rem; }

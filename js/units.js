@@ -23,6 +23,7 @@ import { MODELS } from './data.js';
 import { slotsFor, partnerOf } from './layout.js';
 import { bodyWall } from './panels.js';
 import { pickFor } from './state.js';
+import { homeUnitColour } from './finishes.js';
 
 const TYPES = {
   picture:  { label:'Picture (fixed)', cat:'window' },
@@ -119,8 +120,20 @@ function setDoorOwner(slot, o){
   else if(ownPick(slot,o)===false) setUnit(slot, o, null);
 }
 
-/* { unit, hand, swing, how:'chosen'|'home'|'auto' } or null */
-function unitFor(slot, o){
+/* { unit, hand, swing, how:'chosen'|'home'|'auto', colour:'Black'|'White' } or null.
+   colour: the opening's own pick, else the home's (Finishes → Windows & doors), else black. Interior doors keep their own look. */
+function unitFor(slot, o){ const r=unitFor0(slot, o); if(r) r.colour=unitColourAt(slot, o, r); return r; }
+function unitColourAt(slot, o, r){ if(r?.unit?.place==='int') return null; const k=okey(o);
+  const p=state.units?.[state.model]?.[slot.id]?.[k] || MODELS[state.model]?.units?.[slot.id]?.[k];
+  return (p && p.colour) || homeUnitColour(); }
+/* this opening's colour (null = the home's); keeps the unit that's there now */
+function setUnitColour(slot, o, colour){ const r=unitFor0(slot, o); if(!r) return;
+  const k=okey(o), p=state.units?.[state.model]?.[slot.id]?.[k] || MODELS[state.model]?.units?.[slot.id]?.[k];
+  const base = p ? { ...p } : { u:r.unit.id, hand:r.hand, swing:r.swing };
+  if(colour) base.colour=colour; else delete base.colour;
+  setUnit(slot, o, base);
+}
+function unitFor0(slot, o){
   if(!catOf(o) || !slot) return null;
   const k=okey(o);
   const pick = state.units?.[state.model]?.[slot.id]?.[k] || MODELS[state.model]?.units?.[slot.id]?.[k];
@@ -189,4 +202,4 @@ const handText = (u, hand, swing) => {
 };
 const unitLabel = (r) => r ? `${TYPES[r.unit.type]?.label||r.unit.type}${handText(r.unit,r.hand,r.swing)?' · '+handText(r.unit,r.hand,r.swing):''}` : '';
 
-export { onUnitsChanged, saveTeamUnit, pairOf, doorOwner, setDoorOwner, TYPES, UNITLIB, loadUnits, unitById, unitsFor, unitFor, setUnit, symbol, unitSVG, unitLabel, handText, catOf, okey, fits };
+export { setUnitColour, onUnitsChanged, saveTeamUnit, pairOf, doorOwner, setDoorOwner, TYPES, UNITLIB, loadUnits, unitById, unitsFor, unitFor, setUnit, symbol, unitSVG, unitLabel, handText, catOf, okey, fits };

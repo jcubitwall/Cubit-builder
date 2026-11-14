@@ -5,7 +5,7 @@ import { lvlHolesOn } from './lvlholes.js';
 import { sidingMeshes } from './sidingmesh.js';
 import { membraneMesh, membraneOn } from './membrane.js';
 import { accentOf, accentMeshes } from './accent.js';
-import { colourOf } from './finishes.js';
+import { colourOf, unitHex, homeUnitColour } from './finishes.js';
 import { isShop } from './mode.js';
 import { designFinish } from './finishes.js';
 import { podOffsets, screwsFor, slotsFor, layerSlotsFor, podList, deckList, layoutOffsets, padsFor, upstairs, POST } from './layout.js';
@@ -69,34 +69,40 @@ const MAT = {
 };
 const lineMat = new THREE.LineBasicMaterial({color:0x3b3122});
 MAT.frame = new THREE.MeshStandardMaterial({color:0xf3f2ee, roughness:0.6});
+/* window & door frames (and outside door leaves) come black or white (finishes.js; black unless picked) */
+const UNIT_MATS = {};
+const unitMat = (name, leaf=false) => UNIT_MATS[name+(leaf?':leaf':'')] ||= new THREE.MeshStandardMaterial({ color:new THREE.Color(unitHex(name)), roughness:name==='Black'?0.55:0.6, metalness:0.05,
+  ...(leaf?{ transparent:true, opacity:state.glass?0.25:1, depthWrite:!state.glass }:{}) });   // a door leaf goes see-through with the glass toggle, like MAT.door
 const symMat = new THREE.LineBasicMaterial({color:0x1c3d5a});
 /* one window or door from the library, centred in its rough opening; wall-local feet (x along, y up, z out) */
 function buildUnit(o, r, t, interior=false){
   const u=r.unit, g=new THREE.Group(), W=Math.min(u.w,o.w-0.1), Hh=Math.min(u.h,o.h-0.1);   // never flush with the opening's sides
   const x0=o.x+(o.w-W)/2, y0=o.y+(o.h-Hh)/2, d=Math.min(u.d||4.5, t*FT-0.5)/FT, zc=-t/2, fw=1.75;
   const box=(x,y,w,h,dd,mat)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(w/FT,h/FT,dd),mat); m.position.set((x+w/2)/FT,(y+h/2)/FT,zc); g.add(m); return m; };
+  // black or white (interior doors keep the library's look)
+  const own = u.place==='int' ? null : (r.colour || homeUnitColour()), FR = own ? unitMat(own) : MAT.frame, LEAF = own ? unitMat(own, true) : (interior?MAT.doorInt:MAT.door);
   // a round window: a ring frame and round glass, centred in the round rough opening
   if(u.type==='round'){
     const R=Math.min(W,Hh)/2, cx=(o.x+o.w/2)/FT, cy=(o.y+o.h/2)/FT;
     const ring=new THREE.Shape(); ring.absarc(0,0,R/FT,0,Math.PI*2,false);
     const hole=new THREE.Path(); hole.absarc(0,0,(R-fw)/FT,0,Math.PI*2,true); ring.holes.push(hole);
     const fg=new THREE.ExtrudeGeometry(ring,{depth:d, bevelEnabled:false, curveSegments:40}); fg.translate(0,0,-d/2);
-    const fm=new THREE.Mesh(fg,MAT.frame); fm.position.set(cx,cy,zc); g.add(fm);
+    const fm=new THREE.Mesh(fg,FR); fm.position.set(cx,cy,zc); g.add(fm);
     const gl=new THREE.Mesh(new THREE.CylinderGeometry((R-fw)/FT,(R-fw)/FT,0.05,40),MAT.glass); gl.rotation.x=Math.PI/2; gl.position.set(cx,cy,zc); g.add(gl);
     return g;
   }
   // frame
-  box(x0,y0,fw,Hh,d,MAT.frame); box(x0+W-fw,y0,fw,Hh,d,MAT.frame);
-  box(x0+fw,y0+Hh-fw,W-2*fw,fw,d,MAT.frame); box(x0+fw,y0,W-2*fw,fw,d,MAT.frame);
+  box(x0,y0,fw,Hh,d,FR); box(x0+W-fw,y0,fw,Hh,d,FR);
+  box(x0+fw,y0+Hh-fw,W-2*fw,fw,d,FR); box(x0+fw,y0,W-2*fw,fw,d,FR);
   // glass, or the door leaf with its knob on the handle side
   if(u.type==='entry'){
     const lw=W-2*fw, lh=Hh-2*fw, P=u.panel;
     if(P && lw>2*P+4 && lh>2*P+4){   // a steel slab with a fixed glass lite: P of steel all the way round the glass
-      const mat=interior?MAT.doorInt:MAT.door;
+      const mat=LEAF;
       box(x0+fw,y0+fw,P,lh,0.14,mat); box(x0+fw+lw-P,y0+fw,P,lh,0.14,mat);
       box(x0+fw+P,y0+fw,lw-2*P,P,0.14,mat); box(x0+fw+P,y0+fw+lh-P,lw-2*P,P,0.14,mat);
       box(x0+fw+P,y0+fw+P,lw-2*P,lh-2*P,0.05,MAT.glass);
-    } else box(x0+fw,y0+fw,lw,lh,0.14,interior?MAT.doorInt:MAT.door);
+    } else box(x0+fw,y0+fw,lw,lh,0.14,LEAF);
     const kx = r.hand==='R' ? x0+fw+3 : x0+W-fw-3, knob=new THREE.SphereGeometry(0.12,12,8);
     [zc+0.12, zc-0.12].forEach(z=>{ const k=new THREE.Mesh(knob,MAT.steel); k.position.set(kx/FT, (y0+36)/FT, z); g.add(k); });
   } else box(x0+fw,y0+fw,W-2*fw,Hh-2*fw,0.05,MAT.glass);
@@ -791,6 +797,7 @@ function applyLayers(){
   MAT.glass.opacity = state.glass ? 0.18 : 0.55;
   MAT.door.opacity = MAT.doorInt.opacity = state.glass ? 0.25 : 1; MAT.door.depthWrite = MAT.doorInt.depthWrite = !state.glass;
   MAT.glass.needsUpdate = MAT.door.needsUpdate = MAT.doorInt.needsUpdate = true;
+  Object.entries(UNIT_MATS).forEach(([k,m])=>{ if(!k.endsWith(':leaf')) return; m.opacity=state.glass?0.25:1; m.depthWrite=!state.glass; m.needsUpdate=true; });
   controls.maxPolarAngle = Math.PI*0.999;   // turn the home right over to reach the underside of the floor
   applyIsolate();
   applyFurniture();

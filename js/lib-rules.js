@@ -40,12 +40,14 @@ function libRules(cat){
       ['Ends', 'The ACP stops under the corner trims / connector like the siding does, and at the brick molds.'] ] },
     'u:win': { areas:['lvl','acm'], rules:[
       ['Fit', 'Goes in a rough opening no smaller than it and at most 2″ bigger each way.'],
+      ['Colour', 'Black or white; black unless the home is set to white (Finishes, or the wall panel → All windows & doors). One window can differ: pick it on that opening.'],
       ['Brick mold', '1½″ outside the rough opening each side, top and bottom; the siding\'s rib end butts it.'],
       ['Black ACM', 'Above and below every window. A round window: full height in two halves split at its middle (see Siding).'],
       ['Electrical', 'No receptacle under a window: the plug goes to the nearest chase beside it.'],
       ['LVL wire hole', `Only when picked on the window: ${i(ls('lvl','bit'))} through the roof LVL, centre ${i(ls('lvl','out'))} out from the brick mold, ${i(ls('lvl','below'))} below the roof surface.`],
       ['Sill', 'Sill heights and snapping are in Walls → Rules.'] ] },
     'u:ext': { areas:['lvl'], rules:[
+      ['Colour', 'Black or white, frame and slab; black unless the home is set to white. One door can differ: pick it on that opening.'],
       ['LVL wire hole', `Every exterior door (patio doors too): ${i(ls('lvl','bit'))} by hand through the roof LVL, centre ${i(ls('lvl','out'))} out from the brick mold on the side nearest the pod's middle (until the hatch rules), ${i(ls('lvl','below'))} below the roof surface.`],
       ['Switches', 'Switch 6″ from the rough opening on the latch side, on the side the door swings into; two or more doors in a room: 3-way switches.'],
       ['Outside', 'The main outside door gets the weatherproof outside plug beside it and a double switch box inside.'],

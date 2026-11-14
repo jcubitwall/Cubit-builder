@@ -12,6 +12,7 @@ import { buildHome, highlight } from './scene3d.js';
 import { facing, fmtBearing, bearingOf, compass } from './orient.js';
 import { setDeckFoundation, rotatePod, deletePod, ensureDraft, mirrorPod, removeDeck, turnDeck, addPart, movePart, removePart, partSnaps, setPart, turnPart, partNext, continuePart } from './pods.js';
 import { checkpoint } from './history.js';
+import { homeUnitColour, unitHex } from './finishes.js';
 import { openSheets } from './sheets.js';
 import { pickFor, save, state, choose, pickLayer, chooseLayer, foundationOf, setFoundation, deckOCOf } from './state.js';
 import { ocSeg, bindOC } from './deckframe.js';
@@ -20,7 +21,7 @@ import { FAMILIES, familyOf, familyById, variantsOf, saveSub, removeSub, editSub
 import { isAdmin, canSave, canEdit } from './role.js';
 import { myDrafts, renameDraft, deleteDraft } from './drafts.js';
 import { liveCustomers, CUSTOMERS, restoreCustomer } from './customers.js';
-import { TYPES, unitsFor, unitFor, setUnit, unitSVG, unitLabel, catOf, okey, pairOf, doorOwner, setDoorOwner } from './units.js';
+import { setUnitColour, TYPES, unitsFor, unitFor, setUnit, unitSVG, unitLabel, catOf, okey, pairOf, doorOwner, setDoorOwner } from './units.js';
 import { fin } from './format.js';
 import { setIsolate, setPod } from './layers.js';
 import { applyEdits, deleteItem, addFamily } from './libedit.js';
@@ -580,13 +581,22 @@ function lvlSeg(s, o){
   const b=(v,l)=>`<button data-lvl="${v}" data-k="${k}" aria-pressed="${(side||'off')===v}">${l}</button>`;
   return `<div class="unit-opts lvl-opt"><span class="muted">Wire hole by hand through the roof LVL${h?.auto?' · the side nearest the middle of the pod':''}</span><span class="seg sm" role="group" aria-label="Wire hole side">${door?'':b('off','None')}${b('L','Left')}${b('R','Right')}</span>${h?.off?'<span class="muted">This side runs past the end of the wall: use the other side.</span>':''}</div>`;
 }
+/* black or white: this opening's frame (and an outside door's leaf); the home's colour unless picked here */
+function colourSeg(s, o, r){
+  if(!r || !r.colour) return '';
+  const k=esc(okey(o)), own=(state.units?.[state.model]?.[s.id]?.[okey(o)] || MODELS[state.model]?.units?.[s.id]?.[okey(o)])?.colour;
+  const b=(v,l)=>`<button data-ucol="${v}" data-k="${k}" aria-pressed="${r.colour===v}"><i class="ucol-dot" style="--c:${unitHex(v)}"></i>${l}</button>`;
+  return `<div class="unit-opts"><span class="seg sm" role="group" aria-label="Frame colour">${b('Black','Black')}${b('White','White')}</span><span class="muted">${own?`Picked for this one · <button class="linkbtn" data-ucol="" data-k="${k}">same as the home (${esc(homeUnitColour())})</button>`:'Same as the home'}</span></div>`;
+}
 /* windows & doors in the selected wall: which library unit goes in each opening */
 const KIND_NAME = { window:'Window', door:'Door', patio:'Patio door' };
 function unitsBlock(s, w){
   const ops=(w?.openings||[]).filter(catOf).sort((a,b)=>a.x-b.x);
   if(!ops.length) return '';
   const n={};
-  return `<div class="eyebrow">Windows &amp; doors · seen from ${s.type==='int'?esc(s.other?.label||'the other side'):'outside'}, left to right</div><div class="units">${ops.map(o=>{
+  const hc=homeUnitColour(), hb=v=>`<button data-hcol="${v}" aria-pressed="${hc===v}"><i class="ucol-dot" style="--c:${unitHex(v)}"></i>${v}</button>`;
+  return `<div class="eyebrow">Windows &amp; doors · seen from ${s.type==='int'?esc(s.other?.label||'the other side'):'outside'}, left to right</div>
+    <div class="unit-opts ucol-home"><span class="muted">All windows &amp; doors in this home</span><span class="seg sm" role="group" aria-label="Windows and doors colour">${hb('Black')}${hb('White')}</span></div><div class="units">${ops.map(o=>{
     n[o.kind]=(n[o.kind]||0)+1;
     const pr=pairOf(s,o), own=doorOwner(s,o).id===s.id;
     if(pr && !own) return `<div class="unit-row"><div class="unit-pic">${unitSVG('none','L',o.w,o.h)}</div><div class="unit-main"><b>${KIND_NAME[o.kind]} ${n[o.kind]}</b> <span class="muted">${fin(o.w)} × ${fin(o.h)} R.O. · between ${esc(s.pod.label)} and ${esc(pr.slot.pod.label)}</span>
@@ -604,7 +614,7 @@ function unitsBlock(s, w){
     const wsink = o.kind==='window' ? (()=>{ const P=planWindowOverSink(s,o); if(!P.ok) return '';
       if(Math.abs(P.dx)<0.01) return `<span class="muted">Centred over the sink below${P.joint?' (as near as the panel joint allows)':''}.</span>`;
       return `<div class="unit-opts"><button class="btn ghost edit-only" data-wsink="${esc(okey(o))}" title="Moves the window in this home's own copy of the wall">Centre over the sink (${P.dx>0?'→':'←'} ${fin(Math.abs(P.dx))})</button></div>`; })() : '';
-    return `<div class="unit-row"><div class="unit-pic">${r?unitSVG(r.unit.type,r.hand,o.w,o.h,44,s.type==='int',o.shape==='round'):unitSVG('none','L',o.w,o.h,44,false,o.shape==='round')}</div><div class="unit-main"><b>${o.shape==='round'?'Round window':KIND_NAME[o.kind]} ${n[o.kind]}</b> <span class="muted">${o.shape==='round'?'⌀ '+fin(o.d||o.w)+' round R.O.':fin(o.w)+' × '+fin(o.h)+' R.O.'}${o.y>0?' · sill '+fin(o.y):''}</span>${tiles}<span class="shop-only">${sel}</span>${hand||swing?`<div class="unit-opts">${hand}${swing}</div>`:''}${ownerSeg}${wsink}${lvlSeg(s,o)}${r?`<span class="muted">${esc(pr?unitLabel(r).replace(/swings (in|out)/, m=>'swings into '+(m.endsWith('in')?s.pod.label:pr.slot.pod.label)):unitLabel(r))}${r.unit.sample?' · sample unit':''}${r.unit.rso?` · RSO ${fin(r.unit.rso.w)} × ${fin(r.unit.rso.h)}${Math.abs(r.unit.rso.w-o.w)>0.25||Math.abs(r.unit.rso.h-o.h)>0.25?' (this opening is '+fin(o.w)+' × '+fin(o.h)+')':''}`:''}${r.unit.egress?' · egress':''}</span>`:''}</div></div>`;
+    return `<div class="unit-row"><div class="unit-pic">${r?unitSVG(r.unit.type,r.hand,o.w,o.h,44,s.type==='int',o.shape==='round'):unitSVG('none','L',o.w,o.h,44,false,o.shape==='round')}</div><div class="unit-main"><b>${o.shape==='round'?'Round window':KIND_NAME[o.kind]} ${n[o.kind]}</b> <span class="muted">${o.shape==='round'?'⌀ '+fin(o.d||o.w)+' round R.O.':fin(o.w)+' × '+fin(o.h)+' R.O.'}${o.y>0?' · sill '+fin(o.y):''}</span>${tiles}<span class="shop-only">${sel}</span>${hand||swing?`<div class="unit-opts">${hand}${swing}</div>`:''}${ownerSeg}${colourSeg(s,o,r)}${wsink}${lvlSeg(s,o)}${r?`<span class="muted">${esc(pr?unitLabel(r).replace(/swings (in|out)/, m=>'swings into '+(m.endsWith('in')?s.pod.label:pr.slot.pod.label)):unitLabel(r))}${r.unit.sample?' · sample unit':''}${r.unit.rso?` · RSO ${fin(r.unit.rso.w)} × ${fin(r.unit.rso.h)}${Math.abs(r.unit.rso.w-o.w)>0.25||Math.abs(r.unit.rso.h-o.h)>0.25?' (this opening is '+fin(o.w)+' × '+fin(o.h)+')':''}`:''}${r.unit.egress?' · egress':''}</span>`:''}</div></div>`;
   }).join('')}</div>${!ops.every(o=>unitsFor(o, s).length)?'<p class="note">Add a window or door to the library with <b>Upload STEP → Window / door</b>.</p>':''}`;
 }
 function bindUnits(s, w){
@@ -615,6 +625,10 @@ function bindUnits(s, w){
   sideB.querySelectorAll('.units select').forEach(el=>el.onchange=()=>{ const o=byK(el.dataset.k); setUnit(s,o, el.value?{u:el.value, hand:cur(o)?.hand||'L', swing:cur(o)?.swing||'in'}:null); done(); });
   sideB.querySelectorAll('.units [data-h]').forEach(b=>b.onclick=()=>{ const o=byK(b.dataset.k), c=cur(o); if(c){ setUnit(s,o,{...c, hand:b.dataset.h}); done(); } });
   sideB.querySelectorAll('.units [data-sw]').forEach(b=>b.onclick=()=>{ const o=byK(b.dataset.k), c=cur(o); if(c){ setUnit(s,o,{...c, swing:b.dataset.sw}); done(); } });
+  sideB.querySelectorAll('.units [data-ucol]').forEach(b=>b.onclick=()=>{ const o=byK(b.dataset.k); if(!o) return; setUnitColour(s, o, b.dataset.ucol||null); done(); });
+  sideB.querySelectorAll('[data-hcol]').forEach(b=>b.onclick=async()=>{ const { ensureDraft }=await import('./pods.js'); checkpoint(); const k=ensureDraft(), m=MODELS[k];
+    m.finish={ ...(m.finish||{}), units:b.dataset.hcol }; if(m.custom) saveCustomModels?.();
+    save(); done(); toast(`Windows & doors: ${b.dataset.hcol} (openings picked one by one keep theirs)`); });
   // a door between two pods: which pod's wall holds it
   sideB.querySelectorAll('.units [data-lvl]').forEach(b=>b.onclick=()=>{ const o=byK(b.dataset.k); if(!o) return; setLvlHole(s, o, b.dataset.lvl); done();
     toast(b.dataset.lvl==='off' ? 'No wire hole beside this window' : `Wire hole through the roof LVL, ${b.dataset.lvl==='L'?'left':'right'} of the ${o.kind==='window'?'window':'door'}`); });

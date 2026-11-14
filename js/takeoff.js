@@ -135,7 +135,7 @@ function homeTakeoff(){
   // Windows & doors
   { const g={}; let open=0;
     slotsFor(state.model).forEach(s=>{ const w=bodyWall(s, pickFor(s)); (w?.openings||[]).filter(catOf).forEach(o=>{ const r=unitFor(s,o);
-      if(r){ const k=r.unit.id; (g[k] ||= {n:0, what:r.unit.name, note:`${TYPES[r.unit.type]?.label||''} · ${r.unit.id}`}).n++; }
+      if(r){ const k=r.unit.id+'|'+(r.colour||''); (g[k] ||= {n:0, what:r.unit.name+(r.colour?`, ${r.colour.toLowerCase()}`:''), note:`${TYPES[r.unit.type]?.label||''} · ${r.unit.id}`}).n++; }
       else if(!(s.type==='int' && catOf(o)==='door')) open++; }); });
     const items=Object.values(g); if(open) items.push({n:open, what:'opening with no unit chosen', note:'choose in the wall panel'});
     add('units','Windows & doors',items); }
@@ -173,7 +173,7 @@ function shoppingList(){
     if(T.acm.length) add('Siding', T.acmSheets, 'ACM sheet 4 × 8, matte black (above / below windows and doors)'); T.trims.forEach(t=>add('Siding', t.n, `${t.what} × ${fin(t.len)}`)); const Sc=sidingSchedule(); if(Sc) add('Siding', Sc.bags, `siding screws, bag of ${SIDING_SCREWS.bag} (${Sc.screws.toLocaleString()} screws)`); } }
   { const W=accentWalls(); const by={}; W.forEach(A=>{ by[A.colour.name]=(by[A.colour.name]||0)+A.sheets.length; }); Object.entries(by).forEach(([c,n])=>add('Accent walls', n, `ACP sheet 4′ × 10′, ${c}`)); }
   { const T=membraneTakeoff(state.model); if(T){ add('Membrane', T.rolls || Math.round(T.sqft), T.rolls ? `${T.M.name}, roll` : `sq ft ${T.M.name} (on ${T.sheets} OSB sheets)`); add('Membrane', T.tapeRolls || Math.ceil(T.tapeFt), T.tapeRolls ? `${T.M.tape?.name}, roll` : `ft ${T.M.tape?.name||'seam tape'} 3″`); } }
-  const u={}; slotsFor(state.model).forEach(s=>{ const w=bodyWall(s, pickFor(s)); (w?.openings||[]).filter(catOf).forEach(o=>{ const r=unitFor(s,o); if(r) u[r.unit.name+' ('+r.unit.id+')']=(u[r.unit.name+' ('+r.unit.id+')']||0)+1; }); });
+  const u={}; slotsFor(state.model).forEach(s=>{ const w=bodyWall(s, pickFor(s)); (w?.openings||[]).filter(catOf).forEach(o=>{ const r=unitFor(s,o); if(r){ const nm=r.unit.name+(r.colour?`, ${r.colour.toLowerCase()}`:'')+' ('+r.unit.id+')'; u[nm]=(u[nm]||0)+1; } }); });
   Object.entries(u).forEach(([k,n])=>add('Windows & doors', n, k));
   { const S=sealRun(); if(S.n) add('Seals', +(S.tot/12*1.1).toFixed(0), `ft · ${SEAL.name}`); }
   { const sl=slotsFor(state.model); const t=2*(podList(state.model).reduce((a,p)=>a+p.len*8,0) + sl.filter(s=>s.type==='int').reduce((a,s)=>a+s.len*FRAME.lvl.roof/12,0)); add('Roof', Math.ceil(t*1.1), 'sq ft SilverBack butyl skin (2 layers)'); }

@@ -107,8 +107,8 @@ function homeCost(k=state.model){
   try{
     const L=[], add=(group, key, name, n, unit)=>{ if(!(n>0)) return; const c=priceOf(key); L.push({ group, key, name, n:+(+n).toFixed(3), unit, cost:c, total:c==null?null:+(c*n).toFixed(2) }); };
     // windows and doors (one per opening, the unit chosen there)
-    const u={}; slotsFor(k).forEach(s=>{ const w=bodyWall(s, pickFor(s)); (w?.openings||[]).filter(opCat).forEach(o=>{ const r=unitFor(s,o); if(r) (u[r.unit.id] ||= { n:0, name:`${r.unit.name} (${r.unit.id})` }).n++; }); });
-    Object.entries(u).forEach(([id,x])=>add('Windows & doors', `unit:${id}`, x.name, x.n, 'each'));
+    const u={}; slotsFor(k).forEach(s=>{ const w=bodyWall(s, pickFor(s)); (w?.openings||[]).filter(opCat).forEach(o=>{ const r=unitFor(s,o); if(r){ const c=r.colour?`, ${r.colour.toLowerCase()}`:''; (u[r.unit.id+c] ||= { id:r.unit.id, n:0, name:`${r.unit.name}${c} (${r.unit.id})` }).n++; } }); });
+    Object.values(u).forEach(x=>add('Windows & doors', `unit:${x.id}`, x.name, x.n, 'each'));
     // plugs, switches and data jacks in the boxes laid out by the electrical rules (the devices chosen in each)
     try{ deviceCounts(k).forEach(x=>add('Plugs & switches', `dev:${x.id}`, x.name, x.n, 'each')); }catch(e){}
     // SIP panels: walls (a cut panel takes a whole one) and the floor, ceiling and roof layers (one per 4′ of pod)
