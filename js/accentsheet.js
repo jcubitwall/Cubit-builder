@@ -31,7 +31,7 @@ function renderAccentSheet(el){
   el.innerHTML=`<div class="sheet-title"><div><div class="eyebrow" style="color:#555">ACP accent walls · Cubit Home</div><h3>${esc(m?.name||'')} — accent walls</h3></div>
       <div class="meta">${W.length} wall${W.length>1?'s':''} · ${W.reduce((a,A)=>a+A.sheets.length,0)} sheets<br>${new Date().toISOString().slice(0,10)}</div></div>
     <div class="sheet-tools"><button class="btn ghost" id="acPrint">Print</button>
-      <span style="font-size:12.5px;color:#333"><b style="color:#d0661f">Orange</b>: joint, ½″ bit 3 mm deep (half on each sheet) · <b>light lines</b>: reveal, ½″ bit 1.5 mm deep · <b style="color:#2a7de1">blue dots</b>: screws, in the reveals.</span></div>
+      <span style="font-size:12.5px;color:#333"><b style="color:#d0661f">Orange</b>: joint, where the two sheets overlap ½″: ½″ bit 3 mm deep · <b>light lines</b>: reveal, ½″ bit 1.5 mm deep · <b style="color:#2a7de1">blue dots</b>: screws, in the reveals.</span></div>
     <table class="boxes"><tbody>${Object.entries(byCol).map(([c,v])=>`<tr><td><b>${v.n}</b> ACP sheets 4′ × 10′, ${esc(c)}</td><td>${Math.round(v.area)} sq ft on the wall</td></tr>`).join('')}
       <tr><td><b>${screws}</b> screws</td><td>in the reveals, about every ${ACPLIB.screws.every}″</td></tr></tbody></table>
     ${W.map((A,i)=>`<div class="acc-wall"><div class="eyebrow" style="color:#555;margin:14px 0 4px">${esc(A.s.label)} · ${esc(A.P.name)} · ${esc(A.colour.name)}${A.a.size?` · ${fin(A.a.size)} ${esc(A.P.sizeName||'')}`:''}</div>
