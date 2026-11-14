@@ -8,17 +8,25 @@
    · The team's data (GET /api/…) and the library files in data/: the network first, the last answer kept for when
      there's no connection. Saving (POST) always goes to the network; drafts are also kept in the browser and go up
      when the signal is back.
-   tools/sw/build.py lists the files (sw-files.json) to keep on install and stamps VERSION. */
-const VERSION='ce892179fd12';
+   tools/sw/build.py lists the files (sw-files.json) to keep on install, with each one's hash, and stamps VERSION.
+   A new release copies every unchanged file from the release before and downloads only what changed. */
+const VERSION='0ec4d9305557';
 const CACHE='cubit-'+VERSION, API='cubit-api';
 self.addEventListener('install', e=>{
   e.waitUntil((async()=>{
     const c=await caches.open(CACHE);
-    try{ const r=await fetch('sw-files.json', { cache:'no-store' }); const L=(await r.json()).files||[];
+    try{ const r=await fetch('sw-files.json', { cache:'no-store' }), J=await r.json(), L=J.files||[], H=J.hash||{};
+      // the release before: a file whose hash hasn't changed is copied from it instead of downloaded again
+      let prev=null, prevH={};
+      for(const k of await caches.keys()) if(k.startsWith('cubit-') && k!==CACHE && k!==API){ const pc=await caches.open(k), m=await pc.match('__hashes__'); if(m){ prev=pc; prevH=await m.json().catch(()=>({})); } }
       // a few at a time; a file that fails is fetched later when it's used
       // the libraries on other sites come back opaque (their script tags have no CORS), so they're put, not added
-      const get=u=> /^https?:/.test(u) ? fetch(u, { mode:'no-cors' }).then(r=>c.put(u, r)) : c.add(new Request(u, { cache:'reload' }));
-      for(let i=0;i<L.length;i+=12) await Promise.all(L.slice(i,i+12).map(u=>get(u).catch(()=>{}))); }catch(e){}
+      const get=async u=>{
+        if(prev && H[u] && prevH[u]===H[u]){ const old=await prev.match(u); if(old){ await c.put(u, old); return; } }
+        if(/^https?:/.test(u)){ const old=prev && await prev.match(u); if(old){ await c.put(u, old); return; } return fetch(u, { mode:'no-cors' }).then(r=>c.put(u, r)); }
+        return c.add(new Request(u, { cache:'reload' })); };
+      for(let i=0;i<L.length;i+=12) await Promise.all(L.slice(i,i+12).map(u=>get(u).catch(()=>{})));
+      await c.put('__hashes__', new Response(JSON.stringify(H), { headers:{ 'content-type':'application/json' } })); }catch(e){}
     // the very first install takes over at once; a new release waits for the app's "Reload" (or the app being closed)
     if(!self.registration.active) self.skipWaiting();
   })());

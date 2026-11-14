@@ -2,12 +2,12 @@
    store:<store id>:<sku>, Cubit catalogue items cubit:<item key>. What comes with the app is data/product-media.json
    (photos and specs gathered from the stores' pages); what the team adds on a product page (api/stores, info) goes on
    top of it. The details are merged into the store products themselves, and read for Cubit items with mediaOf(). */
-import { STORES } from './stores.js';
+import { STORES, teamInfo } from './stores.js';
 
 const BASE={}, TEAM={}; let remote=false; const LOCAL='cubit-product-info';
 async function loadMedia(){
   try{ const r=await fetch('data/product-media.json'); if(r.ok) Object.assign(BASE, (await r.json()).media||{}); }catch(e){}
-  try{ const r=await fetch('api/stores',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ Object.assign(TEAM, (await r.json()).info||{}); remote=true; } }catch(e){}
+  const ti=teamInfo(); if(ti){ Object.assign(TEAM, ti); remote=true; }   // already fetched with the stores
   if(!remote){ try{ Object.assign(TEAM, JSON.parse(localStorage.getItem(LOCAL)||'{}')); }catch(e){} }
   applyToStores();
 }

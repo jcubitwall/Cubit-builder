@@ -27,7 +27,11 @@ for p in files:
 version = h.hexdigest()[:12]
 # the libraries index.html loads from other sites (three.js, OrbitControls, jsPDF, fonts)
 cdn = re.findall(r'<(?:script|link)[^>]+(?:src|href)="(https://(?:cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|fonts\.googleapis\.com)[^"]+)"', open('index.html').read())
-with open('sw-files.json', 'w') as fh: json.dump({'version': version, 'files': ['./'] + files + cdn}, fh, indent=0)
+# each file's own hash, so a new release only downloads the files that changed (sw.js copies the rest)
+hashes = {}
+for p in files:
+    with open(p, 'rb') as fh: hashes[p] = hashlib.sha1(fh.read()).hexdigest()[:10]
+with open('sw-files.json', 'w') as fh: json.dump({'version': version, 'files': ['./'] + files + cdn, 'hash': hashes}, fh, indent=0)
 sw = open('sw.js').read()
 sw = re.sub(r"const VERSION='[^']*';", f"const VERSION='{version}';", sw, count=1)
 open('sw.js', 'w').write(sw)

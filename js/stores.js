@@ -15,11 +15,13 @@ import { addBox } from './boxes.js';
 const STORES=[], ADOPTED=[]; let remote=false; const LOCAL='cubit-adopted';
 const subs=[]; const onAdoptedChanged = fn => subs.push(fn);
 let teamRemote=false; const TEAM_LOCAL='cubit-team-stores';
+let TEAM_INFO=null;   // the team's product details came with the stores (productmedia.js reads them: no second trip)
+const teamInfo = () => TEAM_INFO;
 async function loadStores(){
   try{ const r=await fetch('data/stores.json'); if(r.ok){ STORES.length=0; ((await r.json()).stores||[]).forEach(s=>STORES.push(s)); } }catch(e){}
   // the team's own stores, local or online (api/stores; this browser when opened locally)
   let T=null;
-  try{ const r=await fetch('api/stores',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ T=(await r.json()).stores||[]; teamRemote=true; } }catch(e){}
+  try{ const r=await fetch('api/stores',{cache:'no-store'}); if(r.ok && (r.headers.get('content-type')||'').includes('json')){ const j=await r.json(); T=j.stores||[]; TEAM_INFO=j.info||{}; teamRemote=true; } }catch(e){}
   if(!T){ try{ T=JSON.parse(localStorage.getItem(TEAM_LOCAL)||'[]'); }catch(e){ T=[]; } }
   T.forEach(s=>{ if(!STORES.some(x=>x.id===s.id)) STORES.push({ ...s, team:true }); });
   let L=null;
@@ -68,4 +70,4 @@ async function adopt(storeId, cat, P){
   if(!ADOPTED.some(x=>x.id===a.id)) ADOPTED.unshift(a);
   const it=register(a); subs.forEach(f=>{ try{ f(); }catch(e){} }); return it;
 }
-export { STORES, ADOPTED, loadStores, storeById, storesFor, isAdopted, adopt, onAdoptedChanged, saveTeamStore, deleteTeamStore, canAdopt };
+export { teamInfo, STORES, ADOPTED, loadStores, storeById, storesFor, isAdopted, adopt, onAdoptedChanged, saveTeamStore, deleteTeamStore, canAdopt };

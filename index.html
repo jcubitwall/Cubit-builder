@@ -6,12 +6,13 @@
    another as each part of the app loads (16 trips to the server in a row, each waiting on the last). The app's own
    fetch() then gets the answer that is already on its way. Each one is used once; anything not used in 30 s is dropped. */
 (function(){
-  var API=['me','walls','layers','units','projects','customers','kitchens','adopted','catalog','devices','library','casework','wallrules','shapes','drafts'],
+  var API=['me','walls','layers','units','projects','customers','kitchens','adopted','catalog','devices','library','casework','wallrules','shapes','drafts','stores'],
       DATA=['walls','models','layers','pods','decks','siding','membranes','brands','units','projects','stores','families','submodels','sinks','fixtures-lifepodgo-shower','fixtures-maax-biarritz','fixtures-maax-biarritz-85'],
       early={}, real=window.fetch.bind(window);
   try{
     API.forEach(function(n){ early['api/'+n]=real('api/'+n,{cache:'no-store'}); });
     DATA.forEach(function(n){ early['data/'+n+'.json']=real('data/'+n+'.json'); });
+    ['product-media','acp'].forEach(function(n){ early['data/'+n+'.json']=real('data/'+n+'.json'); });   // always files, on every branch
     for(var k in early) early[k].catch(function(){});
   }catch(e){ early={}; }
   window.fetch=function(input, init){
